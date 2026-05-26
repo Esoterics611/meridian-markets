@@ -45,5 +45,43 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 
 - **Lira-Bridge-side `ITreasuryClient` implementation.** Separate session, separate repo (`/home/nexus/code/meridian`). One-line factory swap once it lands.
 - **KYB with Ondo.** Business track; engineering unblocked the day it closes.
-- **Phase 1 FX hedge.** Separate prompt; separate session.
+- **Phase 1 FX hedge orchestrator** — see [Session 2](#2-session-2--phase-1-hedge-scaffold--stat-arb-course-2026-05-26) and [PHASE_1_PROMPT.md](../prompts/PHASE_1_PROMPT.md).
 - **Multi-provider routing.** Single provider is enough for v1. Defer.
+
+---
+
+## 2. Session 2 — Phase 1 hedge scaffold + stat-arb course (2026-05-26)
+
+**Goal:** make as much Phase 1 + Phase 3 progress as possible in a tight time budget. Two tracks ran in parallel; both delivered as scaffold-level rather than full implementation.
+
+### Shipped
+
+- **Phase 1 FX hedge scaffold** — `src/hedge/`:
+  - `hedge-venue.interface.ts` — `IHedgeVenue` + types (`OpenShortRequest/Result`, `CloseShortRequest/Result`, `HedgePosition`, `VenueHealth`) + errors (`HedgeVenueNotConfiguredError`, `HedgeVenueUnhealthyError`, `HedgeVenueInsufficientMarginError`, `HedgePositionNotFoundError`).
+  - `mock-hedge-venue.ts` — deterministic, injectable clock, bigint arithmetic in micros (1e6) for prices and 6-decimal units for notional. 10 bps/day funding placeholder; configurable linear ILS drift.
+  - `real-hyperliquid-hedge-venue.ts` — dormant; throws `HedgeVenueNotConfiguredError` on every method. Same posture as `RealOndoYieldProvider`.
+  - `hedge.module.ts` — factory selects on `MOCK_HEDGE_ENABLED`.
+  - `mock-hedge-venue.spec.ts` (9 specs) + `real-hyperliquid-hedge-venue.spec.ts` (5 specs) — pure-unit, mirror the `mock-yield-provider.spec.ts` patterns.
+- **Config additions** — `AppConfig.hedge.{mockEnabled, mockFxDriftBpsPerDay, mockSettleMs}`. New env keys `MOCK_HEDGE_ENABLED`, `MOCK_HEDGE_FX_DRIFT_BPS_PER_DAY`, `MOCK_HEDGE_SETTLE_MS` in `.env.example`. `HedgeModule` registered in `AppModule`.
+- **`docs/STAT_ARB_PLAN.md`** — full engineering plan for Phase 3 stat-arb: strategy taxonomy, reference-repo table (URLs flagged unverified pending next-session WebFetch), proposed `src/stat-arb/` module layout, 6-step phased build-out, open questions.
+- **`prompts/PHASE_1_PROMPT.md`** — next-session prompt for the Phase 1 orchestrator (HedgeService, monitor cron, circuit breakers, hedge_movements/positions migration). Done-when criteria explicit; out-of-scope items called out.
+- **`courses/stat-arb/`** — mkdocs course backing the Phase 3 plan:
+  - `mkdocs.yml` building with vanilla mkdocs + readthedocs theme (upgrade path to mkdocs-material + pymdownx documented).
+  - Chapters §0 (charter & sources), §1 (intro), §2 (cointegration), §3 (OU), §4 (execution), §5 (risk) — full first drafts with Mermaid diagrams and inline math.
+  - Chapters §6 (backtesting), §7 (production), Appendix A (code shapes) — outlines only.
+  - Appendix B sources notebook with tier system (A verified, B unverified pending WebFetch, C placeholder).
+  - `docs/RESEARCH_PROMPT.md` — detailed self-contained prompt to run in a Claude Code desktop session with web access to verify sources, identify the user-mentioned X thread, flesh out §6/§7/Appendix A, upgrade the mkdocs theme, and add charts.
+- **Verified**: `npx tsc --noEmit -p tsconfig.json` clean; `npx jest src/hedge` green (14 new hedge specs); `mkdocs build` clean (warnings are cross-doc-root links, expected).
+
+### Architectural notes (binding for future sessions)
+
+1. **The hedge module follows the swap-seam pattern verbatim.** Future venues (Drift, GMX) implement `IHedgeVenue` and register in the `HedgeModule` factory. No service-layer changes when adding venues.
+2. **Bigint price math in micros (1e6) is the codebase convention.** Same as `treasury_movements.amount_units` (USDC micros). `MockHedgeVenue` does all FX math in bigint with explicit scaling to avoid precision loss — the pattern extends to any future hedge venue.
+3. **The hedge module ships with no DB tables yet.** Persistence (`hedge_movements`, `hedge_positions`) lands in [PHASE_1_PROMPT.md](../prompts/PHASE_1_PROMPT.md)'s next session. The swap seam works without persistence; persistence is the orchestrator's concern, not the venue's.
+4. **`courses/stat-arb/` is documentation, not code.** It lives under `courses/` (not `docs/`) to keep mkdocs-built sites separable from the repo's flat-file docs. The course's existence does not create a Phase 3 commitment — implementation is still gated behind Phase 2 legal formation per [PHASED_PLAN.md](../PHASED_PLAN.md) cross-phase dependency #1.
+
+### Open follow-ups
+
+- **Phase 1 orchestrator** — see [PHASE_1_PROMPT.md](../prompts/PHASE_1_PROMPT.md).
+- **Stat-arb course research** — see [courses/stat-arb/docs/RESEARCH_PROMPT.md](../courses/stat-arb/docs/RESEARCH_PROMPT.md). Run in Claude Code desktop with web access.
+- **X-thread identification.** The user mentioned a "rohn / roan" thread; the handle is currently unverified. The research prompt's §3 covers the protocol for identifying and integrating it.

@@ -20,4 +20,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     apiKey: process.env['ONDO_API_KEY'] ?? '',
     institutionId: process.env['ONDO_INSTITUTION_ID'] ?? '',
   },
+  hedge: {
+    mockEnabled: process.env['MOCK_HEDGE_ENABLED'] !== 'false',
+    mockFxDriftBpsPerDay: parseFloat(process.env['MOCK_HEDGE_FX_DRIFT_BPS_PER_DAY'] ?? '2'),
+    mockSettleMs: parseInt(process.env['MOCK_HEDGE_SETTLE_MS'] ?? '0', 10),
+  },
 }));

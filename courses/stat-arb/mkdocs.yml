@@ -1,0 +1,39 @@
+site_name: Statistical Arbitrage — A Working Course
+site_description: Course material backing Meridian Markets' Phase 3 stat-arb implementation. Theory → math → code, no marketing voice.
+site_url: ''
+docs_dir: docs
+use_directory_urls: false
+
+# Using the built-in `readthedocs` theme so the site builds with vanilla mkdocs.
+# Upgrade path: `pip install mkdocs-material pymdown-extensions` and switch the
+# theme to `material` for nicer typography, code-block copy buttons, and the
+# pymdownx.superfences + arithmatex extensions for Mermaid diagrams and MathJax.
+# Until then, Mermaid blocks render as plain code and inline $math$ stays as text.
+theme:
+  name: readthedocs
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - fenced_code
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - 0. Course charter & sources: 00-charter-and-sources.md
+  - 1. What stat arb actually is: 01-introduction.md
+  - 2. Cointegration & pairs trading: 02-cointegration.md
+  - 3. Ornstein-Uhlenbeck mean reversion: 03-ou-process.md
+  - 4. Execution & venue abstraction: 04-execution.md
+  - 5. Risk, sizing, circuit breakers: 05-risk.md
+  - 6. Backtesting honestly: 06-backtesting.md
+  - 7. From paper to production: 07-production.md
+  - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
+  - Appendix B — Source notebook (X threads, papers, repos): appendix-b-sources.md
+  - Research prompt (run in Claude Code desktop): RESEARCH_PROMPT.md

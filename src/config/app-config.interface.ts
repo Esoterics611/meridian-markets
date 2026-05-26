@@ -15,4 +15,9 @@ export interface AppConfig {
     apiKey: string;
     institutionId: string;
   };
+  hedge: {
+    mockEnabled: boolean;
+    mockFxDriftBpsPerDay: number;
+    mockSettleMs: number;
+  };
 }
