@@ -47,6 +47,15 @@ export function fractionalKelly(
 
 **Empirical $\mu$ and $\sigma$ from backtest.** Use a robust estimator: trimmed mean over the in-sample window, or a Bayesian shrinkage estimator if you have a prior. **Don't use the raw backtest mean** — it embeds the survivorship of the strategy you chose to deploy.
 
+!!! note "Practitioner note (from RohOnChain archive — Fundamental Law thread)"
+    Roan's "50 weak signals" thread ([archive](_archive/roan-fundamental-law-active-mgmt-2026-05-26.md), claim #5) offers a sharper functional form for the Kelly shrinkage:
+
+    $$ f_{\text{empirical}} = f_{\text{Kelly}} \cdot (1 - \text{CV}_{\text{edge}}) $$
+
+    where $\text{CV}_{\text{edge}}$ is the coefficient of variation of the *edge estimate itself* — i.e. how uncertain you are about your IC. When your edge estimate is precise (low CV), shrinkage is light; when the estimate is noisy (high CV), shrinkage is aggressive. This is sharper than the generic 0.25 multiplier because it adapts to the actual standard error of your IC measurement. The generic Tier-A version (Thorp 2006 on fractional Kelly) gives "use 0.25 of full Kelly because you don't really know μ" as an aphorism; the practitioner version operationalises it.
+
+    **Course default stays at 0.25** because measuring $\text{CV}_{\text{edge}}$ reliably is hard in the small-sample regime that Phase 3 will start in. The CV-shrinkage form becomes the upgrade path once a strategy has 6+ months of live data with statistically-meaningful per-trade edge measurements.
+
 ## 5.3 Per-venue caps
 
 A single number per venue:
@@ -67,6 +76,16 @@ Venue ordering for solvency risk (consistent with [PHASED_PLAN.md §Phase 1](../
 | Anywhere else | C+ | Cap aggressively |
 
 These are tiers, not blacklists. Even Tier-A venues should not hold more than ~30% of working capital.
+
+!!! note "Practitioner note (from RohOnChain archive — Markov Hedge Fund Method)"
+    Roan's framework ([archive](_archive/roan-markov-hedge-fund-method-2026-05-26.md), claim #3) suggests a second per-asset filter that's orthogonal to the venue-cap above: the asset's **long-run stationary regime distribution**. If a fitted Markov model's stationary distribution gives that asset a Bear-share above some threshold (e.g. $\pi_{\text{Bear}} > 0.40$), the asset is structurally tail-heavy and should be sized down regardless of which venue you hold it on:
+
+    ```python
+    bear_baseline = stationary_distribution['bear']
+    size_multiplier = max(0, 1.0 - bear_baseline)   # heavier-bear baseline → smaller bets
+    ```
+
+    The hard variant — `if bear_baseline > 0.40: size = 0` — is a "this asset is too tail-heavy to trade" kill. Maps to Hamilton (1989) on unconditional regime probabilities; the *operationalisation as a sizing input* is the practitioner contribution.
 
 ## 5.4 Portfolio-level: VaR & drawdown gate
 
@@ -156,4 +175,7 @@ Each step is independently testable. Each rejection is logged. Risk does not sil
 - **Thorp, E. O. (2006).** *The Kelly criterion in blackjack, sports betting, and the stock market.* In *Handbook of Asset and Liability Management*. The shrinkage argument.
 - **MacLean, L. C., Thorp, E. O., & Ziemba, W. T. (Eds.) (2011).** *The Kelly Capital Growth Investment Criterion.* World Scientific. Comprehensive.
 - VaR methodology: **Jorion, P. (2006).** *Value at Risk: The New Benchmark for Managing Financial Risk* (3rd ed.). McGraw-Hill.
+- **GK99**: Grinold, R., & Kahn, R. (1999). *Active Portfolio Management* (2nd ed.). McGraw-Hill. Chapter 6 — the Fundamental Law of Active Management that underpins the §5.2 Practitioner-note Kelly-with-edge-uncertainty form.
+- **H89**: Hamilton, J. D. (1989). *A new approach to the economic analysis of nonstationary time series and the business cycle.* Econometrica, 57(2), 357–384. — Stationary-distribution-as-sizing-input rationale for the §5.3 Practitioner-note callout.
+- **Tier C — RohOnChain archive**: [`_archive/roan-markov-hedge-fund-method-2026-05-26.md`](_archive/roan-markov-hedge-fund-method-2026-05-26.md); [`_archive/roan-fundamental-law-active-mgmt-2026-05-26.md`](_archive/roan-fundamental-law-active-mgmt-2026-05-26.md). Practitioner sources for the two callouts in §5.2 and §5.3.
 - The drawdown gate and kill switch are operational practice; no canonical citation. The argument for persisting their state across restarts is from incident write-ups across multiple desks (no single citable source).

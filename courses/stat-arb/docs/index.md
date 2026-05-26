@@ -24,6 +24,6 @@ Each chapter is structured the same way:
 
 ## Status banner
 
-Several chapters cite an X thread by a user "rohn / roan" (the user's recollection — exact handle TBD). All such citations are explicitly marked **[TODO: verify]** in the source notebook. **This material is not load-bearing yet.** Promotion to "verified" requires (a) the actual X handle, (b) a WebFetch of the original thread, (c) a check that the claims line up with the underlying academic literature.
+The X threads by [@RohOnChain](https://x.com/RohOnChain) (display name "Roan") were identified, archived, and promoted to **Tier-C verified** in Session 3 (2026-05-26). Two threads are now cited alongside Tier-A literature in §2.8, §2.9, §3.6, §5.2, §5.3, §6.5, §6.7, and Appendix C. The full archive lives at [`docs/_archive/`](_archive/x-search-attempt-2026-05-26.md); the dedicated practitioner-lore chapter is [Appendix C](appendix-c-practitioner-lore.md).
 
-The verified material — Engle-Granger, Johansen, Bertram, Avellaneda-Lee, López de Prado — stands on its own regardless of how the X-thread vetting goes.
+Per §0.3's promotion rule, every practitioner claim is paired with its Tier-A mapping — none is the sole support for any course assertion. The verified Tier-A material (Engle-Granger, Johansen, Bertram, Avellaneda-Lee, López de Prado, Grinold-Kahn, Hamilton, Rabiner) is documented in [Appendix B §B.1](appendix-b-sources.md).

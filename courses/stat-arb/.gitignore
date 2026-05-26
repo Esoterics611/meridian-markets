@@ -1,1 +1,4 @@
-courses/stat-arb/site/
+site/
+.venv/
+__pycache__/
+*.pyc

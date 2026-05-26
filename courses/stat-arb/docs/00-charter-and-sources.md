@@ -20,34 +20,28 @@ Every claim in this course should be traceable to one of three tiers:
 |---|---|---|
 | **A — Foundational literature** | Peer-reviewed papers or textbooks. Verified citations. | Engle & Granger (1987), Johansen (1991), Avellaneda & Lee (2010), Bertram (2010), López de Prado (2018) |
 | **B — Reference implementations** | Open-source code we can read. URLs verified before citing. | `mlfinlab`, `arbitragelab`, `zipline`, `pysystemtrade`, `jesse-ai/jesse` — **URLs pending WebFetch verification next session** |
-| **C — Practitioner commentary** | Blog posts, X threads, podcasts. Useful for code-shape intuition; never load-bearing. **Always marked unverified until the source is fetched and cross-checked against Tier A.** | The "rohn / roan" X thread the user referenced — **[TODO: verify]** |
+| **C — Practitioner commentary** | Blog posts, X threads, podcasts. Useful for code-shape intuition; never load-bearing. Always marked unverified until the source is fetched and cross-checked against Tier A. | The [@RohOnChain](https://x.com/RohOnChain) X threads — verified 2026-05-26, archived in [`_archive/`](appendix-c-practitioner-lore.md). |
 
 **Promotion rule.** A Tier-C source is never used as the sole support for a claim. It can illustrate something Tier A already proves. If a Tier-C source contradicts Tier A, Tier A wins.
 
-## 0.4 Outstanding source-verification asks
+## 0.4 Outstanding source-verification asks — resolved 2026-05-26 (Session 3)
 
-The user mentioned recently-shared "secrets from hedge funds" on X by a user named "rohn / roan" (exact handle uncertain). I cannot WebFetch from this session, so I cannot verify either the handle or the content. The next session must:
+The user-mentioned "rohn / roan" X handle was confirmed as **@RohOnChain** (display name "Roan"). Two substantive threads were archived and promoted to Tier-C verified status; see §0.5 below and [Appendix B §B.3](appendix-b-sources.md) for the verification ledger. One additional thread (the "Neural Networks" thread) was located but its body was gated at fetch time — it remains uncited in the course body.
 
-1. **Get the actual X handle** from the user — current best guess is `@rohn` or `@roan` but neither is confirmed; could also be `@rohan…`, `@ronh…`, etc.
-2. **Fetch the thread(s)** — capture the URL, archive a copy (X content rots fast), extract the claims.
-3. **Map each claim to a Tier-A source.** If it doesn't map, treat it as folklore — interesting, not citable.
-4. **Update the relevant chapter section** with the verified citation; remove the `[TODO: verify]` marker.
+## 0.5 The RohOnChain archive (verified Tier-C)
 
-Until then, all chapters cite only Tier A and (pending verification) Tier B sources. The X thread is mentioned by name in §0.5 and Appendix B with explicit unverified status.
+!!! success "Verified source — cited alongside Tier-A material per §0.3"
+    Handle: [`@RohOnChain`](https://x.com/RohOnChain) (display name "Roan", ≈ 47.3K followers, bio: *"building my life around quant systems in prediction markets and crypto on chain"*). Verified by direct user confirmation 2026-05-26 plus cross-referencing against a third-party companion repo (`jackson-video-resources/markov-hedge-fund-method`, 211 ⭐, MIT-licensed, explicit Roan attribution).
 
-## 0.5 The X thread (unverified — placeholder)
+    **Two threads archived:**
 
-!!! warning "Unverified source — do not cite as fact"
-    A practitioner thread on X (formerly Twitter) by a user the team recalls as **"rohn"** or **"roan"** was reportedly sharing operational details from buyside stat-arb desks. **The handle, thread URL, and content are all currently unverified.**
+    1. **Markov Hedge Fund Method** — observable Markov regime detection (Bull / Sideways / Bear) with optional HMM upgrade, walk-forward backtesting, JSON composition contract. Captured verbatim from the public companion repo. Archive: [`_archive/roan-markov-hedge-fund-method-2026-05-26.md`](_archive/roan-markov-hedge-fund-method-2026-05-26.md). Cited in §2.9, §3.6, §5.3, §6.5, Appendix C.
 
-    **Likely useful for** (based on what such threads typically cover, not what this specific thread says):
+    2. **Fundamental Law of Active Management / "50 weak signals"** — operationalises $\text{IR} = \text{IC} \cdot \sqrt{N_{\text{eff}}}$, the effective-$N$ correction, signal orthogonalisation, and Kelly-with-edge-uncertainty sizing. Captured as paraphrase (original X thread gated; verbatim retrieved second-hand from third-party write-ups). Archive: [`_archive/roan-fundamental-law-active-mgmt-2026-05-26.md`](_archive/roan-fundamental-law-active-mgmt-2026-05-26.md). Cited in §2.8, §5.2, §6.5, §6.7, Appendix C.
 
-    - **Universe construction** — how desks filter the cointegration-candidate set to a tractable size; common heuristics like sector-bucketing, volume floors, and recency filters.
-    - **Spread-staleness diagnostics** — practical signals that a previously-cointegrated pair has drifted regime (correlation half-life dropping, ADF p-value rising).
-    - **Execution heuristics** — passive vs aggressive order placement in the entry vs exit window; the asymmetry that comes from holding-cost discipline.
-    - **Funding-rate carry hooks** — for crypto-specifically, when funding skew is the strategy vs the friction.
+    **Promotion discipline.** All 20 claims extracted from the two archives were mapped to Tier-A literature (Hamilton 1989, Rabiner 1989, Grinold 1989, Grinold & Kahn 1999, Clarke et al. 2002, Bailey & López de Prado 2014, López de Prado 2018, Asness et al. 2013). Per §0.3's promotion rule, none of the practitioner claims is the *sole* support for any course assertion — each is cited alongside its Tier-A mapping. The two archive files exist as primary record (so the course retains its own copy if the X timeline rots) and as Tier-C citation target.
 
-    **Next-session task:** verify the handle, fetch the thread, map each claim to Tier-A literature in §2–§5. Until then, none of the above is asserted as the thread's content — it's a checklist of what to *look for* when the source is recovered.
+    **One thread not promoted:** the "Neural Networks" thread (`https://en.rattibha.com/thread/2052043443766194272`) had its body gated at fetch time. Title and lead are visible; body is not. Documented in [`_archive/x-search-attempt-2026-05-26.md` §3](_archive/x-search-attempt-2026-05-26.md). Not integrated into the course body.
 
 ## 0.6 Verified sources used in this course
 

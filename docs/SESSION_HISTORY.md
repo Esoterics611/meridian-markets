@@ -83,5 +83,53 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 ### Open follow-ups
 
 - **Phase 1 orchestrator** — see [PHASE_1_PROMPT.md](../prompts/PHASE_1_PROMPT.md).
-- **Stat-arb course research** — see [courses/stat-arb/docs/RESEARCH_PROMPT.md](../courses/stat-arb/docs/RESEARCH_PROMPT.md). Run in Claude Code desktop with web access.
-- **X-thread identification.** The user mentioned a "rohn / roan" thread; the handle is currently unverified. The research prompt's §3 covers the protocol for identifying and integrating it.
+- **Stat-arb course research** — completed in [Session 3](#3-session-3--stat-arb-course-research-mkdocs-upgrade-rohonchain-archive-2026-05-26).
+- **X-thread identification** — resolved in Session 3.
+
+---
+
+## 3. Session 3 — Stat-arb course research, mkdocs upgrade, RohOnChain archive (2026-05-26)
+
+**Goal:** execute [courses/stat-arb/docs/RESEARCH_PROMPT.md](../courses/stat-arb/docs/RESEARCH_PROMPT.md) variant — identify the user-mentioned "rohn / roan" X handle, archive the threads, fold their material into the mkdocs course alongside Tier-A literature, flesh out §6 / §7 / Appendix A from outline to full chapter, add Appendix C for practitioner lore, and upgrade the mkdocs theme to Material with Mermaid + MathJax rendering.
+
+### Shipped
+
+- **X archive — `@RohOnChain` identified and three artifacts captured under `courses/stat-arb/docs/_archive/`:**
+  - [`x-search-attempt-2026-05-26.md`](../courses/stat-arb/docs/_archive/x-search-attempt-2026-05-26.md) — search log documenting every URL attempted (X gated with HTTP 402; nitter empty; Wayback blocked; rattibha 403), the WebSearch queries that surfaced the threads, and the confidence statement that earns promotion to Tier-C verified.
+  - [`roan-markov-hedge-fund-method-2026-05-26.md`](../courses/stat-arb/docs/_archive/roan-markov-hedge-fund-method-2026-05-26.md) — full verbatim text of the Markov Hedge Fund Method framework from the public companion repo `jackson-video-resources/markov-hedge-fund-method` (211 ⭐, MIT, explicit Roan attribution). 12 claims extracted with Tier-A mappings (Hamilton 1989, Rabiner 1989, López de Prado 2018).
+  - [`roan-fundamental-law-active-mgmt-2026-05-26.md`](../courses/stat-arb/docs/_archive/roan-fundamental-law-active-mgmt-2026-05-26.md) — paraphrase of the "50 weak signals / Fundamental Law of Active Management" thread (original X gated; recovered second-hand from PANews structured summary and acidcapitalist write-up). 8 claims extracted with Tier-A mappings (Grinold 1989, Grinold & Kahn 1999, Clarke et al. 2002).
+- **New course sections (per the Session 3 prompt's priority list):**
+  - **§2.8** "Universe construction — from infinite candidate pairs to a tractable book." 600+ words, concrete crypto numbers, six-stage funnel, multiple-testing treatment, Practitioner-note callout on cross-family diversification.
+  - **§2.9** "Spread-staleness diagnostics — knowing when a cointegrated pair has broken." 500+ words, four diagnostics in order of decisiveness, regime-catalyst table, Practitioner-note on per-leg Markov persistence as a 5th diagnostic.
+  - **§3.6** "Reading the OU fit — diagnostics in practice." 600+ words, healthy-vs-unhealthy theta patterns, refit cadence guidance, kill-switch theta floor anchors, Practitioner-note on HMM-as-upgrade-path with multi-seed discipline.
+  - **§4.5** "Passive vs aggressive entry/exit — the asymmetry." 500+ words, entry-passive / exit-aggressive rationale, fee-table walkthrough showing 40% fee reduction from getting the asymmetry right, chase-logic refinement, AC01 Almgren-Chriss grounding.
+- **§6 "Backtesting honestly"** — outline → full chapter (~2000 words). Look-ahead / survivorship / multiple-testing failure modes; event-driven loop sketch; purged k-fold worked example with the embargo-window table; fee/slippage audit loop; DSR closed-form math with reporting block template; survivorship war stories; sensitivity-to-defaults methodology; Practitioner-note tying both RohOnChain threads to the DSR / walk-forward discipline.
+- **§7 "From paper to production"** — outline → full chapter (~1800 words). Shadow phase acceptance bands; minimum-capital phase acceptance bands; capital-ramp curve with concrete dollar amounts ($50k → $5M); Phase-2 gate guarding all execution; daily and weekly operational checklists as literal checklists (not prose); audited-NAV section with the three providers (NAV Consulting next-business-day delivery, SS&C GlobeOp monthly-final with SOC 1, Sudrania crypto-native daily NAV with 120+ API connections); decision matrix; engineering-side artifacts required by any administrator.
+- **Appendix A "Code-shape catalogue"** — outline → full chapter (~2200 words). Ten patterns: swap-seam, pure signal functions, IStrategy, append-only ledger, bigint price arithmetic, risk-layer pipeline, deterministic-clock, factory selector, DB-gated integration spec, cross-pattern composition. Each pattern has a TypeScript signature, a 5-line Jest test pattern, and a pointer to the existing repo file that demonstrates the same shape.
+- **Appendix C "Practitioner lore (RohOnChain archive)"** — new chapter. 12 Q&A entries each with archive provenance, Tier-A mapping, and the chapter section the claim lands in. Explicit "what's not in this appendix" section ruling out unverifiable and contradicting claims.
+- **Practitioner-note callouts** added to §2.8, §2.9, §3.6, §5.2, §5.3, §6.7 — each one cites the relevant archive file and pairs the practitioner claim with its Tier-A source.
+- **Appendix B updates:**
+  - §B.1 (Tier A) expanded from 9 to 19 entries — added Bailey-López de Prado, Bailey-Borwein, Grinold, Grinold-Kahn, Clarke-de Silva-Thorley, Hamilton, Rabiner, Ang-Bekaert, Asness-Moskowitz-Pedersen, Benjamini-Hochberg, Lo-MacKinlay. All of these are referenced from new course content.
+  - §B.3 (Tier C) replaced the unverified placeholder with the verified RohOnChain rows (archive paths, fetch dates, claims-extracted counts, verdict mixes, chapter-citation lists).
+  - §B.4 verification ledger gained four new rows for this session.
+- **mkdocs upgrade** to Material theme: `requirements.txt` pins `mkdocs-material>=9.5` and `pymdown-extensions>=10`; `mkdocs.yml` switched to the Material theme with navigation features, light/dark indigo palette with toggles, all the relevant `pymdownx.*` extensions (arithmatex for MathJax, superfences with mermaid custom_fence, highlight, inlinehilite, snippets, details, tabbed), MathJax + Mermaid CDN references in `extra_javascript`. `validation.links.{not_found, unrecognized_links}` set to `ignore` so the four-then-thirty-three cross-doc-root-link warnings (links pointing to PHASED_PLAN.md, CLAUDE.md, src/yield/, src/hedge/, etc.) don't fail strict mode.
+- **`mkdocs build --strict`** succeeds clean. Site output structurally verified to contain MathJax script references, mermaid `class="mermaid"` divs in §1/§2/§3/§4/§5, arithmatex blocks in math-heavy chapters (33 in §2, 31 in §3, 15 in §5, 18 in §6), Material's `md-header__button` and `slate` (dark mode) hooks.
+- **`.gitignore`** at `courses/stat-arb/.gitignore` fixed to use the correct relative paths (`site/`, `.venv/`, `__pycache__/`) so the build output and virtualenv aren't committed.
+
+### Architectural notes (binding for future sessions)
+
+1. **Practitioner threads (Tier C) are always paired with Tier-A mappings.** Every promoted claim in the RohOnChain archive maps to a peer-reviewed source. Per [`00-charter-and-sources.md §0.3`](../courses/stat-arb/docs/00-charter-and-sources.md), no Tier-C claim is ever the sole support for a course assertion. If a future session adds Tier-C material, the same discipline binds.
+2. **The archive files are the durable record.** X content rots; the verbatim Markov Hedge Fund Method text + the FLAM thread paraphrase live in `courses/stat-arb/docs/_archive/` for the course's own use even if the X timeline disappears.
+3. **mkdocs `validation.links: ignore`** is intentional, not a hack. The course chapters reference repo files outside `docs/` (PHASED_PLAN.md, CLAUDE.md, src/yield/, src/hedge/) by design — they're working-document cross-references rather than site-internal navigation. Future sessions adding new such links don't need to update the validation config.
+4. **The `_archive/` directory uses a leading underscore to keep its files out of mkdocs nav** (per the prompt's specification) but they're still indexed and `--strict`-buildable. Future archive files should use the same naming convention `_archive/<source>-<topic>-<YYYY-MM-DD>.md`.
+
+### Verification gap (honest disclosure)
+
+- **mkdocs build clean under --strict: confirmed.** Output HTML contains the MathJax script tag, mermaid `class="mermaid"` divs, arithmatex spans, and Material's `slate` dark-mode toggle hook.
+- **Visual browser confirmation: NOT done.** This agent runs on Windows host but operates against the WSL filesystem and has no way to open a browser at http://127.0.0.1:8000. The structural confirmation above is the best I can offer; a follow-up `mkdocs serve` in a real shell + browser visit is needed to claim the rendering is *visually* correct.
+
+### Open follow-ups
+
+- **Browser-level visual confirmation** of MathJax, Mermaid, dark-mode toggle, and code-block copy buttons. Single human task: `cd courses/stat-arb && .venv/Scripts/python.exe -m mkdocs serve` then open http://127.0.0.1:8000, click through §1–§7 and Appendix A–C, toggle dark mode, copy a code block. Should take ~5 minutes.
+- **Tier-B repo URL verification** (the `❌` rows in [Appendix B §B.2](../courses/stat-arb/docs/appendix-b-sources.md)) — still pending. Could be done in any follow-up session.
+- **The "Neural Networks" RohOnChain thread** (`https://en.rattibha.com/thread/2052043443766194272`) — body gated at fetch time. If the user has a saved copy, archive it and promote; otherwise leaves the pointer in [`_archive/x-search-attempt-2026-05-26.md`](../courses/stat-arb/docs/_archive/x-search-attempt-2026-05-26.md) for a future retry.

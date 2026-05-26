@@ -4,13 +4,39 @@ site_url: ''
 docs_dir: docs
 use_directory_urls: false
 
-# Using the built-in `readthedocs` theme so the site builds with vanilla mkdocs.
-# Upgrade path: `pip install mkdocs-material pymdown-extensions` and switch the
-# theme to `material` for nicer typography, code-block copy buttons, and the
-# pymdownx.superfences + arithmatex extensions for Mermaid diagrams and MathJax.
-# Until then, Mermaid blocks render as plain code and inline $math$ stays as text.
+# Cross-doc-root links (PHASED_PLAN.md, CLAUDE.md, src/yield/, src/hedge/, etc.) point
+# outside docs_dir by design — they're rendered links to repo files, not site-internal
+# references. mkdocs --strict would otherwise treat these as fatal warnings.
+validation:
+  links:
+    not_found: ignore
+    unrecognized_links: ignore
+
 theme:
-  name: readthedocs
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 markdown_extensions:
   - admonition
@@ -19,7 +45,26 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
-  - fenced_code
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - js/mathjax-config.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
 
 plugins:
   - search
@@ -35,5 +80,6 @@ nav:
   - 6. Backtesting honestly: 06-backtesting.md
   - 7. From paper to production: 07-production.md
   - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
-  - Appendix B — Source notebook (X threads, papers, repos): appendix-b-sources.md
+  - Appendix B — Source notebook (papers, repos, X threads): appendix-b-sources.md
+  - Appendix C — Practitioner lore (RohOnChain archive): appendix-c-practitioner-lore.md
   - Research prompt (run in Claude Code desktop): RESEARCH_PROMPT.md
