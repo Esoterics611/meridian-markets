@@ -2,4 +2,16 @@ node_modules/
 dist/
 .env
 .env.local
+*.local
+*.log
+.DS_Store
+.incremental/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# OS / tool temp files
+.msys*
+
+# Claude harness
 .claude/

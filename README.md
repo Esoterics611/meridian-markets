@@ -1,20 +1,25 @@
 # Meridian Markets
 
-> Sister entity to [Lira-Bridge](https://github.com/vanguard-dao/meridian) (`~/code/meridian`). The yield / treasury / markets arm. Pick a real legal name later — this is the working alias.
+> Sister entity to [Lira-Bridge](https://github.com/vanguard-dao/meridian) (`~/code/meridian`). The yield / treasury / markets arm. The legal name is a working alias; the real one lands at Phase 2 (entity formation).
 
-**Status:** planning only. No code yet. Phase 0 (treasury yield service for first-party Path C float) is the first thing that ships; see [`prompts/PHASE_0_PROMPT.md`](prompts/PHASE_0_PROMPT.md).
+**Status:** Phase 0 implementation — treasury yield service, mock-default, KYB-gated for real Ondo USDY.
+
+Planning context: [`PHASED_PLAN.md`](PHASED_PLAN.md). The 1-pager that explains *why* this is a separate repo / DB / deploy lives in the same file's preamble and in [`docs/INTEGRATION_WITH_LIRA_BRIDGE.md`](docs/INTEGRATION_WITH_LIRA_BRIDGE.md).
 
 ---
 
-## What this is
+## What this service does
 
-A separate legal/technical entity that:
+A standalone NestJS service that earns yield on Lira-Bridge's idle Path C reserve-pool USDC.
 
-- **Earns yield** on Lira-Bridge's idle Path C reserve-pool float (Phase 0 — first product, no license).
-- **Hedges FX** for Path C's ILS/USDC exposure (Phase 1 — first-party, no license).
-- **Later** becomes the home for any prop trading, 3(c)(7) crypto fund, or derivatives venue we want to offer — each with its own license stack, cap table, and balance sheet.
+- Exposes `IYieldProvider` — the swap interface. One concrete impl ships in Phase 0:
+  - `MockYieldProvider` — deterministic, no network. **Default.**
+  - `RealOndoYieldProvider` — Ondo USDY stub. Dormant until `MOCK_YIELD_ENABLED=false` and KYB completes.
+- Records every deposit / withdraw / yield-accrual in **append-only** `treasury_movements`. The runtime DB role (`meridian_markets_app`) has `SELECT, INSERT` only — UPDATE/DELETE are revoked at the privilege layer.
+- Exposes a thin internal HTTP API (`/api/treasury/*`) authenticated by a shared-secret header `x-meridian-client-key`. This is the `ITreasuryClient` contract Lira-Bridge will eventually call.
+- Reconciles against the yield provider every 5 minutes via `YieldSyncCron`, writing a `YIELD_ACCRUAL` movement when the provider has appreciated.
 
-It shares brand and customer pipeline with Lira-Bridge, but does not share the regulated payments surface.
+Customer money never touches this service. Phase 4 (3(c)(7) fund) is where that frame changes — see [`PHASED_PLAN.md`](PHASED_PLAN.md).
 
 ## Why it must be separate from Lira-Bridge
 
@@ -22,40 +27,106 @@ Payments licenses (MTL / EMI / CMA money-services-business) are conditioned on *
 
 Cap tables are also priced differently — payments is a unit-economics game (Wise multiples), markets/fund is a fee-on-AUM game (Brevan / Citadel multiples). Investors price them differently; let each raise from its natural buyer.
 
+## Run it locally
+
+```bash
+# 1. Install deps.
+npm install
+
+# 2. Start Postgres on port 5433 (Lira-Bridge owns 5432).
+docker compose up -d postgres
+
+# 3. Configure secrets.
+cp .env.example .env
+# Then run migrations as the privileged role:
+npm run migration:run
+
+# 4. Run the service.
+npm run start:dev
+```
+
+Default port is `3100` (Lira-Bridge uses `3000`).
+
+### Smoke-test the API
+
+```bash
+KEY=dev-meridian-client-key-change-me
+
+# Deposit 100 USDC (6-decimal units).
+curl -X POST http://localhost:3100/api/treasury/deposit \
+  -H "x-meridian-client-key: $KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"amount_usdc_units": "100000000", "idempotency_key": "smoke-1"}'
+
+# Read position.
+curl http://localhost:3100/api/treasury/position \
+  -H "x-meridian-client-key: $KEY"
+```
+
+## Test
+
+```bash
+npm test
+```
+
+51 tests across 9 suites. The DB-backed suites (`*.int-spec.ts`) auto-skip when Postgres is not reachable; set `MERIDIAN_DB_TESTS=off` to skip them explicitly.
+
 ## Phased build
 
 | Phase | What ships | License/cap need | When |
 |---|---|---|---|
-| **0 — Treasury yield service** | `IYieldProvider` + integrations (BUIDL, Ondo USDY, Maker sDAI). Manages first-party Lira-Bridge Path C float only. No customer money. | None | **Parallel today** — ~2 Claude sessions |
+| **0 — Treasury yield service** | `IYieldProvider` + integrations (BUIDL, Ondo USDY, Maker sDAI). Manages first-party Lira-Bridge Path C float only. No customer money. | None | **This repo, now** |
 | **1 — On-chain FX hedge module** | Auto-hedges Path C ILS exposure via on-chain perps (Drift / Hyperliquid). First-party only. | None for first-party | After Phase 0 — ~2–3 sessions |
 | **2 — Markets Co. legal formation** | Delaware C-corp + Cayman SPC for future fund vehicles. CCO hire. Counsel opinion on RIA exemption. | $200–300k setup | Months 3–6. Business work; no code. |
 | **3 — Prop desk (own capital only)** | Quant infra: market-data ingest, signal store, execution router, risk module. Trades own treasury. No customer money. Builds the track record. | None for own-capital spot; CFTC if futures | Months 6–12 |
 | **4 — 3(c)(7) crypto fund for accredited Lira-Bridge members** | NAV calc, subscription/redemption portal, fund admin integration. Opt-in from Lira-Bridge UI. | SEC RIA + accredited verification | Year 2 — requires 1yr of Phase 3 track record |
 | **5 — Derivatives venue (optional)** | Permissioned perps DEX or NFA-registered FX dealer | NFA FDM (~$20M net cap) or ISA license | Year 3+. Probably never if 0–4 work. |
 
-Full per-phase detail in [`PHASED_PLAN.md`](PHASED_PLAN.md).
+Per-phase deep dive: [`PHASED_PLAN.md`](PHASED_PLAN.md).
 
-## The Claude-parallel trick
+## Architecture posture
 
-Because Markets is a **separate repo, separate Postgres, separate deploy**, we can run two Claude sessions concurrently — one hardening Lira-Bridge ([`prompts/LIRA_BRIDGE_PROD_READY_PROMPT.md`](prompts/LIRA_BRIDGE_PROD_READY_PROMPT.md)), one building Markets Phase 0 ([`prompts/PHASE_0_PROMPT.md`](prompts/PHASE_0_PROMPT.md)) — without either touching the other's working tree.
-
-The **single shared touchpoint** is a future `ITreasuryClient` interface that Lira-Bridge will call to deposit/withdraw float. Designed-for, not built yet. Same posture as Lira-Bridge's transactional outbox: invented now, deployable later, no rewrite.
-
-## Minimum viable wedge
-
-**Phase 0 alone.** A tiny repo that exposes a treasury-yield service to Lira-Bridge's reserve pool. No license, no LP marketing, no fund formation. Just *"where does idle Path C USDC sit."*
-
-That alone improves Lira-Bridge's Path C gross margin by ~400 bps and creates the seed asset — a working markets stack, a small track record, a recognised internal counterparty — that every later phase compounds on. Everything else waits for legal capital and for Lira-Bridge's customer base to be worth selling investment products to.
+- **Mirror Lira-Bridge.** NestJS 10 + TypeScript strict (CommonJS) + Postgres 16 + TypeORM 0.3 (raw SQL migrations, no entity decorators) + `ISecretProvider` for vault swap-point + mock-default for external integrations. Not re-litigated.
+- **Modular monolith, not microservices.** Same rationale as Lira-Bridge §10h. The two services talk over HTTP and only over HTTP — no shared DB, no cross-imports, no shared types.
+- **Append-only treasury ledger.** `treasury_movements` is privilege-locked. The runtime app role cannot UPDATE or DELETE — only the migration role can, and only forward-migrations should ever touch it.
+- **Mock-default for external integrations.** Real Ondo calls are KYB-gated and refuse to fire until `MOCK_YIELD_ENABLED=false`.
 
 ## Layout
 
 ```
 meridian-markets/
-  README.md                                  ← this file (1-pager)
-  PHASED_PLAN.md                             ← per-phase deep dive (regulatory, capital, sequencing)
+  README.md                              ← this file
+  CLAUDE.md                              ← session-binding architecture rules
+  PHASED_PLAN.md                         ← per-phase deep dive
+  docker-compose.yml                     ← Postgres on :5433
+  package.json  tsconfig.json  nest-cli.json
+  database/
+    data-source.ts                       ← TypeORM CLI DataSource (privileged role)
+  migrations/
+    1715000000000-Initial.ts             ← treasury_movements + treasury_positions + meridian_markets_app role
+  src/
+    main.ts                              ← Nest bootstrap on :3100
+    app.module.ts
+    config/                              ← typed AppConfig (sole reader of process.env)
+    secrets/                             ← ISecretProvider + EnvSecretProvider
+    database/                            ← DbService (SERIALIZABLE + retry-once-on-40001)
+    yield/
+      yield-provider.interface.ts        ← IYieldProvider + types + errors
+      mock-yield-provider.ts             ← default; deterministic
+      real-ondo-yield-provider.ts        ← dormant Phase 0 stub
+      yield.module.ts                    ← factory selects mock vs real
+    treasury/
+      treasury.service.ts                ← append-only ledger + idempotency
+      treasury.controller.ts             ← /api/treasury/* endpoints
+      treasury-client.guard.ts           ← x-meridian-client-key guard
+      yield-sync.cron.ts                 ← periodic provider reconciliation
+      treasury.module.ts
+    test-helpers/
+      postgres-available.ts              ← describeIfDb + DB probe for int specs
+  docs/
+    SESSION_HISTORY.md                   ← per-session log
+    INTEGRATION_WITH_LIRA_BRIDGE.md      ← the ITreasuryClient HTTP contract
   prompts/
-    PHASE_0_PROMPT.md                        ← Markets Phase 0 — treasury yield service
-    LIRA_BRIDGE_PROD_READY_PROMPT.md         ← parallel-track prompt for hardening Lira-Bridge
+    PHASE_0_PROMPT.md                    ← the spec this session implements
+    LIRA_BRIDGE_PROD_READY_PROMPT.md     ← parallel-track prompt
 ```
-
-When code starts landing in Phase 0, mirror the Lira-Bridge layout (`src/`, `migrations/`, `test/`, `package.json`, NestJS + TypeORM strict, `ISecretProvider` for vault swap-point). The Lira-Bridge architectural decisions (modular monolith, append-only ledger if relevant, machine-enforced boundaries, transactional outbox) are the model — don't re-litigate them.
