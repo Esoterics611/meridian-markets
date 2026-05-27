@@ -133,3 +133,76 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 - **Browser-level visual confirmation** of MathJax, Mermaid, dark-mode toggle, and code-block copy buttons. Single human task: `cd courses/stat-arb && .venv/Scripts/python.exe -m mkdocs serve` then open http://127.0.0.1:8000, click through §1–§7 and Appendix A–C, toggle dark mode, copy a code block. Should take ~5 minutes.
 - **Tier-B repo URL verification** (the `❌` rows in [Appendix B §B.2](../courses/stat-arb/docs/appendix-b-sources.md)) — still pending. Could be done in any follow-up session.
 - **The "Neural Networks" RohOnChain thread** (`https://en.rattibha.com/thread/2052043443766194272`) — body gated at fetch time. If the user has a saved copy, archive it and promote; otherwise leaves the pointer in [`_archive/x-search-attempt-2026-05-26.md`](../courses/stat-arb/docs/_archive/x-search-attempt-2026-05-26.md) for a future retry.
+
+---
+
+## 4. Session 4 — Phase 1 orchestrator (2026-05-27)
+
+**Goal:** flesh out the Phase 1 FX hedge module beyond the scaffold: persistence, `HedgeService`, `HedgeMonitorCron`, circuit breakers, and 29 net-new tests. Brings Phase 1 to a completeable state. Demo surface deferred to Session 5.
+
+### Shipped
+
+- **Migration `1716000000000-AddHedgeTables.ts`** — two tables with the same privilege posture as Phase 0:
+  - `hedge_movements` — append-only ledger. `meridian_markets_app` has `SELECT, INSERT` only. `chk_hm_direction` and `chk_hm_notional` CHECK constraints enforce valid directions and sign conventions. `(venue, idempotency_key)` UNIQUE for replay safety. Two partial unique indexes: `uniq_mark_per_position_per_day` (MARK_TO_MARKET, cron idempotency) and `uniq_funding_per_position_per_day` (FUNDING_ACCRUAL, same).
+  - `hedge_positions` — mutable cached view. `SELECT, INSERT, UPDATE` for the app role; no DELETE.
+  - Privilege assertions added to `src/database/append-only.int-spec.ts` (+4 specs).
+
+- **`src/hedge/hedge.errors.ts`** — `InvalidHedgeAmountError` and `FeedStaleError`. Mirrors `treasury.errors.ts`.
+
+- **`src/hedge/exposure-client.interface.ts`** — `IExposureClient` interface + `StubExposureClient`. `StubExposureClient` returns 500k USDC outstanding exposure by default. Real `LiraBridgeExposureClient` is a separate session in `/home/nexus/code/meridian`. New `EXPOSURE_CLIENT` DI token.
+
+- **`src/hedge/hedge-circuit-breaker.ts`** — `HedgeCircuitBreaker` `@Injectable()`. Three gates:
+  1. Venue health: `checkVenueHealth(health)` — throws `HedgeVenueUnhealthyError` if `!healthy` or `lastFundingBps > maxFundingBps`.
+  2. Feed staleness: `checkFeedStaleness(asOf)` — throws `FeedStaleError` if exposure feed is older than `maxFeedStalenessMs`.
+  3. Liquidation buffer: `maxNotional(marginUnits)` — returns `margin × 10_000 / (3 × ilsSigmaBps)` so callers can verify sizing stays inside the 3σ ILS-move buffer.
+
+- **`src/hedge/hedge.service.ts`** — `HedgeService`. Five public methods:
+  - `openShort(notional, key)` — checks circuit breaker, calls venue, writes `OPEN_SHORT` movement + `hedge_positions` row in a SERIALIZABLE tx. Idempotent on `(venue, key)`.
+  - `closeShort(positionRef, key)` — calls venue, writes `CLOSE_SHORT` movement (negative notional + realised PnL), marks position closed.
+  - `getPosition(positionRef)` — reads from `hedge_positions` cache; falls back to `venue.fetchPosition()` if `updated_at` is older than `positionStalenessMs`.
+  - `getTotalOpenNotional()` — sums notional of open positions for the configured venue.
+  - `listOpenPositionRefs()` — returns `position_ref` values of open positions, oldest-first.
+  - `markAll()` — iterates open positions, calls `markPosition()` per position (one MARK_TO_MARKET per day via unique index), updates cache; swallows per-position errors and continues.
+
+- **`src/hedge/hedge-monitor.cron.ts`** — `HedgeMonitorCron`. Runs on `HEDGE_MONITOR_INTERVAL_MS` (default 60s). Per tick:
+  1. Fetches exposure from `IExposureClient`.
+  2. Checks feed staleness via `HedgeCircuitBreaker`.
+  3. Checks venue health via `HedgeCircuitBreaker`.
+  4. Computes target notional (`hedgeRatioPct%` of outstanding USDC exposure).
+  5. Rebalances: opens a short for the delta if under-hedged by > `rebalanceThresholdPct%`; nuke-and-pave if over-hedged; does nothing within threshold.
+  6. Calls `hedgeService.markAll()`.
+  - Circuit-breaker fires and unexpected errors are caught, logged, and do not rethrow — the interval survives.
+  - `nodeEnv === 'test'` skips `setInterval` (same as `YieldSyncCron`).
+
+- **`src/config/app-config.interface.ts`** — added to the `hedge` section: `maxFundingBps`, `maxFeedStalenessMs`, `hedgeRatioPct`, `rebalanceThresholdPct`, `monitorIntervalMs`, `ilsSigmaBps`, `positionStalenessMs`.
+
+- **`src/config/app-config.factory.ts`** — reads the 7 new env vars (`HEDGE_MAX_FUNDING_BPS`, `HEDGE_MAX_FEED_STALENESS_MS`, `HEDGE_RATIO_PCT`, `HEDGE_REBALANCE_THRESHOLD_PCT`, `HEDGE_MONITOR_INTERVAL_MS`, `HEDGE_ILS_SIGMA_BPS`, `HEDGE_POSITION_STALENESS_MS`).
+
+- **`.env.example`** — documents all 7 new env vars with rationale comments.
+
+- **`src/hedge/hedge.module.ts`** — updated to provide `EXPOSURE_CLIENT` (useValue: StubExposureClient), `HedgeCircuitBreaker`, `HedgeService`, `HedgeMonitorCron`, and export `HedgeService`.
+
+- **`docs/INTEGRATION_WITH_LIRA_BRIDGE.md`** — §9 added: `GET /api/path-c/outstanding-exposure` endpoint definition, auth, polling cadence, and Lira-Bridge implementation notes.
+
+- **Tests — 29 net-new specs (65 → 94 total):**
+  - `hedge-circuit-breaker.spec.ts` (7 specs) — each gate; maxNotional formula.
+  - `hedge.service.spec.ts` (8 specs) — zero/negative notional guard; circuit-breaker pre-check; DB write; idempotency replay; markAll per-position error resilience.
+  - `hedge.service.int-spec.ts` (6 specs — DB-gated) — full roundtrip: open, idempotency, close, total notional, mark idempotency.
+  - `hedge-monitor.cron.spec.ts` (5 specs) — does-not-start-in-test; open when under-hedged; no-op within threshold; circuit-breaker swallowed; markAll called.
+  - `append-only.int-spec.ts` additions (4 specs) — `hedge_movements` append-only; `hedge_positions` mutable-not-deletable; direction CHECK constraint.
+
+- **`npx tsc --noEmit`** clean. `npx jest src/hedge` green.
+
+### Architectural notes (binding for future sessions)
+
+1. **`StubExposureClient` stays until Lira-Bridge implements `GET /api/path-c/outstanding-exposure`.** The real `LiraBridgeExposureClient` is a drop-in: implement `IExposureClient`, register as `EXPOSURE_CLIENT` in `HedgeModule`, keep the same `asOf` freshness contract. No other code changes.
+2. **`HedgeCircuitBreaker` is the only place that gates on venue health and feed staleness.** Future sessions adding new hedge strategies should consult it before any `openShort`. The three-gate contract (venue health, feed staleness, max notional) is the complete Phase 1 circuit-breaker surface.
+3. **The nuke-and-pave over-hedge strategy is v1-correct.** It keeps one position at a time and avoids partial-close complexity. When the hedge exposure reaches meaningful scale ($500k+), a smarter partial-close that minimises round-trip cost belongs in the Phase 1 hardening session.
+4. **The `markPosition` unique-index swallow (code 23505) is the same pattern as `syncYield`.** If you add a new cron-idempotent write pattern anywhere in this codebase, check code 23505 and collapse silently; expose the collision as an error only if idempotency key logic is wrong (which 23505 on a non-cron insert would indicate).
+5. **Phase 1 saga/outbox flag remains open.** The venue call in `openShort` / `closeShort` happens before the DB transaction. A DB crash after a successful venue call produces an inconsistency. Fix: move to a saga pattern (open venue → write movement → confirm) before any real-money flip. Same flag as Session 1 architectural note 5.
+
+### Open follow-ups
+
+- **Lira-Bridge-side `GET /api/path-c/outstanding-exposure`** — separate session in `/home/nexus/code/meridian`. Markets is ready to consume it the day it ships; just swap `StubExposureClient` for `LiraBridgeExposureClient` in `HedgeModule`.
+- **KYB with Hyperliquid** (or alternate venue). Business track; `RealHyperliquidHedgeVenue` stays dormant.
+- **Phase 3 stat-arb signal library + demo dashboard** — Session 5. See `prompts/PHASE_3_DEMO_PROMPT.md`.

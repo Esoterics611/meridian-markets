@@ -24,5 +24,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     mockEnabled: process.env['MOCK_HEDGE_ENABLED'] !== 'false',
     mockFxDriftBpsPerDay: parseFloat(process.env['MOCK_HEDGE_FX_DRIFT_BPS_PER_DAY'] ?? '2'),
     mockSettleMs: parseInt(process.env['MOCK_HEDGE_SETTLE_MS'] ?? '0', 10),
+    maxFundingBps: parseInt(process.env['HEDGE_MAX_FUNDING_BPS'] ?? '100', 10),
+    maxFeedStalenessMs: parseInt(process.env['HEDGE_MAX_FEED_STALENESS_MS'] ?? '300000', 10),
+    hedgeRatioPct: parseInt(process.env['HEDGE_RATIO_PCT'] ?? '100', 10),
+    rebalanceThresholdPct: parseInt(process.env['HEDGE_REBALANCE_THRESHOLD_PCT'] ?? '5', 10),
+    monitorIntervalMs: parseInt(process.env['HEDGE_MONITOR_INTERVAL_MS'] ?? '60000', 10),
+    ilsSigmaBps: parseInt(process.env['HEDGE_ILS_SIGMA_BPS'] ?? '94', 10),
+    positionStalenessMs: parseInt(process.env['HEDGE_POSITION_STALENESS_MS'] ?? '30000', 10),
   },
 }));

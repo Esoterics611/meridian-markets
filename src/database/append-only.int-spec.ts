@@ -65,3 +65,61 @@ describeIfDb('INTEGRATION: treasury_movements is append-only for meridian_market
     ).rejects.toThrow();
   });
 });
+
+// ── Phase 1: hedge table privilege assertions ─────────────────────────────────
+// Same oracle as treasury: meridian_markets_app must have SELECT,INSERT only on
+// hedge_movements (append-only) and SELECT,INSERT,UPDATE on hedge_positions.
+describeIfDb('INTEGRATION: hedge_movements is append-only for meridian_markets_app', () => {
+  let ds: DataSource;
+  let dbUp = false;
+
+  beforeAll(async () => {
+    dbUp = await dbAvailableCached();
+    if (!dbUp) return;
+    ds = newPrivilegedDataSource();
+    await ds.initialize();
+  });
+
+  afterAll(async () => {
+    if (dbUp && ds) await ds.destroy();
+  });
+
+  async function may(table: string, priv: string): Promise<boolean> {
+    const rows = await ds.query<{ ok: boolean }[]>(
+      `SELECT has_table_privilege('meridian_markets_app', $1, $2) AS ok`,
+      [table, priv],
+    );
+    return rows[0].ok === true;
+  }
+
+  it('meridian_markets_app MAY SELECT and INSERT hedge_movements', async () => {
+    if (!dbUp) return;
+    expect(await may('hedge_movements', 'SELECT')).toBe(true);
+    expect(await may('hedge_movements', 'INSERT')).toBe(true);
+  });
+
+  it('meridian_markets_app may NOT UPDATE or DELETE hedge_movements', async () => {
+    if (!dbUp) return;
+    expect(await may('hedge_movements', 'UPDATE')).toBe(false);
+    expect(await may('hedge_movements', 'DELETE')).toBe(false);
+  });
+
+  it('hedge_positions IS mutable (SELECT, INSERT, UPDATE) but not deletable', async () => {
+    if (!dbUp) return;
+    expect(await may('hedge_positions', 'SELECT')).toBe(true);
+    expect(await may('hedge_positions', 'INSERT')).toBe(true);
+    expect(await may('hedge_positions', 'UPDATE')).toBe(true);
+    expect(await may('hedge_positions', 'DELETE')).toBe(false);
+  });
+
+  it('hedge_movements CHECK rejects an invalid direction value', async () => {
+    if (!dbUp) return;
+    await expect(
+      ds.query(
+        `INSERT INTO hedge_movements
+           (venue, direction, notional_units, external_ref, idempotency_key)
+         VALUES ('mock', 'BAD_DIRECTION', 1000, 'ext', 'chk-bad-dir-${Math.random()}')`,
+      ),
+    ).rejects.toThrow();
+  });
+});

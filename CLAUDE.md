@@ -77,8 +77,8 @@ Same rule for any future provider (Maker sDAI, BlackRock BUIDL): ship the stub, 
 
 Full per-session log in [docs/SESSION_HISTORY.md](docs/SESSION_HISTORY.md). Current state (as of 2026-05-26):
 
-- **Done:** Session 1 — Phase 0 scaffold: schema, mock yield provider, Ondo stub, treasury service, controller, yield-sync cron, 51 tests across 9 suites. Real Ondo wire-up pending KYB.
-- **Next:** Lira-Bridge-side `ITreasuryClient` implementation (separate session, in `/home/nexus/code/meridian`); KYB with Ondo (business track); Phase 1 FX hedge (separate prompt).
+- **Done:** Session 1 — Phase 0 scaffold (51 tests, 9 suites). Session 2 — Phase 1 scaffold + stat-arb plan + course (14 hedge scaffold tests). Session 3 — stat-arb course research, mkdocs Material upgrade, RohOnChain archive. Session 4 — Phase 1 orchestrator: HedgeService, HedgeMonitorCron, HedgeCircuitBreaker, StubExposureClient, hedge_movements/hedge_positions migration (29 net-new tests, 94 total).
+- **Next:** Session 5 — Phase 3 stat-arb signal library + backtest runner + live web dashboard at `/demo` (see `prompts/PHASE_3_DEMO_PROMPT.md`). Separate tracks: Lira-Bridge-side `ITreasuryClient` + exposure endpoint (in `/home/nexus/code/meridian`), KYB with Ondo (yield) and Hyperliquid (hedge) — both business gates.
 
 ## 9. Key File Map
 

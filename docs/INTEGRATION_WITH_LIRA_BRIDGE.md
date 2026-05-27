@@ -129,3 +129,44 @@ The path prefix `/api/treasury` is the version (implicit v1). Breaking changes:
 - Not a place to expose internal yield-provider details. Lira-Bridge sees `provider: "mock" | "ondo-usdy" | ...` and that's the limit. The chain, the smart contract address, the rebase mechanism, the redemption window — Markets' problem, not Lira-Bridge's.
 - Not a place to expose customer-money operations. Phase 4 (3(c)(7) fund subscriptions and redemptions) gets its own contract on a different surface with different auth.
 - Not a place to pass Lira-Bridge member identifiers. This is first-party treasury management — there is no "per-member" balance in Markets. Anything that would need one is a Phase 4+ concern.
+
+---
+
+## 9. Phase 1 addition — Path C outstanding-exposure endpoint (Lira-Bridge → Markets)
+
+> **Status (2026-05-27):** endpoint defined here; **not yet implemented on the Lira-Bridge side** (separate session in `/home/nexus/code/meridian`). The Markets side uses `StubExposureClient` until the real endpoint is available.
+
+The hedge monitor cron needs to read Lira-Bridge's outstanding ILS-pending exposure so it can size the short-ILS position appropriately. This reverses the caller/callee direction: **Markets calls Lira-Bridge**.
+
+### 9.1 `GET /api/path-c/outstanding-exposure`
+
+Returns the current sum of all Path C transactions where the customer's ILS wire has been credited but the USDC replenishment has not yet arrived (the FX gap-risk window).
+
+```json
+// Response 200
+{
+  "ils_units": "18500000000",
+  "usdc_units": "5000000000",
+  "as_of": "2026-05-27T14:00:00.000Z"
+}
+```
+
+- `ils_units` — outstanding ILS amount in 6-decimal integer units (1 ILS = 1_000_000 units).
+- `usdc_units` — equivalent USDC value in 6-decimal integer units (at the market rate at `as_of`).
+- `as_of` — timestamp of the computation; used by `HedgeCircuitBreaker.checkFeedStaleness()`.
+
+### 9.2 Auth
+
+Same `x-meridian-client-key` header, same constant-time compare. Markets presents the key; Lira-Bridge verifies. Same upgrade path to mTLS / signed JWT before real money.
+
+### 9.3 Idempotency and polling cadence
+
+This is a **read** — no idempotency required. Markets polls on `HEDGE_MONITOR_INTERVAL_MS` (default 60s). Lira-Bridge SHOULD cache the exposure computation for at most `HEDGE_MAX_FEED_STALENESS_MS / 2` (default 2.5 minutes) to keep the response fast.
+
+### 9.4 Lira-Bridge implementation notes
+
+When building this endpoint in the Lira-Bridge repo:
+- Query the `path_c_transactions` table for `status IN ('CREDITED','PENDING_REPLENISHMENT')`.
+- Sum `ils_amount` and convert to USDC at the current FX rate.
+- The `as_of` field MUST be the time of the DB read, not a cached timestamp — the circuit-breaker on the Markets side uses it to detect stale data.
+
