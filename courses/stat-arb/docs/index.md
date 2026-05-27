@@ -18,9 +18,25 @@ Each chapter is structured the same way:
 
 ## How to read this
 
-- If you've never seen stat arb before: §0 → §1 → §2 in order. Skip the others until §2 makes sense.
-- If you've done quant work and just want the codebase-specific shape: §4 → §5 → Appendix A.
-- If you're vetting whether to invest engineering time here: just §1 and §7.
+- If you've never seen stat arb before: [§0](00-charter-and-sources.md) → [§1](01-introduction.md) → [§2](02-cointegration.md) in order. Skip the others until §2 makes sense.
+- If you've done quant work and just want the codebase-specific shape: [§4](04-execution.md) → [§5](05-risk.md) → [Appendix A](appendix-a-code-shapes.md).
+- If you're vetting whether to invest engineering time here: just [§1](01-introduction.md) and [§7](07-production.md).
+
+## Chapter map
+
+| # | Chapter | What you get |
+|---|---|---|
+| 0 | [Course charter & sources](00-charter-and-sources.md) | Source-tiering rule (Tier-A/B/C) that all later citations rely on. |
+| 1 | [What stat arb actually is](01-introduction.md) | One-paragraph definition, four families, failure-mode flowchart. |
+| 2 | [Cointegration & pairs trading](02-cointegration.md) | Engle-Granger, Johansen, half-life, universe construction funnel, staleness diagnostics. |
+| 3 | [Ornstein-Uhlenbeck mean reversion](03-ou-process.md) | OU fitting, Bertram thresholds, $\theta$ diagnostics, refit cadence, kill-switch floor. |
+| 4 | [Execution & venue abstraction](04-execution.md) | `ITradingVenue`, three cost-model fidelity levels, entry-passive / exit-aggressive asymmetry. |
+| 5 | [Risk, sizing, circuit breakers](05-risk.md) | Fractional Kelly, per-venue caps, drawdown gate, circuit breakers, kill switch. |
+| 6 | [Backtesting honestly](06-backtesting.md) | Event-driven vs vectorised, purged k-fold, calibration loop, deflated Sharpe, sensitivity sweeps. |
+| 7 | [From paper to production](07-production.md) | Shadow phase → min-capital → ramp curve, daily/weekly ops checklists, fund administrator artifacts. |
+| A | [Code-shape catalogue](appendix-a-code-shapes.md) | Ten TypeScript patterns the course relies on, with Jest test shapes. |
+| B | [Source notebook](appendix-b-sources.md) | Full citation table; Tier-B URL verification ledger. |
+| C | [Practitioner lore](appendix-c-practitioner-lore.md) | RohOnChain archive Q&A with Tier-A mappings. |
 
 ## Status banner
 

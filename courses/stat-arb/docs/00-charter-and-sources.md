@@ -1,5 +1,9 @@
 # 0. Course charter & sources
 
+!!! abstract "Where this chapter fits"
+    **Read first.** This chapter defines the source-tiering rule that every later citation relies on. Without it, the "Tier-A / Tier-B / Tier-C" labels in [§2–§7](01-introduction.md) and the [appendices](appendix-b-sources.md) lose their meaning.
+    **Continue with:** [§1 — what stat arb is](01-introduction.md) for the framing, then [§2 cointegration](02-cointegration.md).
+
 ## 0.1 Why this course exists
 
 Meridian Markets' [PHASED_PLAN.md](../../../PHASED_PLAN.md) commits to a 12-month audited NAV before opening any fund product (Phase 3 → Phase 4). Statistical arbitrage is the cheapest strategy book that produces the supporting artifacts: cointegration tests, mean-reversion estimation, multi-strategy risk attribution, daily NAV machinery. Building it carefully — and **documenting it as we go** — is the difference between "we have backtests" and "we have an audited track record an LP will accept."

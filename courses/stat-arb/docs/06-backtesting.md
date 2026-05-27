@@ -1,5 +1,10 @@
 # 6. Backtesting honestly
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** all of [§2](02-cointegration.md)–[§5](05-risk.md). Every strategy from §2 and §3, every execution model from [§4](04-execution.md), and every risk gate from §5 must be evaluated under the discipline here before it's worth deploying. The multiple-testing problem in [§2.8](02-cointegration.md#28-universe-construction-from-infinite-candidate-pairs-to-a-tractable-book) is what [§6.5](#65-deflated-sharpe-ratio-the-multiple-testing-aware-sharpe)'s DSR formally corrects.
+    **Feeds into:** [§7 production](07-production.md) — the shadow-mode loop in [§7.1](07-production.md#71-the-shadow-phase-running-live-without-spending-money) is the live-data extension of §6's discipline, and the [§6.4](#64-calibrating-the-fee-slippage-model-the-audit-loop) calibration loop is what makes [§7.2](07-production.md#72-the-minimum-capital-phase-making-sure-the-friction-is-right)'s min-capital phase converge.
+    **Code shape:** [Appendix A.3 — IStrategy](appendix-a-code-shapes.md#a3-istrategy-the-canonical-strategy-interface) (the same interface is used by backtest and live runners — the byte-similarity argument in [§6.2](#62-event-driven-beats-vectorised)); [A.9 — DB-gated integration spec](appendix-a-code-shapes.md#a9-the-db-gated-integration-spec).
+
 ## 6.1 Why honest backtesting is hard
 
 The dominant failure mode in quant research is not "the strategy doesn't work." It is "the strategy worked in the backtest and didn't in production, and we don't know which step lied." Honest backtesting is the discipline of making the backtest *predict* live behaviour to within a small tolerance. When the backtest predicts and live confirms, the strategy is real; when it doesn't, the backtest is wrong and re-tuning the strategy will not save it.
@@ -24,7 +29,7 @@ Vectorised backtests are tempting because they're fast — apply your signal log
 | `ITradingVenue` | `MockTradingVenue` with deterministic fills | `RealBinanceVenue` (or other) |
 | Clock | Replay clock (`new Date(bar.ts)`) | System clock |
 
-If the same `pairs-trading.strategy.ts` is wired into both runners and the backtest's P&L doesn't predict live P&L on the same time window, **the loop is the wrong shape** — not the strategy. The two loops should be byte-identical except for the wiring layer.
+If the same `pairs-trading.strategy.ts` is wired into both runners and the backtest's P&L doesn't predict live P&L on the same time window, **the loop is the wrong shape** — not the strategy. The two loops should be logic-identical (same `onBar` calls in the same order against the same `IStrategy` instance) except for the `IBarFeed`, `ITradingVenue`, and clock implementations selected by the factory ([Appendix A.8](appendix-a-code-shapes.md#a8-the-factory-selector)).
 
 ```typescript
 // backtest/backtest-runner.ts (sketch)
@@ -100,14 +105,14 @@ The purge window (`label_horizon` before the test) catches the sample-with-overl
 
 ## 6.4 Calibrating the fee / slippage model — the audit loop
 
-§4.4 specified three fidelity levels. Honest backtesting requires you to *calibrate* the level you're using against live data, not pick numbers from a textbook:
+[§4.4](04-execution.md#44-the-cost-model-is-what-makes-the-backtest-honest) specified three fidelity levels. Honest backtesting requires you to *calibrate* the level you're using against live data, not pick numbers from a textbook:
 
-1. **Ship the strategy in shadow mode** (§7.1) for two weeks. Log every order the strategy *would* have placed, alongside the bar's mid, top-of-book bid/ask, and the realised fill price (had the order actually been placed).
+1. **Ship the strategy in shadow mode** ([§7.1](07-production.md#71-the-shadow-phase-running-live-without-spending-money)) for two weeks. Log every order the strategy *would* have placed, alongside the bar's mid, top-of-book bid/ask, and the realised fill price (had the order actually been placed).
 2. **Compute the realised slippage distribution.** For each shadow order: `realised_slippage_bps = (fill_price - mid) / mid * 10_000`. Take the 50th, 90th, 99th percentiles.
 3. **Compare to your backtest's Level-2 model.** If your backtest assumes `baseBps = 5, impactBps = 0.5 * size / ADV * 10_000`, and the realised 90th-percentile slippage is 12 bps while your model predicts 6 bps, your model is half the correct cost. Re-fit.
 4. **Re-backtest with the calibrated model.** If the strategy still survives at the new costs, you have signal. If it doesn't, you found a strategy that worked only in your too-optimistic cost model.
 
-The single biggest lift in backtest-vs-live alignment comes from this loop, not from fancier mathematics. Strategies that survive a calibrated Level-2 backtest, on a survivor-corrected universe, with purged k-fold CV passing, are the only ones worth taking past §7.1.
+The single biggest lift in backtest-vs-live alignment comes from this loop, not from fancier mathematics. Strategies that survive a calibrated Level-2 backtest, on a survivor-corrected universe, with purged k-fold CV passing, are the only ones worth taking past [§7.1](07-production.md#71-the-shadow-phase-running-live-without-spending-money).
 
 ## 6.5 Deflated Sharpe ratio — the multiple-testing-aware Sharpe
 

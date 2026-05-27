@@ -1,5 +1,10 @@
 # 1. What stat arb actually is
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§0 — course charter](00-charter-and-sources.md). Read §0 first if you haven't seen the source-tiering rule.
+    **Feeds into:** [§2 cointegration](02-cointegration.md) and [§3 OU process](03-ou-process.md) (the two strategy families this course goes deep on); [§7 production](07-production.md) (the operational envelope this whole thing has to fit inside).
+    **Read alone if:** you want a one-sitting "is stat arb worth our engineering time?" overview — §1 + [§7](07-production.md) is enough.
+
 ## 1.1 The one-paragraph definition
 
 Statistical arbitrage is **mean-reversion trading on synthesized spreads**. You construct a portfolio whose value is (statistically) stationary — a *spread* that drifts around a known mean — and bet that deviations from that mean will revert. The "statistical" qualifier matters: nothing is risk-free. The bet is that *on average across many such spreads* the mean-reverting property holds, and that the *expected return per unit of risk* beats a benchmark.
@@ -54,17 +59,17 @@ flowchart TD
   D -- No --> E[Half-life too long.<br/>Capital tied up forever.]
   D -- Yes --> F{Are fees + slippage<br/>less than expected profit?}
   F -- No --> G[Strategy looks good<br/>only in zero-fee world]
-  F -- Yes --> H{Have you sized<br/>for 3σ ILS moves?}
+  F -- Yes --> H{Have you sized<br/>for 3σ tail moves?}
   H -- No --> I[One bad week kills you]
   H -- Yes --> J[OK. Run it small.]
 ```
 
 Every box above maps to a chapter:
 
-- "Overfit" → §6 (purged k-fold CV)
-- "Half-life too long" → §2.5
-- "Fees too high" → §4 (execution cost models)
-- "Position-sized wrong" → §5 (Kelly + circuit breakers)
+- "Overfit" → [§6 (purged k-fold CV)](06-backtesting.md#63-purged-k-fold-cross-validation-worked-example)
+- "Half-life too long" → [§2.4](02-cointegration.md#24-half-life-of-mean-reversion)
+- "Fees too high" → [§4 (execution cost models)](04-execution.md#44-the-cost-model-is-what-makes-the-backtest-honest)
+- "Position-sized wrong" → [§5 (Kelly + circuit breakers)](05-risk.md#52-per-strategy-fractional-kelly-with-shrinkage)
 
 The chapters compose. If you skip one, the next is unsound.
 

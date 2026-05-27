@@ -1,5 +1,10 @@
 # 4. Execution & venue abstraction
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§2 cointegration](02-cointegration.md) and [§3 OU process](03-ou-process.md) — every order vetted by this layer originates in those two chapters' signal/strategy code. [§3.4](03-ou-process.md#34-bertrams-optimal-thresholds-b10)'s Bertram thresholds and [§2.5](02-cointegration.md#25-z-score-entryexit)'s z-score thresholds define *when* to trade; this chapter defines *how*.
+    **Feeds into:** [§5 risk](05-risk.md) (the execution router is downstream of the risk layer — see [§5.7](05-risk.md#57-code-shape-how-risk-wires-in) for the wiring); [§6.4](06-backtesting.md#64-calibrating-the-fee-slippage-model-the-audit-loop) (the fee/slippage model is *defined* here and *calibrated* in §6.4); [§7.2](07-production.md#72-the-minimum-capital-phase-making-sure-the-friction-is-right) (min-capital phase is the calibration loop for these models against live fills).
+    **Code shape:** [Appendix A.1 — swap-seam](appendix-a-code-shapes.md#a1-the-swap-seam-pattern-interface-mock-default-dormant-real), [A.4 — append-only ledger](appendix-a-code-shapes.md#a4-append-only-ledger-recap-from-treasury_movements), [A.8 — factory selector](appendix-a-code-shapes.md#a8-the-factory-selector).
+
 ## 4.1 The execution layer is the same one Phase 1 uses
 
 The codebase already has the swap-seam shape we need. [Phase 0](../../../docs/SESSION_HISTORY.md) ships `IYieldProvider`; [Phase 1](../../../prompts/PHASE_1_PROMPT.md) adds `IHedgeVenue`. Phase 3 stat-arb adds `ITradingVenue`. Same posture: interface + mock-default + dormant real, factory-selected by env flag.
@@ -87,7 +92,7 @@ A pattern that holds across pairs trading, OU mean-reversion, and most stat-arb 
 
 When the spread has just moved to your entry threshold (e.g. $z_t = +2$ on a short-spread setup), you're making a wager on *further* mean-reversion. The current move could continue widening for a few more bars before reverting. You don't lose much by entering at $z = +2.05$ instead of $z = +2.00$ — in fact, if the spread keeps widening, you'd rather have a better entry. **The cost of a slightly-late entry is small; the cost of a slightly-bad fill price is permanent.** Conclusion: place a post-only limit order at or just inside the threshold; let the market come to you. If it doesn't fill, the trade simply doesn't happen, which is a benign outcome — you've avoided a setup that might have been weaker than it looked.
 
-The exit side is mechanically inverted. Once $z_t$ crosses your exit threshold (e.g. $|z_t| < 0.5$ from §2.5), the trade is *done*. Your edge has fully materialised; any further price action is dilution. The cost of a slightly-late exit *isn't* the small slippage of crossing the spread — it's the **drift back through your exit threshold** before you've gotten out. A spread that revertss to $|z| = 0.3$ and then re-widens to $|z| = 0.8$ has burned half your edge in one bar. **You want out *now*, at any reasonable fill, not at the optimal post-only level you'll never reach.** Conclusion: market or marketable-limit orders on exit. Take liquidity. Pay the spread. The fee differential is dwarfed by the cost of giving the trade back.
+The exit side is mechanically inverted. Once $z_t$ crosses your exit threshold (e.g. $|z_t| < 0.5$ from [§2.5](02-cointegration.md#25-z-score-entryexit)), the trade is *done*. Your edge has fully materialised; any further price action is dilution. The cost of a slightly-late exit *isn't* the small slippage of crossing the spread — it's the **drift back through your exit threshold** before you've gotten out. A spread that reverts to $|z| = 0.3$ and then re-widens to $|z| = 0.8$ has burned half your edge in one bar. **You want out *now*, at any reasonable fill, not at the optimal post-only level you'll never reach.** Conclusion: market or marketable-limit orders on exit. Take liquidity. Pay the spread. The fee differential is dwarfed by the cost of giving the trade back.
 
 The same logic applies to **stop-outs**. A stop-out fires when the spread has moved 4σ against you — the cointegration is plausibly breaking. Hesitating to "save the spread" is the failure mode that turns a 4σ stop into an 8σ disaster. Stop-outs are *always* aggressive: market order, regardless of fee impact, regardless of slippage. The decision to stop has already been made by the time the order fires; the only remaining question is *how fast you can flatten*.
 
@@ -137,7 +142,7 @@ Three failure modes the venue layer has to handle:
 2. **Partial fill, then disconnect.** Reconnect, fetch by `clientOrderId`, reconcile fills.
 3. **Replay after restart.** On process restart, load open `clientOrderId`s from the DB and re-fetch their state from the venue. Do not assume "we know" any order state from memory alone.
 
-The append-only ledger pattern from `treasury_movements` (write-on-confirmation, never UPDATE / DELETE) carries over: a new `prop_movements` table records every confirmed fill, with `(venue, idempotency_key)` UNIQUE for replay safety.
+The append-only ledger pattern from `treasury_movements` (write-on-confirmation, never UPDATE / DELETE) carries over: a new `prop_movements` table records every confirmed fill, with `(venue, idempotency_key)` UNIQUE for replay safety. Full schema sketch in [Appendix A.4](appendix-a-code-shapes.md#a4-append-only-ledger-recap-from-treasury_movements).
 
 ## 4.8 Code shape — the dormant real venue
 

@@ -1,5 +1,10 @@
 # 5. Risk, sizing, circuit breakers
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§2 cointegration](02-cointegration.md) and [§3 OU process](03-ou-process.md) (the strategies whose orders this chapter sizes and gates); [§2.8](02-cointegration.md#28-universe-construction-from-infinite-candidate-pairs-to-a-tractable-book) (the effective-$N$ argument feeds directly into [§5.2](#52-per-strategy-fractional-kelly-with-shrinkage)'s Kelly framing).
+    **Feeds into:** [§4 execution](04-execution.md) (orders only reach the execution router after the risk layer accepts them; the wiring is in [§5.7](#57-code-shape-how-risk-wires-in)); [§6.5](06-backtesting.md#65-deflated-sharpe-ratio-the-multiple-testing-aware-sharpe) (the DSR is the multiple-testing-aware sizing input that complements the Kelly framing here); [§7.3](07-production.md#73-the-capital-ramp-curve-concrete-dollar-amounts) (capital-ramp gates are operational expressions of the same drawdown and venue-cap discipline).
+    **Code shape:** [Appendix A.6 — risk-layer pipeline](appendix-a-code-shapes.md#a6-the-risk-layer-pipeline).
+
 ## 5.1 The three risk layers
 
 Risk isn't a single check. It's three nested layers, each catching a different failure mode:
@@ -123,7 +128,8 @@ Specific events that bypass the normal risk machinery. Mirror the circuit-breake
 | Funding spike | Funding rate > 100 bps | Close affected venue positions; pause new opens on that venue | Manual after funding normalises |
 | Venue health | `fetchHealth().healthy === false` | Pause all activity on the venue | Manual after venue self-clears |
 | Data staleness | Feed quiet > 30s (live) | Pause strategies depending on that feed | Auto when feed resumes |
-| Cointegration decay | Pair's ADF $p > 0.10$ for 2 days | Close the pair | Pair re-passes the test |
+| Cointegration decay | Pair's ADF $p > 0.10$ for 2 days ([§2.9](02-cointegration.md#29-spread-staleness-diagnostics-knowing-when-a-cointegrated-pair-has-broken)) | Close the pair | Pair re-passes the test |
+| OU $\theta$ floor | Fitted $\theta < \theta_{\min}$ ([§3.6](03-ou-process.md#36-reading-the-ou-fit-diagnostics-in-practice)) | Close OU positions on that spread; pause new entries | $\theta$ recovers above floor on next refit |
 | Drawdown | Portfolio drawdown > 5% | Stop everything | Manual after operator review |
 
 **Reset discipline.** Auto-resets are tempting and dangerous. The default for "soft" gates (data staleness) can be auto. For "hard" gates (drawdown, venue health) require an operator action. The cost of a false-positive reset is much higher than the cost of a few minutes of paused trading.

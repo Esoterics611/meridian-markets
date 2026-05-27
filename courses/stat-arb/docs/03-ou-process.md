@@ -1,8 +1,13 @@
 # 3. Ornstein-Uhlenbeck mean reversion
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§2 cointegration](02-cointegration.md) — every OU fit in this chapter is fitted to a *spread*, and §2 is how you found a spread worth fitting. [§2.5](02-cointegration.md#25-z-score-entryexit) specifically: this chapter is the principled upgrade to the z-score thresholds in §2.5.
+    **Feeds into:** [§4 execution](04-execution.md) (Bertram thresholds emit the "open / close spread" decisions that the execution router consumes; the entry-passive / exit-aggressive asymmetry in [§4.5](04-execution.md#45-passive-vs-aggressive-entryexit-the-asymmetry) is what makes Bertram's thresholds achievable in practice); [§5.5](05-risk.md#55-circuit-breakers) (the `minTheta` kill switch is the cointegration-decay circuit breaker).
+    **Code shape:** [Appendix A.2 — pure signal functions](appendix-a-code-shapes.md#a2-pure-signal-functions) (the OU fit is a pure function); [A.7 — deterministic clock](appendix-a-code-shapes.md#a7-the-deterministic-clock-pattern) (the refit-cadence logic).
+
 ## 3.1 Why OU and not just z-score
 
-Z-score thresholds (§2.5) are the bluntest possible trading rule on a mean-reverting series. They ignore the **speed** of mean reversion and assume static volatility. Modelling the spread as an Ornstein-Uhlenbeck process gives you:
+Z-score thresholds ([§2.5](02-cointegration.md#25-z-score-entryexit)) are the bluntest possible trading rule on a mean-reverting series. They ignore the **speed** of mean reversion and assume static volatility. Modelling the spread as an Ornstein-Uhlenbeck process gives you:
 
 1. A principled estimate of how fast deviations close.
 2. **Closed-form optimal entry/exit thresholds** given a transaction cost (Bertram, **B10**).
@@ -22,7 +27,7 @@ where:
 - $\sigma$ is the diffusion (volatility)
 - $W_t$ is standard Brownian motion
 
-The half-life is $\ln(2) / \theta$ (consistent with §2.4 — the AR(1) coefficient $\rho$ is the discrete analogue of $e^{-\theta\,\Delta t}$).
+The half-life is $\ln(2) / \theta$ (consistent with [§2.4](02-cointegration.md#24-half-life-of-mean-reversion) — the AR(1) coefficient $\rho$ is the discrete analogue of $e^{-\theta\,\Delta t}$).
 
 ## 3.3 Fitting OU from data
 
@@ -38,7 +43,7 @@ That's an AR(1) in $X_t$. OLS regression of $X_{t+1}$ on $X_t$ recovers:
 
 - Slope $\beta = 1 - \theta\Delta t$ ⇒ $\theta = (1 - \beta) / \Delta t$
 - Intercept $\alpha = \theta\mu\Delta t$ ⇒ $\mu = \alpha / (\theta\Delta t)$
-- Residual std ⇒ $\sigma = \text{stderr} / \sqrt{\Delta t}$
+- Residual standard deviation $s_\varepsilon = \sigma\sqrt{\Delta t}$ ⇒ $\sigma = s_\varepsilon / \sqrt{\Delta t}$
 
 In code:
 
@@ -111,12 +116,12 @@ The fourth case looks like a failure but isn't: $\theta$ becomes very large (hal
 **When to refit and when not to.** The naive answer is "refit every bar"; that's wrong because you'll overfit your $\theta$ to the most recent ten bars and end up with a strategy whose parameters whiplash with the market. The opposite extreme — refit once at strategy launch and never again — fails the moment $\theta$ drifts. The Goldilocks rule, drawn from **AL10** (Avellaneda & Lee's PCA-window choice for equities residuals) and consistent with practitioner usage:
 
 - **Refit cadence ≈ half-life × 4 to 8.** If your fitted half-life is 6 bars, refit every 24–48 bars. The intuition: you want at least a few mean-reversion cycles to inform the next fit, but not so many that you've missed a regime change.
-- **Force a refit on any z-score that exceeds your stop-out threshold.** If $|z| > k_{\text{stop}}$ (e.g. $|z| > 4$ from §2.5), the mean has likely moved. Don't keep trading on the old $\mu$.
+- **Force a refit on any z-score that exceeds your stop-out threshold.** If $|z| > k_{\text{stop}}$ (e.g. $|z| > 4$ from [§2.5](02-cointegration.md#25-z-score-entryexit)), the mean has likely moved. Don't keep trading on the old $\mu$.
 - **Skip the refit if the new window covers a known regime catalyst.** A token unlock, a major listing, an ETF flow event — the data point exists but it's not representative of the steady-state OU dynamics. Either drop those days from the fit window or wait until the catalyst is fully digested before refitting.
 
 **How to spot a regime change in the parameters before P&L catches it.** The single most useful operational diagnostic is plotting all three rolling parameters — $\theta$, $\mu$, $\sigma$ — side by side over time. A genuine regime change touches all three: $\theta$ usually drops (slower reversion), $\mu$ moves to a new level (the spread is anchored differently), and $\sigma$ either expands (the spread is noisier) or contracts (the legs are moving together more, often a precursor to the cointegration becoming meaningless rather than stronger). When all three move together, that's the change. When only $\sigma$ moves but $\theta$ and $\mu$ are stable, that's typically a volatility event, not a regime change — your sizing should react but the strategy can keep running.
 
-**The kill switch in operational terms.** From §3.7's code: `minTheta` is a floor below which the strategy refuses to enter new positions. How to pick the floor? Two anchors:
+**The kill switch in operational terms.** From [§3.7](#37-code-shape-full-strategy)'s code: `minTheta` is a floor below which the strategy refuses to enter new positions. How to pick the floor? Two anchors:
 
 1. **Transaction-cost anchor.** Bertram (**B10**) gives the optimal entry threshold $a$ as a function of $(\theta, \sigma, c)$. There exists a $\theta_{\min}$ below which the optimal $a$ exceeds the spread's empirical range — i.e. you'd be waiting for a level the spread never reaches. That's the hard floor: $\theta < \theta_{\min}$ means even a perfectly-timed Bertram entry won't be profitable.
 2. **Capacity-time anchor.** If your strategy needs to free $X capital every $T days to satisfy a portfolio-level constraint, $\theta_{\min} = \ln(2) / (T/k)$ for some $k$ (typically 2–3, so half-lives fit twice into the capacity window).

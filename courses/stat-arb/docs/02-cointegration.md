@@ -1,5 +1,10 @@
 # 2. Cointegration & pairs trading
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§1 — what stat arb is](01-introduction.md) (the framing); [§0.3 — source tiering](00-charter-and-sources.md#03-source-collection-method) (the EG87/J91/AL10 citations).
+    **Feeds into:** [§3 OU process](03-ou-process.md) (the closed-form upgrade to §2.5's coarse z-score rule); [§4 execution](04-execution.md) (every "open / close spread" decision goes through the execution router); [§5 risk](05-risk.md) (universe size in §2.8 plugs directly into the effective-$N$ argument in §5.2); [§6 backtesting](06-backtesting.md) (the multiple-testing trap in §2.8 is what §6.5's DSR formally corrects).
+    **Code shape:** [Appendix A.2 — pure signal functions](appendix-a-code-shapes.md#a2-pure-signal-functions) and [A.3 — IStrategy](appendix-a-code-shapes.md#a3-istrategy-the-canonical-strategy-interface).
+
 ## 2.1 The intuition
 
 Two assets `A` and `B` are **cointegrated** if neither is stationary on its own (both have unit roots — they wander) but a *linear combination* of them is stationary. That linear combination is the spread:
@@ -75,7 +80,7 @@ Where $\mu$ and $\sigma$ are estimated over a rolling window (often 60–250 bar
 - Close on $|z_t| < k_{\text{exit}}$ (e.g. $0.5$).
 - Stop out at $|z_t| > k_{\text{stop}}$ (e.g. $4$) — if reversion fails, regime probably broke.
 
-The Bertram (**B10**) result (covered in §3) gives an *optimal* entry/exit pair given the OU parameters. Plain z-score thresholds are a coarse approximation.
+The Bertram (**B10**) result (covered in [§3](03-ou-process.md#34-bertrams-optimal-thresholds-b10)) gives an *optimal* entry/exit pair given the OU parameters. Plain z-score thresholds are a coarse approximation.
 
 ## 2.6 Code shape
 
@@ -116,9 +121,9 @@ export class PairsTradingStrategy implements IStrategy {
 
 Key shape notes:
 
-- **`signal/` is pure.** No `Date`, no `process.env`, no DB. Inputs are arrays of numbers; output is a value object. This is what makes it testable with golden vectors (§6.3 in [STAT_ARB_PLAN.md](../../../docs/STAT_ARB_PLAN.md)).
-- **`strategy/` consumes signals.** It owns the parameters (`beta`, `kEnter`, `windowBars`) but delegates the math.
-- **No venue-aware code anywhere in here.** That's `execution/` (§4).
+- **`signal/` is pure.** No `Date`, no `process.env`, no DB. Inputs are arrays of numbers; output is a value object. This is what makes it testable with golden vectors (§6.3 in [STAT_ARB_PLAN.md](../../../docs/STAT_ARB_PLAN.md); the pattern is [Appendix A.2](appendix-a-code-shapes.md#a2-pure-signal-functions)).
+- **`strategy/` consumes signals.** It owns the parameters (`beta`, `kEnter`, `windowBars`) but delegates the math. Same interface as every other strategy — see [Appendix A.3](appendix-a-code-shapes.md#a3-istrategy-the-canonical-strategy-interface).
+- **No venue-aware code anywhere in here.** That's `execution/` ([§4](04-execution.md)).
 
 ## 2.7 When pairs trading breaks
 
@@ -143,7 +148,7 @@ So the operational question becomes: how do you narrow 11,000+ candidates to a f
 | 2 | **Sector / category bucketing.** Only pair within a defined family — L1s with L1s, DEX tokens with DEX tokens, USD stablecoins with USD stablecoins. Cross-family pairs occasionally cointegrate, but the cointegration is usually a transient macro effect with no fundamental tether — i.e. the relationship has no reason to *re-form* if it breaks. | The $\approx 80\%$ of candidate pairs that have no economic reason to track each other. | $\binom{80}{2} = 3,160$ → ~400 within-bucket pairs |
 | 3 | **Correlation pre-filter.** Discard pairs whose 90-day rolling Pearson correlation on log-returns is below a floor (e.g. $\rho < 0.6$). High correlation is *necessary but not sufficient* for cointegration, and it's far cheaper to compute. | Pairs that don't move together at all. | 400 → ~120 |
 | 4 | **Cointegration test.** Engle-Granger on the survivors. Apply a stricter $p < 0.01$ threshold than the textbook $p < 0.05$ because you're testing 120+ pairs; under Bonferroni adjustment $p < 0.05 / 120 \approx p < 0.0004$ if you want full familywise control, but $p < 0.01$ is a defensible practitioner compromise. | The pairs that pass-by-chance under multiple testing. | 120 → ~25 |
-| 5 | **Half-life filter.** Drop pairs with half-life outside the 1–20 bar tradable window from §2.4 *on your bar size*. | Pairs that are statistically cointegrated but economically dead — too slow to free capital. | 25 → ~15 |
+| 5 | **Half-life filter.** Drop pairs whose half-life falls outside the tradeable range from [§2.4](#24-half-life-of-mean-reversion) *on your bar size* — under 1 bar is microstructure noise; over 200 bars is economically dead. The 1–20-bar sweet spot is preferred; 20–200 is tradeable but capital-intensive and should be sized down. | Pairs that are statistically cointegrated but economically dead, or microstructure-noise hits. | 25 → ~15 |
 | 6 | **Capacity check.** For each remaining pair, simulate $X notional through the order book at a defined slippage budget. Drop pairs where even the smaller-leg's spread plus depth makes the round-trip uneconomic at your target trade size. | Pairs that work on paper but won't survive the second-cheapest taker bot. | 15 → ~8–10 |
 
 The book you end up trading is **single-digit pairs**, not hundreds. That's the operationally honest number — and it's roughly consistent with what published equities stat-arb desks report running (**AL10** describes O(100) pairs across the *entire US equities universe*, which is two orders of magnitude larger than crypto).
@@ -155,7 +160,7 @@ The multiple-testing problem deserves explicit treatment because it's the most c
 3. **Cross-validation on a held-out window.** Re-run the cointegration test on a fresh time window after the candidate set is selected. Pairs that pass in both windows are far less likely to be spurious. The cost is sample efficiency — you've now used half your data for selection rather than estimation.
 
 !!! note "Practitioner note (from RohOnChain archive — Fundamental Law thread)"
-    Roan's "50 weak signals" framing ([archive](_archive/roan-fundamental-law-active-mgmt-2026-05-26.md)) is directly relevant here. A book of 20 cointegrated pairs in the *same* sector / family is not 20 independent bets — it's closer to 2–3 independent bets, because the pairs share regime exposure. Diversifying *across signal families* (mean-reversion + funding-carry + microstructure) raises the *effective* $N$ in the Fundamental Law of Active Management ($\text{IR} = \text{IC} \cdot \sqrt{N_{\text{eff}}}$ — see §5.2 and Grinold & Kahn 1995/1999) far more than adding more pairs within one family does. **Concrete implication for crypto stat arb:** don't build a book of 30 L1/L1 pairs and call it diversified. Build a book of 8 L1/L1 pairs, 4 DEX/DEX pairs, 4 funding-carry positions, and 2 basis trades, and trade them all at smaller size.
+    Roan's "50 weak signals" framing ([archive](_archive/roan-fundamental-law-active-mgmt-2026-05-26.md); cross-referenced in [Appendix C Q7](appendix-c-practitioner-lore.md#q7-how-many-independent-signals-does-my-book-actually-have)) is directly relevant here. A book of 20 cointegrated pairs in the *same* sector / family is not 20 independent bets — it's closer to 2–3 independent bets, because the pairs share regime exposure. Diversifying *across signal families* (mean-reversion + funding-carry + microstructure) raises the *effective* $N$ in the Fundamental Law of Active Management ($\text{IR} = \text{IC} \cdot \sqrt{N_{\text{eff}}}$ — see [§5.2](05-risk.md#52-per-strategy-fractional-kelly-with-shrinkage) and Grinold & Kahn 1995/1999) far more than adding more pairs within one family does. **Concrete implication for crypto stat arb:** don't build a book of 30 L1/L1 pairs and call it diversified. Build a book of 8 L1/L1 pairs, 4 DEX/DEX pairs, 4 funding-carry positions, and 2 basis trades, and trade them all at smaller size.
 
 The full citation chain: Engle-Granger (**EG87**) gives the cointegration test; Avellaneda & Lee (**AL10**) gives the modern sector-bucketing operational lore; Clarke, de Silva & Thorley (2002) — *Portfolio constraints and the fundamental law of active management* — gives the effective-$N$ correction that the RohOnChain thread operationalises.
 
@@ -182,7 +187,7 @@ Four diagnostics, in order of how often they fire and how decisive each one is:
 | **Stablecoin de-pegging events** | If one leg is denominated in or correlated with a stablecoin that de-pegs, the relationship breaks in seconds. | Cap exposure per stablecoin denomination. Don't run >30% of the book against any single stablecoin. |
 
 !!! note "Practitioner note (from RohOnChain archive — Markov Hedge Fund Method)"
-    Roan's regime-detection framework ([archive](_archive/roan-markov-hedge-fund-method-2026-05-26.md)) gives a fifth diagnostic that's stronger than any of the four above: fit a Markov regime model on each *leg* individually (Bull/Sideways/Bear via a 20-day rolling-return label) and watch the transition matrices' persistence diagonals. When one leg's persistence diagonal collapses — e.g. its "stay in current regime" probability drops from 90% to 65% over a few weeks — the leg is becoming choppier *independently* of the pair's spread behavior, which is a leading indicator that a cointegration break is being driven by a regime change in just one side of the trade. Operationalised: re-fit the per-leg Markov chains weekly; if either leg's diagonal drops by >15 percentage points from its rolling baseline, close the pair regardless of what the spread is doing. Maps to Hamilton (1989) on regime-switching models.
+    Roan's regime-detection framework ([archive](_archive/roan-markov-hedge-fund-method-2026-05-26.md); cross-referenced in [Appendix C Q2](appendix-c-practitioner-lore.md#q2-why-is-the-persistence-diagonal-of-the-transition-matrix-the-most-useful-single-number-on-it)) gives a fifth diagnostic that's stronger than any of the four above: fit a Markov regime model on each *leg* individually (Bull/Sideways/Bear via a 20-day rolling-return label) and watch the transition matrices' persistence diagonals. When one leg's persistence diagonal collapses — e.g. its "stay in current regime" probability drops from 90% to 65% over a few weeks — the leg is becoming choppier *independently* of the pair's spread behavior, which is a leading indicator that a cointegration break is being driven by a regime change in just one side of the trade. Operationalised: re-fit the per-leg Markov chains weekly; if either leg's diagonal drops by >15 percentage points from its rolling baseline, close the pair regardless of what the spread is doing. Maps to Hamilton (1989) on regime-switching models.
 
 The discipline that ties all four diagnostics together: **the kill switch fires on the *first* diagnostic to trip, not the third.** It's tempting to wait for all four to agree, on the grounds that any one might be a false positive. In practice the diagnostics that fire late are slower and the diagnostics that fire early are more decisive — by the time the rolling p-value has crossed for two days, you've often given back two weeks of profit waiting for "confirmation."
 

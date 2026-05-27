@@ -1,8 +1,13 @@
 # 7. From paper to production
 
+!!! abstract "Where this chapter fits"
+    **Feeds in from:** [§6 backtesting](06-backtesting.md) — every metric and acceptance band here is operationalising §6's discipline against live data instead of historical replay. The calibration loop in [§6.4](06-backtesting.md#64-calibrating-the-fee-slippage-model-the-audit-loop) is what [§7.1](#71-the-shadow-phase-running-live-without-spending-money) and [§7.2](#72-the-minimum-capital-phase-making-sure-the-friction-is-right) close around.
+    **Feeds into:** [PHASED_PLAN.md §Phase 4](../../../PHASED_PLAN.md) — the audited-NAV artifacts in [§7.7](#77-what-audited-nav-actually-means-the-artifacts-the-fund-administrator-wants) are the precondition for opening any fund product to outside LPs. The 12-month-without-restatement clock starts at the first day [§7.3](#73-the-capital-ramp-curve-concrete-dollar-amounts)'s min-capital phase produces a reconciled NAV.
+    **Reads cleanly on its own:** if you're vetting whether to invest engineering time in this whole programme, [§1](01-introduction.md) and §7 together give the cost-benefit picture without needing the math in between.
+
 ## 7.1 The shadow phase — running live without spending money
 
-Shadow mode is the operational analogue of §6's purged k-fold cross-validation: the strategy runs against real, live, current market data, but **execution is disabled**. Every order the strategy would have placed is logged with the bar's mid, top-of-book spread, the side and size of the would-be order, and a synthetic fill price derived from your Level-2 slippage model. Nothing leaves the process.
+Shadow mode is the operational analogue of [§6](06-backtesting.md)'s purged k-fold cross-validation: the strategy runs against real, live, current market data, but **execution is disabled**. Every order the strategy would have placed is logged with the bar's mid, top-of-book spread, the side and size of the would-be order, and a synthetic fill price derived from your Level-2 slippage model ([§4.4](04-execution.md#44-the-cost-model-is-what-makes-the-backtest-honest)). Nothing leaves the process.
 
 Shadow mode answers two questions the backtest can't:
 
@@ -20,7 +25,7 @@ Shadow runs for a **minimum of 10 trading days** before any progression. Less th
 | Number of signal-trigger events that did NOT result in a "would-be order" (e.g. risk-rejected, venue-down) | logged and reviewed; <10% of trigger events |
 | P&L of the would-be orders, evaluated at synthetic fills | within ±2σ of the backtest's daily P&L distribution over the same window |
 
-If the strategy fails any band, it goes back to the backtest. Either the backtest is wrong (recalibrate the slippage model — §6.4) or the strategy has bugs that didn't show up in deterministic replay.
+If the strategy fails any band, it goes back to the backtest. Either the backtest is wrong (recalibrate the slippage model — [§6.4](06-backtesting.md#64-calibrating-the-fee-slippage-model-the-audit-loop)) or the strategy has bugs that didn't show up in deterministic replay.
 
 ## 7.2 The minimum-capital phase — making sure the friction is right
 
@@ -48,9 +53,9 @@ Once minimum-capital live matches shadow within tolerance, ramping is mechanical
 | Shadow | $0 | 10 trading days | §7.1 acceptance bands |
 | Min-capital live | $50,000 – $100,000 | 10 trading days | §7.2 acceptance bands |
 | Step 1 | $250,000 | 10 trading days | Slippage band still ±20%; daily-NAV reconciliation passes 100% |
-| Step 2 | $500,000 | 10 trading days | Same + venue-cap utilisation <80% of §5.3 cap |
+| Step 2 | $500,000 | 10 trading days | Same + venue-cap utilisation <80% of [§5.3](05-risk.md#53-per-venue-caps) cap |
 | Step 3 | $1,000,000 | 20 trading days | Same + portfolio-level drawdown gate has not tripped |
-| Full allocation | per strategy budget (typically $2M–$5M in Meridian Markets' Phase 3 envelope of $5M–$10M total) | indefinite | Continuous monitoring per §7.5 / §7.6 |
+| Full allocation | per strategy budget (typically $2M–$5M in Meridian Markets' Phase 3 envelope of $5M–$10M total) | indefinite | Continuous monitoring per [§7.5](#75-operations-the-daily-checklist) / [§7.6](#76-operations-the-weekly-checklist) |
 
 The curve is *roughly* doubling each step. Faster ramps fail; slower ramps work in expectation but cost opportunity. The pace above is the empirical middle.
 
@@ -71,15 +76,15 @@ Shadow mode (§7.1) is fine to run pre-formation — there's no execution and no
 To be read top-to-bottom at the start of every trading day. The operator's literal first hour of work. Each item is a discrete check with a discrete outcome.
 
 - [ ] **Overnight P&L review.** Read yesterday's strategy P&L vs the previous 30-day distribution. Flag any day outside ±2σ.
-- [ ] **Circuit-breaker state.** For each strategy, confirm no gate is tripped (drawdown, venue health, data staleness, cointegration decay, funding spike). Any tripped gate that hasn't been resolved by the operator gets escalated *before* market open.
+- [ ] **Circuit-breaker state.** For each strategy, confirm no gate is tripped (drawdown, venue health, data staleness, cointegration decay, funding spike — full list at [§5.5](05-risk.md#55-circuit-breakers)). Any tripped gate that hasn't been resolved by the operator gets escalated *before* market open.
 - [ ] **Venue health overnight.** For each connected venue, review the WebSocket uptime overnight, any disconnect/reconnect events, any latency spikes >500ms. Flag any venue with <99% uptime overnight.
-- [ ] **Funding rate review (perp venues).** Read the overnight funding rate prints. Flag any >50bps as a sizing input even if it didn't trip the §5.5 funding-spike gate.
+- [ ] **Funding rate review (perp venues).** Read the overnight funding rate prints. Flag any >50bps as a sizing input even if it didn't trip the [§5.5](05-risk.md#55-circuit-breakers) funding-spike gate.
 - [ ] **Position reconciliation.** Compare the local `prop_positions` table against `fetchPosition()` on each venue. Any drift is investigated immediately — not after market open.
-- [ ] **Cointegration re-test.** For each active pair, confirm the rolling p-value re-test from §2.9 passed yesterday. Any pair with p > 0.05 for 1 day gets sized down 50%; for 2 days gets closed.
-- [ ] **OU parameter check.** For each OU strategy, confirm $\theta$ from yesterday's re-fit is within ±25% of the rolling median. Flag any drift outside that band.
+- [ ] **Cointegration re-test.** For each active pair, confirm the rolling p-value re-test from [§2.9](02-cointegration.md#29-spread-staleness-diagnostics-knowing-when-a-cointegrated-pair-has-broken) passed yesterday. Any pair with p > 0.05 for 1 day gets sized down 50%; for 2 days gets closed.
+- [ ] **OU parameter check.** For each OU strategy, confirm $\theta$ from yesterday's re-fit is within ±25% of the rolling median (per [§3.6](03-ou-process.md#36-reading-the-ou-fit-diagnostics-in-practice)). Flag any drift outside that band.
 - [ ] **NAV reconciliation.** Confirm the prior day's NAV calc matches the venue statements. Any drift > $50 is investigated.
 - [ ] **Strategy on/off state.** Confirm the set of "running" strategies matches the operator's expectation. No surprise additions, no silent shutdowns.
-- [ ] **Capital allocation per strategy.** Confirm each strategy's notional is below its §5.3 cap. Any utilisation > 80% gets flagged for the weekly review.
+- [ ] **Capital allocation per strategy.** Confirm each strategy's notional is below its [§5.3](05-risk.md#53-per-venue-caps) cap. Any utilisation > 80% gets flagged for the weekly review.
 - [ ] **Manual override log.** Review yesterday's `manual_overrides` table entries. Any human intervention is reviewed and signed off.
 - [ ] **Sign off.** Operator initials and timestamps the checklist in the daily-ops log.
 
@@ -89,13 +94,13 @@ Estimated time: **20–30 minutes** when everything is clean; **2–4 hours** wh
 
 To be read every Monday morning. Slower-moving items than the daily checklist.
 
-- [ ] **Universe re-screening.** Re-run the §2.8 funnel (liquidity floor → sector bucketing → correlation pre-filter → cointegration test → half-life filter → capacity check). Identify pairs that have entered or exited the tradable set since last week.
+- [ ] **Universe re-screening.** Re-run the [§2.8 funnel](02-cointegration.md#28-universe-construction-from-infinite-candidate-pairs-to-a-tractable-book) (liquidity floor → sector bucketing → correlation pre-filter → cointegration test → half-life filter → capacity check). Identify pairs that have entered or exited the tradable set since last week.
 - [ ] **Strategy attribution review.** For each strategy, compute the rolling 30-day Sharpe and compare to the backtest's expectation. Any strategy with realised Sharpe < 50% of backtest's gets flagged for review.
-- [ ] **Cross-strategy correlation matrix.** Compute the 30-day Pearson correlation of daily P&L across strategies. The portfolio-level VaR assumes a correlation structure (§5.4); if realised correlations have drifted >0.2 from the assumption, recompute VaR with the new structure.
-- [ ] **Capacity utilisation.** For each strategy, plot the realised position size vs the §5.3 per-venue cap over the last week. Identify strategies pressed against caps — they may be ready to scale (per §7.3) or they may indicate a sizing inefficiency.
-- [ ] **Fee & rebate accrual.** Sum the week's maker rebates and taker fees per venue. Compare to the backtest model's prediction. Material divergence is recalibrated immediately (per §6.4).
+- [ ] **Cross-strategy correlation matrix.** Compute the 30-day Pearson correlation of daily P&L across strategies. The portfolio-level VaR assumes a correlation structure ([§5.4](05-risk.md#54-portfolio-level-var-drawdown-gate)); if realised correlations have drifted >0.2 from the assumption, recompute VaR with the new structure.
+- [ ] **Capacity utilisation.** For each strategy, plot the realised position size vs the [§5.3](05-risk.md#53-per-venue-caps) per-venue cap over the last week. Identify strategies pressed against caps — they may be ready to scale (per [§7.3](#73-the-capital-ramp-curve-concrete-dollar-amounts)) or they may indicate a sizing inefficiency.
+- [ ] **Fee & rebate accrual.** Sum the week's maker rebates and taker fees per venue. Compare to the backtest model's prediction. Material divergence is recalibrated immediately (per [§6.4](06-backtesting.md#64-calibrating-the-fee-slippage-model-the-audit-loop)).
 - [ ] **Open-orders sweep.** Review any limit orders that have been resting >24 hours. Most should be cancelled; resting orders accumulate stale-data risk.
-- [ ] **Disaster-recovery dry-run.** Once per month inside the weekly checklist: run the kill-switch (§5.6) in a non-production environment to verify it cancels all orders and flattens all positions correctly. Update the runbook if anything has changed.
+- [ ] **Disaster-recovery dry-run.** Once per month inside the weekly checklist: run the kill-switch ([§5.6](05-risk.md#56-the-kill-switch)) in a non-production environment to verify it cancels all orders and flattens all positions correctly. Update the runbook if anything has changed.
 - [ ] **NAV provider reconciliation.** Confirm the fund administrator's NAV calc agrees with the internal calc within the contracted tolerance. Material divergence is escalated to the fund administrator the same day.
 
 ## 7.7 What "audited NAV" actually means — the artifacts the fund administrator wants
