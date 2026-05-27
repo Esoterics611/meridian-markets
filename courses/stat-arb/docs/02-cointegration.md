@@ -7,11 +7,17 @@
 
 ## 2.1 The intuition
 
-Two assets `A` and `B` are **cointegrated** if neither is stationary on its own (both have unit roots — they wander) but a *linear combination* of them is stationary. That linear combination is the spread:
+Two assets `A` and `B` are **cointegrated** if neither is stationary on its own (both have unit roots — they wander indefinitely) but a *linear combination* of them is stationary. That linear combination is called the *spread*:
 
 $$ S_t = \log A_t - \beta \log B_t $$
 
-The hedge ratio $\beta$ is whatever makes $S_t$ stationary. If such a $\beta$ exists, then short-`A` / long-`β·B` is a tradable mean-reverting position: when the spread is unusually high, the pair is "too dispersed" and will likely tighten.
+The hedge ratio $\beta$ is whatever value makes $S_t$ stationary — i.e. makes the spread bounce around a stable long-run average rather than drifting. If such a $\beta$ exists, then a position that is **short `A` and long `β·B`** (in dollar terms) is a tradable mean-reverting position: when the spread is unusually high, the pair is "too dispersed" and is statistically likely to tighten back to its long-run average.
+
+A concrete way to picture it. Imagine you plot the log prices of Coca-Cola and PepsiCo over the last twenty years on the same chart. Both lines wander up and to the right with the broader market; neither line, on its own, is stationary. Now plot the spread `log(KO) − β · log(PEP)` for the $\beta$ that minimises the variance of the resulting series. That third line will look very different — it will oscillate around a roughly flat level, occasionally drifting wide before snapping back. The spread is the *thing you trade*; the two prices that compose it are not. When the spread goes wide, you bet on it tightening.
+
+Why log prices and not raw prices? Because the *returns* of an asset are roughly proportional to its log price changes (for small moves), and what we actually care about — for hedging, sizing, P&L — is *return* exposure, not raw dollar exposure. A 1% move in a $50 stock is $0.50; the same 1% move in a $500 stock is $5; raw price differences would weight expensive stocks more than cheap ones for no economic reason. Working in log space makes the spread invariant to nominal price level: doubling both legs doesn't change the spread.
+
+Why is this called "cointegration"? In time-series econometrics, a series with a unit root is called "integrated of order 1" — denoted $I(1)$ — because you have to *difference* it once (take first differences) to get a stationary series. If two $I(1)$ series share a common stochastic trend such that a linear combination of them is stationary ($I(0)$), they are said to be *co-integrated* — they share the integrated component, which cancels out in the combination. The terminology is Engle & Granger's, 1987.
 
 ```mermaid
 flowchart LR
@@ -22,67 +28,98 @@ flowchart LR
   ST -- No --> X[Not cointegrated.<br/>Move on.]
 ```
 
+The diagram looks simple. Almost the entire rest of the chapter is about the boxes labelled "Stationary?" and "Move on." — when to believe the test, when to distrust it, and how to keep distrust calibrated across thousands of candidate pairs without drowning in false positives.
+
 ## 2.2 Engle-Granger two-step (the canonical test)
 
-Procedure (**EG87**):
+The Engle-Granger procedure (**EG87**) is the simplest and most widely-used test for cointegration. It's a *two-step* procedure because it does two separate things:
 
-1. **Regress** $\log A_t = \alpha + \beta \log B_t + \varepsilon_t$ by OLS. The slope $\beta$ is the hedge ratio.
-2. **Test the residuals** $\hat{\varepsilon}_t$ for stationarity using an Augmented Dickey-Fuller (ADF) test. The ADF null is "residual has a unit root"; rejecting it (typically at $p < 0.05$) means the residual is stationary, which means $A$ and $B$ are cointegrated.
+1. **Regress** $\log A_t = \alpha + \beta \log B_t + \varepsilon_t$ by ordinary least squares (OLS). The slope $\beta$ is the hedge ratio that, if cointegration exists, makes the residual stationary. The intercept $\alpha$ is the long-run *level* of the spread — usually close to zero on log-price series but not always.
+2. **Test the residuals** $\hat{\varepsilon}_t = \log A_t - \alpha - \beta \log B_t$ for stationarity using an Augmented Dickey-Fuller (ADF) test. The ADF null hypothesis is "this series has a unit root (is non-stationary)"; rejecting it (typically at $p < 0.05$) means the residual is stationary, which means $A$ and $B$ are cointegrated.
 
-**Pitfalls.**
+If you've never run an ADF test before: it's a regression of the form $\Delta y_t = \alpha + \beta y_{t-1} + \gamma_1 \Delta y_{t-1} + \dots + \gamma_p \Delta y_{t-p} + \varepsilon_t$, where the test statistic is the t-ratio on $\beta$. Under the null of a unit root ($\beta = 0$), this statistic follows a non-standard distribution (not Student's t) whose critical values were tabulated by Dickey and Fuller in 1979. Modern statistics packages (`statsmodels.tsa.stattools.adfuller` in Python) return both the test statistic and the p-value from the correct distribution.
 
-- Engle-Granger is **direction-sensitive**: regressing $A$ on $B$ can give a different conclusion than $B$ on $A$ in finite samples. Run both directions; require both to pass for safety. Johansen's test (§2.3) handles this properly.
-- The ADF test has **low power** in finite samples — it under-rejects the null, so you'll miss real cointegrations. The KPSS test reverses the null (null = stationary) and is sometimes run alongside.
-- **Multiple comparisons.** If you test 1,000 pairs at $p < 0.05$, you expect 50 false positives. Adjust the threshold or use a higher bar like $p < 0.01$.
+**Why this works.** The intuition is that the OLS regression *finds the hedge ratio that would make the residual stationary if such a ratio exists*; the ADF test then asks whether the resulting residual actually is stationary. If both steps pass at sensible thresholds, the residual is stationary, the spread is mean-reverting, and the pair is cointegrated.
+
+**Pitfalls** — and there are several. The Engle-Granger test is not bulletproof, and treating its p-value as gospel is one of the standard ways to lose money to spurious cointegrations.
+
+- **Direction-sensitivity.** Engle-Granger is asymmetric: regressing $A$ on $B$ produces a different hedge ratio than regressing $B$ on $A$, and in finite samples the two regressions can give different p-values. The textbook recommendation is to run both directions and require both to pass at the stricter of the two thresholds. The Johansen test (§2.3) handles this properly because it estimates the cointegrating vector symmetrically.
+- **Low power in finite samples.** The ADF test has well-known low statistical power — meaning, when cointegration is genuinely present but weak, the ADF test will fail to reject the null and you'll *miss* a real cointegration. The practical implication: an ADF $p > 0.05$ is *not* strong evidence that two series are uncointegrated; it might just mean the test is underpowered for your sample size. Pair the ADF with the KPSS test (which has the opposite null: stationary is the null, non-stationary is the alternative) and look for *both* tests to agree — ADF rejecting unit root *and* KPSS failing to reject stationarity.
+- **Multiple-testing trap.** This is the big one. If you test 1,000 candidate pairs at $p < 0.05$, you expect 50 false positives *purely by chance*. That's a sober statistical fact, and it's the most common reason a "we found 100 cointegrated pairs!" backtest evaporates in production. The fix is in §2.8: filter the candidate set first, then apply a stricter threshold (Bonferroni or false-discovery-rate corrected), then cross-validate on a held-out window.
+- **Structural breaks.** A series that is cointegrated for ten years and then breaks for legitimate structural reasons (one of the assets gets delisted; the underlying business changes) will still show up as "cointegrated" on the full ten-year window — even though the *post-break* segment isn't. The fix is to test on a *rolling* window (§2.9) rather than a single in-sample window.
 
 ## 2.3 Johansen's test (multi-variate)
 
-**J91** generalises Engle-Granger to $n$ assets. Fit a vector error-correction model (VECM):
+Engle-Granger handles two assets at a time. For three or more assets, the natural generalisation is Johansen's test (**J91**), which estimates *all* the cointegrating relationships in a set of $n$ series simultaneously and does so symmetrically (no choice-of-direction asymmetry).
+
+The Johansen test fits a vector error-correction model (VECM):
 
 $$ \Delta X_t = \Pi X_{t-1} + \sum_{i=1}^{p-1} \Gamma_i \Delta X_{t-i} + \mu + \varepsilon_t $$
 
-The rank of $\Pi$ is the number of cointegrating relationships. Two tests:
+where $X_t$ is a vector of the $n$ log-prices, $\Pi$ is an $n \times n$ matrix whose *rank* gives the number of cointegrating relationships among the series, and the $\Gamma_i$ matrices capture short-run dynamics. The rank of $\Pi$ is what we care about: it tells you how many distinct cointegrating vectors there are. Rank $r = 1$ means there's exactly one cointegrating combination; rank $r = 2$ means two; rank $r = 0$ means none of the series are cointegrated.
 
-- **Trace test:** null hypothesis that there are at most $r$ cointegrating vectors.
-- **Maximum eigenvalue test:** null that there are exactly $r$, alternative is $r+1$.
+Johansen provides two hypothesis tests for the rank:
 
-For pairs trading ($n=2$) Engle-Granger is enough. For basket strategies ($n>2$) use Johansen; it returns *all* cointegrating vectors simultaneously and is direction-independent.
+- **Trace test.** Null hypothesis: there are *at most* $r$ cointegrating vectors. Reject if the test statistic exceeds the critical value. Walk up from $r = 0$ to find the smallest $r$ at which you fail to reject.
+- **Maximum eigenvalue test.** Null hypothesis: there are *exactly* $r$ cointegrating vectors, alternative is $r + 1$. Use this when you have a prior belief about the rank.
+
+For pairs trading ($n = 2$) Engle-Granger is enough and is the conventional choice. For basket strategies ($n > 2$ — e.g. trading three correlated DeFi tokens against each other, or constructing a small-cap-versus-large-cap basket spread) Johansen is the right tool: it gives you *all* the cointegrating vectors simultaneously, which is how you discover that "stocks A, B, C are individually pairwise marginal but the three of them together support two cointegrating combinations."
+
+**When to use which.** Default to Engle-Granger for any two-asset analysis. Switch to Johansen the moment you're looking at three or more. The Johansen output is richer (multiple cointegrating vectors, normalised eigenvectors that act as basket weights) and the math is symmetric, but it's also more sensitive to the lag-length choice $p$ in the VECM and more vulnerable to over-fitting on small samples. The textbook recommendation is to pick $p$ by an information criterion (AIC or BIC) before running the test.
+
+In `statsmodels`, the Johansen test is `statsmodels.tsa.vector_ar.vecm.coint_johansen`; in `mlfinlab` (Tier B, URL pending verification) there is a wrapper that returns the cointegrating vectors in a more directly tradeable form.
 
 ## 2.4 Half-life of mean reversion
 
-A spread is "tradable" only if it reverts fast enough to free capital before opportunity cost eats the trade. Fit the spread to an AR(1):
+A spread is "tradable" only if it reverts fast enough to free capital before opportunity cost eats the trade. Fit the spread to an AR(1) model — the simplest plausible stochastic process that exhibits mean reversion:
 
 $$ S_t = c + \rho S_{t-1} + \varepsilon_t $$
 
-The half-life — the expected number of bars until a deviation from the mean halves — is:
+Where $S_t$ is the spread, $c$ is an intercept (the long-run mean, scaled), $\rho$ is the autoregressive coefficient, and $\varepsilon_t$ is mean-zero noise. The parameter $\rho$ is the one to watch: if $\rho = 1$, the spread has a unit root and is non-stationary; if $\rho < 1$, the spread is mean-reverting; if $\rho$ is close to zero, the spread reverts very fast (close to the mean each bar).
+
+The **half-life** — the expected number of bars until a deviation from the mean halves — has a clean closed form:
 
 $$ \text{half-life} = \frac{\ln 2}{-\ln \rho} $$
 
-**Practical thresholds:**
+Where does this come from? If $\rho$ is the AR(1) coefficient, then in expectation, after one bar a deviation $d$ shrinks to $\rho d$; after two bars to $\rho^2 d$; after $k$ bars to $\rho^k d$. Solving $\rho^k = 1/2$ gives $k = \ln(1/2) / \ln \rho = \ln 2 / (-\ln \rho)$.
 
-- Half-life **< 1 bar** — probably noise or microstructure artifact; skip.
-- Half-life **1–20 bars** on your trading frequency — sweet spot for stat arb.
-- Half-life **20–200 bars** — tradable but capital-intensive; need careful sizing.
-- Half-life **> 200 bars** — too slow; the cointegration may be statistically real but economically dead. Skip.
+**Practical thresholds.** The numbers below are rules of thumb — they should be tuned to your trading frequency and universe — but they're a defensible starting point:
 
-(Numbers are rule-of-thumb; tune per universe.)
+- **Half-life < 1 bar.** The spread reverts faster than you can trade it. Almost certainly microstructure noise (bid-ask bounce, stale-quote artifacts) leaking into the fit. Skip the pair, or upsample your bar size and re-test.
+- **Half-life 1–20 bars** on your chosen trading frequency. This is the sweet spot for stat arb. Capital cycles through the trade fast enough to compound; round-trip frictions don't dominate.
+- **Half-life 20–200 bars.** Tradable, but capital-intensive. The trade is open for tens to hundreds of bars on average, which means a given dollar of capital generates fewer trips per year. Size down accordingly.
+- **Half-life > 200 bars.** Too slow. The cointegration may be statistically real but it's economically dead — your capital is locked up while the rest of the market moves. Skip unless you have a specific reason (e.g. running it as one of many small allocations in a heavily diversified book).
+
+**A worked numerical example.** Suppose you fit an AR(1) on 5-minute bars and get $\rho = 0.95$. Then half-life $= \ln 2 / (-\ln 0.95) = 0.693 / 0.0513 \approx 13.5$ bars. At 5 minutes per bar, that's about 68 minutes of clock time — solidly inside the tradable range. If instead you got $\rho = 0.99$, half-life $= 0.693 / 0.01005 \approx 69$ bars (about 5.7 hours) — tradable but capital-heavy. If you got $\rho = 0.999$, half-life $\approx 693$ bars (nearly two days) — practically untradeable for a 5-minute strategy.
+
+**Connecting half-life to the continuous-time picture.** The AR(1) coefficient $\rho$ is the discrete analogue of $e^{-\theta \Delta t}$ in the continuous-time Ornstein-Uhlenbeck process (Chapter 3). For small $\Delta t$, $\rho \approx 1 - \theta \Delta t$, so half-life $= \ln 2 / \theta$ in either formulation. The two views are the same; we use $\rho$ in §2 because the AR(1) regression is what you actually run, and we use $\theta$ in §3 because the closed-form Bertram results are derived in continuous time.
 
 ## 2.5 Z-score entry/exit
 
-The simplest trading rule: open when the spread is $k$ standard deviations from its mean, close when it crosses zero.
+The simplest trading rule on a mean-reverting spread is a *z-score threshold rule*: open a position when the spread is more than $k$ standard deviations from its long-run mean, close it when the spread reverts to within a smaller threshold.
+
+The z-score is the spread re-expressed in standardised units:
 
 $$ z_t = \frac{S_t - \mu}{\sigma} $$
 
-Where $\mu$ and $\sigma$ are estimated over a rolling window (often 60–250 bars on daily data).
+Where $\mu$ and $\sigma$ are estimated over a rolling window — typically 60 to 250 bars on daily-frequency data, or 300 to 1000 bars on intraday data. The choice of window is itself a hyperparameter and should be sensitivity-tested (§6.7).
 
-- Enter short-spread when $z_t > k_{\text{enter}}$ (e.g. $+2$).
-- Enter long-spread when $z_t < -k_{\text{enter}}$ (e.g. $-2$).
-- Close on $|z_t| < k_{\text{exit}}$ (e.g. $0.5$).
-- Stop out at $|z_t| > k_{\text{stop}}$ (e.g. $4$) — if reversion fails, regime probably broke.
+The trading rules:
 
-The Bertram (**B10**) result (covered in [§3](03-ou-process.md#34-bertrams-optimal-thresholds-b10)) gives an *optimal* entry/exit pair given the OU parameters. Plain z-score thresholds are a coarse approximation.
+- **Enter short-spread** when $z_t > k_{\text{enter}}$ (typically $+2$). Short-spread means short the leg that's gone up too much and long the leg that's gone down too little — i.e. short A, long $\beta$-units of B if the spread is high.
+- **Enter long-spread** when $z_t < -k_{\text{enter}}$ (typically $-2$). Inverse: long A, short $\beta$-units of B.
+- **Close** the position when $|z_t| < k_{\text{exit}}$ (typically $0.5$). The trade is "done" once the spread has reverted most of the way back. You don't have to wait for $z_t = 0$ exactly because of [the entry-passive / exit-aggressive asymmetry in §4.6](04-execution.md#46-passive-vs-aggressive-entryexit-the-asymmetry) — leaving on the exit threshold captures most of the edge while avoiding the risk that the spread re-widens past your fill.
+- **Stop out** if $|z_t| > k_{\text{stop}}$ (typically $4$). If the spread keeps widening past your stop, the cointegration has plausibly broken and you should flatten the position rather than ride a regime change.
+
+**Why z-score thresholds are coarse.** They treat the spread as a memoryless mean-reverting process and don't use any of the *speed* information that fitting an OU model gives you. A spread with half-life 5 bars and a spread with half-life 50 bars get the same z-score thresholds under this rule — even though the optimal entry threshold is much smaller for the faster spread (you should be eager to enter because the round-trip is fast) and much larger for the slower spread (you need a bigger deviation to compensate for the long capital lock-up).
+
+The Bertram (**B10**) result, covered in [§3.4](03-ou-process.md#34-bertrams-optimal-thresholds-b10), gives an *optimal* entry/exit threshold pair given the fitted OU parameters and a per-trade transaction cost. The z-score rule is a useful starting point and a defensible production fallback — but a real desk runs Bertram on the OU fit and uses z-scores only as a cross-check.
+
+**A worked example to anchor the numbers.** Take a pair with $\mu_{\text{spread}} = 0.0$ and $\sigma_{\text{spread}} = 0.02$ (so the spread is in log-price units and a one-σ move is 2%). With $k_{\text{enter}} = 2$, the entry trigger fires at $|S_t| \geq 0.04$ — i.e. when the spread is 4% away from its mean. With $k_{\text{exit}} = 0.5$, you close at $|S_t| \leq 0.01$ (1% away). Assuming the spread reverts cleanly from $S_t = +0.04$ to $S_t = +0.01$, the trade captures 3% of spread movement. If $\beta = 1$ and you put $X$ dollars on each leg, your P&L is $X \cdot 0.03 = 3\%$ of the per-leg notional, minus round-trip fees and slippage. At a 10bp round-trip cost on each leg, your net is roughly 2.6% — and that's *if* the spread reverts cleanly, which not all of them do.
 
 ## 2.6 Code shape
+
+The code below is the shape, not a complete implementation. The point is to make the dependencies and the boundaries explicit: signal functions are pure, strategies compose signals, and venue-aware code lives elsewhere.
 
 ```typescript
 // signal/cointegration.ts (pure, no I/O)
@@ -121,18 +158,24 @@ export class PairsTradingStrategy implements IStrategy {
 
 Key shape notes:
 
-- **`signal/` is pure.** No `Date`, no `process.env`, no DB. Inputs are arrays of numbers; output is a value object. This is what makes it testable with golden vectors (§6.3 in [STAT_ARB_PLAN.md](../../../docs/STAT_ARB_PLAN.md); the pattern is [Appendix A.2](appendix-a-code-shapes.md#a2-pure-signal-functions)).
-- **`strategy/` consumes signals.** It owns the parameters (`beta`, `kEnter`, `windowBars`) but delegates the math. Same interface as every other strategy — see [Appendix A.3](appendix-a-code-shapes.md#a3-istrategy-the-canonical-strategy-interface).
-- **No venue-aware code anywhere in here.** That's `execution/` ([§4](04-execution.md)).
+- **`signal/` is pure.** No `Date`, no `process.env`, no DB. Inputs are arrays of numbers; output is a value object. This is what makes it testable with golden vectors — you can pin an input series and an expected output, and any regression breaks loudly. The pattern is documented in [Appendix A.2](appendix-a-code-shapes.md#a2-pure-signal-functions).
+- **`strategy/` consumes signals.** It owns the parameters (`beta`, `kEnter`, `windowBars`) but delegates the math. Same interface as every other strategy — see [Appendix A.3](appendix-a-code-shapes.md#a3-istrategy-the-canonical-strategy-interface). The strategy is also pure modulo its own internal state — given a `BarEvent` and a `StrategyContext`, it returns a deterministic list of `Order`s.
+- **No venue-aware code anywhere in here.** No exchange names, no API calls, no fee math beyond what's in the strategy's own cost model. Venue concerns belong in `execution/` ([§4](04-execution.md)) so the same strategy can be backtested deterministically and run live against multiple venues without changing the strategy code.
+
+The decoupling between signal, strategy, and execution is the load-bearing architectural decision in the whole codebase. It's what lets you swap a `MockTradingVenue` for a real exchange without touching the strategy logic, and it's what lets a backtest produce numbers that genuinely predict live behaviour.
 
 ## 2.7 When pairs trading breaks
 
+Even a real cointegration breaks eventually. The four most common symptoms, with their likely causes and the mitigations:
+
 | Symptom | Likely cause | Mitigation |
 |---|---|---|
-| Cointegration p-value drifts $p < 0.05 \to p > 0.1$ | Regime change in one of the legs (catalyst, token unlock, listing) | Re-test daily; close pairs that fail two days in a row |
-| Half-life doubles | Mean-reversion speed decaying | Re-estimate; close if half-life crosses a kill threshold |
-| Realised P&L diverges from backtest | Slippage model too optimistic, or universe-filtering changed | Audit execution (§4.4); compare realised slippage to model |
-| Multiple pairs lose simultaneously | Common-factor exposure leaked in | Add factor neutralisation (industry / market β) |
+| Cointegration p-value drifts $p < 0.05 \to p > 0.1$ over a few weeks | Regime change in one of the legs (catalyst, token unlock, listing change) | Re-test daily on a rolling window (§2.9); close pairs that fail two days in a row |
+| Half-life doubles or triples vs initial fit | Mean-reversion speed decaying — spread is becoming "stickier" | Re-estimate weekly; tighten entry threshold; close if half-life crosses a published kill floor |
+| Realised P&L diverges materially from backtest | Slippage model too optimistic, or universe-filtering changed between backtest and live | Audit execution (§4.4) by comparing realised vs modelled slippage on the last 50 trades; recalibrate the model |
+| Multiple pairs lose simultaneously | Common-factor exposure leaked in (the pairs aren't independent) | Add factor neutralisation (industry / market beta / sector); recompute the portfolio-level VaR with realised correlations |
+
+None of these is an emergency on its own. All of them, together, on the same week, are an emergency — and the response is to halt new entries, flatten open positions where feasible, and figure out which factor is leaking before re-arming.
 
 ## 2.8 Universe construction — from infinite candidate pairs to a tractable book
 

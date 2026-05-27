@@ -29,7 +29,7 @@ Every citation in the course resolves here. Sources are tiered (see [§0.3](00-c
 
 ## B.2 Tier B — reference implementations (URLs pending verification)
 
-**Status:** the next session must `WebFetch` each URL, confirm it resolves, and note the license + last-commit-date in this table. Until then, all entries are `unverified`.
+**Status:** each URL below was added from training-data recall and has not yet been individually verified. The verification work — confirm the URL resolves, note the license, note the last-commit-date — is pending. Until then, all entries are marked `unverified`. The same Tier-B promotion rule from [§0.3](00-charter-and-sources.md#03-source-collection-method) applies: an unverified URL cannot be load-bearing for a course claim.
 
 | Repo | URL (recall — verify) | What to read | License (recall — verify) | Verified? |
 |---|---|---|---|---|

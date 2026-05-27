@@ -1,11 +1,11 @@
-# Statistical Arbitrage — Working Course
+# Statistical Arbitrage — A Working Course
 
-mkdocs-based course material backing Meridian Markets' Phase 3 prop-desk build. Not a textbook — a working document tied to the code in `src/stat-arb/` (planned; see `docs/STAT_ARB_PLAN.md`).
+An mkdocs-based course on statistical arbitrage: theory, math, and code, end-to-end. Built so a smart newcomer can read the chapters in order and come out with the working knowledge of a junior quant on a pairs-trading desk. No marketing voice; no curve-fit backtest plots; every claim cited.
 
 ## Run locally
 
 ```bash
-pip install mkdocs-material pymdown-extensions
+pip install -r requirements.txt
 cd courses/stat-arb
 mkdocs serve   # http://127.0.0.1:8000
 ```
@@ -20,24 +20,19 @@ mkdocs build   # outputs to courses/stat-arb/site/
 
 - **Math** in MathJax via `pymdownx.arithmatex` — `$x$` for inline, `$$x$$` for display.
 - **Diagrams** in Mermaid via `pymdownx.superfences` — ```` ```mermaid ... ``` ```` blocks.
-- **Code blocks** are TypeScript-first because that's our stack, with Python references where the source material is.
-- **Sources** live in `docs/appendix-b-sources.md` and `docs/00-charter-and-sources.md`. Every claim should be traceable to a source; unverified ones are explicitly marked.
+- **Code blocks** are TypeScript-first because that's the codebase's stack; Python references appear where the canonical reference implementation lives there (`statsmodels`, `mlfinlab`).
+- **Sources** live in `docs/appendix-b-sources.md` and `docs/00-charter-and-sources.md`. Every claim is traceable to a source; unverified ones are explicitly marked.
 
-## Status
+## Chapter status
 
-- [x] Scaffold + nav
-- [x] §0 charter + source-collection skeleton
-- [x] §1 introduction
-- [x] §2 cointegration
-- [x] §3 OU mean reversion
-- [x] §4 execution
-- [x] §5 risk
-- [ ] §6 backtesting — outline only
-- [ ] §7 production — outline only
-- [ ] Appendix A code-shape catalogue — outline only
-- [ ] **Verify X-thread sources** — pending user-supplied links
-
-## Open asks for the next session
-
-1. **X-thread links.** This scaffold mentions a "rohn / roan" hedge-fund-secrets thread as unverified. Paste the actual X handle + thread URLs so they can be vetted and cited correctly. Until then, all references to that thread are stubs marked `[TODO: verify]`.
-2. **Source vetting.** The next session should `WebFetch` each cited paper / repo / blog and confirm the URL still resolves before promoting any source out of the "unverified" tier in Appendix B.
+- [x] §0 Course charter & sources
+- [x] §1 Introduction — what stat arb actually is
+- [x] §2 Cointegration & pairs trading
+- [x] §3 Ornstein-Uhlenbeck mean reversion
+- [x] §4 Execution & venue abstraction
+- [x] §5 Risk, sizing, circuit breakers
+- [x] §6 Backtesting honestly
+- [x] §7 From paper to production
+- [x] Appendix A — Code-shape catalogue
+- [x] Appendix B — Source notebook
+- [x] Appendix C — Practitioner lore (RohOnChain archive)

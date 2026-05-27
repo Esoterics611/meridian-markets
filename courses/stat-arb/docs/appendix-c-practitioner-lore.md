@@ -131,7 +131,7 @@ Each entry below is a practitioner claim, its archive provenance, the Tier-A mat
 
 **Tier-A mapping.** Asness, Moskowitz & Pedersen (2013), *Value and momentum everywhere*, Journal of Finance 68(3) — establishes the cross-family diversification argument empirically across asset classes and centuries of data. Grinold & Kahn (1999, ch. 6).
 
-**Course use.** Cited in §2.8 Practitioner note (universe-construction discipline) and §6.5 (DSR interpretation). The concrete implication for Meridian Markets' Phase 3 book is the diversification target: don't build 30 cointegrated pairs and call it a book; build a mixed book of pairs, funding-carry, and basis-trade positions to actually move the effective $N$.
+**Course use.** Cited in §2.8 Practitioner note (universe-construction discipline) and §6.5 (DSR interpretation). The concrete implication for any crypto stat-arb book is the diversification target: don't build 30 cointegrated pairs and call it a book; build a mixed book of pairs, funding-carry, and basis-trade positions to actually move the effective $N$.
 
 ---
 
@@ -143,7 +143,7 @@ Each entry below is a practitioner claim, its archive provenance, the Tier-A mat
 
 **Tier-A mapping.** Grinold (1989); Grinold & Kahn (1999, ch. 6). The numerical example is essentially the textbook FLAM example.
 
-**Course use.** Quoted (with Tier-A citation) in §5 and §6. This is the framing claim that motivates the multi-strategy Phase 3 book in [PHASED_PLAN.md](../../../PHASED_PLAN.md) — a single stat-arb strategy is one signal; the book of five-or-six is what gets to a defensible Sharpe.
+**Course use.** Quoted (with Tier-A citation) in §5 and §6. This is the framing claim that motivates building a multi-strategy book at all — a single stat-arb strategy is one signal; the book of five-or-six is what gets to a defensible Sharpe.
 
 ---
 

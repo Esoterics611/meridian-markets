@@ -9,13 +9,15 @@
 
 The dominant failure mode in quant research is not "the strategy doesn't work." It is "the strategy worked in the backtest and didn't in production, and we don't know which step lied." Honest backtesting is the discipline of making the backtest *predict* live behaviour to within a small tolerance. When the backtest predicts and live confirms, the strategy is real; when it doesn't, the backtest is wrong and re-tuning the strategy will not save it.
 
-Three classes of error account for the majority of backtest-vs-live divergence:
+A backtest can lie to you in dozens of subtle ways, but three classes of error account for the great majority of backtest-vs-live divergence in practice. Each one has a textbook name and a concrete fix; together they're the load-bearing content of this chapter:
 
 1. **Look-ahead bias.** The backtest computes signals using data that wouldn't have been available at the decision time. The easiest way to introduce it accidentally is to compute a *rolling* statistic using a pandas / numpy operation that secretly centres the window (e.g. `pd.Series.rolling(window=N).mean()` is right-aligned but `pd.Series.rolling(window=N, center=True).mean()` is not — the second one uses future data). Less obvious: training a Z-score normaliser on the entire backtest window before walking through it (the normaliser knows the mean and stdev of data that hasn't happened yet at any given step).
 2. **Survivorship bias.** Your universe is the set of assets that existed *and survived* to the day you ran the backtest. Delisted tokens, failed protocols, exit-scammed assets — all absent. Pairs that look cointegrated in your filtered universe might have been the *only* pairs that survived, while their cohort delisted. The historical record literally cannot show you the strategies that died on assets that no longer exist; you have to actively reconstruct the universe as it was *at each historical date*, including assets that subsequently delisted.
 3. **Multiple-testing bias.** You tried 1,000 strategy variants, reported the top 3, and didn't disclose the 997 that didn't make it. Even if each individual strategy was tested honestly, the *selection* of which to deploy is itself a hypothesis test, and the deflated Sharpe ratio (§6.5) is the only honest single-number summary that survives multiple-testing correction.
 
 A correct backtest is not the *only* requirement for a profitable strategy, but an incorrect backtest is sufficient to *eliminate* one. Anything that ships to live capital should clear §6.2–§6.5 first.
+
+The good news is that none of these biases is mysterious or hard to fix. The fixes — event-driven execution, purged k-fold cross-validation, calibrated slippage models, deflated Sharpe reporting, sensitivity sweeps, point-in-time universes — are all standard. The bad news is that these fixes are rarely *all* applied at once, and skipping any one of them is enough to invalidate the result. The discipline of this chapter is the discipline of doing every one of them every time.
 
 ## 6.2 Event-driven beats vectorised
 
@@ -57,6 +59,8 @@ export class BacktestRunner {
 ```
 
 Same `strategy.onBar` and `risk.vet` calls run in `LiveRunner` (next chapter). The only swap is `feed` and `venue`.
+
+**The byte-similarity argument.** The reason for insisting on identical code in backtest and live isn't an aesthetic preference for clean architecture. It's that any divergence between backtest and live code is a bug-shaped hole through which look-ahead bias can leak in. If your backtest computes the signal one way and your live code computes it another way, the two paths can disagree silently for months before any reconciliation catches it. The fix is to use the same `IStrategy.onBar` instance in both paths, swap only the *feed* and the *venue*, and treat any divergence between backtest and live P&L on the same time window as evidence that the loop is wrong, not evidence that the strategy is decaying.
 
 ## 6.3 Purged k-fold cross-validation — worked example
 
@@ -103,9 +107,11 @@ The purge window (`label_horizon` before the test) catches the sample-with-overl
 
 **The wrong way that looks right.** A common shortcut is "walk-forward" — train on $[0, t]$, test on $[t, t+h]$, advance, repeat. This is *almost* right but has two problems: (1) the earliest data is over-weighted in training (it appears in every fold), and (2) there's no embargo, so the test set's first bar's residual is correlated with the last training bar's residual. Purged k-fold corrects both.
 
+**Why this discipline matters so much for stat arb specifically.** The signals in §2 and §3 are *autocorrelated* by construction — a z-score on a mean-reverting spread persists for many bars; an OU fit on a window depends on overlapping data with the previous window. Naive k-fold CV produces test-set performance that is wildly optimistic on these autocorrelated signals. Purged k-fold is the correction; treat it as the *default* cross-validation method for any stat-arb strategy.
+
 ## 6.4 Calibrating the fee / slippage model — the audit loop
 
-[§4.4](04-execution.md#44-the-cost-model-is-what-makes-the-backtest-honest) specified three fidelity levels. Honest backtesting requires you to *calibrate* the level you're using against live data, not pick numbers from a textbook:
+[§4.5](04-execution.md#45-the-cost-model-is-what-makes-the-backtest-honest) specified three fidelity levels. Honest backtesting requires you to *calibrate* the level you're using against live data, not pick numbers from a textbook:
 
 1. **Ship the strategy in shadow mode** ([§7.1](07-production.md#71-the-shadow-phase-running-live-without-spending-money)) for two weeks. Log every order the strategy *would* have placed, alongside the bar's mid, top-of-book bid/ask, and the realised fill price (had the order actually been placed).
 2. **Compute the realised slippage distribution.** For each shadow order: `realised_slippage_bps = (fill_price - mid) / mid * 10_000`. Take the 50th, 90th, 99th percentiles.
@@ -113,6 +119,8 @@ The purge window (`label_horizon` before the test) catches the sample-with-overl
 4. **Re-backtest with the calibrated model.** If the strategy still survives at the new costs, you have signal. If it doesn't, you found a strategy that worked only in your too-optimistic cost model.
 
 The single biggest lift in backtest-vs-live alignment comes from this loop, not from fancier mathematics. Strategies that survive a calibrated Level-2 backtest, on a survivor-corrected universe, with purged k-fold CV passing, are the only ones worth taking past [§7.1](07-production.md#71-the-shadow-phase-running-live-without-spending-money).
+
+A subtle thing about calibration: the slippage *distribution* matters more than the slippage *mean*. A strategy that survives 90th-percentile slippage but dies at 99th-percentile slippage is a strategy that will look fine for months and then have one terrible day. The conservative posture is to calibrate against the 90th or 99th percentile, not the median, especially for strategies whose individual trades are small (and where one bad fill destroys many good ones).
 
 ## 6.5 Deflated Sharpe ratio — the multiple-testing-aware Sharpe
 

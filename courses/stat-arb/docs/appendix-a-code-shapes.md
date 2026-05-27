@@ -1,10 +1,10 @@
 # Appendix A — Code-shape catalogue
 
-A reference catalogue of the code patterns the course relies on, in TypeScript, matching the conventions in [`src/yield/`](../../../src/yield/) and [`src/hedge/`](../../../src/hedge/). Each pattern lists its TypeScript signature, a five-line Jest test pattern, and a pointer to the existing repo file that demonstrates the same shape in a different domain.
+A reference catalogue of the code patterns the course relies on, in TypeScript. Each pattern lists its TypeScript signature, a five-line Jest test pattern, and notes on how it composes with the other patterns. The conventions are opinionated — bigint for money, pure functions for signals, dependency-injected clocks for time — but they generalise: any stat-arb codebase in any language has analogues of all of them.
 
 ## A.1 The swap-seam pattern (interface + mock-default + dormant real)
 
-**Purpose.** Every external dependency in this codebase has the same shape: an interface, a deterministic mock that is the default, and a dormant real implementation that throws `NotConfiguredError` until a flag is flipped and credentials are populated. The pattern enables tests that don't touch the network, deployments that can't accidentally hit production venues, and a single-line factory swap when KYB closes.
+**Purpose.** Every external dependency in a stat-arb codebase has the same shape: an interface, a deterministic mock that is the default, and a dormant real implementation that throws `NotConfiguredError` until a flag is flipped and credentials are populated. The pattern enables tests that don't touch the network, deployments that can't accidentally hit production venues, and a single-line factory swap when the real implementation is ready to go live.
 
 ```typescript
 // stat-arb/execution/trading-venue.interface.ts
@@ -38,7 +38,7 @@ describe('RealBinanceTradingVenue', () => {
 });
 ```
 
-Existing repo demonstrations: [`src/yield/yield-provider.interface.ts`](../../../src/yield/yield-provider.interface.ts), [`src/yield/real-ondo-yield-provider.ts`](../../../src/yield/real-ondo-yield-provider.ts), [`src/hedge/hedge-venue.interface.ts`](../../../src/hedge/hedge-venue.interface.ts), [`src/hedge/real-hyperliquid-hedge-venue.ts`](../../../src/hedge/real-hyperliquid-hedge-venue.ts). The exact same shape, four times, in four different domains — that consistency is the point.
+The discipline matters because, in a codebase that runs against real exchanges, the difference between mock and real is the difference between "this test costs nothing" and "this test cost $40,000 in unintended fills." The dormant-real implementation is the safety mechanism: even if the factory is wired wrong, the real venue refuses to do anything until its credentials are explicitly populated.
 
 ## A.2 Pure signal functions
 
@@ -80,7 +80,7 @@ describe('engleGranger', () => {
 });
 ```
 
-Existing repo demonstrations: the deterministic-yield math in [`src/yield/mock-yield-provider.ts`](../../../src/yield/mock-yield-provider.ts) (specifically the time-weighted accrual) — same posture: pure-function math with no I/O, tested with deterministic inputs. The cointegration / OU functions will live in `src/stat-arb/signal/` when Phase 3 implementation begins.
+The "golden vector" pattern — a deterministic input series with a known-good output computed by an external reference implementation — is the most useful tool for keeping a signal-function implementation honest. Anyone touching the implementation later runs the tests, sees the golden vectors pass, and knows the math hasn't changed.
 
 ## A.3 IStrategy — the canonical strategy interface
 
@@ -136,11 +136,9 @@ describe('PairsTradingStrategy', () => {
 
 Variant: streaming strategies that buffer multiple bars before emitting. Same interface — they just return `[]` until the buffer is full. The buffer lives in private fields on the strategy instance; the public interface stays the same.
 
-## A.4 Append-only ledger (recap from `treasury_movements`)
+## A.4 Append-only ledger
 
 **Purpose.** Financial state changes are recorded as immutable, monotonically-ordered facts. UPDATEs and DELETEs are forbidden at the DB-grant layer; the only way to "correct" a row is to write a compensating row. This is what makes the audit trail reconstructable from the DB alone, without trust in application code.
-
-The pattern repeats for `prop_movements` when the stat-arb code lands:
 
 ```sql
 CREATE TABLE prop_movements (
@@ -161,15 +159,15 @@ CREATE UNIQUE INDEX prop_movements_venue_idem
   ON prop_movements (venue, idempotency_key);
 
 -- Privileges: app role gets SELECT, INSERT only.
-GRANT SELECT, INSERT ON prop_movements TO meridian_markets_app;
+GRANT SELECT, INSERT ON prop_movements TO prop_app;
 -- No GRANT UPDATE, no GRANT DELETE.
 ```
 
-Test pattern (DB-gated like the treasury integration tests):
+Test pattern (DB-gated):
 
 ```typescript
 describeIfDb('prop_movements append-only', () => {
-  it('refuses UPDATE under the meridian_markets_app role', async () => {
+  it('refuses UPDATE under the prop_app role', async () => {
     await expect(
       db.query('UPDATE prop_movements SET size_units = 1 WHERE id = $1', [rowId]),
     ).rejects.toMatchObject({ code: '42501' });  // PG insufficient_privilege
@@ -177,15 +175,15 @@ describeIfDb('prop_movements append-only', () => {
 });
 ```
 
-Existing repo demonstrations: [`migrations/1715000000000-Initial.ts`](../../../migrations/1715000000000-Initial.ts) creates `treasury_movements` with this exact privilege posture; [`src/database/append-only.int-spec.ts`](../../../src/database/append-only.int-spec.ts) is the regression oracle that asserts the grants. The `prop_movements` migration extends the oracle to its own table.
+The discipline matters in two ways. First, the DB-grant enforcement is *defence in depth*: even if application code accidentally tries to UPDATE a fill row, the DB rejects the query. Second, the append-only constraint means that *replaying the ledger from genesis* always reproduces the current portfolio state — there's no "current state" hidden in an UPDATE that the ledger doesn't witness. Audit trails reconstructed this way are bullet-resistant.
 
 ## A.5 Bigint price arithmetic
 
-**Purpose.** All money math in this codebase is integer arithmetic on bigints with explicit scaling. Floats are forbidden at storage and movement boundaries; they're allowed only inside pure signal functions where the math (regressions, eigendecompositions) doesn't admit an integer representation. Conversion is explicit and one-way: floats into the signal layer, results converted back to bigint integers before they cross any boundary.
+**Purpose.** All money math in the codebase is integer arithmetic on bigints with explicit scaling. Floats are forbidden at storage and movement boundaries; they're allowed only inside pure signal functions where the math (regressions, eigendecompositions) doesn't admit an integer representation. Conversion is explicit and one-way: floats into the signal layer, results converted back to bigint integers before they cross any boundary.
 
 Conventions:
 
-- **Amounts** in 6-decimal USDC units: `1 USDC = 1_000_000n` units. Matches `treasury_movements.amount_units` (USDC micros).
+- **Amounts** in 6-decimal USDC units: `1 USDC = 1_000_000n` units.
 - **Prices** in micros (1e6) of the quote unit: `1 USDC per asset = 1_000_000n` micros. Same scale, kept in a `bigint` to avoid mixing floating-point error into the ledger.
 - **All arithmetic is exact** within the bigint domain: addition / subtraction / multiplication followed by division-with-rounding at the end. Never compute a price-times-size product as a `Number`.
 
@@ -206,14 +204,12 @@ Test pattern:
 
 ```typescript
 describe('realisedPnlUnits', () => {
-  it('returns positive units when ILS weakens vs USD (short profits)', () => {
+  it('returns positive units when the spread tightens (short profits)', () => {
     const pnl = realisedPnlUnits(1_000_000n * 1_000_000n, 1_000_000n, 990_000n);
     expect(pnl).toBe(10_000n * 1_000_000n);  // 1% gain on 1M USDC short
   });
 });
 ```
-
-Existing repo demonstrations: [`src/hedge/mock-hedge-venue.ts`](../../../src/hedge/mock-hedge-venue.ts) does all FX P&L math in bigint with the exact pattern above. The 9-spec `mock-hedge-venue.spec.ts` test file exercises the deterministic accrual to a millionth of a USDC.
 
 **The boundary discipline.** When a pure signal function (e.g. `ouFit`) needs to operate on a price series in `number` array form, the conversion is explicit:
 
@@ -299,11 +295,11 @@ it('refits OU parameters when the bar interval elapses', () => {
 });
 ```
 
-Existing repo demonstrations: every spec in [`src/hedge/mock-hedge-venue.spec.ts`](../../../src/hedge/mock-hedge-venue.spec.ts) and [`src/yield/mock-yield-provider.spec.ts`](../../../src/yield/mock-yield-provider.spec.ts) uses this pattern — the `clock` parameter is passed into the venue / provider constructor, and tests advance `nowMs` to drive accrual deterministically.
+The same pattern applies anywhere time appears: yield accrual, funding-rate intervals, refit cadences, drawdown-gate windows. The discipline is to never reach for `new Date()` or `Date.now()` directly — they're forbidden in any code that has a test pinned against it.
 
 ## A.8 The factory selector
 
-**Purpose.** Choice between mock and real implementations happens in exactly one place per module: the module's factory function inside the NestJS `@Module({ providers: ... })` block. Nothing else in the codebase reads the `MOCK_*` flag; everything else receives the injected concrete implementation.
+**Purpose.** Choice between mock and real implementations happens in exactly one place per module: the module's factory function. Nothing else in the codebase reads the `MOCK_*` flag; everything else receives the injected concrete implementation.
 
 ```typescript
 // stat-arb/execution/execution.module.ts
@@ -323,18 +319,14 @@ Existing repo demonstrations: every spec in [`src/hedge/mock-hedge-venue.spec.ts
 export class ExecutionModule {}
 ```
 
-The factory is the single point of variance. Tests inject a custom `TRADING_VENUE` provider (a fake or spy) without touching application code. Production reads the flag from `AppConfig`, which itself is the only sanctioned `process.env` reader ([CLAUDE.md §6](../../../CLAUDE.md)).
-
-Existing repo demonstrations: [`src/yield/yield.module.ts`](../../../src/yield/yield.module.ts), [`src/hedge/hedge.module.ts`](../../../src/hedge/hedge.module.ts). Identical shape, two domains. The stat-arb modules will follow the same pattern.
+The factory is the single point of variance. Tests inject a custom `TRADING_VENUE` provider (a fake or spy) without touching application code. Production reads the flag from `AppConfig`, which itself is the only place in the codebase that reads `process.env`. The discipline of "exactly one process.env reader" is what makes configuration auditable — every effective behaviour of the system can be traced back to a config value that was loaded at a specific point on startup.
 
 ## A.9 The DB-gated integration spec
 
-**Purpose.** Specs that need a real Postgres instance are tagged `*.int-spec.ts` and use `describeIfDb` to auto-skip when Postgres on `:5433` is unreachable. This means a developer can run `npm test` without Docker, and CI runs the full suite with Docker up — the same source file works for both.
+**Purpose.** Specs that need a real Postgres instance are tagged `*.int-spec.ts` and use `describeIfDb` to auto-skip when Postgres is unreachable. This means a developer can run `npm test` without Docker, and CI runs the full suite with Docker up — the same source file works for both.
 
 ```typescript
 // src/stat-arb/nav/nav.service.int-spec.ts
-import { describeIfDb } from '../../test-helpers/postgres-available';
-
 describeIfDb('NavService (DB)', () => {
   it('persists daily NAV snapshots into prop_nav_snapshots', async () => {
     const svc = await app.resolve(NavService);
@@ -345,7 +337,7 @@ describeIfDb('NavService (DB)', () => {
 });
 ```
 
-Existing repo demonstrations: [`src/treasury/treasury.service.int-spec.ts`](../../../src/treasury/treasury.service.int-spec.ts), [`src/database/append-only.int-spec.ts`](../../../src/database/append-only.int-spec.ts), [`src/test-helpers/postgres-available.ts`](../../../src/test-helpers/postgres-available.ts). The helper is the single source of truth for "is Postgres reachable?" — every int-spec depends on it.
+The helper `describeIfDb` is the single source of truth for "is Postgres reachable?" — every integration spec depends on it. The pattern keeps the test surface honest: locally, you run the fast unit suite; in CI, you run everything. Neither environment requires the developer to remember which specs to run.
 
 ## A.10 Cross-pattern: how the patterns compose in one strategy
 

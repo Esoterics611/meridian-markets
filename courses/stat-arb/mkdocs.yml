@@ -1,12 +1,12 @@
 site_name: Statistical Arbitrage — A Working Course
-site_description: Course material backing Meridian Markets' Phase 3 stat-arb implementation. Theory → math → code, no marketing voice.
+site_description: A working course on statistical arbitrage. Theory → math → code, end-to-end. No marketing voice, no curve-fit backtests, no "secrets revealed."
 site_url: ''
 docs_dir: docs
 use_directory_urls: false
 
-# Cross-doc-root links (PHASED_PLAN.md, CLAUDE.md, src/yield/, src/hedge/, etc.) point
-# outside docs_dir by design — they're rendered links to repo files, not site-internal
-# references. mkdocs --strict would otherwise treat these as fatal warnings.
+# A few cross-doc-root links remain in archive files (RohOnChain archive)
+# pointing into the parent repo by relative path. They render harmlessly in
+# the site; mkdocs --strict would otherwise treat them as fatal warnings.
 validation:
   links:
     not_found: ignore
@@ -83,4 +83,3 @@ nav:
   - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
   - Appendix B — Source notebook (papers, repos, X threads): appendix-b-sources.md
   - Appendix C — Practitioner lore (RohOnChain archive): appendix-c-practitioner-lore.md
-  - Research prompt (run in Claude Code desktop): RESEARCH_PROMPT.md
