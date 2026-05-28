@@ -4,7 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meridian Markets — Strategy Demo</title>
+  <!-- Lightweight Charts powers the four big time-series charts (spread,
+       NAV, underwater, MC fan, Exec realised-vs-theoretical). Chart.js stays
+       for the small canvas sparklines (tape, dd/pval/exposure sparks) — a
+       follow-up nit to migrate those to inline SVG and drop Chart.js. -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     :root {
       --bg: #0b0f14;
@@ -143,11 +148,16 @@
     footer a { color: var(--accent); text-decoration: none; }
     .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
     /* Chart.js + responsive + maintainAspectRatio: false needs a constrained parent to size against. */
-    .chart-wrap.chart-spread     { height: 240px; }
-    .chart-wrap.chart-nav        { height: 240px; }
-    .chart-wrap.chart-underwater { height: 200px; }
+    .chart-wrap.chart-spread     { height: 280px; }
+    .chart-wrap.chart-nav        { height: 280px; }
+    .chart-wrap.chart-underwater { height: 240px; }
     .chart-wrap canvas { max-height: 100%; height: 100% !important; }
     canvas { width: 100% !important; }
+    /* Lightweight Charts host divs — sit inside .chart-wrap below the <h2>. */
+    .lw-chart { width: 100%; height: 220px; }
+    .chart-wrap.chart-spread .lw-chart     { height: 240px; }
+    .chart-wrap.chart-nav .lw-chart        { height: 240px; }
+    .chart-wrap.chart-underwater .lw-chart { height: 200px; }
     .view { display: none; }
     .view.active { display: block; }
     .gate { display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -213,6 +223,7 @@
     <a href="#risk"     data-view="risk">Risk &amp; Compliance<span class="sub">gates · ledger</span></a>
     <a href="#investor" data-view="investor">Investor<span class="sub">track record · LP view</span></a>
     <a href="#research" data-view="research">Research<span class="sub">walk-forward · sweep · MC</span></a>
+    <a href="#exec"     data-view="exec">Execution<span class="sub">router · paper · canary</span></a>
   </nav>
 
   <main>
@@ -281,7 +292,7 @@
       <div class="row chart-row">
         <div class="chart-wrap chart-spread">
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">Spread z-score (with entry / exit thresholds)</h2>
-          <canvas id="spread-chart"></canvas>
+          <div class="lw-chart" id="spread-chart"></div>
         </div>
       </div>
 
@@ -477,7 +488,7 @@
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
             Hypothetical NAV — $1.00 starting · <span id="inv-nav-tag" style="color:var(--accent); text-transform:none; letter-spacing:0.3px;">calm scenario</span>
           </h2>
-          <canvas id="nav-chart"></canvas>
+          <div class="lw-chart" id="nav-chart"></div>
         </div>
       </div>
 
@@ -486,7 +497,7 @@
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
             Underwater curve — drawdown from running peak
           </h2>
-          <canvas id="underwater-chart"></canvas>
+          <div class="lw-chart" id="underwater-chart"></div>
         </div>
       </div>
 
@@ -601,7 +612,80 @@
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
             Monte Carlo fan chart — p5 / p50 / p95 cumulative P&amp;L
           </h2>
-          <canvas id="rf-mc-chart"></canvas>
+          <div class="lw-chart" id="rf-mc-chart"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── EXECUTION DESK ─────────── -->
+    <section class="view" id="view-exec">
+      <div class="row three">
+        <div class="card">
+          <h2>Exec algo</h2>
+          <select class="scenario" id="exec-algo" style="width:100%;">
+            <option value="twap">TWAP</option>
+            <option value="vwap">VWAP</option>
+            <option value="pov">POV</option>
+            <option value="iceberg">Iceberg</option>
+          </select>
+          <div style="color:var(--muted); font-size:11px; margin-top:8px;">
+            Parent slicing strategy. TWAP &amp; VWAP spread evenly / by volume; POV
+            caps per-interval participation; iceberg drips small tips.
+          </div>
+        </div>
+        <div class="card">
+          <h2>Notional (USDC units)</h2>
+          <input id="exec-notional" type="text" class="scenario mono" value="1000000" style="width:100%;" />
+          <div style="color:var(--muted); font-size:11px; margin-top:8px;">
+            Per-parent notional in raw USDC micros. Demo gate caps each venue at 30% of parent.
+          </div>
+        </div>
+        <div class="card">
+          <h2>Side</h2>
+          <select class="scenario" id="exec-side" style="width:100%;">
+            <option value="BUY">BUY</option>
+            <option value="SELL">SELL</option>
+          </select>
+          <button class="run" id="exec-run" style="margin-top:10px; width:100%;">Route order</button>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="chart-wrap chart-nav">
+          <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
+            Theoretical vs realised slippage cost (USDC, per parent)
+          </h2>
+          <div class="lw-chart" id="exec-chart"></div>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Recent routes <span class="sub" id="exec-count">0</span></h2>
+          <table>
+            <thead>
+              <tr><th>ts</th><th>Algo</th><th>Side</th><th class="num">Notional</th><th class="num">Filled</th><th class="num">Blocked</th><th class="num">Est cost</th><th class="num">Realised</th></tr>
+            </thead>
+            <tbody id="exec-rows"><tr><td colspan="8" style="color:var(--muted); text-align:center;">Route an order to populate.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Execution mode &amp; KYB posture</h2>
+          <table>
+            <thead><tr><th>Mode</th><th>What it does</th><th class="num">Status</th></tr></thead>
+            <tbody>
+              <tr><td><code>mock</code></td><td>Synthetic <code>MockTradingVenue</code> — default.</td><td class="num"><span class="chip ok">ACTIVE</span></td></tr>
+              <tr><td><code>paper</code></td><td><code>PaperVenue</code> — live-price simulated fills, no real orders.</td><td class="num"><span class="chip warn">AVAILABLE</span></td></tr>
+              <tr><td><code>canary</code></td><td>Splits each parent across paper + real (KYB-gated).</td><td class="num"><span class="chip danger">KYB BLOCK</span></td></tr>
+              <tr><td><code>live</code></td><td>All real venue — KYB confirmed + mock disabled required.</td><td class="num"><span class="chip danger">KYB BLOCK</span></td></tr>
+            </tbody>
+          </table>
+          <div class="attest" style="margin-top:12px;">
+            <strong>Boot guard:</strong> <code>ExecutionModeBootGuard</code> refuses to start the process in <code>canary</code> or <code>live</code> mode until <code>KYB_CONFIRMED=true</code>. Live also requires <code>MOCK_TRADING_ENABLED=false</code>.
+          </div>
         </div>
       </div>
     </section>
@@ -619,10 +703,63 @@ const NOTIONAL_USDC = 1_000_000;
 const DD_GATE_PCT = 5.0;
 
 let charts = {};                  // chart.js instances keyed by canvas id
+let lwCharts = {};                // lightweight-charts instances keyed by div id
 let lastSnapshot = null;
 let lastSeries = null;
 let scenario = 'calm';
 let killed = false;
+
+// ─── Lightweight Charts helpers ───
+// Shared theme matching the dashboard palette.
+const LW_LAYOUT = {
+  background: { type: 'solid', color: 'transparent' },
+  textColor: '#7889a0',
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+};
+const LW_GRID = {
+  vertLines: { color: 'rgba(36,50,69,0.4)' },
+  horzLines: { color: 'rgba(36,50,69,0.4)' },
+};
+const LW_TIME = { timeVisible: false, secondsVisible: false, borderColor: 'rgba(36,50,69,0.8)' };
+const LW_RIGHTPRICE = { borderColor: 'rgba(36,50,69,0.8)' };
+
+function lwGetOrCreate(id, opts = {}) {
+  const host = document.getElementById(id);
+  if (!host) return null;
+  if (lwCharts[id]) return lwCharts[id];
+  const chart = LightweightCharts.createChart(host, {
+    width: host.clientWidth,
+    height: host.clientHeight,
+    layout: LW_LAYOUT,
+    grid: LW_GRID,
+    timeScale: LW_TIME,
+    rightPriceScale: LW_RIGHTPRICE,
+    crosshair: { mode: LightweightCharts.CrosshairMode.Magnet },
+    ...opts,
+  });
+  lwCharts[id] = { chart, series: {} };
+  // Resize on container resize (persona switches show/hide divs which can
+  // briefly drop the host to 0px; the observer corrects on next layout pass).
+  const ro = new ResizeObserver(() => {
+    if (host.clientWidth > 0) chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+  });
+  ro.observe(host);
+  return lwCharts[id];
+}
+
+function lwSetSeries(id, key, type, data, options = {}) {
+  const c = lwGetOrCreate(id);
+  if (!c) return;
+  if (!c.series[key]) {
+    c.series[key] = type === 'line'
+      ? c.chart.addLineSeries(options)
+      : type === 'area'
+      ? c.chart.addAreaSeries(options)
+      : c.chart.addHistogramSeries(options);
+  }
+  c.series[key].applyOptions(options);
+  c.series[key].setData(data);
+}
 
 const fmtNum = (n, d = 2) => n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 function fmtPnl(unitsStr) {
@@ -891,25 +1028,23 @@ function newOrReplace(id, type, data, options) {
 
 function renderSpreadChart(series) {
   if (!series) return;
-  const labels = series.map((_, i) => i);
-  const zData  = series.map(p => p.zScore);
-  newOrReplace('spread-chart', 'line', {
-    labels,
-    datasets: [
-      { label: 'z-score', data: zData, borderColor: '#00d4aa', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
-      { label: '+entry', data: labels.map(() =>  ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)',  borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
-      { label: '-entry', data: labels.map(() => -ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)',  borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
-      { label: '+exit',  data: labels.map(() =>  EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
-      { label: '-exit',  data: labels.map(() => -EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
-    ]
-  }, {
-    responsive: true, animation: false, maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-      y: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-    },
-    plugins: { legend: { labels: { color: '#d7e0ec', boxWidth: 12 } } }
+  // Lightweight Charts indexes by Unix-seconds-from-epoch; the synthetic
+  // feed produces ISO timestamps, we map them to seconds. Threshold lines
+  // are constant series so the entry/exit bands are visible across the
+  // whole range.
+  const points = series.map((p) => ({ time: Math.floor(new Date(p.timestamp).getTime() / 1000), value: p.zScore }));
+  if (points.length === 0) return;
+  lwSetSeries('spread-chart', 'z', 'line', points, {
+    color: '#00d4aa', lineWidth: 2,
+    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    priceLineVisible: false,
   });
+  const flat = (v) => points.map((p) => ({ time: p.time, value: v }));
+  lwSetSeries('spread-chart', 'pEntry', 'line', flat( ENTRY_Z), { color: 'rgba(255,92,92,0.5)',  lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+  lwSetSeries('spread-chart', 'nEntry', 'line', flat(-ENTRY_Z), { color: 'rgba(255,92,92,0.5)',  lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false });
+  lwSetSeries('spread-chart', 'pExit',  'line', flat( EXIT_Z),  { color: 'rgba(120,137,160,0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, priceLineVisible: false, lastValueVisible: false });
+  lwSetSeries('spread-chart', 'nExit',  'line', flat(-EXIT_Z),  { color: 'rgba(120,137,160,0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, priceLineVisible: false, lastValueVisible: false });
+  if (lwCharts['spread-chart']) lwCharts['spread-chart'].chart.timeScale().fitContent();
 }
 
 function renderTape(tail) {
@@ -961,58 +1096,51 @@ function renderPvalSpark(canvasId, pSeries) {
 }
 
 function renderNavChart(nav) {
-  const labels = nav.map((_, i) => i);
+  // Time axis falls back to synthetic 1-bar-per-minute starting from a fixed
+  // epoch so Lightweight Charts has monotonic input. The exact wall-clock
+  // doesn't matter for the demo — bar ordering does.
+  const EPOCH = Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000);
+  const points = nav.map((v, i) => ({ time: EPOCH + i * 60, value: v }));
+  if (points.length === 0) return;
   const ending = nav[nav.length - 1] ?? 1;
   const positive = ending >= 1;
-  newOrReplace('nav-chart', 'line', {
-    labels,
-    datasets: [{
-      label: 'NAV',
-      data: nav,
-      borderColor: positive ? '#00d4aa' : '#ff5c5c',
-      backgroundColor: positive ? 'rgba(0,212,170,0.10)' : 'rgba(255,92,92,0.10)',
-      borderWidth: 2, pointRadius: 0, fill: 'origin', tension: 0.25,
-    }, {
-      label: 'cost basis',
-      data: labels.map(() => 1.0),
-      borderColor: 'rgba(120,137,160,0.5)', borderDash: [3,3], borderWidth: 1, pointRadius: 0,
-    }]
-  }, {
-    responsive: true, animation: false, maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-      y: { ticks: { color: '#7889a0', callback: v => '$' + v.toFixed(3) }, grid: { color: 'rgba(36,50,69,0.5)' } },
-    },
-    plugins: { legend: { display: false } }
+  lwSetSeries('nav-chart', 'nav', 'area', points, {
+    lineColor: positive ? '#00d4aa' : '#ff5c5c',
+    topColor: positive ? 'rgba(0,212,170,0.30)' : 'rgba(255,92,92,0.30)',
+    bottomColor: positive ? 'rgba(0,212,170,0.05)' : 'rgba(255,92,92,0.05)',
+    lineWidth: 2,
+    priceFormat: { type: 'price', precision: 3, minMove: 0.001 },
   });
+  lwSetSeries('nav-chart', 'basis', 'line', points.map(p => ({ time: p.time, value: 1.0 })), {
+    color: 'rgba(120,137,160,0.5)', lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dashed,
+    priceLineVisible: false, lastValueVisible: false,
+  });
+  if (lwCharts['nav-chart']) lwCharts['nav-chart'].chart.timeScale().fitContent();
 }
 
 function renderUnderwater(dd) {
-  const labels = dd.map((_, i) => i);
-  newOrReplace('underwater-chart', 'line', {
-    labels,
-    datasets: [{
-      data: dd.map(v => -v),
-      borderColor: '#ff5c5c',
-      backgroundColor: 'rgba(255,92,92,0.18)',
-      borderWidth: 1.5, pointRadius: 0, fill: 'origin', tension: 0.2,
-    }, {
-      data: labels.map(() => -DD_GATE_PCT),
-      borderColor: 'rgba(255,92,92,0.55)', borderDash: [4,4], borderWidth: 1, pointRadius: 0,
-    }]
-  }, {
-    responsive: true, animation: false, maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-      y: { ticks: { color: '#7889a0', callback: v => v.toFixed(1) + '%' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-    },
-    plugins: { legend: { display: false } }
+  const EPOCH = Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000);
+  const points = dd.map((v, i) => ({ time: EPOCH + i * 60, value: -v }));
+  if (points.length === 0) return;
+  lwSetSeries('underwater-chart', 'dd', 'area', points, {
+    lineColor: '#ff5c5c',
+    topColor: 'rgba(255,92,92,0.05)',
+    bottomColor: 'rgba(255,92,92,0.35)',
+    lineWidth: 1.5,
+    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
   });
+  lwSetSeries('underwater-chart', 'gate', 'line', points.map(p => ({ time: p.time, value: -DD_GATE_PCT })), {
+    color: 'rgba(255,92,92,0.55)', lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dashed,
+    priceLineVisible: false, lastValueVisible: false,
+  });
+  if (lwCharts['underwater-chart']) lwCharts['underwater-chart'].chart.timeScale().fitContent();
 }
 
 // ─── persona routing ───
 function activateView(name) {
-  const valid = ['trader','risk','investor','research'];
+  const valid = ['trader','risk','investor','research','exec'];
   if (!valid.includes(name)) name = 'trader';
   document.querySelectorAll('nav.persona-nav a').forEach(a => {
     a.classList.toggle('active', a.dataset.view === name);
@@ -1023,6 +1151,7 @@ function activateView(name) {
   // Force redraw — charts in hidden divs render at 0px width.
   if (lastSnapshot) renderAll();
   if (name === 'research') loadResearchOnce();
+  if (name === 'exec') refreshExec();
 }
 
 // ─── RESEARCH DESK ───
@@ -1108,22 +1237,18 @@ function renderMonteCarlo(r) {
   document.getElementById('rf-mc-prob').textContent = (r.summary.probPositive * 100).toFixed(0) + '%';
   document.getElementById('rf-mc-median').textContent = (r.summary.medianFinalPnl / 1_000_000).toFixed(2);
   if (!r.p50 || r.p50.length === 0) return;
-  const labels = r.p50.map((_, i) => i);
-  newOrReplace('rf-mc-chart', 'line', {
-    labels,
-    datasets: [
-      { label: 'p95', data: r.p95.map(v => v / 1_000_000), borderColor: 'rgba(0,212,170,0.55)', backgroundColor: 'rgba(0,212,170,0.10)', borderWidth: 1, pointRadius: 0, fill: '+1', tension: 0.2 },
-      { label: 'p50', data: r.p50.map(v => v / 1_000_000), borderColor: '#d7e0ec', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
-      { label: 'p05', data: r.p05.map(v => v / 1_000_000), borderColor: 'rgba(255,92,92,0.55)', backgroundColor: 'rgba(255,92,92,0.10)', borderWidth: 1, pointRadius: 0, tension: 0.2 },
-    ]
-  }, {
-    responsive: true, animation: false, maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-      y: { ticks: { color: '#7889a0', callback: v => v.toFixed(0) + ' USDC' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-    },
-    plugins: { legend: { labels: { color: '#d7e0ec', boxWidth: 12 } } }
+  const EPOCH = Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000);
+  const map = (arr) => arr.map((v, i) => ({ time: EPOCH + i * 60, value: v / 1_000_000 }));
+  lwSetSeries('rf-mc-chart', 'p95', 'line', map(r.p95), {
+    color: 'rgba(0,212,170,0.55)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
   });
+  lwSetSeries('rf-mc-chart', 'p50', 'line', map(r.p50), {
+    color: '#d7e0ec', lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
+  });
+  lwSetSeries('rf-mc-chart', 'p05', 'line', map(r.p05), {
+    color: 'rgba(255,92,92,0.55)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+  });
+  if (lwCharts['rf-mc-chart']) lwCharts['rf-mc-chart'].chart.timeScale().fitContent();
 }
 window.addEventListener('hashchange', () => activateView(location.hash.replace('#','')));
 document.querySelectorAll('nav.persona-nav a').forEach(a => {
@@ -1165,6 +1290,71 @@ document.getElementById('kill-btn').addEventListener('click', () => {
   if (chip) {
     chip.textContent = killed ? 'ARMED' : 'DISARMED';
     chip.className = 'chip ' + (killed ? 'danger' : 'ok');
+  }
+});
+
+// ─── EXEC DESK ───
+async function refreshExec() {
+  try {
+    const r = await fetch('/api/stat-arb/exec/recent').then(x => x.json());
+    renderExecEvents(r.events || []);
+  } catch (e) {
+    console.error('exec refresh failed', e);
+  }
+}
+
+function renderExecEvents(events) {
+  document.getElementById('exec-count').textContent = events.length + ' routes';
+  const tbody = document.getElementById('exec-rows');
+  if (events.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted); text-align:center;">Route an order to populate.</td></tr>';
+  } else {
+    tbody.innerHTML = events.map(e => {
+      const t = new Date(e.ts).toISOString().substring(11, 19);
+      return '<tr>'
+        + '<td class="mono">' + t + '</td>'
+        + '<td>' + e.algoId.toUpperCase() + '</td>'
+        + '<td class="side-' + (e.parent.side === 'BUY' ? 'LONG' : 'SHORT') + '">' + e.parent.side + '</td>'
+        + '<td class="num mono">' + Number(e.parent.totalNotionalUnits).toLocaleString() + '</td>'
+        + '<td class="num mono">' + Number(e.filledNotionalUnits).toLocaleString() + '</td>'
+        + '<td class="num mono ' + (e.blockedByCapCount > 0 ? 'neg' : '') + '">' + e.blockedByCapCount + '</td>'
+        + '<td class="num mono">' + Number(e.totalEstCostUnits).toLocaleString() + '</td>'
+        + '<td class="num mono">' + Number(e.realisedCostUnits).toLocaleString() + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+  // Theoretical vs realised chart — one bar per route, indexed in time order.
+  // The two series overlap unless future deltas materialise (e.g. when the
+  // real-venue path lands and slippage diverges from the model).
+  const EPOCH = Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000);
+  const ordered = [...events].reverse(); // oldest-first for the time axis
+  if (ordered.length === 0) return;
+  const theoretical = ordered.map((e, i) => ({ time: EPOCH + i * 60, value: Number(e.totalEstCostUnits) / 1_000_000 }));
+  const realised    = ordered.map((e, i) => ({ time: EPOCH + i * 60, value: Number(e.realisedCostUnits) / 1_000_000 }));
+  lwSetSeries('exec-chart', 'theoretical', 'line', theoretical, {
+    color: '#7889a0', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+    priceLineVisible: false, lastValueVisible: false,
+  });
+  lwSetSeries('exec-chart', 'realised', 'area', realised, {
+    lineColor: '#00d4aa',
+    topColor: 'rgba(0,212,170,0.25)',
+    bottomColor: 'rgba(0,212,170,0.02)',
+    lineWidth: 2,
+  });
+  if (lwCharts['exec-chart']) lwCharts['exec-chart'].chart.timeScale().fitContent();
+}
+
+document.getElementById('exec-run').addEventListener('click', async () => {
+  const algo = document.getElementById('exec-algo').value;
+  const notional = document.getElementById('exec-notional').value;
+  const side = document.getElementById('exec-side').value;
+  const btn = document.getElementById('exec-run');
+  btn.disabled = true; btn.textContent = 'Routing…';
+  try {
+    await fetch(`/api/stat-arb/exec/run?algo=${encodeURIComponent(algo)}&notional=${encodeURIComponent(notional)}&side=${encodeURIComponent(side)}`, { method: 'POST' });
+    await refreshExec();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Route order';
   }
 });
 

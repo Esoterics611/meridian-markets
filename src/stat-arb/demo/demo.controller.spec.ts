@@ -56,6 +56,10 @@ function makeService(): DemoService {
     }),
     reset: () => undefined,
     refits: () => [],
+    bars: (_which: 'a' | 'b') => [
+      { symbol: 'BTC', timestamp: new Date('2026-01-01T00:00:00Z'), open: 100, high: 101, low: 99, close: 100.5, volume: 1 },
+      { symbol: 'BTC', timestamp: new Date('2026-01-01T00:01:00Z'), open: 100.5, high: 102, low: 100, close: 101.2, volume: 1 },
+    ],
   };
   return svc as unknown as DemoService;
 }
@@ -133,6 +137,22 @@ describe('DemoController', () => {
     const c = new DemoController(svc as unknown as DemoService);
     await c.refits();
     expect(ran).toBe(1);
+  });
+
+  it('GET /candles returns time as Unix seconds and bar OHLC', async () => {
+    const c = new DemoController(makeService());
+    const r = await c.candles('a');
+    expect(r.symbol).toBe('a');
+    expect(r.candles.length).toBe(2);
+    expect(r.candles[0].time).toBe(Math.floor(new Date('2026-01-01T00:00:00Z').getTime() / 1000));
+    expect(r.candles[0].open).toBeCloseTo(100);
+    expect(r.candles[0].close).toBeCloseTo(100.5);
+  });
+
+  it('GET /candles defaults to symbol "a" when unspecified', async () => {
+    const c = new DemoController(makeService());
+    const r = await c.candles(undefined);
+    expect(r.symbol).toBe('a');
   });
 
   it('POST /reset clears state then re-runs', async () => {

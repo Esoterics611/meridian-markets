@@ -1,5 +1,12 @@
 import { registerAs } from '@nestjs/config';
-import { AppConfig } from './app-config.interface';
+import { AppConfig, EXECUTION_MODES, ExecutionMode } from './app-config.interface';
+
+function parseExecutionMode(raw: string | undefined): ExecutionMode {
+  if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
+    return raw as ExecutionMode;
+  }
+  return 'mock';
+}
 
 // Sole sanctioned reader of process.env. All other modules consume the typed
 // AppConfig via @nestjs/config, or read secrets through ISecretProvider.
@@ -37,5 +44,11 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     demoBarCount: parseInt(process.env['DEMO_BAR_COUNT'] ?? '90', 10),
     demoPairA: process.env['DEMO_PAIR_A'] ?? 'BTC',
     demoPairB: process.env['DEMO_PAIR_B'] ?? 'ETH',
+  },
+  execution: {
+    mode: parseExecutionMode(process.env['EXECUTION_MODE']),
+    canaryPaperPct: parseInt(process.env['CANARY_PAPER_PCT'] ?? '100', 10),
+    reconciliationIntervalMs: parseInt(process.env['RECONCILIATION_INTERVAL_MS'] ?? '60000', 10),
+    kybConfirmed: process.env['KYB_CONFIRMED'] === 'true',
   },
 }));

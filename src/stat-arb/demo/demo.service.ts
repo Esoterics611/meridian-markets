@@ -4,6 +4,7 @@ import { AppConfig } from '@config/app-config.interface';
 import { BacktestRunner, BacktestResult, TradeRecord } from '../backtest/backtest-runner';
 import { PairsStrategy } from '../backtest/pairs-strategy';
 import { generateSyntheticFeed } from '../backtest/synthetic-feed';
+import { Bar } from '../backtest/bar';
 import { ITradingVenue, TRADING_VENUE } from '../trading-venue.interface';
 import { SlidingCointegrationResult } from '../signal/sliding-cointegration';
 import { GateEvent as PairsGateEvent } from '../backtest/pairs-strategy';
@@ -69,6 +70,8 @@ export class DemoService {
     generatedAt: Date;
     scenario: DemoScenario;
     strategy: PairsStrategy;
+    barsA: Bar[];
+    barsB: Bar[];
   } | null = null;
 
   constructor(
@@ -126,8 +129,16 @@ export class DemoService {
       riskEngine,
       riskOpts: { capitalUnits: 100_000_000n, pairId: `${app.statArb.demoPairA}/${app.statArb.demoPairB}` },
     });
-    this.last = { result, generatedAt: new Date(), scenario, strategy };
+    this.last = { result, generatedAt: new Date(), scenario, strategy, barsA: a, barsB: b };
     return result;
+  }
+
+  /** Synthetic OHLC bars for the configured symbol (a | b). Used by the
+   *  /candles endpoint that powers the Lightweight Charts spread view.
+   *  Returns an empty array before the first backtest runs. */
+  bars(symbol: 'a' | 'b'): Bar[] {
+    if (!this.last) return [];
+    return symbol === 'a' ? this.last.barsA : this.last.barsB;
   }
 
   /** Pulls from the last cached run; throws if `runFreshBacktest` hasn't been called yet. */

@@ -119,6 +119,28 @@ export class DemoController {
     if (!this.demo.hasResult()) await this.demo.runFreshBacktest();
     return { refits: this.demo.refits().map(serialiseRefit) };
   }
+
+  // Lightweight Charts feeds time as Unix seconds. We translate from the
+  // synthetic feed's Date column to seconds here so the dashboard JS doesn't
+  // need to. `symbol` is 'a' or 'b' against the configured demo pair.
+  @Get('candles')
+  async candles(
+    @Query('symbol') symbol?: string,
+  ): Promise<{ symbol: 'a' | 'b'; candles: { time: number; open: number; high: number; low: number; close: number }[] }> {
+    if (!this.demo.hasResult()) await this.demo.runFreshBacktest();
+    const which: 'a' | 'b' = symbol === 'b' ? 'b' : 'a';
+    const bars = this.demo.bars(which);
+    return {
+      symbol: which,
+      candles: bars.map((bar) => ({
+        time: Math.floor(bar.timestamp.getTime() / 1000),
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+      })),
+    };
+  }
 }
 
 function serialiseRefit(f: SlidingCointegrationResult): ApiRefit {

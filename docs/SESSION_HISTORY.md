@@ -272,3 +272,67 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 - **Phase 3 Step 4 — `stat_arb_trades` + `stat_arb_nav` migration.** Append-only role grants for both tables; extend `append-only.int-spec.ts`.
 - **Phase 3 Step 5 — funding-carry + cross-venue spot-arb strategies.** Add additional `IStrategy` implementations alongside `PairsStrategy`.
 - **KYB with Binance (or first real venue).** Business gate; `RealBinanceVenue` stays dormant.
+
+---
+
+## 6. Session 14 — Execution maturity (S13 backfill + paper-trading) + Lightweight Charts (2026-05-28)
+
+**Goal:** finish the execution surface deferred from Session 13 (lite) — VWAP / POV / iceberg algos, multi-venue split routing, risk-engine on child orders, Exec persona on the dashboard — then ship Session 14 (paper venue, canary router, reconciliation cron, `EXECUTION_MODE` boot guard), and swap the dashboard's main charts from Chart.js to TradingView Lightweight Charts. 102 net-new specs (343 → 445 total).
+
+### Shipped
+
+- **Session 13 backfill — `src/execution/`:**
+  - `vwap.ts` (10 specs) — `VwapAlgo` slices the parent proportional to a volume curve; long curves aggregate down to `maxSlices`; remainder lands on the largest-weight bucket so `sum(child notionals) === parent notional` exactly.
+  - `pov.ts` (11 specs) — `PovAlgo` caps each child at `participationPct%` of `intervalVolumeUnits` and stops at `horizonMs`; under-fills when horizon is too short.
+  - `iceberg.ts` (9 specs) — `IcebergAlgo` emits fixed-size visible tips spaced at `refillIntervalMs`; residual rides the last tip.
+  - `multi-venue-split.ts` (8 specs) — `splitAcrossVenues({ parentNotional, venues, side })` greedily fills chunk-by-chunk by lowest marginal-cost venue. Marginal cost computed in **floating point** (slippage-model's bigint cost rounds impactBps to integer bp and truncates to 0 for small chunks). Respects per-venue `maxNotionalUnits`; reports `underfilled` when caps bind.
+  - `multi-venue-router.ts` (8 specs) — `MultiVenueOrderRouter` plans across N venues + slices each allocation via the configured `IExecAlgo`. **Risk-engine on child orders:** optional `VenueCapGate` consulted before every child `placeOrder`; children breaching the cap are skipped (`blockedByCapCount` reported on the result). Supports `initialLiveNotional` so the gate is pre-loaded with prior fills.
+
+- **Exec persona — `src/execution/exec-demo.service.ts` + `exec.controller.ts` + dashboard tab:**
+  - `ExecDemoService` keeps a 25-event ring buffer of routed parents. Hard-coded 3-venue liquidity profile (`mock-a` 400M ADV, `mock-b` 200M, `mock-c` 100M) so the multi-venue split is visibly different across venues. Each route runs through `MultiVenueOrderRouter` with a `VenueCapGate` set to 30% of the parent so dashboard demos visibly trip the gate on oversized parents.
+  - `ExecController` exposes `POST /api/stat-arb/exec/run?algo=&notional=&side=`, `GET /api/stat-arb/exec/recent`, `POST /api/stat-arb/exec/reset`. Bigints serialised as strings.
+  - New `#exec` persona tab on `/demo` with the algo / notional / side controls, a theoretical-vs-realised slippage area chart (Lightweight Charts), recent-routes table, and an "Execution mode & KYB posture" card spelling out the boot-guard rules.
+
+- **Session 14 — paper trading + canary + reconciliation:**
+  - `paper-venue.ts` (15 specs) — `PaperVenue` implements `ITradingVenue` but writes into an in-memory book instead of hitting a network. Injectable `pricePoller` (so it can consume a live feed without DB persistence yet), idempotency replay, per-symbol long/short tracking, snapshot helpers (`bookSnapshot`, `positionSnapshot`, `netNotional`).
+  - `canary-router.ts` (10 specs) — `CanaryRouter implements ITradingVenue`. Splits each parent across paper + real legs by `paperPct` (default 100). `placeOrder` returns an aggregated `Fill` with notional-weighted price; `placeOrderSplit` returns per-leg `CanaryFill` with `source` + `parentNotionalUnits` tags for the audit trail. `fetchPrice` delegates to the real venue.
+  - `reconciliation.cron.ts` (9 specs) — `ReconciliationCron` sweeps every `RECONCILIATION_INTERVAL_MS` (default 60s) and emits `NET_DRIFT` / `MISSING_FILL` / `GHOST_FILL` events comparing the internal-book reader against the paper venue's book. `setSources({ internalBook, paperVenue })` plugs in the data sources; mock-default safe. Test-env skips `setInterval`.
+  - `execution-mode.guard.ts` (8 specs) — `ExecutionModeBootGuard` on `OnApplicationBootstrap`. Refuses to boot in `canary` without `KYB_CONFIRMED=true`, in `live` without both `KYB_CONFIRMED=true` AND `MOCK_TRADING_ENABLED=false`. `mock` / `paper` always allowed. Throws `ExecutionModeNotPermittedError` synchronously so the process exits non-zero.
+  - `execution.module.ts` — provides `ExecutionModeBootGuard` + `ReconciliationCron`. Imported by `AppModule`.
+
+- **AppConfig + env additions:** `AppConfig.execution.{mode, canaryPaperPct, reconciliationIntervalMs, kybConfirmed}` + `ExecutionMode` type alias. New env vars `EXECUTION_MODE`, `CANARY_PAPER_PCT`, `RECONCILIATION_INTERVAL_MS`, `KYB_CONFIRMED`. Documented in `.env.example`.
+
+- **Lightweight Charts swap on `/demo`:**
+  - Loaded from `unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js`.
+  - Four main canvases swapped to Lightweight Charts divs: spread (Trader), NAV (Investor), underwater (Investor), Monte Carlo fan (Research). Plus a new exec slippage chart on the Execution tab.
+  - Helpers `lwGetOrCreate(id, opts)` + `lwSetSeries(id, key, type, data, options)` keep the call sites symmetrical to the old `newOrReplace` Chart.js helper. `ResizeObserver` per host handles persona-switch 0px-width windows.
+  - **`GET /api/stat-arb/demo/candles?symbol=a|b`** added on `DemoController` so a future swap from synthetic feed to real `market_bars` is a single fetch URL change. Returns Unix-seconds `time` + float OHLC (Lightweight Charts format).
+  - Chart.js stays in the head for the small canvas sparklines (tape, dd-spark, risk-dd-spark, risk-pval-spark, risk-exp-spark). Full Chart.js removal is queued as a follow-up nit — rewriting those decorative sparklines in either Lightweight Charts or inline SVG adds noise without UX value this session.
+
+- **Wiring:**
+  - `StatArbModule` registers `ExecDemoService` + `ExecController`.
+  - `AppModule` imports `ExecutionModule`.
+  - `DemoService.bars(symbol)` exposes the synthetic feed (caches `barsA` / `barsB` from each backtest run) so the candles endpoint can serve OHLC without re-running the feed.
+
+- **E2E smoke (full):**
+  - `npx tsc --noEmit` clean. `npx jest` → 445 tests / 60 suites, 6 failures = same baseline (5 `hedge.service.int-spec` sequence-grant + 1 `treasury.service.int-spec` SERIALIZABLE retry) called out in `docs/RUN_AND_TEST.md` §2.4.
+  - `npm run start:prod` boots, `ExecutionModeBootGuard` logs `EXECUTION_MODE=mock — boot guard ok`, all four crons start.
+  - 19 curl smoke tests across `/api/stat-arb/demo/*`, `/api/stat-arb/exec/*`, `/api/stat-arb/research/*`, treasury, and the `/demo` HTML. Multi-venue split: parent 1M TWAP routed 570k/290k/140k across mock-a/b/c; risk-engine on children blocked 2 of mock-a's 4 children (cap = 300k = 30% of 1M; 285.5k * 4 children → 2 fit, 2 blocked). VWAP, POV, iceberg all dispatched. Decoupled scenario surfaced 75 P_VALUE_BLOCK gate events.
+
+### Architectural notes (binding for future sessions)
+
+1. **Multi-venue cost ranking is in floats.** `multi-venue-split.ts` deliberately bypasses `estimateSlippage`'s bigint cost path because rounding `impactBps` to integer basis points zeros the marginal-cost comparator for small chunks. Bigint stays for the final allocation; the float is local to the ranking decision. Don't "fix" this without re-checking the small-chunk regime.
+2. **`MultiVenueOrderRouter` per-child risk check is the canonical extension point.** Future risk gates (correlation, exposure) bolt in next to `venueCapGate` in `MultiVenueRouterOpts`. The `live` Map is the canonical source of post-fill per-venue notional and survives across all gates on the same parent.
+3. **`PaperVenue` is the seam between `EXECUTION_MODE=paper` and live market data.** When the live `market_bars` ingest cron lands, the `pricePoller` factory in `ExecutionModule` becomes `(symbol) => marketDataRepo.latestPrice(venue, symbol)`. No `PaperVenue` API change.
+4. **`CanaryRouter implements ITradingVenue` so the strategy doesn't know about it.** Strategies see one venue and call `placeOrder`; the router multiplexes. `placeOrderSplit` is the audit-grade leg-tagged variant — use it when reconciliation needs per-leg attribution.
+5. **`ExecutionModeBootGuard` is the only enforcement layer.** No downstream component (router, paper venue, canary) duplicates the check. If you add a 5th mode, the switch in `assert()` is the only place to widen.
+6. **Lightweight Charts ResizeObserver pattern is the template** for any future chart in this dashboard. Hosts can be 0px-wide during persona switches; the observer corrects on the next layout pass. Don't open-code chart sizing.
+
+### Open follow-ups
+
+- **Real-bar ingest cron** (`docs/DESK_GAPS.md` §9 punch list item 1). The `pricePoller` wiring above is ready to consume it.
+- **`/candles` returns synthetic feed bars today.** Once `market_bars` carries real history, swap `DemoService.bars()` to `marketDataRepository.barsBetween()`. Single-line change.
+- **Remove Chart.js entirely.** Five small canvas sparklines remain; rewrite as inline SVG or migrate to Lightweight Charts. Removes a CDN dependency.
+- **Strategy → CanaryRouter wiring.** Today's `TRADING_VENUE` factory picks `MockTradingVenue` vs `RealBinanceVenue`. A `canary`-mode factory branch needs to instantiate `new CanaryRouter(new PaperVenue(...), new RealBinanceVenue(), { paperPct: app.execution.canaryPaperPct })`. Mock-default safe until then.
+- **Reconciliation drift events to an alert sink.** Currently only logged + queryable via in-memory ring buffer. Session 15 (ops / Slack / PagerDuty) wires the sink.
+- **Treasury concurrent-deposits flake.** The single `treasury.service.int-spec.ts` failure is a SERIALIZABLE retry-once race — it would fix with a second retry or a backoff. Out of scope this session; same status as the hedge sequence-grant bug.

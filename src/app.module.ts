@@ -6,11 +6,12 @@ import { TreasuryModule } from '@treasury/treasury.module';
 import { HedgeModule } from './hedge/hedge.module';
 import { StatArbModule } from './stat-arb/stat-arb.module';
 import { MarketDataModule } from './market-data/market-data.module';
+import { ExecutionModule } from './execution/execution.module';
 
 @Module({
   imports: [
     ConfigModule, SecretsModule, DatabaseModule,
-    TreasuryModule, HedgeModule, StatArbModule, MarketDataModule,
+    TreasuryModule, HedgeModule, StatArbModule, MarketDataModule, ExecutionModule,
   ],
 })
 export class AppModule {}

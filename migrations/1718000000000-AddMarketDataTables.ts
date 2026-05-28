@@ -26,11 +26,17 @@ export class AddMarketDataTables1718000000000 implements MigrationInterface {
     // Postgres. Try to enable it; if the shared library isn't installed we
     // fall through cleanly to plain tables + btree indexes. The application
     // code does not care which path is live — repo queries are identical.
+    // Savepoint isolates the CREATE EXTENSION attempt so that if timescaledb
+    // is not installed the surrounding TypeORM transaction stays usable.
+    // A plain try/catch is not enough — a failed statement poisons the whole
+    // pg transaction even when the JS error is caught.
     let timescaleAvailable = false;
     try {
+      await queryRunner.query(`SAVEPOINT before_timescale`);
       await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS timescaledb`);
       timescaleAvailable = true;
     } catch {
+      await queryRunner.query(`ROLLBACK TO SAVEPOINT before_timescale`);
       timescaleAvailable = false;
     }
 

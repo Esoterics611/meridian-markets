@@ -44,4 +44,17 @@ export interface AppConfig {
     /** Symbol B for the demo pair. Default 'ETH'. */
     demoPairB: string;
   };
+  execution: {
+    /** Execution mode — mock | paper | canary | live. Mock is the default for demo. */
+    mode: ExecutionMode;
+    /** Percentage of each parent notional sent to the paper leg in canary mode. 0..100. */
+    canaryPaperPct: number;
+    /** How often the reconciliation cron sweeps. Default 60s. */
+    reconciliationIntervalMs: number;
+    /** Hard boot guard — set to true (env: KYB_CONFIRMED=true) to allow canary/live modes. */
+    kybConfirmed: boolean;
+  };
 }
+
+export type ExecutionMode = 'mock' | 'paper' | 'canary' | 'live';
+export const EXECUTION_MODES: readonly ExecutionMode[] = ['mock', 'paper', 'canary', 'live'];

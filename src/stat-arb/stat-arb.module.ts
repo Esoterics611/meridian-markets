@@ -13,6 +13,8 @@ import { DemoPageController } from './demo/demo-page.controller';
 import { StatArbRepository } from './persistence/stat-arb.repository';
 import { StatArbNavCron } from './persistence/nav.cron';
 import { ResearchController } from './research/research.controller';
+import { ExecDemoService } from '../execution/exec-demo.service';
+import { ExecController } from '../execution/exec.controller';
 
 @Module({
   providers: [
@@ -39,7 +41,8 @@ import { ResearchController } from './research/research.controller';
     DemoService,
     StatArbRepository,
     StatArbNavCron,
+    ExecDemoService,
   ],
-  controllers: [DemoController, DemoPageController, ResearchController],
+  controllers: [DemoController, DemoPageController, ResearchController, ExecController],
 })
 export class StatArbModule {}
