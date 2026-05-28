@@ -615,6 +615,36 @@
           <div class="lw-chart" id="rf-mc-chart"></div>
         </div>
       </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Universe — discovered pairs <span class="sub" id="uni-count">—</span></h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Pair</th>
+                <th class="num">Cluster</th>
+                <th class="num">β</th>
+                <th class="num">p-value</th>
+                <th class="num">Half-life</th>
+                <th class="num">Min ADV</th>
+                <th class="num">Vol</th>
+                <th class="num">Trend</th>
+                <th class="num">Score</th>
+                <th class="num">Promote</th>
+              </tr>
+            </thead>
+            <tbody id="uni-rows">
+              <tr><td colspan="11" style="color:var(--muted); text-align:center;">Loading…</td></tr>
+            </tbody>
+          </table>
+          <div style="color:var(--muted); font-size:11px; margin-top:10px;">
+            Synthetic 13-symbol universe. Discovery + hierarchical clustering + per-pair regime detection.
+            "Promote" logs intent — actual live trading is KYB-gated behind Phase 4.
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ─────────── EXECUTION DESK ─────────── -->
@@ -1162,18 +1192,70 @@ async function loadResearchOnce() {
   if (researchLoaded) return;
   researchLoaded = true;
   try {
-    const [wf, sweep, mc] = await Promise.all([
+    const [wf, sweep, mc, uni] = await Promise.all([
       fetch('/api/stat-arb/research/walk-forward').then(r => r.json()),
       fetch('/api/stat-arb/research/sweep').then(r => r.json()),
       fetch('/api/stat-arb/research/monte-carlo').then(r => r.json()),
+      fetch('/api/stat-arb/research/universe').then(r => r.json()),
     ]);
     renderWalkForward(wf);
     renderSweep(sweep);
     renderMonteCarlo(mc);
+    renderUniverse(uni);
   } catch (e) {
     console.error('research load failed', e);
     researchLoaded = false; // retry on next view switch
   }
+}
+
+function renderUniverse(u) {
+  const pairs = (u.representativePairs && u.representativePairs.length)
+    ? u.representativePairs
+    : (u.topPairs || []);
+  document.getElementById('uni-count').textContent =
+    pairs.length + ' of ' + (u.topPairs || []).length + ' (cluster-representative)';
+  const tbody = document.getElementById('uni-rows');
+  if (pairs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="color:var(--muted); text-align:center;">No cointegrated pairs found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = pairs.map((p, i) => {
+    const volChip = p.regime.vol === 'HIGH' ? 'danger' : p.regime.vol === 'LOW' ? 'warn' : 'ok';
+    const trendChip = p.regime.trend === 'TRENDING' ? 'warn' : 'ok';
+    return '<tr>'
+      + '<td class="mono">' + (i + 1) + '</td>'
+      + '<td class="mono">' + p.symbolA + ' / ' + p.symbolB + '</td>'
+      + '<td class="num mono">' + p.clusterA + ' · ' + p.clusterB + '</td>'
+      + '<td class="num mono">' + p.beta.toFixed(3) + '</td>'
+      + '<td class="num mono">' + p.pValue.toFixed(3) + '</td>'
+      + '<td class="num mono">' + p.halfLifeBars.toFixed(1) + '</td>'
+      + '<td class="num mono">' + Math.min(p.advA, p.advB).toFixed(0) + '</td>'
+      + '<td class="num"><span class="chip ' + volChip + '">' + p.regime.vol + '</span></td>'
+      + '<td class="num"><span class="chip ' + trendChip + '">' + p.regime.trend + '</span></td>'
+      + '<td class="num mono">' + p.score.toFixed(3) + '</td>'
+      + '<td class="num"><button class="run" style="font-size:11px; padding:4px 10px;" data-promote-a="' + p.symbolA + '" data-promote-b="' + p.symbolB + '">log intent</button></td>'
+      + '</tr>';
+  }).join('');
+  // Hook up promote buttons.
+  tbody.querySelectorAll('button[data-promote-a]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const a = btn.getAttribute('data-promote-a');
+      const b = btn.getAttribute('data-promote-b');
+      btn.disabled = true;
+      btn.textContent = 'logging…';
+      try {
+        await fetch('/api/stat-arb/research/universe/promote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbolA: a, symbolB: b, note: 'from /demo#research' }),
+        });
+        btn.textContent = 'logged';
+      } catch (e) {
+        btn.textContent = 'failed';
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 function renderWalkForward(r) {

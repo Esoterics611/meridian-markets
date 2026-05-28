@@ -15,6 +15,7 @@ import { StatArbNavCron } from './persistence/nav.cron';
 import { ResearchController } from './research/research.controller';
 import { ExecDemoService } from '../execution/exec-demo.service';
 import { ExecController } from '../execution/exec.controller';
+import { UniverseController } from './discovery/universe.controller';
 
 @Module({
   providers: [
@@ -43,6 +44,6 @@ import { ExecController } from '../execution/exec.controller';
     StatArbNavCron,
     ExecDemoService,
   ],
-  controllers: [DemoController, DemoPageController, ResearchController, ExecController],
+  controllers: [DemoController, DemoPageController, ResearchController, ExecController, UniverseController],
 })
 export class StatArbModule {}

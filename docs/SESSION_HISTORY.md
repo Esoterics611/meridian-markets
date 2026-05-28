@@ -336,3 +336,53 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 - **Strategy → CanaryRouter wiring.** Today's `TRADING_VENUE` factory picks `MockTradingVenue` vs `RealBinanceVenue`. A `canary`-mode factory branch needs to instantiate `new CanaryRouter(new PaperVenue(...), new RealBinanceVenue(), { paperPct: app.execution.canaryPaperPct })`. Mock-default safe until then.
 - **Reconciliation drift events to an alert sink.** Currently only logged + queryable via in-memory ring buffer. Session 15 (ops / Slack / PagerDuty) wires the sink.
 - **Treasury concurrent-deposits flake.** The single `treasury.service.int-spec.ts` failure is a SERIALIZABLE retry-once race — it would fix with a second retry or a backoff. Out of scope this session; same status as the hedge sequence-grant bug.
+
+---
+
+## 7. Session 16 — Universe expansion + pair discovery + regime detection (2026-05-28)
+
+**Goal:** lift the desk from a single hardcoded BTC/ETH pair to a tradeable-universe discovery engine. New library searches an N-symbol universe, scores every pair on cointegration + OU half-life + ADV, clusters by correlation to deduplicate, classifies regime per pair, and surfaces the result on a new Research-desk Universe card with a KYB-gated "promote to live" intent log. 70 net-new specs (445 → 515 total). Synthetic-feed this session; real CCXT ingest is the queued follow-on.
+
+Includes a small errors-prelude commit (3584961) that brought the int-spec suite to 445/445 by fixing two pre-existing bugs: missing GRANT USAGE on `hedge_movements_id_seq` (S4 migration miss) and a too-thin retry policy in `runInSerializableTransaction`.
+
+### Shipped
+
+- **`src/stat-arb/backtest/synthetic-universe.ts`** (10 specs) — `generateSyntheticUniverse({ clusterCount, symbolsPerCluster, noiseSymbols, ... })` produces N symbols organised into ground-truth cointegration clusters plus standalone noise symbols. Each cluster member is `driver(clusterId) + symLevel + idio` where `idio` is a **stationary AR(1)** process (ρ=0.72) driven by a small deterministic sine forcing. Earlier sine-wave residuals decorrelated cluster pairs and failed ADF tests; AR(1) gives textbook-stationary residuals that the cointegration test cleanly rejects the unit root for. Cluster drivers have linearly independent waveforms (different sine periods + cosine offsets) so distinct clusters don't cross-correlate.
+
+- **`src/stat-arb/discovery/pair-discovery.ts`** (15 specs) — `discoverPairs(universe, cfg)` walks every (a, b) pair, runs the Session-5 `cointegrationTest`, applies a composite score `pValue + halfLifePenalty + advPenalty`, and returns a ranked list. Hard cutoffs filter by `pValueCutoff`, `[minHalfLifeBars, maxHalfLifeBars]`, and `minAdv` (drop illiquid pairs entirely rather than just ranking them low). Default sweet-spot is half-life ∈ [5, 30] bars.
+
+- **`src/stat-arb/discovery/clustering.ts`** (13 specs) — `clusterSymbols(universe, { distanceThreshold })` builds an N×N Pearson-distance matrix (d = 1 − |ρ|), runs single-linkage agglomerative clustering with a flat cut, and nominates a representative per cluster (highest average pairwise |ρ| against cluster-mates). `pickRepresentativePairs(candidates, symbolToCluster)` filters the discovery output to one pair per (clusterA, clusterB) bucket — keeps the dashboard from showing ten copies of the same trade.
+
+- **`src/stat-arb/regime/regime-detector.ts`** (15 specs) — `detectRegime(logPricesA, logPricesB?)` returns `{ vol: LOW|NORMAL|HIGH, trend: RANGE|TRENDING, decoupling: boolean, realisedVol, trendSlope, pValue }`. Vol is realised σ over a rolling lookback vs the historical median (configurable mults). Trend is the OLS slope × lookback compared against `trendSlopeThreshold` (default 0.05 = 5% log-return). Decoupling fires when the rolling Engle-Granger p-value exceeds `decouplingPValueAlarm` (default 0.10); null when no B series passed. Pure function; no state.
+
+- **`src/stat-arb/discovery/signal-decay.ts`** (10 specs) — `detectSignalDecay(pnlPerTrade, { windowTrades, decayRatio, minBaselineSharpe? })`. Computes the trailing Sharpe over `windowTrades` and compares against the **median** of all earlier overlapping windows (the "historical baseline"). Flag fires when `recent / baseline < decayRatio`. Handles the negative-baseline edge case (decay = even more negative Sharpe) and the near-zero-baseline edge case (treats baseline as zero; flag cannot fire).
+
+- **`src/stat-arb/discovery/universe.controller.ts`** (7 specs) — three endpoints on `/api/stat-arb/research/`:
+  - `GET universe` — runs `runUniverse()` (composes synthetic-feed + discovery + clustering + regime per pair) and returns `{ symbols, groundTruthClusters, noiseSymbols, discoveredClusters, topPairs[20], representativePairs[10] }`. Each pair carries clusterA/clusterB + regime chip tags.
+  - `POST universe/promote` — accepts `{ symbolA, symbolB, note? }`, appends to an in-memory 50-entry promotion log, returns `{ ok: true, loggedAt, intent, gate: 'KYB_REQUIRED_BEFORE_LIVE' }`. Does **not** flip anything live — the gate string is the audit trail for the human-approved Phase-4 step.
+  - `GET universe/promotions` — returns the log newest-first.
+
+- **Wiring:** `UniverseController` registered in `StatArbModule.controllers`. No new providers — discovery + clustering + regime are pure functions imported directly.
+
+- **Dashboard:** new **Universe** card at the bottom of `/demo#research`. 11-column table (rank, pair, cluster, β, p-value, half-life, min ADV, vol chip, trend chip, score, promote button). Vol chip is OK/WARN/DANGER on LOW/NORMAL/HIGH; trend chip is OK/WARN on RANGE/TRENDING. "log intent" buttons POST to the promote endpoint and flip their own text to "logged". Loaded once-per-page-visit (same pattern as walk-forward / sweep / MC — research endpoints are expensive).
+
+- **E2E smoke:** server boots clean (515/515 specs green, tsc clean). `GET /api/stat-arb/research/universe` returns 13 symbols (3 clusters × 3 + 4 noise), 20 top pairs, 10 representative pairs, each with vol+trend+decoupling chips. `POST .../promote` writes the entry; `GET .../promotions` reads it back. The dashboard's Universe card renders the table with cluster ids matching the ground-truth clusters.
+
+### Architectural notes (binding for future sessions)
+
+1. **The synthetic universe is the discovery-engine test fixture.** Real ingest will replace `runUniverse()`'s `generateSyntheticUniverse` call with a `marketDataRepository.universeBars(from, to)` lookup — no other code in the discovery library or the Universe card changes. The cluster-and-rank pipeline is data-source agnostic by design.
+
+2. **Clustering distance metric is `1 − |ρ|`, not `1 − ρ`.** Anti-correlated symbols are tradeable as the same factor (you just flip the leg). Don't switch to signed correlation without thinking about the front-end implication (the same pair would suddenly appear in two clusters).
+
+3. **Decay detection is Sharpe-based and Sharpe-blind to constant losses.** A pair that drifts from +profit to +flat with no variance has Sharpe → 0 and triggers decay; a pair that flips from -loss to MORE -loss with no variance does NOT trigger decay via Sharpe (variance is zero, mean is captured but Sharpe normalises it out). The position-sizing / drawdown gates are the right place to catch flat-loss patterns — `signal-decay.ts` is specifically for "this used to make money, now it doesn't."
+
+4. **The promotion log is intentionally in-memory.** When the persistence layer for promotion-ladder events lands (Session 16 backlog item, called out in S16 closing notes), the log writes through to a `promotion_intents` table. Until then the in-memory ring is good enough for the dashboard's audit-trail demo.
+
+5. **Universe-card-loaded-once-per-page-visit** matches walk-forward / sweep / MC. Research endpoints all run multiple backtests; reloading them on every poll would melt the CPU. The whole research desk follows the same lazy-once pattern.
+
+### Open follow-ups
+
+- **Real CCXT bar ingest cron.** The single biggest follow-on. Today the Universe card runs against a 13-symbol synthetic feed. A small ingest job pulling Binance public history into `market_bars` flips the engine onto real data without touching any of S16's code.
+- **Promotion log → DB.** Append-only `promotion_intents` table with `(symbol_a, symbol_b, logged_by, logged_at, note)` and a unique index on `(symbol_a, symbol_b, day)` for idempotency. Same posture as `treasury_movements`.
+- **Signal-decay wired into the Universe card.** Today decay tracking is a pure library function; the Universe card doesn't display recent vs baseline Sharpe per pair. One column + one fetch.
+- **Session 10 (multi-strategy router + funding-carry + budget allocator).** Still deferred. With S16 done, the gap is starting to bind: the Trader-desk only shows pairs, but the engine could surface multiple strategies if the registry+allocator were in.
