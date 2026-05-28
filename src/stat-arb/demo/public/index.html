@@ -74,6 +74,8 @@
     .row.chart-row { grid-template-columns: 1fr; margin-top: 18px; }
     .row.bottom-row { grid-template-columns: 1.4fr 1fr; margin-top: 18px; }
     .row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .row.four  { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 1100px) { .row.four { grid-template-columns: 1fr 1fr; } }
     .row.two { grid-template-columns: 1fr 1fr; }
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
@@ -140,6 +142,11 @@
     footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 40px; }
     footer a { color: var(--accent); text-decoration: none; }
     .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    /* Chart.js + responsive + maintainAspectRatio: false needs a constrained parent to size against. */
+    .chart-wrap.chart-spread     { height: 240px; }
+    .chart-wrap.chart-nav        { height: 240px; }
+    .chart-wrap.chart-underwater { height: 200px; }
+    .chart-wrap canvas { max-height: 100%; height: 100% !important; }
     canvas { width: 100% !important; }
     .view { display: none; }
     .view.active { display: block; }
@@ -178,6 +185,7 @@
     .event-log .kind.CLOSE { background: rgba(120,137,160,0.18); color: var(--muted); }
     .event-log .kind.GATE  { background: rgba(245,185,66,0.18); color: var(--warn); }
     .event-log .kind.DD    { background: rgba(255,92,92,0.18); color: var(--danger); }
+    .event-log .kind.RISK  { background: rgba(255,92,92,0.18); color: var(--danger); }
     .spark { height: 50px; }
     .gate-card-head { display: flex; justify-content: space-between; align-items: baseline; }
     .gate-card-num { font-size: 28px; font-weight: 600; }
@@ -270,9 +278,9 @@
       </div>
 
       <div class="row chart-row">
-        <div class="chart-wrap">
+        <div class="chart-wrap chart-spread">
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">Spread z-score (with entry / exit thresholds)</h2>
-          <canvas id="spread-chart" height="120"></canvas>
+          <canvas id="spread-chart"></canvas>
         </div>
       </div>
 
@@ -299,7 +307,7 @@
 
     <!-- ─────────── RISK & COMPLIANCE ─────────── -->
     <section class="view" id="view-risk">
-      <div class="row three">
+      <div class="row four">
         <div class="card">
           <h2>Drawdown Gate</h2>
           <div class="gate-card-head">
@@ -320,7 +328,7 @@
             <span class="chip muted" id="risk-pval-chip">PENDING</span>
           </div>
           <canvas id="risk-pval-spark" class="spark" style="margin-top:10px;"></canvas>
-          <div style="color:var(--muted); font-size:11px; margin-top:6px;">p-value gate fires at <span class="mono">&gt; 0.10</span>. Sliding-β refit lands in <strong style="color:var(--text);">Session 7 · Block A</strong>.</div>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Live ADF p-value from the sliding-β refit. Gate fires at <span class="mono">&gt; 0.10</span>.</div>
         </div>
 
         <div class="card">
@@ -332,7 +340,7 @@
           <div class="bar" style="height:10px; background:var(--panel-2); border-radius:4px; overflow:hidden; margin-top:10px;">
             <div class="fill" id="risk-vc-fill" style="height:100%; background:linear-gradient(90deg,var(--accent),var(--warn)); width:0%;"></div>
           </div>
-          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Per-venue notional concentration cap. Real <code>blockedEntries</code> counter wired by <strong style="color:var(--text);">Session 8</strong>.</div>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Per-venue notional cap. Counter shows OPEN orders blocked by the live <code>RiskEngine</code>.</div>
         </div>
 
         <div class="card">
@@ -342,7 +350,7 @@
             <span class="chip muted" id="risk-exp-chip">PENDING</span>
           </div>
           <canvas id="risk-exp-spark" class="spark" style="margin-top:10px;"></canvas>
-          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Gross / net / per-pair caps from the <strong style="color:var(--text);">Session 8</strong> exposure gate.</div>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Gross / net / per-pair caps from the <code>ExposureCapsGate</code>. Counter shows <code>EXPOSURE_*</code> fires.</div>
         </div>
       </div>
 
@@ -410,8 +418,8 @@
               <tr><td><code>treasury_positions</code></td><td class="mono">SELECT, INSERT, UPDATE</td><td class="num mono">—</td></tr>
               <tr><td><code>hedge_movements</code></td><td class="mono">SELECT, INSERT</td><td class="num mono">amount &gt; 0</td></tr>
               <tr><td><code>hedge_positions</code></td><td class="mono">SELECT, INSERT, UPDATE</td><td class="num mono">—</td></tr>
-              <tr style="color:var(--muted);"><td><code>stat_arb_trades</code></td><td class="mono">— (Session 9 · Block C)</td><td class="num mono">—</td></tr>
-              <tr style="color:var(--muted);"><td><code>stat_arb_nav</code></td><td class="mono">— (Session 9 · Block C)</td><td class="num mono">—</td></tr>
+              <tr><td><code>stat_arb_trades</code></td><td class="mono">SELECT, INSERT</td><td class="num mono">notional &gt; 0</td></tr>
+              <tr><td><code>stat_arb_nav</code></td><td class="mono">SELECT, INSERT</td><td class="num mono">nav &gt;= 0 · 1/day</td></tr>
             </tbody>
           </table>
         </div>
@@ -464,20 +472,20 @@
       </div>
 
       <div class="row chart-row">
-        <div class="chart-wrap">
+        <div class="chart-wrap chart-nav">
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
             Hypothetical NAV — $1.00 starting · <span id="inv-nav-tag" style="color:var(--accent); text-transform:none; letter-spacing:0.3px;">calm scenario</span>
           </h2>
-          <canvas id="nav-chart" height="110"></canvas>
+          <canvas id="nav-chart"></canvas>
         </div>
       </div>
 
       <div class="row chart-row">
-        <div class="chart-wrap">
+        <div class="chart-wrap chart-underwater">
           <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
             Underwater curve — drawdown from running peak
           </h2>
-          <canvas id="underwater-chart" height="90"></canvas>
+          <canvas id="underwater-chart"></canvas>
         </div>
       </div>
 
@@ -498,7 +506,7 @@
             <li><span class="dot live"></span>
               <div class="body">
                 <div class="title">Phase 3 — Stat-arb scaffold (current)</div>
-                <div class="desc">Signal library, backtest runner, this dashboard. β-refit + risk module + NAV persistence next.</div>
+                <div class="desc">Signal library, backtest runner, sliding-β refit, RiskEngine gates, NAV persistence — all shipped. Multi-strategy + TimescaleDB ingest next.</div>
               </div></li>
             <li><span class="dot future"></span>
               <div class="body">
@@ -708,12 +716,18 @@ function renderRisk(s, series) {
   const expChip = document.getElementById('risk-exp-chip');
   if (expEvents > 0) { expChip.textContent = 'TRIPPED'; expChip.className = 'chip warn'; }
   else { expChip.textContent = 'OK'; expChip.className = 'chip ok'; }
-  // Sparkline: cumulative exposure events over time.
-  if (riskEvents.length > 0) {
-    const cumExp = new Array(series.length).fill(0);
+  // Sparkline: cumulative count of exposure events over time.
+  if (series && series.length > 0) {
+    const expByBar = new Map();
+    for (const ev of riskEvents) {
+      if (ev.kind.startsWith('EXPOSURE')) {
+        expByBar.set(ev.barIndex, (expByBar.get(ev.barIndex) ?? 0) + 1);
+      }
+    }
+    const cumExp = new Array(series.length);
     let c = 0;
     for (let i = 0; i < cumExp.length; i++) {
-      while (riskEvents.find(e => e.barIndex === i && e.kind.startsWith('EXPOSURE'))) { c++; break; }
+      c += expByBar.get(i) ?? 0;
       cumExp[i] = c;
     }
     renderPvalSpark('risk-exp-spark', cumExp);
@@ -826,7 +840,7 @@ function renderSpreadChart(series) {
       { label: '-exit',  data: labels.map(() => -EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
     ]
   }, {
-    responsive: true, animation: false,
+    responsive: true, animation: false, maintainAspectRatio: false,
     scales: {
       x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
       y: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
@@ -901,7 +915,7 @@ function renderNavChart(nav) {
       borderColor: 'rgba(120,137,160,0.5)', borderDash: [3,3], borderWidth: 1, pointRadius: 0,
     }]
   }, {
-    responsive: true, animation: false,
+    responsive: true, animation: false, maintainAspectRatio: false,
     scales: {
       x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
       y: { ticks: { color: '#7889a0', callback: v => '$' + v.toFixed(3) }, grid: { color: 'rgba(36,50,69,0.5)' } },
@@ -924,7 +938,7 @@ function renderUnderwater(dd) {
       borderColor: 'rgba(255,92,92,0.55)', borderDash: [4,4], borderWidth: 1, pointRadius: 0,
     }]
   }, {
-    responsive: true, animation: false,
+    responsive: true, animation: false, maintainAspectRatio: false,
     scales: {
       x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
       y: { ticks: { color: '#7889a0', callback: v => v.toFixed(1) + '%' }, grid: { color: 'rgba(36,50,69,0.5)' } },
