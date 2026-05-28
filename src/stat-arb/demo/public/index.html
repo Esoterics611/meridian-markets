@@ -212,6 +212,7 @@
     <a href="#trader"   data-view="trader"   class="active">Trader<span class="sub">strategy ops</span></a>
     <a href="#risk"     data-view="risk">Risk &amp; Compliance<span class="sub">gates · ledger</span></a>
     <a href="#investor" data-view="investor">Investor<span class="sub">track record · LP view</span></a>
+    <a href="#research" data-view="research">Research<span class="sub">walk-forward · sweep · MC</span></a>
   </nav>
 
   <main>
@@ -539,6 +540,68 @@
             capital at risk in adjacent <em>Lira-Bridge</em> is Path C first-party reserve float, governed by the
             <code>ITreasuryClient</code> contract — not investor money.
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── RESEARCH DESK ─────────── -->
+    <section class="view" id="view-research">
+      <div class="row three">
+        <div class="card">
+          <h2>Walk-forward Sharpe (avg test)</h2>
+          <div class="pnl-big mono" id="rf-avg-sharpe">—</div>
+          <div style="color:var(--muted); font-size:12px; margin-top:6px;">
+            Mean Sharpe across out-of-sample test windows. Positive-window share:
+            <span class="mono" id="rf-positive-share">—</span>.
+          </div>
+        </div>
+        <div class="card">
+          <h2>Sweep best Sharpe</h2>
+          <div class="pnl-big mono" id="rf-sweep-best">—</div>
+          <div style="color:var(--muted); font-size:12px; margin-top:6px;">
+            Top cell across <span class="mono">entryZ × exitZ</span>. Params:
+            <span class="mono" id="rf-sweep-params">—</span>.
+          </div>
+        </div>
+        <div class="card">
+          <h2>Monte Carlo prob-positive</h2>
+          <div class="pnl-big mono" id="rf-mc-prob">—</div>
+          <div style="color:var(--muted); font-size:12px; margin-top:6px;">
+            Bootstrap-resampled P(final P&amp;L &gt; 0). Median final:
+            <span class="mono" id="rf-mc-median">—</span> USDC.
+          </div>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Walk-forward — train vs test Sharpe by window</h2>
+          <table>
+            <thead>
+              <tr><th>#</th><th class="num">Train Sharpe</th><th class="num">Train DD</th><th class="num">Test Sharpe</th><th class="num">Test DD</th><th class="num">Calmar</th><th class="num">Trades</th></tr>
+            </thead>
+            <tbody id="rf-windows"><tr><td colspan="7" style="color:var(--muted); text-align:center;">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Parameter sweep — heatmap (Sharpe by entryZ × exitZ)</h2>
+          <div id="rf-heatmap" style="display:grid; gap:4px; margin-top:8px;"></div>
+          <div style="color:var(--muted); font-size:11px; margin-top:10px;">
+            Cells coloured by Sharpe. Hover for params (full ranking in the API at
+            <code>GET /api/stat-arb/research/sweep</code>).
+          </div>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="chart-wrap chart-nav">
+          <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
+            Monte Carlo fan chart — p5 / p50 / p95 cumulative P&amp;L
+          </h2>
+          <canvas id="rf-mc-chart"></canvas>
         </div>
       </div>
     </section>
@@ -949,7 +1012,7 @@ function renderUnderwater(dd) {
 
 // ─── persona routing ───
 function activateView(name) {
-  const valid = ['trader','risk','investor'];
+  const valid = ['trader','risk','investor','research'];
   if (!valid.includes(name)) name = 'trader';
   document.querySelectorAll('nav.persona-nav a').forEach(a => {
     a.classList.toggle('active', a.dataset.view === name);
@@ -959,6 +1022,108 @@ function activateView(name) {
   });
   // Force redraw — charts in hidden divs render at 0px width.
   if (lastSnapshot) renderAll();
+  if (name === 'research') loadResearchOnce();
+}
+
+// ─── RESEARCH DESK ───
+// Research endpoints are expensive (run multiple backtests), so fetch only
+// when the user navigates to the tab — and only once until the page reloads.
+let researchLoaded = false;
+async function loadResearchOnce() {
+  if (researchLoaded) return;
+  researchLoaded = true;
+  try {
+    const [wf, sweep, mc] = await Promise.all([
+      fetch('/api/stat-arb/research/walk-forward').then(r => r.json()),
+      fetch('/api/stat-arb/research/sweep').then(r => r.json()),
+      fetch('/api/stat-arb/research/monte-carlo').then(r => r.json()),
+    ]);
+    renderWalkForward(wf);
+    renderSweep(sweep);
+    renderMonteCarlo(mc);
+  } catch (e) {
+    console.error('research load failed', e);
+    researchLoaded = false; // retry on next view switch
+  }
+}
+
+function renderWalkForward(r) {
+  document.getElementById('rf-avg-sharpe').textContent = r.avgTestSharpe.toFixed(2);
+  document.getElementById('rf-positive-share').textContent = (r.positiveWindowShare * 100).toFixed(0) + '%';
+  const tbody = document.getElementById('rf-windows');
+  if (!r.windows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--muted); text-align:center;">No windows fit.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = r.windows.map(w => {
+    return '<tr>'
+      + '<td class="mono">' + w.windowIndex + '</td>'
+      + '<td class="num mono">' + w.train.sharpeRatio.toFixed(2) + '</td>'
+      + '<td class="num mono">' + w.train.maxDrawdownPct.toFixed(2) + '%</td>'
+      + '<td class="num mono ' + (w.test.sharpeRatio >= 0 ? 'pos' : 'neg') + '">' + w.test.sharpeRatio.toFixed(2) + '</td>'
+      + '<td class="num mono">' + w.test.maxDrawdownPct.toFixed(2) + '%</td>'
+      + '<td class="num mono">' + w.test.calmar.toFixed(2) + '</td>'
+      + '<td class="num mono">' + w.test.totalTrades + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function renderSweep(r) {
+  const cells = r.cells || [];
+  if (cells.length === 0) return;
+  const best = cells[0];
+  document.getElementById('rf-sweep-best').textContent = best.sharpeRatio.toFixed(2);
+  document.getElementById('rf-sweep-params').textContent =
+    'entryZ=' + best.params.entryZ + ' · exitZ=' + best.params.exitZ;
+
+  // Build a 2-D layout: rows = entryZ values, cols = exitZ values.
+  const entryZs = Array.from(new Set(cells.map(c => c.params.entryZ))).sort((a,b) => a-b);
+  const exitZs  = Array.from(new Set(cells.map(c => c.params.exitZ))).sort((a,b) => a-b);
+  const minS = Math.min(...cells.map(c => c.sharpeRatio));
+  const maxS = Math.max(...cells.map(c => c.sharpeRatio));
+  const span = (maxS - minS) || 1;
+  const heat = document.getElementById('rf-heatmap');
+  heat.style.gridTemplateColumns = 'auto ' + exitZs.map(() => '1fr').join(' ');
+  // Header row: blank cell + exitZ labels.
+  const headerCells = ['<div></div>']
+    .concat(exitZs.map(x => '<div style="font-size:11px; color:var(--muted); text-align:center;">exitZ ' + x + '</div>'));
+  // Body rows: entryZ label + heat cells.
+  const bodyRows = entryZs.flatMap(ez =>
+    ['<div style="font-size:11px; color:var(--muted); text-align:right; padding-right:6px; align-self:center;">entryZ ' + ez + '</div>']
+      .concat(exitZs.map(xz => {
+        const cell = cells.find(c => c.params.entryZ === ez && c.params.exitZ === xz);
+        if (!cell) return '<div style="background:var(--panel-2); border-radius:4px;"></div>';
+        const t = (cell.sharpeRatio - minS) / span; // 0..1
+        const hue = Math.round(0 + 160 * t); // red → green
+        const title = 'Sharpe ' + cell.sharpeRatio.toFixed(2)
+          + ' · trades ' + cell.totalTrades
+          + ' · DD ' + cell.maxDrawdownPct.toFixed(2) + '%';
+        return '<div title="' + title + '" style="background:hsl(' + hue + ',60%,30%); color:#fff; padding:10px 4px; text-align:center; border-radius:4px; font-size:12px;" class="mono">' + cell.sharpeRatio.toFixed(2) + '</div>';
+      }))
+  );
+  heat.innerHTML = headerCells.concat(bodyRows).join('');
+}
+
+function renderMonteCarlo(r) {
+  document.getElementById('rf-mc-prob').textContent = (r.summary.probPositive * 100).toFixed(0) + '%';
+  document.getElementById('rf-mc-median').textContent = (r.summary.medianFinalPnl / 1_000_000).toFixed(2);
+  if (!r.p50 || r.p50.length === 0) return;
+  const labels = r.p50.map((_, i) => i);
+  newOrReplace('rf-mc-chart', 'line', {
+    labels,
+    datasets: [
+      { label: 'p95', data: r.p95.map(v => v / 1_000_000), borderColor: 'rgba(0,212,170,0.55)', backgroundColor: 'rgba(0,212,170,0.10)', borderWidth: 1, pointRadius: 0, fill: '+1', tension: 0.2 },
+      { label: 'p50', data: r.p50.map(v => v / 1_000_000), borderColor: '#d7e0ec', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+      { label: 'p05', data: r.p05.map(v => v / 1_000_000), borderColor: 'rgba(255,92,92,0.55)', backgroundColor: 'rgba(255,92,92,0.10)', borderWidth: 1, pointRadius: 0, tension: 0.2 },
+    ]
+  }, {
+    responsive: true, animation: false, maintainAspectRatio: false,
+    scales: {
+      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+      y: { ticks: { color: '#7889a0', callback: v => v.toFixed(0) + ' USDC' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+    },
+    plugins: { legend: { labels: { color: '#d7e0ec', boxWidth: 12 } } }
+  });
 }
 window.addEventListener('hashchange', () => activateView(location.hash.replace('#','')));
 document.querySelectorAll('nav.persona-nav a').forEach(a => {
