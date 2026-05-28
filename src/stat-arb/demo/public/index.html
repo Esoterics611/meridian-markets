@@ -146,18 +146,27 @@
     body.killed header { margin-top: 28px; }
     footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 40px; }
     footer a { color: var(--accent); text-decoration: none; }
-    .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
-    /* Chart.js + responsive + maintainAspectRatio: false needs a constrained parent to size against. */
+    .chart-wrap {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    /* The chart-wrap height pins total component height; the embedded
+       Lightweight-Charts host gets the leftover via flex:1, so the chart
+       can never overflow its wrapper regardless of h2 / margin variance. */
     .chart-wrap.chart-spread     { height: 280px; }
     .chart-wrap.chart-nav        { height: 280px; }
     .chart-wrap.chart-underwater { height: 240px; }
     .chart-wrap canvas { max-height: 100%; height: 100% !important; }
     canvas { width: 100% !important; }
-    /* Lightweight Charts host divs — sit inside .chart-wrap below the <h2>. */
-    .lw-chart { width: 100%; height: 220px; }
-    .chart-wrap.chart-spread .lw-chart     { height: 240px; }
-    .chart-wrap.chart-nav .lw-chart        { height: 240px; }
-    .chart-wrap.chart-underwater .lw-chart { height: 200px; }
+    .lw-chart {
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;   /* required so flex children can shrink below content size */
+      max-height: 100%;
+      overflow: hidden;
+    }
     .view { display: none; }
     .view.active { display: block; }
     .gate { display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -753,27 +762,40 @@ const LW_GRID = {
 const LW_TIME = { timeVisible: false, secondsVisible: false, borderColor: 'rgba(36,50,69,0.8)' };
 const LW_RIGHTPRICE = { borderColor: 'rgba(36,50,69,0.8)' };
 
+// True when the host div is part of a visible view (offsetParent === null
+// means the host or one of its ancestors has display:none). Lightweight Charts
+// created in a 0-height host gets a 0-height canvas and the layout math goes
+// sideways; guard every create + apply against this.
+function isHostVisible(host) {
+  return host && host.offsetParent !== null && host.clientWidth > 0 && host.clientHeight > 0;
+}
+
 function lwGetOrCreate(id, opts = {}) {
   const host = document.getElementById(id);
   if (!host) return null;
-  if (lwCharts[id]) return lwCharts[id];
-  const chart = LightweightCharts.createChart(host, {
-    width: host.clientWidth,
-    height: host.clientHeight,
-    layout: LW_LAYOUT,
-    grid: LW_GRID,
-    timeScale: LW_TIME,
-    rightPriceScale: LW_RIGHTPRICE,
-    crosshair: { mode: LightweightCharts.CrosshairMode.Magnet },
-    ...opts,
-  });
-  lwCharts[id] = { chart, series: {} };
-  // Resize on container resize (persona switches show/hide divs which can
-  // briefly drop the host to 0px; the observer corrects on next layout pass).
-  const ro = new ResizeObserver(() => {
-    if (host.clientWidth > 0) chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
-  });
-  ro.observe(host);
+  // Defer creation until the host has real geometry. The activateView() hook
+  // calls renderAll() again on each persona switch so charts pick up the
+  // first time their view becomes visible.
+  if (!lwCharts[id]) {
+    if (!isHostVisible(host)) return null;
+    const chart = LightweightCharts.createChart(host, {
+      width: host.clientWidth,
+      height: host.clientHeight,
+      layout: LW_LAYOUT,
+      grid: LW_GRID,
+      timeScale: LW_TIME,
+      rightPriceScale: LW_RIGHTPRICE,
+      crosshair: { mode: LightweightCharts.CrosshairMode.Magnet },
+      ...opts,
+    });
+    lwCharts[id] = { chart, series: {} };
+    // Resize on container resize. RO is a no-op when the host is hidden
+    // (clientHeight 0) which prevents the create→resize→layout loop.
+    const ro = new ResizeObserver(() => {
+      if (isHostVisible(host)) chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+    });
+    ro.observe(host);
+  }
   return lwCharts[id];
 }
 
@@ -1178,10 +1200,15 @@ function activateView(name) {
   document.querySelectorAll('section.view').forEach(s => {
     s.classList.toggle('active', s.id === 'view-' + name);
   });
-  // Force redraw — charts in hidden divs render at 0px width.
-  if (lastSnapshot) renderAll();
-  if (name === 'research') loadResearchOnce();
-  if (name === 'exec') refreshExec();
+  // Wait one frame for the browser to lay out the newly-visible view so the
+  // host divs have real geometry before any chart reads their dimensions.
+  // (Without this, lwGetOrCreate sees clientHeight=0 on the very first paint
+  // after a tab switch and bails out — see isHostVisible().)
+  requestAnimationFrame(() => {
+    if (lastSnapshot) renderAll();
+    if (name === 'research') loadResearchOnce();
+    if (name === 'exec') refreshExec();
+  });
 }
 
 // ─── RESEARCH DESK ───
