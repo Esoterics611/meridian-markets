@@ -32,4 +32,10 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     ilsSigmaBps: parseInt(process.env['HEDGE_ILS_SIGMA_BPS'] ?? '94', 10),
     positionStalenessMs: parseInt(process.env['HEDGE_POSITION_STALENESS_MS'] ?? '30000', 10),
   },
+  statArb: {
+    mockEnabled: process.env['MOCK_TRADING_ENABLED'] !== 'false',
+    demoBarCount: parseInt(process.env['DEMO_BAR_COUNT'] ?? '90', 10),
+    demoPairA: process.env['DEMO_PAIR_A'] ?? 'BTC',
+    demoPairB: process.env['DEMO_PAIR_B'] ?? 'ETH',
+  },
 }));

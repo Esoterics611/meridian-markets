@@ -206,3 +206,69 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 - **Lira-Bridge-side `GET /api/path-c/outstanding-exposure`** — separate session in `/home/nexus/code/meridian`. Markets is ready to consume it the day it ships; just swap `StubExposureClient` for `LiraBridgeExposureClient` in `HedgeModule`.
 - **KYB with Hyperliquid** (or alternate venue). Business track; `RealHyperliquidHedgeVenue` stays dormant.
 - **Phase 3 stat-arb signal library + demo dashboard** — Session 5. See `prompts/PHASE_3_DEMO_PROMPT.md`.
+
+---
+
+## 5. Session 5 — Phase 3 stat-arb demo + signal library (2026-05-28)
+
+**Goal:** build the Phase 3 stat-arb signal library, a deterministic backtest runner, and a live web dashboard at `http://localhost:3100/demo` for traders, operators, and sales. Mock-default; no real venue connections; not customer-facing. Scope and rails per [prompts/PHASE_3_DEMO_PROMPT.md](../prompts/PHASE_3_DEMO_PROMPT.md).
+
+### Shipped
+
+- **`src/stat-arb/signal/` — pure math layer (no I/O, no NestJS):**
+  - `_math.ts` — `ols()` and `olsWithStats()` (closed-form normal equations, slope t-statistic). No external library.
+  - `cointegration.ts` — `cointegrationTest(logA, logB)` — Engle-Granger two-step: OLS for β, ADF unit-root test on residuals via AR(1) regression, MacKinnon (1994) coarse-tabled p-value. Returns `{ beta, pValue, halfLifeBars }`.
+  - `ou.ts` — `ouFit(spread)` recovers OU `θ, μ, σ` from a discrete-time AR(1) form. `bertramThresholds(fit, txCost)` returns entry/exit distances from μ; entry widens monotonically with cost.
+  - `z-score.ts` — `rollingZScore(series, lookback)` (NaN-pads early indices, zero on constant windows) and `ewmaZScore(series, lambda)`.
+  - `spread.ts` — `logSpread(pricesA, pricesB, beta)`.
+  - **30 specs** across the math layer with seeded-RNG golden vectors so the random-walk and cointegrated cases don't flake.
+
+- **`src/stat-arb/trading-venue.interface.ts` — execution swap seam.** `TRADING_VENUE` symbol, `ITradingVenue`, `PlaceOrderRequest`, `Fill`, `TradingVenueNotConfiguredError`. Same pattern as `HEDGE_VENUE` / `IYieldProvider`.
+- **`src/stat-arb/mock-trading-venue.ts`** — deterministic per-symbol price model: hashed-seed mean + sine + linear drift, no RNG. Constant 5 bps taker fee. Idempotent on `idempotencyKey`. Injectable clock for tests.
+- **`src/stat-arb/real-binance-venue.ts`** — dormant stub. Throws `TradingVenueNotConfiguredError` on every method until `MOCK_TRADING_ENABLED=false` AND Binance KYB completes.
+- **9 venue specs.**
+
+- **`src/stat-arb/backtest/` — event-driven backtest runner:**
+  - `bar.ts` — OHLCV `Bar` interface (floats; venue boundary still uses bigint micros).
+  - `synthetic-feed.ts` — `generateSyntheticFeed(cfg)` produces a clean oscillating log-spread (sine + minor cosine perturbation) on a slow random-walk-like drift. No RNG; bit-stable across runs.
+  - `strategy.interface.ts` — `IStrategy`, `BarContext`, `DesiredOrder`. History array passed in is inclusive of the current bar.
+  - `pairs-strategy.ts` — `PairsStrategy` implementing rolling-z-score pairs trading with configurable `entryZ`, `exitZ`, `notionalUnits`. Three regimes: `LONG`, `SHORT`, `FLAT`. β passed in (no per-bar refitting in the demo).
+  - `backtest-runner.ts` — `BacktestRunner.run({ barsA, barsB, strategy, venue })`. Returns `{ trades, metrics, spreadSeries }`. P&L attribution: signed pair P&L net of fees on round-trip, sign-flipped for LONG vs SHORT spread positions.
+  - `pnl-attribution.ts` — total P&L (bigint), Sharpe (per-trade mean/std), max drawdown %, win rate, total trades.
+  - **8 specs** including a lookahead-prevention assertion (subclass `PairsStrategy` and verify `history.length ≤ index+1`).
+
+- **`src/stat-arb/demo/` — REST API + static dashboard:**
+  - `demo.service.ts` — singleton `DemoService` holding the most-recent `BacktestResult` in memory (no DB persistence in Phase 3). `runFreshBacktest()`, `snapshot()`, `reset()`, `hasResult()`.
+  - `demo.controller.ts` — `GET /api/stat-arb/demo/run`, `GET /status` (auto-runs first time), `GET /history`, `POST /reset`. All bigints serialised as strings.
+  - `demo-page.controller.ts` — serves `index.html` at `GET /demo`. Multi-candidate path resolution (dist asset / src / __dirname) so it works under both `nest start` and `start:prod`.
+  - `public/index.html` — single-file dark-mode dashboard, vanilla JS + Chart.js via CDN. Strategy card, drawdown gauge, Chart.js z-score line with entry/exit threshold bands, trade table (last 10), metrics card (Sharpe, win rate, max DD, trades), "Run Demo" button. Polls `/status` every 5s.
+  - **5 controller specs** with mocked `DemoService`.
+
+- **Config + wiring:**
+  - `AppConfig.statArb` added (`mockEnabled`, `demoBarCount`, `demoPairA`, `demoPairB`).
+  - `app-config.factory.ts` reads `MOCK_TRADING_ENABLED`, `DEMO_BAR_COUNT`, `DEMO_PAIR_A`, `DEMO_PAIR_B`. Single sanctioned `process.env` reader still.
+  - `.env.example` documents all four with the Phase 3 cross-phase-dep rationale.
+  - `StatArbModule` registers `TRADING_VENUE` factory (mock vs Binance), `DemoService`, `DemoController`, `DemoPageController`.
+  - `AppModule` imports `StatArbModule`.
+  - `nest-cli.json` `assets` config copies `stat-arb/demo/public/` to `dist/` at build time.
+
+- **No new DB migration this session.** Demo state lives in `DemoService` only, per the prompt's "out of scope" §7.
+
+- **`npx tsc --noEmit`** clean. **`npx jest`** green: 24 suites, 150 tests (56 net-new from the 94 carried in from Session 4).
+
+### Architectural notes (binding for future sessions)
+
+1. **The pairs strategy uses a constant β passed via config**, not a sliding cointegration refit. That's a demo simplification per the prompt. The real Phase 3 step-2 wiring re-fits β on a sliding window before each entry — handle this when the live shadow run starts.
+2. **`MockTradingVenue` has no randomness.** Every backtest with the same config and clock is bit-stable. This is deliberate so the demo is reproducible for sales walkthroughs. Do not introduce RNG; if you want noisier output use a different seeded source per symbol.
+3. **The lookahead invariant is enforced by `backtest.spec.ts`.** Any future change to `BacktestRunner` that exposes more than `historyA.length ≤ index+1` will fail that test. Do not weaken it.
+4. **`DemoController.status()` auto-runs a backtest if one hasn't been triggered yet.** This is so the dashboard's first paint is never a 500. Don't add a second auto-run path elsewhere — keep it in `status()`.
+5. **`/demo` is a static-HTML controller (Option B from the prompt), not `@nestjs/serve-static`.** Reason: avoids adding a new npm dep this session. If a real asset pipeline is ever needed, swap in `ServeStaticModule` and remove `DemoPageController` — drop-in replacement.
+
+### Open follow-ups
+
+- **Verify the running dashboard end-to-end.** This session shipped the code and 150 green tests but did not start the Nest server and hit `http://localhost:3100/demo` in a browser. First action in the next session should be `npm run start:dev` + visual smoke test of `/demo` + `curl /api/stat-arb/demo/run`.
+- **Phase 3 Step 2 — sliding-window β refit + live shadow run.** Replace constant-β `PairsStrategy` with one that refits cointegration on each entry; pipe live market data (CCXT) through `SyntheticFeed`'s seam.
+- **Phase 3 Step 3 — risk module.** `kelly.ts`, `drawdown-gate.ts`, `venue-cap.ts` per the prompt's §7 "out of scope" list.
+- **Phase 3 Step 4 — `stat_arb_trades` + `stat_arb_nav` migration.** Append-only role grants for both tables; extend `append-only.int-spec.ts`.
+- **Phase 3 Step 5 — funding-carry + cross-venue spot-arb strategies.** Add additional `IStrategy` implementations alongside `PairsStrategy`.
+- **KYB with Binance (or first real venue).** Business gate; `RealBinanceVenue` stays dormant.

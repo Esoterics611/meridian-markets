@@ -34,4 +34,14 @@ export interface AppConfig {
     /** How old a cached hedge position can be before re-fetching from the venue (ms). Default 30s. */
     positionStalenessMs: number;
   };
+  statArb: {
+    /** Mock-default execution venue for the Phase 3 demo. KYB-gated for real venues. */
+    mockEnabled: boolean;
+    /** Number of synthetic bars per demo backtest run. Default 90. */
+    demoBarCount: number;
+    /** Symbol A for the demo pair. Default 'BTC'. */
+    demoPairA: string;
+    /** Symbol B for the demo pair. Default 'ETH'. */
+    demoPairB: string;
+  };
 }

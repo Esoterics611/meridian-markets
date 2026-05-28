@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meridian Markets — Strategy Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #131a23;
+      --panel-2: #182230;
+      --border: #243245;
+      --text: #d7e0ec;
+      --muted: #7889a0;
+      --accent: #00d4aa;
+      --accent-dim: #1f6f5e;
+      --long: #00d4aa;
+      --short: #ff5c5c;
+      --flat: #7889a0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .mono { font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; }
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 28px; border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0c1118 0%, #0a0e14 100%);
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+    header .accent { color: var(--accent); }
+    .badge {
+      padding: 4px 10px; border: 1px solid var(--accent-dim); border-radius: 999px;
+      color: var(--accent); font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+    }
+    main { padding: 20px 28px 60px; max-width: 1400px; margin: 0 auto; }
+    .row { display: grid; gap: 18px; }
+    .row.cards-top { grid-template-columns: 1.2fr 1fr 1fr; }
+    .row.chart-row { grid-template-columns: 1fr; margin-top: 18px; }
+    .row.bottom-row { grid-template-columns: 1.4fr 1fr; margin-top: 18px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px 18px;
+    }
+    .card h2 {
+      margin: 0 0 12px; font-size: 11px; color: var(--muted);
+      letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;
+    }
+    .strategy-card .pair { font-size: 22px; font-weight: 600; }
+    .strategy-card .z-row { display: flex; justify-content: space-between; margin-top: 14px; }
+    .strategy-card .z-row .label { color: var(--muted); font-size: 12px; }
+    .strategy-card .z { font-size: 28px; font-weight: 600; }
+    .strategy-card .z.long { color: var(--long); }
+    .strategy-card .z.short { color: var(--short); }
+    .strategy-card .z.flat { color: var(--flat); }
+    .strategy-card .regime {
+      display: inline-block; padding: 3px 10px; border-radius: 4px;
+      font-size: 11px; letter-spacing: 1px; font-weight: 600;
+    }
+    .strategy-card .regime.LONG  { background: rgba(0,212,170,0.15); color: var(--long); }
+    .strategy-card .regime.SHORT { background: rgba(255,92,92,0.15); color: var(--short); }
+    .strategy-card .regime.FLAT  { background: rgba(120,137,160,0.15); color: var(--flat); }
+    .gauge .bar { height: 10px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .gauge .fill { height: 100%; background: linear-gradient(90deg, var(--accent), #ff5c5c); transition: width 200ms; }
+    .gauge .legend { color: var(--muted); font-size: 11px; margin-top: 6px; display: flex; justify-content: space-between; }
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { background: var(--panel-2); border-radius: 6px; padding: 10px 12px; }
+    .metric .label { font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+    .metric .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+    th { font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+    td.num, th.num { text-align: right; }
+    td.pos { color: var(--long); } td.neg { color: var(--short); }
+    .side-LONG  { color: var(--long); }
+    .side-SHORT { color: var(--short); }
+    button.run {
+      background: var(--accent); color: #001712; border: none; padding: 8px 18px;
+      border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    button.run:hover { filter: brightness(1.1); }
+    footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 40px; }
+    footer a { color: var(--accent); text-decoration: none; }
+    #chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    canvas { width: 100% !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="accent">●</span> Meridian Markets <span style="color:var(--muted);">— Strategy Demo</span></h1>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <span class="badge">Mock Mode</span>
+      <button class="run" id="run-btn">Run Demo</button>
+    </div>
+  </header>
+  <main>
+    <div class="row cards-top">
+      <div class="card strategy-card">
+        <h2>Strategy</h2>
+        <div class="pair mono" id="pair">— / —</div>
+        <div class="z-row">
+          <div>
+            <div class="label">z-score</div>
+            <div class="z mono flat" id="z">0.00</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="label">regime</div>
+            <div class="regime FLAT" id="regime" style="margin-top:6px;">FLAT</div>
+          </div>
+        </div>
+        <div class="z-row">
+          <div>
+            <div class="label">Open P&amp;L</div>
+            <div class="mono" id="open-pnl">0.00 USDC</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="label">Trades</div>
+            <div class="mono" id="trade-count">0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card gauge">
+        <h2>Drawdown vs 5% Gate</h2>
+        <div class="mono" style="font-size:24px;" id="dd-value">0.00%</div>
+        <div class="bar"><div class="fill" id="dd-fill" style="width:0%"></div></div>
+        <div class="legend"><span>0%</span><span>5% gate</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Backtest Metrics</h2>
+        <div class="metrics-grid">
+          <div class="metric"><div class="label">Sharpe</div><div class="value mono" id="m-sharpe">—</div></div>
+          <div class="metric"><div class="label">Win rate</div><div class="value mono" id="m-winrate">—</div></div>
+          <div class="metric"><div class="label">Max DD</div><div class="value mono" id="m-dd">—</div></div>
+          <div class="metric"><div class="label">Total trades</div><div class="value mono" id="m-trades">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row chart-row">
+      <div id="chart-wrap">
+        <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">Spread z-score (with entry / exit thresholds)</h2>
+        <canvas id="spread-chart" height="120"></canvas>
+      </div>
+    </div>
+
+    <div class="row bottom-row">
+      <div class="card">
+        <h2>Recent Trades (last 10)</h2>
+        <table>
+          <thead>
+            <tr><th>#</th><th>Side</th><th class="num">Entry z</th><th class="num">Exit z</th><th class="num">Bars</th><th class="num">P&amp;L</th></tr>
+          </thead>
+          <tbody id="trade-rows"><tr><td colspan="6" style="color:var(--muted); text-align:center;">No trades yet</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>System Posture</h2>
+        <div style="color:var(--muted); font-size:13px; line-height:1.6;">
+          <p>Phase 3 scaffold — internal track-record mode.</p>
+          <p>No real venue connections. No customer capital. Real execution is <span class="accent">KYB-gated</span> (Binance) and blocked until Phase 2 closes.</p>
+          <p>Signal math (cointegration, OU fit, z-score) is the same code documented in the <a href="/courses/" style="color:var(--accent);">stat-arb course</a>.</p>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Phase 3 scaffold — prop desk track-record mode. No real capital.
+      &middot; <a href="/courses/">Stat-arb course</a>
+    </footer>
+  </main>
+
+<script>
+const ENTRY_Z = 1.2;
+const EXIT_Z  = 0.3;
+let chart = null;
+
+function fmtPnl(unitsStr) {
+  const n = Number(unitsStr) / 1_000_000;
+  const sign = n >= 0 ? '+' : '';
+  return sign + n.toFixed(2) + ' USDC';
+}
+
+async function pollStatus() {
+  try {
+    const [statusRes, histRes] = await Promise.all([
+      fetch('/api/stat-arb/demo/status').then(r => r.json()),
+      fetch('/api/stat-arb/demo/history').then(r => r.json()),
+    ]);
+    render(statusRes, histRes.series);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function render(s, series) {
+  document.getElementById('pair').textContent = s.pair.a + ' / ' + s.pair.b;
+  const zEl = document.getElementById('z');
+  zEl.textContent = (s.currentZ ?? 0).toFixed(2);
+  zEl.classList.remove('long','short','flat');
+  zEl.classList.add(s.regime.toLowerCase());
+  const regEl = document.getElementById('regime');
+  regEl.textContent = s.regime;
+  regEl.className = 'regime ' + s.regime;
+  document.getElementById('open-pnl').textContent = fmtPnl(s.openPnlUnits);
+  document.getElementById('trade-count').textContent = s.metrics.totalTrades;
+
+  document.getElementById('m-sharpe').textContent = s.metrics.sharpeRatio.toFixed(2);
+  document.getElementById('m-winrate').textContent = (s.metrics.winRate * 100).toFixed(0) + '%';
+  document.getElementById('m-dd').textContent = s.metrics.maxDrawdownPct.toFixed(2) + '%';
+  document.getElementById('m-trades').textContent = s.metrics.totalTrades;
+
+  const ddPctOfGate = Math.min(100, (s.metrics.maxDrawdownPct / 5) * 100);
+  document.getElementById('dd-fill').style.width = ddPctOfGate + '%';
+  document.getElementById('dd-value').textContent = s.metrics.maxDrawdownPct.toFixed(2) + '%';
+
+  const tbody = document.getElementById('trade-rows');
+  if (s.recentTrades.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No trades yet</td></tr>';
+  } else {
+    tbody.innerHTML = s.recentTrades.slice().reverse().map((t, idx) => {
+      const pnl = Number(t.pnlUnits) / 1_000_000;
+      const cls = pnl >= 0 ? 'pos' : 'neg';
+      return '<tr>'
+        + '<td class="mono">' + (s.recentTrades.length - idx) + '</td>'
+        + '<td class="side-' + t.side + '">' + t.side + '</td>'
+        + '<td class="num mono">' + t.entryZ.toFixed(2) + '</td>'
+        + '<td class="num mono">' + t.exitZ.toFixed(2) + '</td>'
+        + '<td class="num mono">' + t.holdBars + '</td>'
+        + '<td class="num mono ' + cls + '">' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  renderChart(series, s.recentTrades);
+}
+
+function renderChart(series, trades) {
+  const labels = series.map((_, i) => i);
+  const zData  = series.map(p => p.zScore);
+  const ctx = document.getElementById('spread-chart').getContext('2d');
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'z-score', data: zData, borderColor: '#00d4aa', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+        { label: '+entry', data: labels.map(() =>  ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)', borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
+        { label: '-entry', data: labels.map(() => -ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)', borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
+        { label: '+exit',  data: labels.map(() =>  EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
+        { label: '-exit',  data: labels.map(() => -EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
+      ]
+    },
+    options: {
+      responsive: true, animation: false,
+      scales: {
+        x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+        y: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+      },
+      plugins: {
+        legend: { labels: { color: '#d7e0ec', boxWidth: 12 } },
+      }
+    }
+  });
+}
+
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('run-btn');
+  btn.textContent = 'Running…'; btn.disabled = true;
+  try {
+    await fetch('/api/stat-arb/demo/reset', { method: 'POST' });
+    await pollStatus();
+  } finally {
+    btn.textContent = 'Run Demo'; btn.disabled = false;
+  }
+});
+
+pollStatus();
+setInterval(pollStatus, 5000);
+</script>
+</body>
+</html>
