@@ -191,3 +191,67 @@ describeIfDb('INTEGRATION: stat_arb_trades and stat_arb_nav are append-only', ()
     ).rejects.toThrow();
   });
 });
+
+// ── Phase 3: market-data table privilege assertions ───────────────────────────
+// Same oracle for the Session-11 ingest tables. market_bars / funding_rates /
+// data_gaps are all append-only — meridian_markets_app gets SELECT,INSERT only.
+describeIfDb('INTEGRATION: market_bars / funding_rates / data_gaps are append-only', () => {
+  let ds: DataSource;
+  let dbUp = false;
+
+  beforeAll(async () => {
+    dbUp = await dbAvailableCached();
+    if (!dbUp) return;
+    ds = newPrivilegedDataSource();
+    await ds.initialize();
+  });
+
+  afterAll(async () => {
+    if (dbUp && ds) await ds.destroy();
+  });
+
+  async function may(table: string, priv: string): Promise<boolean> {
+    const rows = await ds.query<{ ok: boolean }[]>(
+      `SELECT has_table_privilege('meridian_markets_app', $1, $2) AS ok`,
+      [table, priv],
+    );
+    return rows[0].ok === true;
+  }
+
+  it('meridian_markets_app MAY SELECT and INSERT market_bars / funding_rates / data_gaps', async () => {
+    if (!dbUp) return;
+    for (const t of ['market_bars', 'funding_rates', 'data_gaps']) {
+      expect(await may(t, 'SELECT')).toBe(true);
+      expect(await may(t, 'INSERT')).toBe(true);
+    }
+  });
+
+  it('meridian_markets_app may NOT UPDATE or DELETE any of them', async () => {
+    if (!dbUp) return;
+    for (const t of ['market_bars', 'funding_rates', 'data_gaps']) {
+      expect(await may(t, 'UPDATE')).toBe(false);
+      expect(await may(t, 'DELETE')).toBe(false);
+    }
+  });
+
+  it('market_bars CHECK rejects high < low', async () => {
+    if (!dbUp) return;
+    await expect(
+      ds.query(
+        `INSERT INTO market_bars
+           (venue, symbol, ts, open_micros, high_micros, low_micros, close_micros, volume_micros)
+         VALUES ('mock','TST',NOW(), 100, 50, 90, 95, 1)`,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('data_gaps CHECK rejects gap_end <= gap_start', async () => {
+    if (!dbUp) return;
+    await expect(
+      ds.query(
+        `INSERT INTO data_gaps (venue, symbol, gap_start, gap_end, missing_bars)
+         VALUES ('mock','TST', NOW(), NOW(), 1)`,
+      ),
+    ).rejects.toThrow();
+  });
+});
