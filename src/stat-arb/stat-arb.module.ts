@@ -4,9 +4,14 @@ import { AppConfig } from '@config/app-config.interface';
 import { MockTradingVenue } from './mock-trading-venue';
 import { RealBinanceVenue } from './real-binance-venue';
 import { ITradingVenue, TRADING_VENUE } from './trading-venue.interface';
+import { IBarFeed, LIVE_FEED } from './feed/live-feed.interface';
+import { MockBarFeed } from './feed/mock-bar-feed';
+import { RealCcxtBarFeed } from './feed/real-ccxt-feed';
 import { DemoService } from './demo/demo.service';
 import { DemoController } from './demo/demo.controller';
 import { DemoPageController } from './demo/demo-page.controller';
+import { StatArbRepository } from './persistence/stat-arb.repository';
+import { StatArbNavCron } from './persistence/nav.cron';
 
 @Module({
   providers: [
@@ -20,7 +25,19 @@ import { DemoPageController } from './demo/demo-page.controller';
         return app.statArb.mockEnabled ? new MockTradingVenue() : new RealBinanceVenue();
       },
     },
+    // Live-feed swap seam: mirrors TRADING_VENUE. Shares the statArb.mockEnabled
+    // flag — real venues and real feeds are flipped together at KYB close.
+    {
+      provide: LIVE_FEED,
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService): IBarFeed => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return app.statArb.mockEnabled ? new MockBarFeed() : new RealCcxtBarFeed();
+      },
+    },
     DemoService,
+    StatArbRepository,
+    StatArbNavCron,
   ],
   controllers: [DemoController, DemoPageController],
 })

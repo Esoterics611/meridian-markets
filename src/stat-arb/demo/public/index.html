@@ -10,11 +10,16 @@
       --bg: #0b0f14;
       --panel: #131a23;
       --panel-2: #182230;
+      --panel-3: #1d2937;
       --border: #243245;
       --text: #d7e0ec;
       --muted: #7889a0;
       --accent: #00d4aa;
       --accent-dim: #1f6f5e;
+      --warn: #f5b942;
+      --warn-dim: #6e5320;
+      --danger: #ff5c5c;
+      --danger-dim: #6e2424;
       --long: #00d4aa;
       --short: #ff5c5c;
       --flat: #7889a0;
@@ -29,20 +34,47 @@
     .mono { font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; }
     header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 28px; border-bottom: 1px solid var(--border);
+      padding: 14px 28px; border-bottom: 1px solid var(--border);
       background: linear-gradient(180deg, #0c1118 0%, #0a0e14 100%);
     }
     header h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
     header .accent { color: var(--accent); }
+    .header-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .badge {
       padding: 4px 10px; border: 1px solid var(--accent-dim); border-radius: 999px;
       color: var(--accent); font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
     }
+    .badge.warn { border-color: var(--warn-dim); color: var(--warn); }
+    .badge.danger { border-color: var(--danger-dim); color: var(--danger); }
+    select.scenario {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 28px 6px 10px; font-size: 12px; letter-spacing: 0.3px;
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                        linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+      background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+      background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+    }
+    nav.persona-nav {
+      display: flex; gap: 4px; padding: 0 28px;
+      border-bottom: 1px solid var(--border); background: #0a0e14;
+    }
+    nav.persona-nav a {
+      padding: 12px 18px; color: var(--muted); text-decoration: none;
+      font-size: 13px; font-weight: 500; letter-spacing: 0.3px;
+      border-bottom: 2px solid transparent; transition: color 150ms, border-color 150ms;
+    }
+    nav.persona-nav a:hover { color: var(--text); }
+    nav.persona-nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+    nav.persona-nav a .sub { display: block; font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+    nav.persona-nav a.active .sub { color: var(--accent-dim); }
     main { padding: 20px 28px 60px; max-width: 1400px; margin: 0 auto; }
     .row { display: grid; gap: 18px; }
-    .row.cards-top { grid-template-columns: 1.2fr 1fr 1fr; }
+    .row.cards-top { grid-template-columns: 1.3fr 1fr 1fr; }
     .row.chart-row { grid-template-columns: 1fr; margin-top: 18px; }
     .row.bottom-row { grid-template-columns: 1.4fr 1fr; margin-top: 18px; }
+    .row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .row.two { grid-template-columns: 1fr 1fr; }
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
       padding: 16px 18px;
@@ -51,8 +83,11 @@
       margin: 0 0 12px; font-size: 11px; color: var(--muted);
       letter-spacing: 1.5px; text-transform: uppercase; font-weight: 600;
     }
-    .strategy-card .pair { font-size: 22px; font-weight: 600; }
-    .strategy-card .z-row { display: flex; justify-content: space-between; margin-top: 14px; }
+    .card h2 .sub { color: var(--muted); font-weight: 400; letter-spacing: 0.5px; text-transform: none; margin-left: 8px; }
+    .strategy-card .pair { font-size: 22px; font-weight: 600; display: flex; align-items: baseline; gap: 10px; }
+    .strategy-card .pair .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,212,170,0.45); } 50% { opacity: 0.65; box-shadow: 0 0 0 6px rgba(0,212,170,0); } }
+    .strategy-card .z-row { display: flex; justify-content: space-between; margin-top: 14px; gap: 10px; }
     .strategy-card .z-row .label { color: var(--muted); font-size: 12px; }
     .strategy-card .z { font-size: 28px; font-weight: 600; }
     .strategy-card .z.long { color: var(--long); }
@@ -65,6 +100,9 @@
     .strategy-card .regime.LONG  { background: rgba(0,212,170,0.15); color: var(--long); }
     .strategy-card .regime.SHORT { background: rgba(255,92,92,0.15); color: var(--short); }
     .strategy-card .regime.FLAT  { background: rgba(120,137,160,0.15); color: var(--flat); }
+    .tape { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .tape .tape-label { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; }
+    .tape canvas { height: 60px !important; }
     .gauge .bar { height: 10px; background: var(--panel-2); border-radius: 4px; overflow: hidden; margin-top: 8px; }
     .gauge .fill { height: 100%; background: linear-gradient(90deg, var(--accent), #ff5c5c); transition: width 200ms; }
     .gauge .legend { color: var(--muted); font-size: 11px; margin-top: 6px; display: flex; justify-content: space-between; }
@@ -72,6 +110,9 @@
     .metric { background: var(--panel-2); border-radius: 6px; padding: 10px 12px; }
     .metric .label { font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
     .metric .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+    .metric.big .value { font-size: 32px; }
+    .metric.pos .value { color: var(--long); }
+    .metric.neg .value { color: var(--short); }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
     th { font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
@@ -79,96 +120,420 @@
     td.pos { color: var(--long); } td.neg { color: var(--short); }
     .side-LONG  { color: var(--long); }
     .side-SHORT { color: var(--short); }
-    button.run {
+    button.run, button.kill {
       background: var(--accent); color: #001712; border: none; padding: 8px 18px;
       border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
     }
     button.run:hover { filter: brightness(1.1); }
+    button.run:disabled { opacity: 0.6; cursor: not-allowed; }
+    button.kill { background: transparent; color: var(--danger); border: 1px solid var(--danger-dim); }
+    button.kill:hover { background: rgba(255,92,92,0.10); }
+    button.kill.armed { background: var(--danger); color: #1b0606; border-color: var(--danger); }
+    body.killed::before {
+      content: 'STRATEGY PAUSED — kill-switch armed';
+      position: fixed; top: 0; left: 0; right: 0;
+      background: var(--danger); color: #1b0606;
+      text-align: center; padding: 6px; font-size: 12px; font-weight: 700;
+      letter-spacing: 2px; z-index: 100; text-transform: uppercase;
+    }
+    body.killed header { margin-top: 28px; }
     footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 40px; }
     footer a { color: var(--accent); text-decoration: none; }
-    #chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .chart-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
     canvas { width: 100% !important; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .gate { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            padding: 12px 14px; background: var(--panel-2); border-radius: 6px; }
+    .gate + .gate { margin-top: 8px; }
+    .gate .name { font-weight: 600; font-size: 13px; }
+    .gate .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .chip { padding: 3px 10px; border-radius: 4px; font-size: 11px; letter-spacing: 1px; font-weight: 600; text-transform: uppercase; }
+    .chip.ok { background: rgba(0,212,170,0.15); color: var(--accent); }
+    .chip.warn { background: rgba(245,185,66,0.15); color: var(--warn); }
+    .chip.danger { background: rgba(255,92,92,0.15); color: var(--danger); }
+    .chip.muted { background: rgba(120,137,160,0.15); color: var(--muted); }
+    .posture-list { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0; padding-left: 18px; }
+    .posture-list strong { color: var(--text); font-weight: 600; }
+    .timeline { list-style: none; padding: 0; margin: 0; }
+    .timeline li { display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .timeline li:last-child { border-bottom: none; }
+    .timeline .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .timeline .dot.done { background: var(--accent); }
+    .timeline .dot.live { background: var(--warn); box-shadow: 0 0 0 4px rgba(245,185,66,0.15); }
+    .timeline .dot.future { background: var(--panel-2); border: 1px solid var(--border); }
+    .timeline .body .title { font-weight: 600; font-size: 13px; }
+    .timeline .body .desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .pnl-big { font-size: 36px; font-weight: 600; }
+    .pnl-big.pos { color: var(--long); } .pnl-big.neg { color: var(--short); }
+    .attest { background: var(--panel-2); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 4px;
+              color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .attest strong { color: var(--text); }
+    .event-log { max-height: 340px; overflow-y: auto; font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace; font-size: 12px; }
+    .event-log .ev { display: grid; grid-template-columns: 64px 72px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px dashed rgba(36,50,69,0.6); align-items: baseline; }
+    .event-log .ev:last-child { border-bottom: none; }
+    .event-log .ts { color: var(--muted); }
+    .event-log .kind { font-size: 10px; padding: 2px 6px; border-radius: 3px; letter-spacing: 1px; text-transform: uppercase; text-align: center; }
+    .event-log .kind.OPEN  { background: rgba(0,212,170,0.18); color: var(--accent); }
+    .event-log .kind.CLOSE { background: rgba(120,137,160,0.18); color: var(--muted); }
+    .event-log .kind.GATE  { background: rgba(245,185,66,0.18); color: var(--warn); }
+    .event-log .kind.DD    { background: rgba(255,92,92,0.18); color: var(--danger); }
+    .spark { height: 50px; }
+    .gate-card-head { display: flex; justify-content: space-between; align-items: baseline; }
+    .gate-card-num { font-size: 28px; font-weight: 600; }
   </style>
 </head>
 <body>
   <header>
     <h1><span class="accent">●</span> Meridian Markets <span style="color:var(--muted);">— Strategy Demo</span></h1>
-    <div style="display:flex; gap:12px; align-items:center;">
+    <div class="header-right">
       <span class="badge">Mock Mode</span>
+      <span class="badge warn" id="phase-badge">Phase 3 · Scaffold</span>
+      <select class="scenario" id="scenario-select" title="Market scenario">
+        <option value="calm">Scenario · Calm</option>
+        <option value="trending">Scenario · Trending</option>
+        <option value="volatile">Scenario · Volatile</option>
+        <option value="decoupled">Scenario · Decoupled</option>
+      </select>
       <button class="run" id="run-btn">Run Demo</button>
+      <button class="kill" id="kill-btn" title="Halt all strategy entries">Kill switch</button>
     </div>
   </header>
+
+  <nav class="persona-nav">
+    <a href="#trader"   data-view="trader"   class="active">Trader<span class="sub">strategy ops</span></a>
+    <a href="#risk"     data-view="risk">Risk &amp; Compliance<span class="sub">gates · ledger</span></a>
+    <a href="#investor" data-view="investor">Investor<span class="sub">track record · LP view</span></a>
+  </nav>
+
   <main>
-    <div class="row cards-top">
-      <div class="card strategy-card">
-        <h2>Strategy</h2>
-        <div class="pair mono" id="pair">— / —</div>
-        <div class="z-row">
-          <div>
-            <div class="label">z-score</div>
-            <div class="z mono flat" id="z">0.00</div>
+
+    <!-- ─────────── TRADER ─────────── -->
+    <section class="view active" id="view-trader">
+      <div class="row cards-top">
+        <div class="card strategy-card">
+          <h2>Strategy <span class="sub" id="scenario-tag">calm</span></h2>
+          <div class="pair mono"><span class="live-dot"></span><span id="pair">— / —</span></div>
+          <div class="z-row">
+            <div>
+              <div class="label">z-score</div>
+              <div class="z mono flat" id="z">0.00</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="label">regime</div>
+              <div class="regime FLAT" id="regime" style="margin-top:6px;">FLAT</div>
+            </div>
           </div>
-          <div style="text-align:right;">
-            <div class="label">regime</div>
-            <div class="regime FLAT" id="regime" style="margin-top:6px;">FLAT</div>
+          <div class="z-row">
+            <div>
+              <div class="label">Open P&amp;L</div>
+              <div class="mono" id="open-pnl">0.00 USDC</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="label">Trades</div>
+              <div class="mono" id="trade-count">0</div>
+            </div>
+          </div>
+          <div class="z-row" style="border-top:1px solid var(--panel-2); padding-top:10px;">
+            <div>
+              <div class="label">live β · refit</div>
+              <div class="mono" id="live-beta">—</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="label">half-life (bars)</div>
+              <div class="mono" id="live-halflife">—</div>
+            </div>
+          </div>
+          <div class="tape">
+            <div class="tape-label"><span>Live spread tape · last 60 bars</span><span id="tape-min-max" class="mono"></span></div>
+            <canvas id="tape-chart"></canvas>
           </div>
         </div>
-        <div class="z-row">
-          <div>
-            <div class="label">Open P&amp;L</div>
-            <div class="mono" id="open-pnl">0.00 USDC</div>
-          </div>
-          <div style="text-align:right;">
-            <div class="label">Trades</div>
-            <div class="mono" id="trade-count">0</div>
+
+        <div class="card gauge">
+          <h2>Drawdown vs 5% Gate</h2>
+          <div class="mono" style="font-size:24px;" id="dd-value">0.00%</div>
+          <div class="bar"><div class="fill" id="dd-fill" style="width:0%"></div></div>
+          <div class="legend"><span>0%</span><span>5% gate</span></div>
+          <canvas id="dd-spark" class="spark" style="margin-top:10px;"></canvas>
+        </div>
+
+        <div class="card">
+          <h2>Backtest Metrics</h2>
+          <div class="metrics-grid">
+            <div class="metric"><div class="label">Sharpe</div><div class="value mono" id="m-sharpe">—</div></div>
+            <div class="metric"><div class="label">Win rate</div><div class="value mono" id="m-winrate">—</div></div>
+            <div class="metric"><div class="label">Max DD</div><div class="value mono" id="m-dd">—</div></div>
+            <div class="metric"><div class="label">Total trades</div><div class="value mono" id="m-trades">—</div></div>
           </div>
         </div>
       </div>
 
-      <div class="card gauge">
-        <h2>Drawdown vs 5% Gate</h2>
-        <div class="mono" style="font-size:24px;" id="dd-value">0.00%</div>
-        <div class="bar"><div class="fill" id="dd-fill" style="width:0%"></div></div>
-        <div class="legend"><span>0%</span><span>5% gate</span></div>
-      </div>
-
-      <div class="card">
-        <h2>Backtest Metrics</h2>
-        <div class="metrics-grid">
-          <div class="metric"><div class="label">Sharpe</div><div class="value mono" id="m-sharpe">—</div></div>
-          <div class="metric"><div class="label">Win rate</div><div class="value mono" id="m-winrate">—</div></div>
-          <div class="metric"><div class="label">Max DD</div><div class="value mono" id="m-dd">—</div></div>
-          <div class="metric"><div class="label">Total trades</div><div class="value mono" id="m-trades">—</div></div>
+      <div class="row chart-row">
+        <div class="chart-wrap">
+          <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">Spread z-score (with entry / exit thresholds)</h2>
+          <canvas id="spread-chart" height="120"></canvas>
         </div>
       </div>
-    </div>
 
-    <div class="row chart-row">
-      <div id="chart-wrap">
-        <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">Spread z-score (with entry / exit thresholds)</h2>
-        <canvas id="spread-chart" height="120"></canvas>
-      </div>
-    </div>
-
-    <div class="row bottom-row">
-      <div class="card">
-        <h2>Recent Trades (last 10)</h2>
-        <table>
-          <thead>
-            <tr><th>#</th><th>Side</th><th class="num">Entry z</th><th class="num">Exit z</th><th class="num">Bars</th><th class="num">P&amp;L</th></tr>
-          </thead>
-          <tbody id="trade-rows"><tr><td colspan="6" style="color:var(--muted); text-align:center;">No trades yet</td></tr></tbody>
-        </table>
-      </div>
-      <div class="card">
-        <h2>System Posture</h2>
-        <div style="color:var(--muted); font-size:13px; line-height:1.6;">
-          <p>Phase 3 scaffold — internal track-record mode.</p>
-          <p>No real venue connections. No customer capital. Real execution is <span class="accent">KYB-gated</span> (Binance) and blocked until Phase 2 closes.</p>
-          <p>Signal math (cointegration, OU fit, z-score) is the same code documented in the <a href="/courses/" style="color:var(--accent);">stat-arb course</a>.</p>
+      <div class="row bottom-row">
+        <div class="card">
+          <h2>Recent Trades (last 10)</h2>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Side</th><th class="num">Entry z</th><th class="num">Exit z</th><th class="num">Bars</th><th class="num">P&amp;L</th></tr>
+            </thead>
+            <tbody id="trade-rows"><tr><td colspan="6" style="color:var(--muted); text-align:center;">No trades yet</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>System Posture</h2>
+          <div style="color:var(--muted); font-size:13px; line-height:1.6;">
+            <p>Phase 3 scaffold — internal track-record mode.</p>
+            <p>No real venue connections. No customer capital. Real execution is <span class="accent">KYB-gated</span> (Binance) and blocked until Phase 2 closes.</p>
+            <p>Signal math (cointegration, OU fit, z-score) is the same code documented in the <a href="/courses/" style="color:var(--accent);">stat-arb course</a>.</p>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <!-- ─────────── RISK & COMPLIANCE ─────────── -->
+    <section class="view" id="view-risk">
+      <div class="row three">
+        <div class="card">
+          <h2>Drawdown Gate</h2>
+          <div class="gate-card-head">
+            <div class="gate-card-num mono" id="risk-dd">0.00%</div>
+            <span class="chip ok" id="risk-dd-chip">OPEN</span>
+          </div>
+          <div class="bar" style="height:10px; background:var(--panel-2); border-radius:4px; overflow:hidden; margin-top:10px;">
+            <div class="fill" id="risk-dd-fill" style="height:100%; background:linear-gradient(90deg,var(--accent),var(--danger)); width:0%; transition:width 200ms;"></div>
+          </div>
+          <canvas id="risk-dd-spark" class="spark" style="margin-top:10px;"></canvas>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Pauses new entries at <span class="mono">5.00%</span> max drawdown.</div>
+        </div>
+
+        <div class="card">
+          <h2>Cointegration Health</h2>
+          <div class="gate-card-head">
+            <div class="gate-card-num mono" id="risk-pval">—</div>
+            <span class="chip muted" id="risk-pval-chip">PENDING</span>
+          </div>
+          <canvas id="risk-pval-spark" class="spark" style="margin-top:10px;"></canvas>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">p-value gate fires at <span class="mono">&gt; 0.10</span>. Sliding-β refit lands in <strong style="color:var(--text);">Session 7 · Block A</strong>.</div>
+        </div>
+
+        <div class="card">
+          <h2>Venue Cap</h2>
+          <div class="gate-card-head">
+            <div class="gate-card-num mono" id="risk-vc">—</div>
+            <span class="chip muted" id="risk-vc-chip">PENDING</span>
+          </div>
+          <div class="bar" style="height:10px; background:var(--panel-2); border-radius:4px; overflow:hidden; margin-top:10px;">
+            <div class="fill" id="risk-vc-fill" style="height:100%; background:linear-gradient(90deg,var(--accent),var(--warn)); width:0%;"></div>
+          </div>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Per-venue notional concentration cap. Real <code>blockedEntries</code> counter wired by <strong style="color:var(--text);">Session 8</strong>.</div>
+        </div>
+
+        <div class="card">
+          <h2>Exposure</h2>
+          <div class="gate-card-head">
+            <div class="gate-card-num mono" id="risk-exp">—</div>
+            <span class="chip muted" id="risk-exp-chip">PENDING</span>
+          </div>
+          <canvas id="risk-exp-spark" class="spark" style="margin-top:10px;"></canvas>
+          <div style="color:var(--muted); font-size:11px; margin-top:6px;">Gross / net / per-pair caps from the <strong style="color:var(--text);">Session 8</strong> exposure gate.</div>
+        </div>
+      </div>
+
+      <div class="row two" style="margin-top:18px;">
+        <div class="card">
+          <h2>Circuit Breakers &amp; Kill-Switches</h2>
+          <div class="gate">
+            <div>
+              <div class="name">Manual kill switch</div>
+              <div class="sub">Halts all strategy entries. Use the red button in the header.</div>
+            </div>
+            <span class="chip ok" id="kill-chip">DISARMED</span>
+          </div>
+          <div class="gate">
+            <div>
+              <div class="name">Hedge circuit breaker</div>
+              <div class="sub"><code>HedgeCircuitBreaker</code> — pauses on stale exposure or oversize delta.</div>
+            </div>
+            <span class="chip ok">ARMED</span>
+          </div>
+          <div class="gate">
+            <div>
+              <div class="name">Yield-sync cron</div>
+              <div class="sub"><code>YieldSyncCron</code> — append-only YIELD_ACCRUAL, 1/day max per provider.</div>
+            </div>
+            <span class="chip ok">ARMED</span>
+          </div>
+          <div class="gate">
+            <div>
+              <div class="name">Real Binance venue</div>
+              <div class="sub"><code>RealBinanceVenue</code> dormant — throws until KYB closes.</div>
+            </div>
+            <span class="chip warn">DORMANT</span>
+          </div>
+          <div class="gate">
+            <div>
+              <div class="name">Real Ondo yield</div>
+              <div class="sub"><code>RealOndoYieldProvider</code> dormant — KYB-gated.</div>
+            </div>
+            <span class="chip warn">DORMANT</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Gate Event Log <span class="sub" id="event-log-count">0 events</span></h2>
+          <div class="event-log" id="event-log">
+            <div style="color:var(--muted); text-align:center; padding:20px 0;">No events yet — run the demo.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>Append-only Ledger Proof</h2>
+          <div class="attest" style="margin-bottom:12px;">
+            <strong>Postgres role <code>meridian_markets_app</code></strong> has <code>SELECT, INSERT</code> only on
+            <code>treasury_movements</code> and <code>hedge_movements</code>. <code>UPDATE</code>/<code>DELETE</code>
+            are revoked at the role level — enforced by integration spec
+            <code>append-only.int-spec.ts</code> on every CI run.
+          </div>
+          <table>
+            <thead><tr><th>Table</th><th>App grants</th><th class="num">CHECKs</th></tr></thead>
+            <tbody>
+              <tr><td><code>treasury_movements</code></td><td class="mono">SELECT, INSERT</td><td class="num mono">amount &gt; 0</td></tr>
+              <tr><td><code>treasury_positions</code></td><td class="mono">SELECT, INSERT, UPDATE</td><td class="num mono">—</td></tr>
+              <tr><td><code>hedge_movements</code></td><td class="mono">SELECT, INSERT</td><td class="num mono">amount &gt; 0</td></tr>
+              <tr><td><code>hedge_positions</code></td><td class="mono">SELECT, INSERT, UPDATE</td><td class="num mono">—</td></tr>
+              <tr style="color:var(--muted);"><td><code>stat_arb_trades</code></td><td class="mono">— (Session 9 · Block C)</td><td class="num mono">—</td></tr>
+              <tr style="color:var(--muted);"><td><code>stat_arb_nav</code></td><td class="mono">— (Session 9 · Block C)</td><td class="num mono">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="card">
+          <h2>KYB &amp; External Counterparty Status</h2>
+          <table>
+            <thead><tr><th>Counterparty</th><th>Purpose</th><th>Phase gate</th><th class="num">Status</th></tr></thead>
+            <tbody>
+              <tr><td>Ondo Finance</td><td>USDY yield provider</td><td>Phase 0 → 1</td><td class="num"><span class="chip warn">KYB OPEN</span></td></tr>
+              <tr><td>Hyperliquid</td><td>Perp hedge venue</td><td>Phase 1 → 2</td><td class="num"><span class="chip warn">KYB OPEN</span></td></tr>
+              <tr><td>Binance</td><td>Stat-arb spot/perp execution</td><td>Phase 2 → 3 live</td><td class="num"><span class="chip danger">BLOCKED</span></td></tr>
+              <tr><td>Lira-Bridge</td><td>Reserve-pool USDC source</td><td>Phase 0 contract</td><td class="num"><span class="chip ok">CONTRACT LIVE</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── INVESTOR / LP ─────────── -->
+    <section class="view" id="view-investor">
+      <div class="row three">
+        <div class="card">
+          <h2>Hypothetical Track-Record P&amp;L</h2>
+          <div class="pnl-big mono" id="inv-pnl">+0.00 USDC</div>
+          <div style="color:var(--muted); font-size:12px; margin-top:6px;">
+            Cumulative simulated P&amp;L on $<span class="mono">1,000,000</span> notional, synthetic-feed backtest.
+          </div>
+          <div class="metrics-grid" style="margin-top:14px;">
+            <div class="metric"><div class="label">Return</div><div class="value mono" id="inv-return">—</div></div>
+            <div class="metric"><div class="label">Calmar</div><div class="value mono" id="inv-calmar">—</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Risk-Adjusted Return</h2>
+          <div class="metrics-grid">
+            <div class="metric big"><div class="label">Sharpe</div><div class="value mono" id="inv-sharpe">—</div></div>
+            <div class="metric big"><div class="label">Max DD</div><div class="value mono" id="inv-dd">—</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Strategy Throughput</h2>
+          <div class="metrics-grid">
+            <div class="metric big"><div class="label">Trades</div><div class="value mono" id="inv-trades">—</div></div>
+            <div class="metric big"><div class="label">Win rate</div><div class="value mono" id="inv-winrate">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="chart-wrap">
+          <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
+            Hypothetical NAV — $1.00 starting · <span id="inv-nav-tag" style="color:var(--accent); text-transform:none; letter-spacing:0.3px;">calm scenario</span>
+          </h2>
+          <canvas id="nav-chart" height="110"></canvas>
+        </div>
+      </div>
+
+      <div class="row chart-row">
+        <div class="chart-wrap">
+          <h2 style="margin:0 0 12px; font-size:11px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase;">
+            Underwater curve — drawdown from running peak
+          </h2>
+          <canvas id="underwater-chart" height="90"></canvas>
+        </div>
+      </div>
+
+      <div class="row two">
+        <div class="card">
+          <h2>Phase Gate Timeline</h2>
+          <ul class="timeline">
+            <li><span class="dot done"></span>
+              <div class="body">
+                <div class="title">Phase 0 — Treasury scaffold</div>
+                <div class="desc">Append-only ledger, mock yield, ITreasuryClient contract with Lira-Bridge. Shipped.</div>
+              </div></li>
+            <li><span class="dot done"></span>
+              <div class="body">
+                <div class="title">Phase 1 — Hedge orchestrator</div>
+                <div class="desc">HedgeService + circuit breaker + monitor cron. Mock venue only. Shipped.</div>
+              </div></li>
+            <li><span class="dot live"></span>
+              <div class="body">
+                <div class="title">Phase 3 — Stat-arb scaffold (current)</div>
+                <div class="desc">Signal library, backtest runner, this dashboard. β-refit + risk module + NAV persistence next.</div>
+              </div></li>
+            <li><span class="dot future"></span>
+              <div class="body">
+                <div class="title">Phase 2 — Legal formation</div>
+                <div class="desc">Entity, KYB closes, real venue keys provisioned.</div>
+              </div></li>
+            <li><span class="dot future"></span>
+              <div class="body">
+                <div class="title">Phase 4 — 3(c)(7) fund</div>
+                <div class="desc">First customer capital allowed under the fund wrapper.</div>
+              </div></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2>Investor Disclosures</h2>
+          <div class="attest">
+            <strong>No customer capital is in this system.</strong>
+            Phase 3 operates against a synthetic price feed and a mock execution venue.
+            All real venues (<code>RealBinanceVenue</code>, <code>RealOndoYieldProvider</code>) are dormant and
+            refuse to fire until KYB closes and a feature flag is flipped under written sign-off.
+          </div>
+          <div class="attest" style="margin-top:12px;">
+            <strong>This is not an offering.</strong>
+            Track-record numbers shown are from a synthetic-feed backtest — see the
+            <a href="/courses/" style="color:var(--accent);">stat-arb course</a> for the underlying math.
+            Past simulated performance is not indicative of future returns.
+          </div>
+          <div class="attest" style="margin-top:12px;">
+            <strong>Customer onboarding gates at Phase 4</strong> behind a 3(c)(7) fund wrapper. Until then, the only
+            capital at risk in adjacent <em>Lira-Bridge</em> is Path C first-party reserve float, governed by the
+            <code>ITreasuryClient</code> contract — not investor money.
+          </div>
+        </div>
+      </div>
+    </section>
 
     <footer>
       Phase 3 scaffold — prop desk track-record mode. No real capital.
@@ -179,12 +544,25 @@
 <script>
 const ENTRY_Z = 1.2;
 const EXIT_Z  = 0.3;
-let chart = null;
+const NOTIONAL_USDC = 1_000_000;
+const DD_GATE_PCT = 5.0;
 
+let charts = {};                  // chart.js instances keyed by canvas id
+let lastSnapshot = null;
+let lastSeries = null;
+let scenario = 'calm';
+let killed = false;
+
+const fmtNum = (n, d = 2) => n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 function fmtPnl(unitsStr) {
   const n = Number(unitsStr) / 1_000_000;
   const sign = n >= 0 ? '+' : '';
   return sign + n.toFixed(2) + ' USDC';
+}
+function fmtPnlLarge(unitsStr) {
+  const n = Number(unitsStr) / 1_000_000;
+  const sign = n >= 0 ? '+' : '';
+  return sign + fmtNum(n) + ' USDC';
 }
 
 async function pollStatus() {
@@ -193,13 +571,43 @@ async function pollStatus() {
       fetch('/api/stat-arb/demo/status').then(r => r.json()),
       fetch('/api/stat-arb/demo/history').then(r => r.json()),
     ]);
-    render(statusRes, histRes.series);
+    lastSnapshot = statusRes;
+    lastSeries = histRes.series;
+    scenario = statusRes.scenario || 'calm';
+    document.getElementById('scenario-select').value = scenario;
+    document.getElementById('scenario-tag').textContent = scenario;
+    document.getElementById('inv-nav-tag').textContent = scenario + ' scenario';
+    renderAll();
   } catch (e) {
     console.error(e);
   }
 }
 
-function render(s, series) {
+function renderAll() {
+  if (!lastSnapshot) return;
+  renderTrader(lastSnapshot, lastSeries);
+  renderRisk(lastSnapshot, lastSeries);
+  renderInvestor(lastSnapshot, lastSeries);
+}
+
+// ─── derived series ───
+function navFromEquity(equityCurveStrs) {
+  // NAV starting at $1.00 against NOTIONAL_USDC.
+  return equityCurveStrs.map(s => 1 + (Number(s) / 1_000_000) / NOTIONAL_USDC);
+}
+function drawdownSeries(navSeries) {
+  // Returns drawdown % from running peak at each point.
+  const out = new Array(navSeries.length).fill(0);
+  let peak = navSeries[0] || 1;
+  for (let i = 0; i < navSeries.length; i++) {
+    peak = Math.max(peak, navSeries[i]);
+    out[i] = peak > 0 ? ((peak - navSeries[i]) / peak) * 100 : 0;
+  }
+  return out;
+}
+
+// ─── TRADER ───
+function renderTrader(s, series) {
   document.getElementById('pair').textContent = s.pair.a + ' / ' + s.pair.b;
   const zEl = document.getElementById('z');
   zEl.textContent = (s.currentZ ?? 0).toFixed(2);
@@ -211,15 +619,34 @@ function render(s, series) {
   document.getElementById('open-pnl').textContent = fmtPnl(s.openPnlUnits);
   document.getElementById('trade-count').textContent = s.metrics.totalTrades;
 
+  // Live β / half-life from the most recent sliding-cointegration refit (Session 7).
+  const refits = s.refits || [];
+  const lastFit = refits.length ? refits[refits.length - 1] : null;
+  document.getElementById('live-beta').textContent = lastFit ? lastFit.beta.toFixed(3) + ' @ idx ' + lastFit.fittedAtIndex : '—';
+  document.getElementById('live-halflife').textContent = lastFit && lastFit.halfLifeBars > 0 ? lastFit.halfLifeBars.toFixed(1) : 'n/a';
+
   document.getElementById('m-sharpe').textContent = s.metrics.sharpeRatio.toFixed(2);
   document.getElementById('m-winrate').textContent = (s.metrics.winRate * 100).toFixed(0) + '%';
   document.getElementById('m-dd').textContent = s.metrics.maxDrawdownPct.toFixed(2) + '%';
   document.getElementById('m-trades').textContent = s.metrics.totalTrades;
 
-  const ddPctOfGate = Math.min(100, (s.metrics.maxDrawdownPct / 5) * 100);
+  const ddPctOfGate = Math.min(100, (s.metrics.maxDrawdownPct / DD_GATE_PCT) * 100);
   document.getElementById('dd-fill').style.width = ddPctOfGate + '%';
   document.getElementById('dd-value').textContent = s.metrics.maxDrawdownPct.toFixed(2) + '%';
 
+  // Live spread tape — last 60 bars of z-score.
+  const tail = (series || []).slice(-60);
+  if (tail.length) {
+    const zs = tail.map(p => p.zScore);
+    const mn = Math.min(...zs), mx = Math.max(...zs);
+    document.getElementById('tape-min-max').textContent = 'min ' + mn.toFixed(2) + '  ·  max ' + mx.toFixed(2);
+  }
+  renderTape(tail);
+
+  // Drawdown sparkline (Trader card)
+  if (s.equityCurve) renderDdSpark('dd-spark', drawdownSeries(navFromEquity(s.equityCurve)));
+
+  // Trades table
   const tbody = document.getElementById('trade-rows');
   if (s.recentTrades.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted); text-align:center;">No trades yet</td></tr>';
@@ -238,50 +665,332 @@ function render(s, series) {
     }).join('');
   }
 
-  renderChart(series, s.recentTrades);
+  renderSpreadChart(series);
 }
 
-function renderChart(series, trades) {
+// ─── RISK ───
+function renderRisk(s, series) {
+  const ddPct = s.metrics.maxDrawdownPct;
+  document.getElementById('risk-dd').textContent = ddPct.toFixed(2) + '%';
+  document.getElementById('risk-dd-fill').style.width = Math.min(100, (ddPct / DD_GATE_PCT) * 100) + '%';
+  const ddChip = document.getElementById('risk-dd-chip');
+  if (ddPct >= DD_GATE_PCT) { ddChip.textContent = 'PAUSED'; ddChip.className = 'chip danger'; }
+  else if (ddPct >= DD_GATE_PCT * 0.8) { ddChip.textContent = 'WARN'; ddChip.className = 'chip warn'; }
+  else { ddChip.textContent = 'OPEN'; ddChip.className = 'chip ok'; }
+
+  // Real p-value from the sliding-cointegration refit history (Session 7).
+  const refits = s.refits || [];
+  const lastFit = refits.length ? refits[refits.length - 1] : null;
+  const livePVal = lastFit ? lastFit.pValue : null;
+  const trades = s.metrics.totalTrades;
+  document.getElementById('risk-pval').textContent = livePVal == null ? '—' : livePVal.toFixed(3);
+  const pChip = document.getElementById('risk-pval-chip');
+  if (livePVal == null) { pChip.textContent = 'PENDING'; pChip.className = 'chip muted'; }
+  else if (livePVal > 0.10) { pChip.textContent = 'DECOUPLED'; pChip.className = 'chip danger'; }
+  else if (livePVal > 0.05) { pChip.textContent = 'WATCH'; pChip.className = 'chip warn'; }
+  else { pChip.textContent = 'OK'; pChip.className = 'chip ok'; }
+
+  // Venue cap chip from real risk-engine VENUE_CAP events + blockedEntries.
+  const riskEvents = s.riskEvents || [];
+  const vcEvents = riskEvents.filter(e => e.kind === 'VENUE_CAP').length;
+  const blocked = s.blockedEntries ?? 0;
+  const usage = Math.min(100, (blocked / Math.max(1, trades + blocked)) * 100);
+  document.getElementById('risk-vc').textContent = blocked + ' blocked';
+  document.getElementById('risk-vc-fill').style.width = usage + '%';
+  const vcChip = document.getElementById('risk-vc-chip');
+  if (vcEvents > 0) { vcChip.textContent = 'TRIPPED'; vcChip.className = 'chip danger'; }
+  else if (blocked > 0) { vcChip.textContent = 'GATING'; vcChip.className = 'chip warn'; }
+  else { vcChip.textContent = 'OK'; vcChip.className = 'chip ok'; }
+
+  // Exposure card — counts of EXPOSURE_* events.
+  const expEvents = riskEvents.filter(e => e.kind.startsWith('EXPOSURE')).length;
+  document.getElementById('risk-exp').textContent = expEvents + ' fires';
+  const expChip = document.getElementById('risk-exp-chip');
+  if (expEvents > 0) { expChip.textContent = 'TRIPPED'; expChip.className = 'chip warn'; }
+  else { expChip.textContent = 'OK'; expChip.className = 'chip ok'; }
+  // Sparkline: cumulative exposure events over time.
+  if (riskEvents.length > 0) {
+    const cumExp = new Array(series.length).fill(0);
+    let c = 0;
+    for (let i = 0; i < cumExp.length; i++) {
+      while (riskEvents.find(e => e.barIndex === i && e.kind.startsWith('EXPOSURE'))) { c++; break; }
+      cumExp[i] = c;
+    }
+    renderPvalSpark('risk-exp-spark', cumExp);
+  }
+
+  if (s.equityCurve) {
+    const nav = navFromEquity(s.equityCurve);
+    const dd  = drawdownSeries(nav);
+    renderDdSpark('risk-dd-spark', dd);
+    // Real p-value sparkline from refit history (sparse — one point per refit).
+    const pVals = refits.length ? refits.map(r => r.pValue) : [0.05];
+    renderPvalSpark('risk-pval-spark', pVals);
+  }
+
+  renderEventLog(s, series);
+}
+
+function renderEventLog(s, series) {
+  const events = [];
+  // Synthesise events from trade openIndex/closeIndex; tag drawdown breaches via series.
+  const trades = s.allTrades || s.recentTrades || [];
+  trades.forEach(t => {
+    const tOpen  = series && series[t.openIndex]  ? series[t.openIndex].timestamp  : null;
+    const tClose = series && series[t.closeIndex] ? series[t.closeIndex].timestamp : null;
+    events.push({ ts: tOpen,  kind: 'OPEN',  text: t.side + ' entry at z=' + t.entryZ.toFixed(2) });
+    const pnl = Number(t.pnlUnits) / 1_000_000;
+    const sign = pnl >= 0 ? '+' : '';
+    events.push({ ts: tClose, kind: 'CLOSE', text: t.side + ' exit at z=' + t.exitZ.toFixed(2) + ' · ' + sign + pnl.toFixed(2) + ' USDC' });
+  });
+  // Drawdown breach annotations (>80% of gate).
+  if (s.equityCurve) {
+    const dd = drawdownSeries(navFromEquity(s.equityCurve));
+    let lastBreach = -100;
+    dd.forEach((v, i) => {
+      if (v >= DD_GATE_PCT * 0.8 && i - lastBreach > 10) {
+        const ts = series && series[i] ? series[i].timestamp : null;
+        events.push({ ts, kind: 'DD', text: 'Drawdown ' + v.toFixed(2) + '% — approaching gate' });
+        lastBreach = i;
+      }
+    });
+  }
+  // Real strategy gate events (Session 7: P_VALUE_BLOCK).
+  (s.gateEvents || []).forEach(ev => {
+    const ts = series && series[ev.barIndex] ? series[ev.barIndex].timestamp : null;
+    events.push({ ts, kind: 'GATE', text: ev.kind + ' · ' + ev.reason + ' · z=' + ev.zAtBlock.toFixed(2) });
+  });
+  // Real risk-engine gate events (Session 8: DRAWDOWN / VENUE_CAP / EXPOSURE_*).
+  (s.riskEvents || []).forEach(ev => {
+    const ts = series && series[ev.barIndex] ? series[ev.barIndex].timestamp : null;
+    events.push({ ts, kind: 'RISK', text: ev.kind + ' · ' + ev.reason });
+  });
+  // Sort by timestamp desc, take last 40.
+  events.sort((a, b) => (a.ts || '').localeCompare(b.ts || ''));
+  const view = events.slice(-40).reverse();
+  document.getElementById('event-log-count').textContent = events.length + ' events';
+  const el = document.getElementById('event-log');
+  if (view.length === 0) {
+    el.innerHTML = '<div style="color:var(--muted); text-align:center; padding:20px 0;">No events yet — run the demo.</div>';
+    return;
+  }
+  el.innerHTML = view.map(e => {
+    const t = e.ts ? new Date(e.ts).toISOString().substring(11, 19) : '—';
+    return '<div class="ev"><span class="ts">' + t + '</span><span class="kind ' + e.kind + '">' + e.kind + '</span><span>' + e.text + '</span></div>';
+  }).join('');
+}
+
+// ─── INVESTOR ───
+function renderInvestor(s, series) {
+  const totalPnlUsdc = Number(s.metrics.totalPnlUnits) / 1_000_000;
+  document.getElementById('inv-pnl').textContent = fmtPnlLarge(s.metrics.totalPnlUnits);
+  const pnlEl = document.getElementById('inv-pnl');
+  pnlEl.classList.remove('pos','neg');
+  pnlEl.classList.add(totalPnlUsdc >= 0 ? 'pos' : 'neg');
+
+  document.getElementById('inv-sharpe').textContent = s.metrics.sharpeRatio.toFixed(2);
+  document.getElementById('inv-dd').textContent = s.metrics.maxDrawdownPct.toFixed(2) + '%';
+  document.getElementById('inv-trades').textContent = s.metrics.totalTrades;
+  document.getElementById('inv-winrate').textContent = (s.metrics.winRate * 100).toFixed(0) + '%';
+
+  const returnPct = (totalPnlUsdc / NOTIONAL_USDC) * 100;
+  document.getElementById('inv-return').textContent = (returnPct >= 0 ? '+' : '') + returnPct.toFixed(2) + '%';
+  const calmar = s.metrics.maxDrawdownPct > 0 ? returnPct / s.metrics.maxDrawdownPct : 0;
+  document.getElementById('inv-calmar').textContent = calmar.toFixed(2);
+
+  if (s.equityCurve) {
+    const nav = navFromEquity(s.equityCurve);
+    renderNavChart(nav);
+    renderUnderwater(drawdownSeries(nav));
+  }
+}
+
+// ─── Chart renderers ───
+function newOrReplace(id, type, data, options) {
+  const ctx = document.getElementById(id).getContext('2d');
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, { type, data, options });
+}
+
+function renderSpreadChart(series) {
+  if (!series) return;
   const labels = series.map((_, i) => i);
   const zData  = series.map(p => p.zScore);
-  const ctx = document.getElementById('spread-chart').getContext('2d');
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'z-score', data: zData, borderColor: '#00d4aa', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
-        { label: '+entry', data: labels.map(() =>  ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)', borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
-        { label: '-entry', data: labels.map(() => -ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)', borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
-        { label: '+exit',  data: labels.map(() =>  EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
-        { label: '-exit',  data: labels.map(() => -EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
-      ]
+  newOrReplace('spread-chart', 'line', {
+    labels,
+    datasets: [
+      { label: 'z-score', data: zData, borderColor: '#00d4aa', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+      { label: '+entry', data: labels.map(() =>  ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)',  borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
+      { label: '-entry', data: labels.map(() => -ENTRY_Z), borderColor: 'rgba(255,92,92,0.5)',  borderDash: [4,4], borderWidth: 1, pointRadius: 0 },
+      { label: '+exit',  data: labels.map(() =>  EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
+      { label: '-exit',  data: labels.map(() => -EXIT_Z),  borderColor: 'rgba(120,137,160,0.4)', borderDash: [2,3], borderWidth: 1, pointRadius: 0 },
+    ]
+  }, {
+    responsive: true, animation: false,
+    scales: {
+      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+      y: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
     },
-    options: {
-      responsive: true, animation: false,
-      scales: {
-        x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-        y: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
-      },
-      plugins: {
-        legend: { labels: { color: '#d7e0ec', boxWidth: 12 } },
-      }
-    }
+    plugins: { legend: { labels: { color: '#d7e0ec', boxWidth: 12 } } }
   });
 }
 
-document.getElementById('run-btn').addEventListener('click', async () => {
+function renderTape(tail) {
+  if (!tail || tail.length === 0) return;
+  const labels = tail.map((_, i) => i);
+  const zs = tail.map(p => p.zScore);
+  newOrReplace('tape-chart', 'line', {
+    labels,
+    datasets: [
+      { data: zs, borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.10)', borderWidth: 1.5, pointRadius: 0, fill: 'origin', tension: 0.25 },
+      { data: labels.map(() =>  ENTRY_Z), borderColor: 'rgba(255,92,92,0.35)', borderDash: [3,3], borderWidth: 1, pointRadius: 0 },
+      { data: labels.map(() => -ENTRY_Z), borderColor: 'rgba(255,92,92,0.35)', borderDash: [3,3], borderWidth: 1, pointRadius: 0 },
+    ]
+  }, {
+    responsive: true, animation: false, maintainAspectRatio: false,
+    scales: { x: { display: false }, y: { display: false } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+  });
+}
+
+function renderDdSpark(canvasId, ddSeries) {
+  if (!ddSeries || ddSeries.length === 0) return;
+  newOrReplace(canvasId, 'line', {
+    labels: ddSeries.map((_, i) => i),
+    datasets: [
+      { data: ddSeries.map(v => -v), borderColor: '#ff5c5c', backgroundColor: 'rgba(255,92,92,0.12)', borderWidth: 1.2, pointRadius: 0, fill: 'origin', tension: 0.2 },
+      { data: ddSeries.map(() => -DD_GATE_PCT), borderColor: 'rgba(255,92,92,0.45)', borderDash: [3,3], borderWidth: 1, pointRadius: 0 },
+    ]
+  }, {
+    responsive: true, animation: false, maintainAspectRatio: false,
+    scales: { x: { display: false }, y: { display: false } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+  });
+}
+
+function renderPvalSpark(canvasId, pSeries) {
+  if (!pSeries || pSeries.length === 0) return;
+  newOrReplace(canvasId, 'line', {
+    labels: pSeries.map((_, i) => i),
+    datasets: [
+      { data: pSeries, borderColor: '#f5b942', backgroundColor: 'rgba(245,185,66,0.10)', borderWidth: 1.2, pointRadius: 0, fill: 'origin', tension: 0.2 },
+      { data: pSeries.map(() => 0.10), borderColor: 'rgba(255,92,92,0.45)', borderDash: [3,3], borderWidth: 1, pointRadius: 0 },
+    ]
+  }, {
+    responsive: true, animation: false, maintainAspectRatio: false,
+    scales: { x: { display: false }, y: { display: false } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } }
+  });
+}
+
+function renderNavChart(nav) {
+  const labels = nav.map((_, i) => i);
+  const ending = nav[nav.length - 1] ?? 1;
+  const positive = ending >= 1;
+  newOrReplace('nav-chart', 'line', {
+    labels,
+    datasets: [{
+      label: 'NAV',
+      data: nav,
+      borderColor: positive ? '#00d4aa' : '#ff5c5c',
+      backgroundColor: positive ? 'rgba(0,212,170,0.10)' : 'rgba(255,92,92,0.10)',
+      borderWidth: 2, pointRadius: 0, fill: 'origin', tension: 0.25,
+    }, {
+      label: 'cost basis',
+      data: labels.map(() => 1.0),
+      borderColor: 'rgba(120,137,160,0.5)', borderDash: [3,3], borderWidth: 1, pointRadius: 0,
+    }]
+  }, {
+    responsive: true, animation: false,
+    scales: {
+      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+      y: { ticks: { color: '#7889a0', callback: v => '$' + v.toFixed(3) }, grid: { color: 'rgba(36,50,69,0.5)' } },
+    },
+    plugins: { legend: { display: false } }
+  });
+}
+
+function renderUnderwater(dd) {
+  const labels = dd.map((_, i) => i);
+  newOrReplace('underwater-chart', 'line', {
+    labels,
+    datasets: [{
+      data: dd.map(v => -v),
+      borderColor: '#ff5c5c',
+      backgroundColor: 'rgba(255,92,92,0.18)',
+      borderWidth: 1.5, pointRadius: 0, fill: 'origin', tension: 0.2,
+    }, {
+      data: labels.map(() => -DD_GATE_PCT),
+      borderColor: 'rgba(255,92,92,0.55)', borderDash: [4,4], borderWidth: 1, pointRadius: 0,
+    }]
+  }, {
+    responsive: true, animation: false,
+    scales: {
+      x: { ticks: { color: '#7889a0' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+      y: { ticks: { color: '#7889a0', callback: v => v.toFixed(1) + '%' }, grid: { color: 'rgba(36,50,69,0.5)' } },
+    },
+    plugins: { legend: { display: false } }
+  });
+}
+
+// ─── persona routing ───
+function activateView(name) {
+  const valid = ['trader','risk','investor'];
+  if (!valid.includes(name)) name = 'trader';
+  document.querySelectorAll('nav.persona-nav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.view === name);
+  });
+  document.querySelectorAll('section.view').forEach(s => {
+    s.classList.toggle('active', s.id === 'view-' + name);
+  });
+  // Force redraw — charts in hidden divs render at 0px width.
+  if (lastSnapshot) renderAll();
+}
+window.addEventListener('hashchange', () => activateView(location.hash.replace('#','')));
+document.querySelectorAll('nav.persona-nav a').forEach(a => {
+  a.addEventListener('click', () => setTimeout(() => activateView(a.dataset.view), 0));
+});
+
+// ─── scenario selector ───
+document.getElementById('scenario-select').addEventListener('change', async (e) => {
+  const sc = e.target.value;
   const btn = document.getElementById('run-btn');
-  btn.textContent = 'Running…'; btn.disabled = true;
+  btn.textContent = 'Loading…'; btn.disabled = true;
   try {
-    await fetch('/api/stat-arb/demo/reset', { method: 'POST' });
+    await fetch('/api/stat-arb/demo/reset?scenario=' + encodeURIComponent(sc), { method: 'POST' });
     await pollStatus();
   } finally {
     btn.textContent = 'Run Demo'; btn.disabled = false;
   }
 });
 
+// ─── Run + Kill ───
+document.getElementById('run-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('run-btn');
+  btn.textContent = 'Running…'; btn.disabled = true;
+  try {
+    const sc = document.getElementById('scenario-select').value;
+    await fetch('/api/stat-arb/demo/reset?scenario=' + encodeURIComponent(sc), { method: 'POST' });
+    await pollStatus();
+  } finally {
+    btn.textContent = 'Run Demo'; btn.disabled = false;
+  }
+});
+
+document.getElementById('kill-btn').addEventListener('click', () => {
+  killed = !killed;
+  document.body.classList.toggle('killed', killed);
+  document.getElementById('kill-btn').classList.toggle('armed', killed);
+  document.getElementById('kill-btn').textContent = killed ? 'Disarm kill' : 'Kill switch';
+  const chip = document.getElementById('kill-chip');
+  if (chip) {
+    chip.textContent = killed ? 'ARMED' : 'DISARMED';
+    chip.className = 'chip ' + (killed ? 'danger' : 'ok');
+  }
+});
+
+// initial
+activateView(location.hash.replace('#','') || 'trader');
 pollStatus();
 setInterval(pollStatus, 5000);
 </script>

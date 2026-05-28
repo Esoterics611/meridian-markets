@@ -57,10 +57,12 @@ export class Initial1715000000000 implements MigrationInterface {
         ON treasury_movements (provider, created_at DESC)
     `);
 
-    // Yield-accrual cron idempotency: at most one accrual per (provider, day).
+    // Yield-accrual cron idempotency: at most one accrual per (provider, UTC day).
+    // TIMESTAMPTZ::date is STABLE (session-timezone-dependent); AT TIME ZONE 'UTC'
+    // returns a plain TIMESTAMP whose ::date cast is IMMUTABLE — required for indexes.
     await queryRunner.query(`
       CREATE UNIQUE INDEX uniq_yield_accrual_per_provider_per_day
-        ON treasury_movements (provider, (created_at::date))
+        ON treasury_movements (provider, ((created_at AT TIME ZONE 'UTC')::date))
         WHERE direction = 'YIELD_ACCRUAL'
     `);
 

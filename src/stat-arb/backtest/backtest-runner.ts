@@ -3,6 +3,9 @@ import { BarContext, DesiredOrder, IStrategy } from './strategy.interface';
 import { ITradingVenue, Side } from '../trading-venue.interface';
 import { summarize, BacktestMetrics } from './pnl-attribution';
 import { PairsStrategy, Regime } from './pairs-strategy';
+import { IRiskEngine } from '../risk/risk-engine';
+import { GateEvent as RiskGateEvent } from '../risk/gate';
+import { StatArbRepository } from '../persistence/stat-arb.repository';
 
 // Event-driven backtest runner. Walks bars in chronological order, invokes
 // the strategy with strictly historical context, places orders through the
@@ -28,6 +31,10 @@ export interface BacktestResult {
   trades: TradeRecord[];
   metrics: BacktestMetrics;
   spreadSeries: { timestamp: Date; zScore: number; position: Regime }[];
+  /** Risk-engine gate events emitted across the run. Empty when no engine is supplied. */
+  gateEvents: RiskGateEvent[];
+  /** Count of OPEN orders blocked by the risk engine. */
+  blockedEntries: number;
 }
 
 export interface BacktestConfig {
@@ -35,6 +42,19 @@ export interface BacktestConfig {
   barsB: Bar[];
   strategy: PairsStrategy;
   venue: ITradingVenue;
+  /** Optional risk engine. When provided, OPEN orders are pre-trade-checked. */
+  riskEngine?: IRiskEngine;
+  /** Used to build risk context. Defaults: notionalUnits per leg, single-venue mock. */
+  riskOpts?: {
+    capitalUnits: bigint;
+    pairId: string;
+    /** Used as the per-bar drawdown peak/nav anchor. */
+    initialNavRatio?: number;
+  };
+  /** Optional persistence: when supplied, each closed trade is written to stat_arb_trades. */
+  repository?: StatArbRepository;
+  /** Distinguishes runs in the idempotency key namespace (e.g. `${scenario}-${Date.now()}`). */
+  runId?: string;
 }
 
 /** Stateless coordinator: feed → strategy → venue → metrics. */
@@ -45,6 +65,17 @@ export class BacktestRunner {
     }
     const trades: TradeRecord[] = [];
     const spreadSeries: BacktestResult['spreadSeries'] = [];
+    let blockedEntries = 0;
+
+    // Track running NAV (against capital) and peak — fed into the drawdown gate.
+    const capital = cfg.riskOpts?.capitalUnits ?? 100_000_000n; // 100 USDC default
+    let pnlSoFar = 0n;
+    let peakNav = cfg.riskOpts?.initialNavRatio ?? 1.0;
+    // Live notional per venue across the book — fed into the venue cap gate.
+    let venueLiveNotional = 0n;
+    // Open per-pair exposure tracked at leg granularity for the exposure gate.
+    let openLongUnits = 0n;
+    let openShortUnits = 0n;
 
     // We track each round-trip's opening leg fills so we can attribute P&L
     // when the close fills arrive. For a pairs trade there's a long+short
@@ -85,6 +116,39 @@ export class BacktestRunner {
 
       if (orders.length === 0) continue;
 
+      // Risk-engine pre-trade check on OPEN orders only. CLOSE orders always go
+      // through — same posture as the p-value gate in pairs-strategy.ts.
+      const isOpen = orders[0].reason !== 'CLOSE';
+      if (cfg.riskEngine && isOpen) {
+        const notionalLeg = orders[0].notionalUnits;
+        const navRatio = Number(capital + pnlSoFar) / Number(capital);
+        peakNav = Math.max(peakNav, navRatio);
+        const decisions = cfg.riskEngine.preTradeCheck({
+          barIndex: i,
+          drawdown: { navRatio, peakNav },
+          venueCap: { venueId: cfg.venue.venueId, liveNotionalUnits: venueLiveNotional, addNotionalUnits: notionalLeg * 2n },
+          exposure: {
+            positions: [{
+              pairId: cfg.riskOpts?.pairId ?? `${cfg.barsA[0]?.symbol}/${cfg.barsB[0]?.symbol}`,
+              longUnits: openLongUnits,
+              shortUnits: openShortUnits,
+            }],
+            intent: {
+              pairId: cfg.riskOpts?.pairId ?? `${cfg.barsA[0]?.symbol}/${cfg.barsB[0]?.symbol}`,
+              longUnits: notionalLeg,
+              shortUnits: notionalLeg,
+            },
+          },
+        });
+        if (!decisions.every((d) => d.allow)) {
+          blockedEntries++;
+          // Strategy flipped its regime before returning the orders; rollback
+          // so we can re-attempt the OPEN on a later bar.
+          cfg.strategy.rollbackEntry();
+          continue;
+        }
+      }
+
       // Group orders by symbol so we can pair the two legs. The mock venue
       // returns fills synchronously; we await each in order.
       const fills: Record<string, { side: Side; price: bigint; fees: bigint }> = {};
@@ -112,6 +176,10 @@ export class BacktestRunner {
           openFeesUnits: fillA.fees + fillB.fees,
           notionalUnits: orders[0].notionalUnits,
         };
+        // Update book-level exposure trackers for the next bar's risk check.
+        venueLiveNotional += orders[0].notionalUnits * 2n;
+        openLongUnits += orders[0].notionalUnits;
+        openShortUnits += orders[0].notionalUnits;
       } else if (reason === 'CLOSE' && open !== null) {
         // P&L for a SHORT spread (sold A, bought B at open; reverse at close):
         //   pnlA = notional * (openA - closeA) / openA      (short A profits when A falls)
@@ -134,6 +202,35 @@ export class BacktestRunner {
           pnlUnits: netPnl,
           holdBars: i - open.openIndex,
         });
+        if (cfg.repository) {
+          // Persist the closed round-trip. Idempotency key combines runId +
+          // openIndex so re-running the same backtest is replay-safe.
+          await cfg.repository.insertTrade({
+            venue: cfg.venue.venueId,
+            symbolA: a.symbol,
+            symbolB: b.symbol,
+            side: open.side,
+            entryZ: open.entryZ,
+            exitZ: zNow,
+            entryPriceAMicros: open.openPriceA,
+            entryPriceBMicros: open.openPriceB,
+            exitPriceAMicros: fillA.price,
+            exitPriceBMicros: fillB.price,
+            notionalUnits: open.notionalUnits,
+            pnlUnits: netPnl,
+            feesUnits: totalFees,
+            openedAt: cfg.barsA[open.openIndex].timestamp,
+            closedAt: a.timestamp,
+            idempotencyKey: `${cfg.runId ?? 'run'}-${open.openIndex}`,
+          });
+        }
+        pnlSoFar += netPnl;
+        venueLiveNotional -= open.notionalUnits * 2n;
+        if (venueLiveNotional < 0n) venueLiveNotional = 0n;
+        openLongUnits -= open.notionalUnits;
+        openShortUnits -= open.notionalUnits;
+        if (openLongUnits < 0n) openLongUnits = 0n;
+        if (openShortUnits < 0n) openShortUnits = 0n;
         open = null;
       }
     }
@@ -142,6 +239,8 @@ export class BacktestRunner {
       trades,
       metrics: summarize(trades),
       spreadSeries,
+      gateEvents: cfg.riskEngine ? cfg.riskEngine.drainEvents() : [],
+      blockedEntries,
     };
   }
 }

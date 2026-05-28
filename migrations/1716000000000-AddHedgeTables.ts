@@ -59,14 +59,14 @@ export class AddHedgeTables1716000000000 implements MigrationInterface {
     // Mark-to-market cron idempotency: at most one MARK_TO_MARKET per position per day.
     await queryRunner.query(`
       CREATE UNIQUE INDEX uniq_mark_per_position_per_day
-        ON hedge_movements (venue, position_ref, (created_at::date))
+        ON hedge_movements (venue, position_ref, ((created_at AT TIME ZONE 'UTC')::date))
         WHERE direction = 'MARK_TO_MARKET'
     `);
 
     // Funding cron idempotency: at most one FUNDING_ACCRUAL per position per day.
     await queryRunner.query(`
       CREATE UNIQUE INDEX uniq_funding_per_position_per_day
-        ON hedge_movements (venue, position_ref, (created_at::date))
+        ON hedge_movements (venue, position_ref, ((created_at AT TIME ZONE 'UTC')::date))
         WHERE direction = 'FUNDING_ACCRUAL'
     `);
 

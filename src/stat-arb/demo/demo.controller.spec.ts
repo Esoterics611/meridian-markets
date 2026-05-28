@@ -26,6 +26,8 @@ function fakeResult(): BacktestResult {
       { timestamp: new Date('2026-01-01T00:00:00Z'), zScore: 0.5, position: 'FLAT' },
       { timestamp: new Date('2026-01-01T00:01:00Z'), zScore: 1.6, position: 'SHORT' },
     ],
+    gateEvents: [],
+    blockedEntries: 0,
   };
 }
 
@@ -38,14 +40,22 @@ function makeService(): DemoService {
     snapshot: () => ({
       pair: { a: 'BTC', b: 'ETH' },
       generatedAt: new Date('2026-02-01T00:00:00Z'),
+      scenario: 'calm' as const,
       currentZ: r.spreadSeries[r.spreadSeries.length - 1].zScore,
       regime: r.spreadSeries[r.spreadSeries.length - 1].position,
       openPnlUnits: 0n,
       metrics: r.metrics,
       recentTrades: r.trades,
+      allTrades: r.trades,
       spreadSeries: r.spreadSeries,
+      equityCurve: r.spreadSeries.map((_, i) => (i === r.trades[r.trades.length - 1].closeIndex ? r.metrics.totalPnlUnits : 0n)),
+      refits: [],
+      gateEvents: [],
+      riskEvents: [],
+      blockedEntries: 0,
     }),
     reset: () => undefined,
+    refits: () => [],
   };
   return svc as unknown as DemoService;
 }
@@ -90,6 +100,39 @@ describe('DemoController', () => {
     expect(res.series.length).toBe(2);
     expect(res.series[0].timestamp).toBe('2026-01-01T00:00:00.000Z');
     expect(res.series[1].position).toBe('SHORT');
+  });
+
+  it('GET /refits returns the refit history serialised', async () => {
+    const svc: Partial<DemoService> = {
+      hasResult: () => true,
+      runFreshBacktest: async () => fakeResult(),
+      refits: () => [
+        { beta: 1.05, pValue: 0.02, halfLifeBars: 7.5, fittedAtIndex: 59 },
+        { beta: 0.98, pValue: 0.30, halfLifeBars: Number.POSITIVE_INFINITY, fittedAtIndex: 79 },
+      ],
+    };
+    const c = new DemoController(svc as unknown as DemoService);
+    const res = await c.refits();
+    expect(res.refits).toEqual([
+      { beta: 1.05, pValue: 0.02, halfLifeBars: 7.5, fittedAtIndex: 59 },
+      // Infinity half-life serialised as 0 (the dashboard renders that as 'n/a').
+      { beta: 0.98, pValue: 0.30, halfLifeBars: 0, fittedAtIndex: 79 },
+    ]);
+  });
+
+  it('GET /refits lazily runs a backtest if no result yet', async () => {
+    let ran = 0;
+    const svc: Partial<DemoService> = {
+      hasResult: () => false,
+      runFreshBacktest: async () => {
+        ran++;
+        return fakeResult();
+      },
+      refits: () => [],
+    };
+    const c = new DemoController(svc as unknown as DemoService);
+    await c.refits();
+    expect(ran).toBe(1);
   });
 
   it('POST /reset clears state then re-runs', async () => {
