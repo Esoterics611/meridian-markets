@@ -57,7 +57,11 @@ export class MockHedgeVenue implements IHedgeVenue {
     }
 
     await this.simulateLatency();
-    const positionRef = `mock-pos-${++this.refNonce}`;
+    // Prefix with venueId so int-specs that randomise venueId per test get
+    // unique position refs across runs (avoids PK conflicts on hedge_positions
+    // when prior test rows linger). Default venueId is 'mock' so unit specs
+    // continue to see 'mock-pos-N'.
+    const positionRef = `${this.venueId}-pos-${++this.refNonce}`;
     this.positions.set(positionRef, {
       notionalUnits: req.notionalUnits,
       entryPriceMicros: PRICE_PARITY_MICROS,
@@ -86,7 +90,7 @@ export class MockHedgeVenue implements IHedgeVenue {
     this.positions.delete(req.positionRef);
 
     const result: CloseShortResult = {
-      externalRef: `mock-close-${++this.refNonce}`,
+      externalRef: `${this.venueId}-close-${++this.refNonce}`,
       pnlUnits: pnl,
     };
     this.seenCloseKeys.set(req.idempotencyKey, result);

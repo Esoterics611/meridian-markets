@@ -45,8 +45,12 @@ describeIfDb('INTEGRATION: HedgeService against real Postgres', () => {
 
   beforeEach(() => {
     if (!dbUp) return;
-    // Fresh venue per test so position refs don't collide.
+    // Fresh venue per test AND a unique venueId namespace per test so DB
+    // queries against hedge_movements / hedge_positions never see rows from
+    // prior test runs. Same isolation pattern as treasury.service.int-spec.ts.
     venue = new MockHedgeVenue(2, 0);
+    (venue as { venueId: string }).venueId =
+      `mock-${Math.random().toString(36).slice(2, 10)}`;
     const breaker = new HedgeCircuitBreaker(TEST_CFG);
     svc = new HedgeService(db, venue, breaker, TEST_CFG);
   });
