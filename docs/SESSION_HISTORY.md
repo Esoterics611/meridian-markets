@@ -413,3 +413,33 @@ Includes a small errors-prelude commit (3584961) that brought the int-spec suite
 2. **REST poll, not websocket.** The feed polls klines on a timer. A websocket feed is the latency upgrade; the `IBarFeed` seam absorbs it without touching the loop.
 3. **Single pair, no live MTM dashboard, no risk-engine in the hot path** yet — the risk gates (Session 8) are pure functions not yet consulted per-order in the live loop.
 4. **Full roadmap/DESK_GAPS re-author still pending** — CLAUDE.md was reframed; the long roadmap doc still carries Phase/KYB framing and should be re-authored toward trading-infra.
+
+---
+
+## 9. Session 18 + 10 — Live multi-asset desk + multi-currency portfolio (2026-05-29)
+
+**Owner-directed.** Turn the synthetic demo into a **live multi-asset trading console** on real Binance, then run **multiple currencies concurrently**. Three commits: `fe0a26f` (backend), `756ac02` (UI + de-gating + course), `1a7f85a` (multi-currency portfolio).
+
+### Shipped
+
+- **Multi asset-class presets** (`src/stat-arb/markets/market-presets.ts`, +spec): curated, asset-class-grouped sets of real Binance spot symbols (Large Cap, Layer-1, DeFi, ETH ecosystem, Payments/SoV incl. PAXG gold). Curated to assets >~$0.10 for the 6-decimal micros convention.
+- **Multi-symbol data + real-data discovery**: `MarketDataRepository.{distinctSymbols,barsForSymbols}`; `runUniverseOnBars()` extracted so the synthetic and real-Binance paths share the discover→cluster→regime pipeline (`source: real-binance-history`). New `MarketDataController` routes: `GET /presets`, `POST /backfill-preset`, `GET /universe`, `GET /candles`.
+- **Live pair/capital switching**: `LivePaperTrader.reconfigure()` (repoint on the same feed, fresh strategy w/ discovered β; defensive-copies cfg), `setStartingCapital()` + capital/equity in snapshot; `POST /api/stat-arb/live/configure`.
+- **Multi-currency portfolio** (`src/execution/live-portfolio-trader.ts`, +6 specs): `LivePortfolioTrader` runs N pairs concurrently, each an **isolated** paper book (own feed cursor + venue + strategy via a `makeTrader` factory), capital split evenly, one timer, aggregate + per-pair snapshot. `POST /portfolio{,/start,/stop,/tick}`, `GET /portfolio`.
+- **`/demo` rewritten** as a single live Trading Desk console (preset switcher, backfill, discovered-pairs table with trade/backtest, live snapshot panel, real candle chart, starting-capital input, "Trade top 3 multi-currency" + portfolio panel). The synthetic 5-persona dashboard and all KYB/Phase/investor-disclosure theater are gone.
+- **De-gated the trading engine**: removed `KYB_REQUIRED_BEFORE_LIVE` + Phase-4/business-sign-off framing from `universe.controller` and seam comments (mock-trading-venue, paper-venue, app-config, bar-ingest, ccxt-bar-ingest, exec-demo). Kept the legitimate `LIVE_TRADING_ARMED` engineering arm switch; left genuine Ondo/Hyperliquid onboarding notes in the hedge/yield modules.
+- **Course** (`courses/stat-arb`): ch 8 (baskets + funding carry, worked examples) + ch 9 (hands-on testing-in-Meridian lab); `mkdocs build --strict` passes (Netlify-safe).
+- **`scripts/smoke-live-multi-asset.ts`**: in-process live smoke (boots the app context, no HTTP listen, so it runs where the watch server is killed by the sandbox).
+
+### Verification
+
+- `tsc --noEmit` clean; `jest` **560/560** (76 suites). No new DB migrations (reuses `market_bars` / `funding_rates`).
+- **Live**: the smoke ran end-to-end against real Binance — backfilled `crypto-majors`, discovered LINK/SOL β=1.07 p=0.005, backtested 360 real bars, ran 3 pairs concurrently on a 300k split. Binance public REST reachable from the dev box; the `nest --watch` server cannot be launched from the tool sandbox (exit 144) — verify via tsc+jest+the smoke script instead.
+
+### Open follow-ups
+
+1. **Funding-carry / cross-sectional basket strategies** — course §8 skeletons; `funding_rates` table + repo exist, no `FundingCarryStrategy` / `CrossSectionalStrategy` wired.
+2. **Budget allocator** — the portfolio splits capital evenly; mean-variance sizing is the next refinement (the deferred Session-10 allocator).
+3. **Orphaned Track-B real-venue adapter** — set aside in git `stash@{0}` (2 known-bad specs: wrong signer vector; bucket refill anchor). Restart fresh.
+4. **Exec algos + WebSocket feed in the live loop**; risk-engine per-order in the portfolio hot path.
+5. **Course gaps**: Johansen, purged k-fold CV, deflated-Sharpe endpoint (course §9.9).

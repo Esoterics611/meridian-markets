@@ -83,10 +83,11 @@ When adding any new venue/provider: implement the interface, register it in the 
 
 ## 8. Session Log
 
-Full per-session log in [docs/SESSION_HISTORY.md](docs/SESSION_HISTORY.md). Current state (as of 2026-05-26):
+Full per-session log in [docs/SESSION_HISTORY.md](docs/SESSION_HISTORY.md). Current state (as of 2026-05-29):
 
-- **Done:** Session 1 — Phase 0 scaffold (51 tests, 9 suites). Session 2 — Phase 1 scaffold + stat-arb plan + course (14 hedge scaffold tests). Session 3 — stat-arb course research, mkdocs Material upgrade, RohOnChain archive. Session 4 — Phase 1 orchestrator: HedgeService, HedgeMonitorCron, HedgeCircuitBreaker, StubExposureClient, hedge_movements/hedge_positions migration (29 net-new tests, 94 total).
-- **Next:** Session 5 — Phase 3 stat-arb signal library + backtest runner + live web dashboard at `/demo` (see `prompts/PHASE_3_DEMO_PROMPT.md`). Separate tracks: Lira-Bridge-side `ITreasuryClient` + exposure endpoint (in `/home/nexus/code/meridian`), KYB with Ondo (yield) and Hyperliquid (hedge) — both business gates.
+- **Done (through Sessions 17–18 + 10):** the engine signal/risk/backtest/execution libraries (Sessions 1–16, 560 tests), the **real market-data spine + live paper loop** (S17), **real-history backfill + real-data backtest** (S18 backend), the **live multi-asset surface** — asset-class market presets, real-data pair discovery, candles, live pair/capital switching (S18), the **multi-currency portfolio** — N pairs trading concurrently on live Binance, isolated paper books, even capital split (S10), and a **rewritten `/demo` live Trading Desk console** (synthetic personas + KYB/Phase/investor-disclosure theater removed). Course (`courses/stat-arb`) extended to chs 8 (more strategies) + 9 (testing in Meridian). Verified live: `scripts/smoke-live-multi-asset.ts` runs the full path against real Binance.
+- **Run it:** `FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run start:dev` → `/demo`. Real-money is the `EXECUTION_MODE=live` + `LIVE_TRADING_ARMED=true` engineering decision — there is **no business/KYB gate** in the trading engine.
+- **Next:** funding-carry + cross-sectional basket strategies (course §8 skeletons; `funding_rates` table exists, strategy not wired); budget allocator (mean-variance vs the portfolio's even split); restart orphaned Track-B real-venue adapter (git `stash@{0}`); WebSocket feed; course gaps (Johansen, purged k-fold, deflated-Sharpe endpoint). Separate repos/tracks: the standalone market-data platform (`prompts/MARKET_DATA_PLATFORM_RESEARCH_PROMPT.md`), Lira-Bridge `ITreasuryClient`.
 
 ## 9. Key File Map
 
