@@ -4,6 +4,7 @@ import { MarketDataRepository, rowToBar, MarketBarRow } from './market-data.repo
 import { ReplayEngine } from './replay/replay-engine';
 import { BacktestRunner } from '../stat-arb/backtest/backtest-runner';
 import { PairsStrategy } from '../stat-arb/backtest/pairs-strategy';
+import { strategyRegistry } from '../stat-arb/strategies/strategy-registry';
 import { HistoricalReplayVenue } from '../stat-arb/historical-replay-venue';
 import { Bar } from '../stat-arb/backtest/bar';
 import { listPresets, getPreset } from '../stat-arb/markets/market-presets';
@@ -115,6 +116,7 @@ export class MarketDataController {
       entryZ?: number;
       exitZ?: number;
       notionalUnits?: string;
+      strategyId?: string;
     },
   ) {
     const symbolA = body.symbolA ?? 'BTC';
@@ -134,13 +136,20 @@ export class MarketDataController {
       };
     }
 
-    const strategy = new PairsStrategy({
-      beta: body.beta ?? 1,
-      zLookback: body.zLookback ?? 20,
-      entryZ: body.entryZ ?? 2,
-      exitZ: body.exitZ ?? 0.5,
-      notionalUnits: BigInt(body.notionalUnits ?? '1000000000'),
-    });
+    const notionalUnits = BigInt(body.notionalUnits ?? '1000000000');
+    // Strategy-aware: a registry id (e.g. ou-bertram, pairs-ewma) builds with
+    // its catalogue tuning; the legacy path keeps the body's z-score knobs.
+    const strategyId =
+      body.strategyId && strategyRegistry.has(body.strategyId) ? body.strategyId : null;
+    const strategy = strategyId
+      ? strategyRegistry.build(strategyId, { beta: body.beta ?? 1, notionalUnits })
+      : new PairsStrategy({
+          beta: body.beta ?? 1,
+          zLookback: body.zLookback ?? 20,
+          entryZ: body.entryZ ?? 2,
+          exitZ: body.exitZ ?? 0.5,
+          notionalUnits,
+        });
     const replayVenue = new HistoricalReplayVenue({ [symbolA]: aligned.a, [symbolB]: aligned.b });
     const result = await new BacktestRunner().run({
       barsA: aligned.a,
@@ -152,6 +161,7 @@ export class MarketDataController {
     return jsonSafe({
       window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
       pair: `${symbolA}/${symbolB}`,
+      strategy: strategyId ?? 'pairs-zscore',
       source: 'real-binance-history',
       metrics: result.metrics,
       tradeCount: result.trades.length,

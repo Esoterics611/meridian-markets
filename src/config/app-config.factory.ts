@@ -61,6 +61,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     autoStart: process.env['LIVE_AUTOSTART'] === 'true',
     pairA: process.env['LIVE_PAIR_A'] ?? process.env['DEMO_PAIR_A'] ?? 'BTC',
     pairB: process.env['LIVE_PAIR_B'] ?? process.env['DEMO_PAIR_B'] ?? 'ETH',
+    strategyId: process.env['LIVE_STRATEGY_ID'] ?? 'pairs-zscore',
     beta: parseFloat(process.env['LIVE_BETA'] ?? '1'),
     zLookback: parseInt(process.env['LIVE_Z_LOOKBACK'] ?? '20', 10),
     entryZ: parseFloat(process.env['LIVE_ENTRY_Z'] ?? '2'),

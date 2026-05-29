@@ -77,6 +77,8 @@ export interface AppConfig {
     autoStart: boolean;
     pairA: string;
     pairB: string;
+    /** Default strategy catalogue id the live loop builds (see StrategyRegistry). */
+    strategyId: string;
     /** Initial hedge ratio (overridden by refit if enabled). */
     beta: number;
     zLookback: number;

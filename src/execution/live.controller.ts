@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { LivePaperTrader } from './live-paper-trader';
 import { LivePortfolioTrader, PortfolioPair } from './live-portfolio-trader';
+import { strategyRegistry } from '../stat-arb/strategies/strategy-registry';
 
 // Control plane for the live paper-trading loop. The loop itself runs in the
 // background (setInterval); these endpoints start/stop it and read its book.
@@ -43,19 +44,43 @@ export class LiveController {
       symbolA?: string;
       symbolB?: string;
       beta?: number;
+      strategyId?: string;
       startingCapitalUnits?: string;
       startingCapitalUsdc?: number;
     },
   ) {
+    if (body.strategyId && !strategyRegistry.has(body.strategyId)) {
+      return { error: `unknown strategyId: ${body.strategyId}`, known: strategyRegistry.liveCapable().map((d) => d.id) };
+    }
     if (body.startingCapitalUnits !== undefined) {
       this.trader.setStartingCapital(BigInt(body.startingCapitalUnits));
     } else if (body.startingCapitalUsdc !== undefined) {
       this.trader.setStartingCapital(BigInt(Math.round(body.startingCapitalUsdc)) * USDC);
     }
     if (body.symbolA && body.symbolB) {
-      this.trader.reconfigure({ symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta });
+      this.trader.reconfigure({ symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId });
+    } else if (body.strategyId) {
+      // Strategy-only switch: re-arm the current pair with the new strategy.
+      const s = this.trader.snapshot();
+      this.trader.reconfigure({ symbolA: s.symbolA, symbolB: s.symbolB, beta: s.beta, strategyId: body.strategyId });
     }
     return this.trader.snapshot();
+  }
+
+  /** The desk's deployable strategy menu (live-capable catalogue entries). */
+  @Get('strategies')
+  strategies() {
+    return {
+      strategies: strategyRegistry.liveCapable().map((d) => ({
+        id: d.id,
+        family: d.family,
+        label: d.label,
+        description: d.description,
+        courseRef: d.courseRef,
+        riskProfile: d.defaultRiskProfile,
+        defaultParams: d.defaultParams,
+      })),
+    };
   }
 
   @Post('stop')
@@ -85,9 +110,14 @@ export class LiveController {
    */
   @Post('portfolio')
   setPortfolio(
-    @Body() body: { pairs?: PortfolioPair[]; capitalUsdc?: number; startingCapitalUnits?: string },
+    @Body() body: { pairs?: PortfolioPair[]; capitalUsdc?: number; startingCapitalUnits?: string; strategyId?: string },
   ) {
-    const pairs = (body.pairs ?? []).filter((p) => p && p.symbolA && p.symbolB);
+    if (body.strategyId && !strategyRegistry.has(body.strategyId)) {
+      return { error: `unknown strategyId: ${body.strategyId}`, known: strategyRegistry.liveCapable().map((d) => d.id) };
+    }
+    const pairs = (body.pairs ?? [])
+      .filter((p) => p && p.symbolA && p.symbolB)
+      .map((p) => ({ ...p, strategyId: p.strategyId ?? body.strategyId }));
     const capital =
       body.startingCapitalUnits !== undefined
         ? BigInt(body.startingCapitalUnits)

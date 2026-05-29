@@ -24,12 +24,39 @@ import { ExecDemoService } from '../execution/exec-demo.service';
 import { ExecController } from '../execution/exec.controller';
 import { UniverseController } from './discovery/universe.controller';
 import { PaperVenue } from '../execution/paper-venue';
-import { PairsStrategy } from './backtest/pairs-strategy';
-import { LivePaperTrader } from '../execution/live-paper-trader';
+import { Bar } from './backtest/bar';
+import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader';
 import { LivePortfolioTrader, PortfolioPair } from '../execution/live-portfolio-trader';
+import { strategyRegistry } from './strategies/strategy-registry';
 import { LiveController } from '../execution/live.controller';
 import { RiskEngine } from './risk/risk-engine';
 import { DrawdownGate } from './risk/drawdown-gate';
+
+// Warm the live loop's rolling window from recent real Binance klines so a
+// freshly-armed pair can trade on its first live bar instead of waiting ~an
+// hour to accumulate a lookback window. Aligned to common timestamps per leg.
+async function warmupFromBinance(
+  client: BinancePublicClient,
+  interval: string,
+  symbolA: string,
+  symbolB: string,
+): Promise<{ a: Bar[]; b: Bar[] }> {
+  const [a, b] = await Promise.all([
+    client.klines(symbolA, interval, 240),
+    client.klines(symbolB, interval, 240),
+  ]);
+  const bByTs = new Map(b.map((bar) => [bar.timestamp.getTime(), bar]));
+  const outA: Bar[] = [];
+  const outB: Bar[] = [];
+  for (const barA of a) {
+    const barB = bByTs.get(barA.timestamp.getTime());
+    if (barB) {
+      outA.push(barA);
+      outB.push(barB);
+    }
+  }
+  return { a: outA, b: outB };
+}
 
 @Module({
   providers: [
@@ -97,27 +124,30 @@ import { DrawdownGate } from './risk/drawdown-gate';
     // The live event loop: pairs strategy + venue + feed + persistence.
     {
       provide: LivePaperTrader,
-      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository],
+      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT],
       useFactory: (
         cfg: ConfigService,
         venue: ITradingVenue,
         feed: IBarFeed,
         repo: StatArbRepository,
+        client: BinancePublicClient,
       ): LivePaperTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        // A fresh strategy per pair: switching presaved markets at runtime
-        // rebuilds with the discovered β rather than carrying state across pairs.
-        const makeStrategy = (opts: { beta?: number }) =>
-          new PairsStrategy({
+        // A fresh strategy per pair from the desk registry: switching presaved
+        // markets (or strategies) at runtime rebuilds with the discovered β and
+        // the chosen catalogue id rather than carrying state across pairs.
+        const makeStrategy = (opts: { beta?: number; strategyId?: string }) =>
+          strategyRegistry.build(opts.strategyId ?? app.live.strategyId, {
             beta: opts.beta ?? app.live.beta,
-            zLookback: app.live.zLookback,
-            entryZ: app.live.entryZ,
-            exitZ: app.live.exitZ,
             notionalUnits: app.live.notionalUnits,
           });
         const riskEngine = new RiskEngine({
           drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
         });
+        const warmup: WarmupProvider | undefined =
+          app.feed.source === 'binance'
+            ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
+            : undefined;
         return new LivePaperTrader(
           makeStrategy({}),
           venue,
@@ -125,6 +155,7 @@ import { DrawdownGate } from './risk/drawdown-gate';
           {
             symbolA: app.live.pairA,
             symbolB: app.live.pairB,
+            strategyId: app.live.strategyId,
             pollIntervalMs: app.live.pollIntervalMs,
             autoStart: app.live.autoStart && app.feed.source === 'binance',
             riskEngine,
@@ -132,7 +163,8 @@ import { DrawdownGate } from './risk/drawdown-gate';
           },
           repo,
           undefined,
-          (opts) => makeStrategy({ beta: opts.beta }),
+          (opts) => makeStrategy({ beta: opts.beta, strategyId: opts.strategyId }),
+          warmup,
         );
       },
     },
@@ -148,12 +180,9 @@ import { DrawdownGate } from './risk/drawdown-gate';
         repo: StatArbRepository,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        const makeStrategy = (beta?: number) =>
-          new PairsStrategy({
+        const makeStrategy = (beta?: number, strategyId?: string) =>
+          strategyRegistry.build(strategyId ?? app.live.strategyId, {
             beta: beta ?? app.live.beta,
-            zLookback: app.live.zLookback,
-            entryZ: app.live.entryZ,
-            exitZ: app.live.exitZ,
             notionalUnits: app.live.notionalUnits,
           });
         const makeTrader = (pair: PortfolioPair): LivePaperTrader => {
@@ -174,13 +203,18 @@ import { DrawdownGate } from './risk/drawdown-gate';
           const riskEngine = new RiskEngine({
             drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
           });
+          const warmup: WarmupProvider | undefined =
+            app.feed.source === 'binance'
+              ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
+              : undefined;
           return new LivePaperTrader(
-            makeStrategy(pair.beta),
+            makeStrategy(pair.beta, pair.strategyId),
             venue,
             feed,
             {
               symbolA: pair.symbolA,
               symbolB: pair.symbolB,
+              strategyId: pair.strategyId ?? app.live.strategyId,
               pollIntervalMs: app.live.pollIntervalMs,
               autoStart: false,
               riskEngine,
@@ -188,7 +222,8 @@ import { DrawdownGate } from './risk/drawdown-gate';
             },
             repo,
             undefined,
-            (o) => makeStrategy(o.beta),
+            (o) => makeStrategy(o.beta, o.strategyId),
+            warmup,
           );
         };
         return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits);

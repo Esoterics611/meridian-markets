@@ -7,11 +7,13 @@ import { HedgeModule } from './hedge/hedge.module';
 import { StatArbModule } from './stat-arb/stat-arb.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { ExecutionModule } from './execution/execution.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
     ConfigModule, SecretsModule, DatabaseModule,
     TreasuryModule, HedgeModule, StatArbModule, MarketDataModule, ExecutionModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

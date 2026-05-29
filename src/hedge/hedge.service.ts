@@ -287,7 +287,16 @@ export class HedgeService {
       try {
         await this.markPosition(ref);
       } catch (err: unknown) {
-        this.logger.error(`markAll: failed to mark position ${ref}: ${(err as Error).message}`);
+        const msg = (err as Error).message;
+        // A position the ledger has open but the venue cannot find is a
+        // reconciliation drift, not a hard error — log-and-skip by design. With
+        // the ephemeral MockHedgeVenue this is the expected state for demo rows
+        // that survive a restart in the DB but not in the in-memory venue.
+        if (/not found/i.test(msg)) {
+          this.logger.warn(`markAll: skipping ${ref} — venue has no such position (ledger/venue drift)`);
+        } else {
+          this.logger.error(`markAll: failed to mark position ${ref}: ${msg}`);
+        }
       }
     }
   }

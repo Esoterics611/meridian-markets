@@ -18,12 +18,15 @@ export interface PortfolioPair {
   symbolA: string;
   symbolB: string;
   beta?: number;
+  /** Strategy catalogue id this book runs. Defaults to the live config default. */
+  strategyId?: string;
 }
 
 export interface PortfolioBookRow {
   pair: string;
   symbolA: string;
   symbolB: string;
+  strategyId: string;
   beta: number;
   lastZ: number;
   regime: string;
@@ -148,6 +151,7 @@ export class LivePortfolioTrader {
         pair: `${s.symbolA}/${s.symbolB}`,
         symbolA: s.symbolA,
         symbolB: s.symbolB,
+        strategyId: s.strategyId,
         beta: s.beta,
         lastZ: s.lastZ,
         regime: s.regime,

@@ -21,8 +21,16 @@ export interface LiveStrategy {
   reset?(): void;
 }
 
-/** Builds a fresh strategy for a chosen pair (per-pair β from discovery). */
-export type StrategyFactory = (opts: { symbolA: string; symbolB: string; beta?: number }) => LiveStrategy;
+/** Builds a fresh strategy for a chosen pair (per-pair β from discovery + chosen catalogue id). */
+export type StrategyFactory = (opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string }) => LiveStrategy;
+
+/**
+ * Warms the rolling window from recent real bars before the first live tick.
+ * Returns aligned, equal-length recent history for both legs. The live loop
+ * otherwise needs ~lookback live bars (≈ an hour at 1m) before it can emit a
+ * signal; seeding lets the first LIVE bar already carry full context.
+ */
+export type WarmupProvider = (symbolA: string, symbolB: string) => Promise<{ a: Bar[]; b: Bar[] }>;
 
 // LivePaperTrader — the live event loop.
 //
@@ -41,6 +49,8 @@ const MICROS = 1_000_000n;
 export interface LivePaperConfig {
   symbolA: string;
   symbolB: string;
+  /** Strategy catalogue id this book runs (StrategyRegistry). Informational on the snapshot. */
+  strategyId?: string;
   /** Poll cadence in ms. Bars only advance when the feed has a new closed bar. */
   pollIntervalMs: number;
   /** Max bars retained per leg (rolling window for the strategy). */
@@ -83,8 +93,11 @@ export interface LiveSnapshot {
   venueId: string;
   symbolA: string;
   symbolB: string;
+  strategyId: string;
   running: boolean;
   barsSeen: number;
+  /** How many of barsSeen were warmup-seeded (not live ticks). */
+  seededBars: number;
   lastBarAt: string | null;
   lastZ: number;
   beta: number;
@@ -137,6 +150,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   private realisedPnlUnits = 0n;
   private readonly closed: ClosedTrade[] = [];
   private barsSeen = 0;
+  private seededBars = 0;
+  private warmedUp = false;
   private lastBarAt: Date | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
@@ -156,6 +171,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     private readonly now: () => Date = () => new Date(),
     /** Optional: rebuild a fresh strategy per pair (per-pair β) on reconfigure. */
     private readonly strategyFactory?: StrategyFactory,
+    /** Optional: warm the rolling window from recent real bars on the first tick. */
+    private readonly warmup?: WarmupProvider,
   ) {
     this.strategy = strategy;
     // Own the config: reconfigure() mutates symbolA/symbolB, so we must not
@@ -172,12 +189,13 @@ export class LivePaperTrader implements OnApplicationBootstrap {
    * was supplied) rebuilds the strategy with the new pair's β. Does NOT auto
    * restart — the caller decides when to re-arm.
    */
-  reconfigure(opts: { symbolA: string; symbolB: string; beta?: number }): void {
+  reconfigure(opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string }): void {
     this.stop();
     this.cfg.symbolA = opts.symbolA;
     this.cfg.symbolB = opts.symbolB;
+    if (opts.strategyId) this.cfg.strategyId = opts.strategyId;
     if (this.strategyFactory) {
-      this.strategy = this.strategyFactory(opts);
+      this.strategy = this.strategyFactory({ ...opts, strategyId: this.cfg.strategyId });
     } else {
       this.strategy.reset?.();
     }
@@ -187,11 +205,34 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.closed.length = 0;
     this.realisedPnlUnits = 0n;
     this.barsSeen = 0;
+    this.seededBars = 0;
+    this.warmedUp = false;
     this.lastBarAt = null;
     this.peakNav = 1.0;
     this.blockedEntries = 0;
     this.gateEvents.length = 0;
-    this.logger.log(`reconfigured to ${opts.symbolA}/${opts.symbolB} (β=${opts.beta ?? 'cfg'})`);
+    this.logger.log(`reconfigured to ${opts.symbolA}/${opts.symbolB} via ${this.cfg.strategyId ?? 'default'} (β=${opts.beta ?? 'cfg'})`);
+  }
+
+  /**
+   * Pre-fill the rolling window from recent real bars so the strategy has
+   * context immediately. Trades are NEVER evaluated on seeded bars — they only
+   * supply the window the next LIVE bar's signal is computed against. Caller
+   * passes aligned, equal-length series (same timestamps per index).
+   */
+  seedHistory(a: Bar[], b: Bar[]): void {
+    if (this.historyA.length > 0) return; // only seed an empty book
+    const n = Math.min(a.length, b.length);
+    if (n === 0) return;
+    const start = Math.max(0, n - this.maxHistory);
+    for (let i = start; i < n; i++) {
+      this.historyA.push(a[i]);
+      this.historyB.push(b[i]);
+    }
+    this.seededBars = this.historyA.length;
+    this.barsSeen += this.seededBars;
+    this.lastBarAt = a[n - 1].timestamp;
+    this.logger.log(`seeded ${this.seededBars} warmup bars for ${this.cfg.symbolA}/${this.cfg.symbolB}`);
   }
 
   /**
@@ -250,6 +291,16 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     if (this.ticking) return;
     this.ticking = true;
     try {
+      if (!this.warmedUp && this.warmup) {
+        try {
+          const seed = await this.warmup(this.cfg.symbolA, this.cfg.symbolB);
+          this.seedHistory(seed.a, seed.b);
+        } catch (err) {
+          this.logger.warn(`warmup failed: ${(err as Error).message}`);
+        } finally {
+          this.warmedUp = true;
+        }
+      }
       const [barA, barB] = await Promise.all([
         this.feed.nextBar(this.cfg.symbolA),
         this.feed.nextBar(this.cfg.symbolB),
@@ -429,8 +480,10 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       venueId: this.venue.venueId,
       symbolA: this.cfg.symbolA,
       symbolB: this.cfg.symbolB,
+      strategyId: this.cfg.strategyId ?? 'pairs-zscore',
       running: this.isRunning(),
       barsSeen: this.barsSeen,
+      seededBars: this.seededBars,
       lastBarAt: this.lastBarAt ? this.lastBarAt.toISOString() : null,
       lastZ: this.strategy.lastZ,
       beta: this.strategy.currentBeta(),

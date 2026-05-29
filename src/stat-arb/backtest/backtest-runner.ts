@@ -1,8 +1,7 @@
 import { Bar } from './bar';
-import { BarContext, DesiredOrder, IStrategy } from './strategy.interface';
+import { BarContext, DesiredOrder, IStrategy, ManagedStrategy, Regime } from './strategy.interface';
 import { ITradingVenue, Side } from '../trading-venue.interface';
 import { summarize, BacktestMetrics } from './pnl-attribution';
-import { PairsStrategy, Regime } from './pairs-strategy';
 import { IRiskEngine } from '../risk/risk-engine';
 import { GateEvent as RiskGateEvent } from '../risk/gate';
 import { StatArbRepository } from '../persistence/stat-arb.repository';
@@ -40,7 +39,8 @@ export interface BacktestResult {
 export interface BacktestConfig {
   barsA: Bar[];
   barsB: Bar[];
-  strategy: PairsStrategy;
+  /** Any registry strategy — pairs, EWMA, OU. See ManagedStrategy. */
+  strategy: ManagedStrategy;
   venue: ITradingVenue;
   /** Optional risk engine. When provided, OPEN orders are pre-trade-checked. */
   riskEngine?: IRiskEngine;

@@ -74,6 +74,9 @@
     <label class="ctl">Market set
       <select id="preset"></select>
     </label>
+    <label class="ctl">Strategy
+      <select id="strategy"></select>
+    </label>
     <label class="ctl">Lookback (h)
       <input type="number" id="lookback" value="72" min="2" max="720" />
     </label>
@@ -128,7 +131,7 @@
       </h2>
       <div class="desc" id="pf-desc">N pairs trading concurrently on live data, capital split evenly. Each is its own isolated paper book.</div>
       <div class="stat-grid" id="pf-stats"></div>
-      <table style="margin-top:12px;"><thead><tr><th>pair</th><th>β</th><th>z</th><th>regime</th><th>position</th><th>equity (USDC)</th></tr></thead>
+      <table style="margin-top:12px;"><thead><tr><th>pair</th><th>strategy</th><th>β</th><th>z</th><th>regime</th><th>position</th><th>equity (USDC)</th></tr></thead>
       <tbody id="pf-books"></tbody></table>
     </section>
   </main>
@@ -159,6 +162,14 @@
       const { presets } = await jget('/api/market-data/presets');
       $('preset').innerHTML = presets.map((p) => `<option value="${p.id}">${p.label} — ${p.assetClass}</option>`).join('');
       window.__presets = presets;
+    }
+
+    async function loadStrategies() {
+      const { strategies } = await jget('/api/stat-arb/live/strategies');
+      $('strategy').innerHTML = strategies
+        .map((s) => `<option value="${s.id}" title="${s.description}">${s.label} · ${s.courseRef}</option>`)
+        .join('');
+      window.__strategies = strategies;
     }
 
     async function backfill() {
@@ -200,7 +211,8 @@
     }
 
     async function tradeLive(symbolA, symbolB, beta) {
-      await jpost('/api/stat-arb/live/configure', { symbolA, symbolB, beta });
+      const strategyId = $('strategy').value || undefined;
+      await jpost('/api/stat-arb/live/configure', { symbolA, symbolB, beta, strategyId });
       await jpost('/api/stat-arb/live/start');
       chartSymbol = null; // force chart reload for the new symbol
       await refreshSnapshot();
@@ -209,7 +221,8 @@
     async function backtest(symbolA, symbolB, beta) {
       $('bt-stats').innerHTML = '<div class="muted" style="padding:8px;">running backtest on real history…</div>';
       const lookbackHours = Number($('lookback').value) || 72;
-      const r = await jpost('/api/market-data/backtest', { symbolA, symbolB, beta, lookbackHours });
+      const strategyId = $('strategy').value || undefined;
+      const r = await jpost('/api/market-data/backtest', { symbolA, symbolB, beta, lookbackHours, strategyId });
       if (r.error) { $('bt-stats').innerHTML = `<div class="muted" style="padding:8px;">${r.error}</div>`; return; }
       const m = r.metrics || {};
       const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
@@ -229,7 +242,8 @@
       if (r.needsBackfill || !r.topPairs || !r.topPairs.length) { $('notice').style.display='block'; $('notice').textContent='Backfill first — no pairs to trade.'; return; }
       const pairs = r.topPairs.slice(0, 3).map((p) => ({ symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta }));
       const capitalUsdc = Number($('capital').value) || 100000;
-      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc });
+      const strategyId = $('strategy').value || undefined;
+      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc, strategyId });
       await jpost('/api/stat-arb/live/portfolio/start');
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
@@ -248,7 +262,7 @@
         stat('Realised', fmtUsdc(p.realisedPnlUnits), Number(p.realisedPnlUnits) >= 0 ? 'pos' : 'neg') +
         stat('Live', p.running ? 'yes' : 'paused');
       $('pf-books').innerHTML = p.books.map((b) => `
-        <tr><td class="mono">${b.pair}</td><td>${num(b.beta,3)}</td><td>${num(b.lastZ,2)}</td>
+        <tr><td class="mono">${b.pair}</td><td class="mono">${b.strategyId||'—'}</td><td>${num(b.beta,3)}</td><td>${num(b.lastZ,2)}</td>
         <td><span class="chip ${b.regime}">${b.regime}</span></td>
         <td>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'}</td>
         <td>${fmtUsdc(b.equityUnits)}</td></tr>`).join('');
@@ -281,11 +295,13 @@
         stat('Capital', fmtUsdc(s.capitalUnits)) +
         stat('Realised', fmtUsdc(realised), pnlCls(realised)) +
         stat('Unrealised', fmtUsdc(unreal), pnlCls(unreal)) +
+        stat('Strategy', s.strategyId || '—') +
         stat('z-score', num(s.lastZ, 2)) +
         stat('β', num(s.beta, 3)) +
         stat('Regime', `<span class="chip ${reg}">${reg}</span>`) +
         stat('Position', s.openPosition ? `<span class="chip ${s.openPosition.side}">${s.openPosition.side}</span>` : '<span class="chip FLAT">FLAT</span>') +
         stat('Bars seen', s.barsSeen) +
+        stat('Seeded', s.seededBars ?? 0) +
         stat('Last bar', lastBarAge);
 
       const fills = $('fills');
@@ -321,6 +337,7 @@
 
     (async function init() {
       await loadPresets();
+      await loadStrategies();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
