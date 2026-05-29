@@ -4,6 +4,8 @@ import { IBarFeed } from '../stat-arb/feed/live-feed.interface';
 import { ITradingVenue } from '../stat-arb/trading-venue.interface';
 import { BarContext, DesiredOrder } from '../stat-arb/backtest/strategy.interface';
 import { StatArbRepository } from '../stat-arb/persistence/stat-arb.repository';
+import { IRiskEngine } from '../stat-arb/risk/risk-engine';
+import { GateEvent } from '../stat-arb/risk/gate';
 
 // The loop depends only on this slice of a strategy, not on a concrete class.
 // PairsStrategy satisfies it structurally; tests can inject a scripted fake.
@@ -13,6 +15,8 @@ export interface LiveStrategy {
   lastZ: number;
   currentBeta(): number;
   currentRegime(): string;
+  /** Restore to FLAT after the risk engine rejects an OPEN. */
+  rollbackEntry?(): void;
 }
 
 // LivePaperTrader — the live event loop.
@@ -38,6 +42,10 @@ export interface LivePaperConfig {
   maxHistory?: number;
   /** Start the loop automatically on application bootstrap. */
   autoStart?: boolean;
+  /** Optional pre-trade risk engine. When set, OPENs are gated (CLOSEs always pass). */
+  riskEngine?: IRiskEngine;
+  /** Capital anchor for the drawdown NAV ratio. Default 100 USDC. */
+  capitalUnits?: bigint;
 }
 
 export interface ClosedTrade {
@@ -78,6 +86,8 @@ export interface LiveSnapshot {
   regime: string;
   realisedPnlUnits: string;
   unrealisedPnlUnits: string;
+  blockedEntries: number;
+  gateEvents: GateEvent[];
   openPosition: {
     side: string;
     notionalUnits: string;
@@ -120,6 +130,10 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   private lastBarAt: Date | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  private peakNav = 1.0;
+  private blockedEntries = 0;
+  private readonly gateEvents: GateEvent[] = [];
+  private readonly capitalUnits: bigint;
 
   constructor(
     private readonly strategy: LiveStrategy,
@@ -130,6 +144,7 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     private readonly now: () => Date = () => new Date(),
   ) {
     this.maxHistory = cfg.maxHistory ?? 500;
+    this.capitalUnits = cfg.capitalUnits ?? 100_000_000n;
   }
 
   onApplicationBootstrap(): void {
@@ -208,6 +223,22 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   }
 
   private async openPosition(orders: DesiredOrder[], side: 'LONG' | 'SHORT'): Promise<void> {
+    // Pre-trade risk gate on OPENs (drawdown). CLOSEs always pass.
+    if (this.cfg.riskEngine) {
+      const navRatio = Number(this.capitalUnits + this.realisedPnlUnits) / Number(this.capitalUnits);
+      this.peakNav = Math.max(this.peakNav, navRatio);
+      const decisions = this.cfg.riskEngine.preTradeCheck({
+        barIndex: this.barsSeen - 1,
+        drawdown: { navRatio, peakNav: this.peakNav },
+      });
+      if (!decisions.every((d) => d.allow)) {
+        this.blockedEntries += 1;
+        this.gateEvents.push(...this.cfg.riskEngine.drainEvents());
+        this.strategy.rollbackEntry?.(); // re-attempt on a later bar
+        this.logger.warn(`OPEN blocked by risk gate at bar ${this.barsSeen - 1}`);
+        return;
+      }
+    }
     const fills = await this.place(orders);
     const a = fills[this.cfg.symbolA];
     const b = fills[this.cfg.symbolB];
@@ -340,6 +371,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       regime: this.strategy.currentRegime(),
       realisedPnlUnits: this.realisedPnlUnits.toString(),
       unrealisedPnlUnits: this.unrealisedPnlUnits().toString(),
+      blockedEntries: this.blockedEntries,
+      gateEvents: this.gateEvents.slice(-20),
       openPosition: this.open
         ? {
             side: this.open.side,

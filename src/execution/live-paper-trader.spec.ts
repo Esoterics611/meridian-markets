@@ -156,4 +156,26 @@ describe('LivePaperTrader', () => {
     trader.stop();
     expect(trader.isRunning()).toBe(false);
   });
+
+  it('blocks an OPEN when the risk engine denies, and never places the order', async () => {
+    const denyEngine = {
+      preTradeCheck: () => [{ allow: false as const, reason: 'drawdown breach' }],
+      drainEvents: () => [{ kind: 'DRAWDOWN' as const, barIndex: 0, reason: 'drawdown breach' }],
+    };
+    let rolledBack = false;
+    const strat = scriptedStrategy(1_000_000_000n);
+    strat.rollbackEntry = () => {
+      rolledBack = true;
+    };
+    const feed = new FakeFeed([bar('BTC', 100, 1_000)], [bar('ETH', 100, 1_000)], 'BTC');
+    const venue = new FakeVenue();
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    const trader = new LivePaperTrader(strat, venue, feed, { ...cfg, riskEngine: denyEngine });
+    await trader.tick();
+    const snap = trader.snapshot();
+    expect(snap.openPosition).toBeNull();
+    expect(snap.blockedEntries).toBe(1);
+    expect(venue.placed).toHaveLength(0); // no order ever placed
+    expect(rolledBack).toBe(true);
+  });
 });

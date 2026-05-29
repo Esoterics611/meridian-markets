@@ -3,6 +3,7 @@ import {
   ITradingVenue,
   PlaceOrderRequest,
 } from '../stat-arb/trading-venue.interface';
+import { estimateSlippage } from './slippage-model';
 
 // PaperVenue — implements ITradingVenue but writes orders to an in-memory
 // paper book instead of hitting a real exchange. Consumes a live-style price
@@ -42,6 +43,12 @@ export interface PaperVenueDeps {
   takerFeeBps?: bigint;
   /** Optional venueId override for canary attribution. Default 'paper'. */
   venueId?: string;
+  /**
+   * Optional slippage model. When set, the fill price is moved adversely by the
+   * modelled linear price impact (BUY fills higher, SELL fills lower) so paper
+   * results track live more closely. Omit for a frictionless fill.
+   */
+  slippage?: { advUnits: bigint; lambdaBps?: number };
 }
 
 export class PaperVenue implements ITradingVenue {
@@ -76,7 +83,8 @@ export class PaperVenue implements ITradingVenue {
       throw new Error(`PaperVenue.placeOrder: notionalUnits must be > 0; got ${req.notionalUnits}`);
     }
 
-    const priceMicros = await this.deps.pricePoller(req.symbol);
+    const midMicros = await this.deps.pricePoller(req.symbol);
+    const priceMicros = this.applySlippage(midMicros, req);
     const feesUnits = (req.notionalUnits * this.takerFeeBps) / 10_000n;
     const order: PaperOrder = {
       orderId: `${this.venueId}-paper-${++this.nonce}`,
@@ -108,6 +116,22 @@ export class PaperVenue implements ITradingVenue {
 
   async fetchPrice(symbol: string): Promise<bigint> {
     return this.deps.pricePoller(symbol);
+  }
+
+  /** Move the mid adversely by modelled impact. No-op when no slippage configured. */
+  private applySlippage(midMicros: bigint, req: PlaceOrderRequest): bigint {
+    const s = this.deps.slippage;
+    if (!s) return midMicros;
+    const { signedImpactBps } = estimateSlippage({
+      notionalUnits: req.notionalUnits,
+      advUnits: s.advUnits,
+      lambdaBps: s.lambdaBps,
+      side: req.side,
+    });
+    // adjusted = mid * (1 + signedImpactBps/10_000). signed is + for BUY, − for SELL.
+    const bps = BigInt(Math.round(signedImpactBps));
+    const adjusted = midMicros + (midMicros * bps) / 10_000n;
+    return adjusted > 0n ? adjusted : midMicros;
   }
 
   /** Read-only snapshot of the paper book. Used by the reconciliation cron. */

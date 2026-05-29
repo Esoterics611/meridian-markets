@@ -55,6 +55,40 @@ export class BinancePublicClient {
     return (raw as RawKline[]).map((k) => this.toBar(symbol, k));
   }
 
+  /**
+   * Historical bars for [startMs, endMs), paginating the 1000-bar/req cap.
+   * Binance returns bars whose openTime >= startTime; we advance the cursor to
+   * the last bar's closeTime+1 each page until we pass endMs or a page is short.
+   */
+  async historicalKlines(
+    symbol: string,
+    interval: string,
+    startMs: number,
+    endMs: number,
+  ): Promise<Bar[]> {
+    const market = toBinanceSymbol(symbol, this.quote);
+    const out: Bar[] = [];
+    let cursor = startMs;
+    // Guard against an unbounded loop on a misbehaving upstream.
+    for (let page = 0; page < 10_000 && cursor < endMs; page++) {
+      const url =
+        `${this.baseUrl}/api/v3/klines?symbol=${market}&interval=${interval}` +
+        `&startTime=${cursor}&endTime=${endMs}&limit=1000`;
+      const raw = await this.httpGet(url);
+      if (!Array.isArray(raw) || raw.length === 0) break;
+      const batch = (raw as RawKline[]).map((k) => this.toBar(symbol, k));
+      for (const b of batch) {
+        if (b.timestamp.getTime() < endMs) out.push(b);
+      }
+      const lastClose = (raw as RawKline[])[raw.length - 1][6];
+      const nextCursor = Number(lastClose) + 1;
+      if (nextCursor <= cursor) break; // no forward progress
+      cursor = nextCursor;
+      if (raw.length < 1000) break; // last (short) page
+    }
+    return out;
+  }
+
   /** Last traded price for a symbol, as a float in quote units. */
   async lastPrice(symbol: string): Promise<number> {
     const market = toBinanceSymbol(symbol, this.quote);

@@ -27,6 +27,8 @@ import { PaperVenue } from '../execution/paper-venue';
 import { PairsStrategy } from './backtest/pairs-strategy';
 import { LivePaperTrader } from '../execution/live-paper-trader';
 import { LiveController } from '../execution/live.controller';
+import { RiskEngine } from './risk/risk-engine';
+import { DrawdownGate } from './risk/drawdown-gate';
 
 @Module({
   providers: [
@@ -78,7 +80,14 @@ import { LiveController } from '../execution/live.controller';
             return new RealBinanceVenue();
           case 'paper':
           case 'canary':
-            return new PaperVenue({ pricePoller: (s) => price.priceMicros(s) });
+            return new PaperVenue({
+              pricePoller: (s) => price.priceMicros(s),
+              // Model slippage only when an ADV is configured (else frictionless).
+              slippage:
+                app.live.advUnits > 0n
+                  ? { advUnits: app.live.advUnits, lambdaBps: app.live.slippageLambdaBps }
+                  : undefined,
+            });
           default:
             return new MockTradingVenue();
         }
@@ -102,6 +111,9 @@ import { LiveController } from '../execution/live.controller';
           exitZ: app.live.exitZ,
           notionalUnits: app.live.notionalUnits,
         });
+        const riskEngine = new RiskEngine({
+          drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
+        });
         return new LivePaperTrader(
           strategy,
           venue,
@@ -111,6 +123,8 @@ import { LiveController } from '../execution/live.controller';
             symbolB: app.live.pairB,
             pollIntervalMs: app.live.pollIntervalMs,
             autoStart: app.live.autoStart && app.feed.source === 'binance',
+            riskEngine,
+            capitalUnits: app.live.capitalUnits,
           },
           repo,
         );

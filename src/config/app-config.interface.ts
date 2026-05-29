@@ -86,6 +86,14 @@ export interface AppConfig {
     notionalUnits: bigint;
     /** Loop poll cadence (ms). Bars only advance when a new closed bar exists. */
     pollIntervalMs: number;
+    /** Block new entries when drawdown exceeds this percent. */
+    maxDrawdownPct: number;
+    /** Capital anchor for the drawdown NAV ratio (6-dec USDC units). */
+    capitalUnits: bigint;
+    /** Per-symbol ADV for the paper slippage model (USDC units). 0 = no slippage. */
+    advUnits: bigint;
+    /** Slippage lambda (bps per notional/ADV). */
+    slippageLambdaBps: number;
   };
 }
 

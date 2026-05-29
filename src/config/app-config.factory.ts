@@ -67,5 +67,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     exitZ: parseFloat(process.env['LIVE_EXIT_Z'] ?? '0.5'),
     notionalUnits: BigInt(process.env['LIVE_NOTIONAL_UNITS'] ?? '1000000000'), // 1000 USDC
     pollIntervalMs: parseInt(process.env['LIVE_POLL_INTERVAL_MS'] ?? '15000', 10),
+    maxDrawdownPct: parseFloat(process.env['LIVE_MAX_DRAWDOWN_PCT'] ?? '10'),
+    capitalUnits: BigInt(process.env['LIVE_CAPITAL_UNITS'] ?? '100000000000'), // 100k USDC
+    advUnits: BigInt(process.env['LIVE_ADV_UNITS'] ?? '0'), // 0 = slippage off
+    slippageLambdaBps: parseFloat(process.env['LIVE_SLIPPAGE_LAMBDA_BPS'] ?? '100'),
   },
 }));
