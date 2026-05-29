@@ -89,6 +89,15 @@ export class PairsStrategy implements IStrategy {
     this.regime = 'FLAT';
   }
 
+  /** Wipe all per-pair state so the instance can be reused on a different pair. */
+  reset(): void {
+    this.regime = 'FLAT';
+    this.lastFit = null;
+    this.fitHistory = [];
+    this.gateEvents = [];
+    this.lastZ = NaN;
+  }
+
   /** β actually in use right now: cached refit if available, else the constructor value. */
   currentBeta(): number {
     return this.lastFit ? this.lastFit.beta : this.cfg.beta;

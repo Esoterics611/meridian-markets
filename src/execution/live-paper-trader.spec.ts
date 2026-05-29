@@ -157,6 +157,66 @@ describe('LivePaperTrader', () => {
     expect(trader.isRunning()).toBe(false);
   });
 
+  it('setStartingCapital sets capital + equity and resets realised PnL', async () => {
+    const notional = 1_000_000_000n;
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    const trader = new LivePaperTrader(scriptedStrategy(notional), venue, feed, cfg);
+    trader.setStartingCapital(50_000n * M); // 50,000 USDC
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick();
+    venue.prices = { BTC: 110n * M, ETH: 100n * M };
+    await trader.tick(); // +100 USDC realised
+    const snap = trader.snapshot();
+    expect(snap.capitalUnits).toBe((50_000n * M).toString());
+    expect(snap.equityUnits).toBe((50_000n * M + 100_000_000n).toString());
+    expect(() => trader.setStartingCapital(0n)).toThrow(/positive/);
+  });
+
+  it('reconfigure repoints the pair, wipes the book, and rebuilds via the factory', async () => {
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    let builtFor: { symbolA: string; symbolB: string; beta?: number } | null = null;
+    const factory = (opts: { symbolA: string; symbolB: string; beta?: number }) => {
+      builtFor = opts;
+      return scriptedStrategy(1_000_000_000n);
+    };
+    const trader = new LivePaperTrader(
+      scriptedStrategy(1_000_000_000n), venue, feed, cfg, undefined, undefined, factory,
+    );
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick(); // open a position, accrue a bar
+    expect(trader.snapshot().barsSeen).toBe(1);
+
+    trader.reconfigure({ symbolA: 'SOL', symbolB: 'AVAX', beta: 1.4 });
+    const snap = trader.snapshot();
+    expect(snap.symbolA).toBe('SOL');
+    expect(snap.symbolB).toBe('AVAX');
+    expect(snap.barsSeen).toBe(0);
+    expect(snap.openPosition).toBeNull();
+    expect(snap.running).toBe(false);
+    expect(builtFor).toEqual({ symbolA: 'SOL', symbolB: 'AVAX', beta: 1.4 });
+  });
+
+  it('reconfigure without a factory falls back to strategy.reset()', () => {
+    const feed = new FakeFeed([], [], 'BTC');
+    const strat = scriptedStrategy(1_000_000n);
+    let didReset = false;
+    strat.reset = () => { didReset = true; };
+    const trader = new LivePaperTrader(strat, new FakeVenue(), feed, cfg);
+    trader.reconfigure({ symbolA: 'AAVE', symbolB: 'UNI' });
+    expect(didReset).toBe(true);
+    expect(trader.snapshot().symbolA).toBe('AAVE');
+  });
+
   it('blocks an OPEN when the risk engine denies, and never places the order', async () => {
     const denyEngine = {
       preTradeCheck: () => [{ allow: false as const, reason: 'drawdown breach' }],

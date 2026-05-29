@@ -3,6 +3,7 @@ import { generateSyntheticUniverse } from '../backtest/synthetic-universe';
 import { discoverPairs } from './pair-discovery';
 import { clusterSymbols, pickRepresentativePairs } from './clustering';
 import { detectRegime } from '../regime/regime-detector';
+import { Bar } from '../backtest/bar';
 
 // GET /api/stat-arb/research/universe — runs discovery + clustering + regime
 // detection over a synthetic N-symbol universe and returns the ranked pair
@@ -43,7 +44,9 @@ interface ApiClusterSummary {
   representative: string;
 }
 
-interface ApiUniverseResponse {
+export interface ApiUniverseResponse {
+  /** Where the bars came from — 'synthetic' fixture or 'real-binance-history'. */
+  source: 'synthetic' | 'real-binance-history';
   symbols: string[];
   groundTruthClusters: { clusterId: number; symbols: string[] }[];
   noiseSymbols: string[];
@@ -104,15 +107,47 @@ export async function runUniverse(opts: UniverseConfig): Promise<ApiUniverseResp
     symbolsPerCluster: opts.symbolsPerCluster ?? 3,
     noiseSymbols: opts.noiseSymbols ?? 4,
   });
+  return runUniverseOnBars(u.bars, {
+    source: 'synthetic',
+    groundTruthClusters: u.clusters,
+    noiseSymbols: u.noiseSymbols,
+  });
+}
 
-  const cands = discoverPairs(u.bars, { minBars: 50, pValueCutoff: 0.20 });
-  const clustering = clusterSymbols(u.bars, { distanceThreshold: 0.35 });
+export interface UniverseOnBarsMeta {
+  source: ApiUniverseResponse['source'];
+  groundTruthClusters?: { clusterId: number; symbols: string[] }[];
+  noiseSymbols?: string[];
+  /** Discovery knobs; defaults match the synthetic path. */
+  minBars?: number;
+  pValueCutoff?: number;
+  distanceThreshold?: number;
+  regimeLookbackBars?: number;
+}
+
+/**
+ * The data-source-agnostic discovery pipeline: discover pairs, cluster, pick
+ * representatives, tag regime. Used by BOTH the synthetic fixture path and the
+ * real-Binance-history path (MarketDataController) — same response shape, the
+ * only difference is where `bars` came from. This is the seam the S16 notes
+ * promised: swap the bars source, nothing else changes.
+ */
+export function runUniverseOnBars(
+  bars: Map<string, Bar[]>,
+  meta: UniverseOnBarsMeta,
+): ApiUniverseResponse {
+  const cands = discoverPairs(bars, {
+    minBars: meta.minBars ?? 50,
+    pValueCutoff: meta.pValueCutoff ?? 0.20,
+  });
+  const clustering = clusterSymbols(bars, { distanceThreshold: meta.distanceThreshold ?? 0.35 });
   const reps = pickRepresentativePairs(cands, clustering.symbolToCluster);
+  const lookbackBars = meta.regimeLookbackBars ?? 60;
 
   const enrich = (c: typeof cands[number]): ApiPairRow => {
-    const logA = u.bars.get(c.symbolA)!.map((b) => Math.log(b.close));
-    const logB = u.bars.get(c.symbolB)!.map((b) => Math.log(b.close));
-    const regime = detectRegime(logA, logB, { lookbackBars: 60 });
+    const logA = bars.get(c.symbolA)!.map((b) => Math.log(b.close));
+    const logB = bars.get(c.symbolB)!.map((b) => Math.log(b.close));
+    const regime = detectRegime(logA, logB, { lookbackBars });
     return {
       symbolA: c.symbolA,
       symbolB: c.symbolB,
@@ -129,9 +164,10 @@ export async function runUniverse(opts: UniverseConfig): Promise<ApiUniverseResp
   };
 
   return {
-    symbols: [...u.bars.keys()],
-    groundTruthClusters: u.clusters,
-    noiseSymbols: u.noiseSymbols,
+    source: meta.source,
+    symbols: [...bars.keys()],
+    groundTruthClusters: meta.groundTruthClusters ?? [],
+    noiseSymbols: meta.noiseSymbols ?? [],
     discoveredClusters: clustering.clusters.map((c) => ({
       clusterId: c.clusterId,
       symbols: c.symbols,

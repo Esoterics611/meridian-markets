@@ -139,6 +139,60 @@ export class MarketDataRepository {
     });
   }
 
+  /** All symbols that have at least one stored bar for the venue, ordered. */
+  async distinctSymbols(venue: string): Promise<string[]> {
+    return this.db.runInSerializableTransaction(async (em) => {
+      const rows = await em.query<{ symbol: string }[]>(
+        `SELECT DISTINCT symbol FROM market_bars WHERE venue = $1 ORDER BY symbol ASC`,
+        [venue],
+      );
+      return rows.map((r) => r.symbol);
+    });
+  }
+
+  /**
+   * Load bars for many symbols in one window, keyed by symbol. Powers the
+   * real-data discovery pipeline (replaces the synthetic universe). Symbols
+   * with no bars in the window are simply absent from the map.
+   */
+  async barsForSymbols(
+    venue: string,
+    symbols: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, MarketBarRow[]>> {
+    const out = new Map<string, MarketBarRow[]>();
+    if (symbols.length === 0) return out;
+    return this.db.runInSerializableTransaction(async (em) => {
+      const rows = await em.query<MarketBarRow[]>(
+        `SELECT venue, symbol, ts,
+                open_micros   AS "openMicros",
+                high_micros   AS "highMicros",
+                low_micros    AS "lowMicros",
+                close_micros  AS "closeMicros",
+                volume_micros AS "volumeMicros"
+         FROM market_bars
+         WHERE venue = $1 AND symbol = ANY($2) AND ts >= $3 AND ts < $4
+         ORDER BY symbol ASC, ts ASC`,
+        [venue, symbols, from, to],
+      );
+      for (const r of rows) {
+        const bucket = out.get(r.symbol) ?? [];
+        bucket.push({
+          ...r,
+          openMicros: BigInt(r.openMicros as unknown as string),
+          highMicros: BigInt(r.highMicros as unknown as string),
+          lowMicros: BigInt(r.lowMicros as unknown as string),
+          closeMicros: BigInt(r.closeMicros as unknown as string),
+          volumeMicros: BigInt(r.volumeMicros as unknown as string),
+          ts: new Date(r.ts),
+        });
+        out.set(r.symbol, bucket);
+      }
+      return out;
+    });
+  }
+
   async recentGaps(venue: string, symbol: string, limit = 20): Promise<DataGapRow[]> {
     return this.db.runInSerializableTransaction(async (em) => {
       const rows = await em.query<DataGapRow[]>(

@@ -90,6 +90,37 @@ describe('MarketDataRepository (unit)', () => {
     expect(rows[0].closeMicros).toBe(100_000_000n);
   });
 
+  it('distinctSymbols maps the symbol column', async () => {
+    const db = fakeDb(() => [{ symbol: 'BTC' }, { symbol: 'ETH' }]);
+    const repo = new MarketDataRepository(db);
+    expect(await repo.distinctSymbols('binance.spot')).toEqual(['BTC', 'ETH']);
+  });
+
+  it('barsForSymbols buckets rows by symbol and coerces bigints', async () => {
+    const db = fakeDb(() => [
+      { venue: 'binance.spot', symbol: 'BTC', ts: new Date('2026-01-01T00:00:00Z'),
+        openMicros: '1', highMicros: '1', lowMicros: '1', closeMicros: '70000000000', volumeMicros: '1' },
+      { venue: 'binance.spot', symbol: 'ETH', ts: new Date('2026-01-01T00:00:00Z'),
+        openMicros: '1', highMicros: '1', lowMicros: '1', closeMicros: '3500000000', volumeMicros: '1' },
+      { venue: 'binance.spot', symbol: 'BTC', ts: new Date('2026-01-01T00:01:00Z'),
+        openMicros: '1', highMicros: '1', lowMicros: '1', closeMicros: '70100000000', volumeMicros: '1' },
+    ]);
+    const repo = new MarketDataRepository(db);
+    const out = await repo.barsForSymbols('binance.spot', ['BTC', 'ETH'], new Date(0), new Date(Date.UTC(2027, 0, 1)));
+    expect(out.get('BTC')).toHaveLength(2);
+    expect(out.get('ETH')).toHaveLength(1);
+    expect(out.get('BTC')![0].closeMicros).toBe(70_000_000_000n);
+  });
+
+  it('barsForSymbols short-circuits on an empty symbol list', async () => {
+    let called = false;
+    const db = fakeDb(() => { called = true; return []; });
+    const repo = new MarketDataRepository(db);
+    const out = await repo.barsForSymbols('binance.spot', [], new Date(0), new Date());
+    expect(out.size).toBe(0);
+    expect(called).toBe(false);
+  });
+
   it('rowToBar reconstructs the Bar shape', () => {
     const b = rowToBar({
       venue: 'mock', symbol: 'A',

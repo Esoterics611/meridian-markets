@@ -104,18 +104,21 @@ import { DrawdownGate } from './risk/drawdown-gate';
         repo: StatArbRepository,
       ): LivePaperTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        const strategy = new PairsStrategy({
-          beta: app.live.beta,
-          zLookback: app.live.zLookback,
-          entryZ: app.live.entryZ,
-          exitZ: app.live.exitZ,
-          notionalUnits: app.live.notionalUnits,
-        });
+        // A fresh strategy per pair: switching presaved markets at runtime
+        // rebuilds with the discovered β rather than carrying state across pairs.
+        const makeStrategy = (opts: { beta?: number }) =>
+          new PairsStrategy({
+            beta: opts.beta ?? app.live.beta,
+            zLookback: app.live.zLookback,
+            entryZ: app.live.entryZ,
+            exitZ: app.live.exitZ,
+            notionalUnits: app.live.notionalUnits,
+          });
         const riskEngine = new RiskEngine({
           drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
         });
         return new LivePaperTrader(
-          strategy,
+          makeStrategy({}),
           venue,
           feed,
           {
@@ -127,6 +130,8 @@ import { DrawdownGate } from './risk/drawdown-gate';
             capitalUnits: app.live.capitalUnits,
           },
           repo,
+          undefined,
+          (opts) => makeStrategy({ beta: opts.beta }),
         );
       },
     },

@@ -17,7 +17,12 @@ export interface LiveStrategy {
   currentRegime(): string;
   /** Restore to FLAT after the risk engine rejects an OPEN. */
   rollbackEntry?(): void;
+  /** Wipe per-pair state so the instance can be reused on a different pair. */
+  reset?(): void;
 }
+
+/** Builds a fresh strategy for a chosen pair (per-pair β from discovery). */
+export type StrategyFactory = (opts: { symbolA: string; symbolB: string; beta?: number }) => LiveStrategy;
 
 // LivePaperTrader — the live event loop.
 //
@@ -84,6 +89,10 @@ export interface LiveSnapshot {
   lastZ: number;
   beta: number;
   regime: string;
+  /** Starting capital anchor, 6-decimal USDC units. */
+  capitalUnits: string;
+  /** capital + realised + unrealised, 6-decimal USDC units. */
+  equityUnits: string;
   realisedPnlUnits: string;
   unrealisedPnlUnits: string;
   blockedEntries: number;
@@ -119,6 +128,7 @@ export function legPnlUnits(
 
 export class LivePaperTrader implements OnApplicationBootstrap {
   private readonly logger = new Logger(LivePaperTrader.name);
+  private strategy: LiveStrategy;
   private readonly historyA: Bar[] = [];
   private readonly historyB: Bar[] = [];
   private readonly maxHistory: number;
@@ -133,18 +143,74 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   private peakNav = 1.0;
   private blockedEntries = 0;
   private readonly gateEvents: GateEvent[] = [];
-  private readonly capitalUnits: bigint;
+  private capitalUnits: bigint;
+
+  private readonly cfg: LivePaperConfig;
 
   constructor(
-    private readonly strategy: LiveStrategy,
+    strategy: LiveStrategy,
     private readonly venue: ITradingVenue,
     private readonly feed: IBarFeed,
-    private readonly cfg: LivePaperConfig,
+    cfg: LivePaperConfig,
     private readonly repo?: StatArbRepository,
     private readonly now: () => Date = () => new Date(),
+    /** Optional: rebuild a fresh strategy per pair (per-pair β) on reconfigure. */
+    private readonly strategyFactory?: StrategyFactory,
   ) {
+    this.strategy = strategy;
+    // Own the config: reconfigure() mutates symbolA/symbolB, so we must not
+    // alias the caller's object.
+    this.cfg = { ...cfg };
     this.maxHistory = cfg.maxHistory ?? 500;
     this.capitalUnits = cfg.capitalUnits ?? 100_000_000n;
+  }
+
+  /**
+   * Repoint the live loop at a different pair on the SAME live feed — the
+   * mechanism behind switching presaved markets while trading live data.
+   * Halts the loop, wipes the book + strategy state, and (if a strategyFactory
+   * was supplied) rebuilds the strategy with the new pair's β. Does NOT auto
+   * restart — the caller decides when to re-arm.
+   */
+  reconfigure(opts: { symbolA: string; symbolB: string; beta?: number }): void {
+    this.stop();
+    this.cfg.symbolA = opts.symbolA;
+    this.cfg.symbolB = opts.symbolB;
+    if (this.strategyFactory) {
+      this.strategy = this.strategyFactory(opts);
+    } else {
+      this.strategy.reset?.();
+    }
+    this.historyA.length = 0;
+    this.historyB.length = 0;
+    this.open = null;
+    this.closed.length = 0;
+    this.realisedPnlUnits = 0n;
+    this.barsSeen = 0;
+    this.lastBarAt = null;
+    this.peakNav = 1.0;
+    this.blockedEntries = 0;
+    this.gateEvents.length = 0;
+    this.logger.log(`reconfigured to ${opts.symbolA}/${opts.symbolB} (β=${opts.beta ?? 'cfg'})`);
+  }
+
+  /**
+   * Set the starting capital anchor (drives NAV/equity + the drawdown gate).
+   * Resets realised PnL and the drawdown peak so the equity curve restarts from
+   * the new capital — this is "set the starting balance", not an injection of
+   * funds mid-run. Rejects non-positive input.
+   */
+  setStartingCapital(units: bigint): void {
+    if (units <= 0n) throw new Error('starting capital must be positive');
+    this.capitalUnits = units;
+    this.realisedPnlUnits = 0n;
+    this.closed.length = 0;
+    this.peakNav = 1.0;
+    this.logger.log(`starting capital set to ${units} units`);
+  }
+
+  capital(): bigint {
+    return this.capitalUnits;
   }
 
   onApplicationBootstrap(): void {
@@ -369,6 +435,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       lastZ: this.strategy.lastZ,
       beta: this.strategy.currentBeta(),
       regime: this.strategy.currentRegime(),
+      capitalUnits: this.capitalUnits.toString(),
+      equityUnits: (this.capitalUnits + this.realisedPnlUnits + this.unrealisedPnlUnits()).toString(),
       realisedPnlUnits: this.realisedPnlUnits.toString(),
       unrealisedPnlUnits: this.unrealisedPnlUnits().toString(),
       blockedEntries: this.blockedEntries,
