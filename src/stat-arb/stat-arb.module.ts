@@ -6,7 +6,14 @@ import { RealBinanceVenue } from './real-binance-venue';
 import { ITradingVenue, TRADING_VENUE } from './trading-venue.interface';
 import { IBarFeed, LIVE_FEED } from './feed/live-feed.interface';
 import { MockBarFeed } from './feed/mock-bar-feed';
-import { RealCcxtBarFeed } from './feed/real-ccxt-feed';
+import { BinancePublicBarFeed } from './feed/binance-public-bar-feed';
+import { BinancePublicClient, BINANCE_CLIENT } from './feed/binance-public-client';
+import {
+  BinancePriceSource,
+  IPriceSource,
+  PRICE_SOURCE,
+  StaticPriceSource,
+} from './feed/price-source';
 import { DemoService } from './demo/demo.service';
 import { DemoController } from './demo/demo.controller';
 import { DemoPageController } from './demo/demo-page.controller';
@@ -16,27 +23,97 @@ import { ResearchController } from './research/research.controller';
 import { ExecDemoService } from '../execution/exec-demo.service';
 import { ExecController } from '../execution/exec.controller';
 import { UniverseController } from './discovery/universe.controller';
+import { PaperVenue } from '../execution/paper-venue';
+import { PairsStrategy } from './backtest/pairs-strategy';
+import { LivePaperTrader } from '../execution/live-paper-trader';
+import { LiveController } from '../execution/live.controller';
 
 @Module({
   providers: [
-    // Venue swap seam: mock-default; real Binance dormant until KYB completes.
-    // Same pattern as HedgeModule's HEDGE_VENUE factory.
+    // Shared Binance public REST client (no key, public market data only).
     {
-      provide: TRADING_VENUE,
+      provide: BINANCE_CLIENT,
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService): ITradingVenue => {
+      useFactory: (cfg: ConfigService): BinancePublicClient => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        return app.statArb.mockEnabled ? new MockTradingVenue() : new RealBinanceVenue();
+        return new BinancePublicClient({
+          baseUrl: app.feed.binanceBaseUrl,
+          quote: app.feed.quote,
+        });
       },
     },
-    // Live-feed swap seam: mirrors TRADING_VENUE. Shares the statArb.mockEnabled
-    // flag — real venues and real feeds are flipped together at KYB close.
+    // Market-data feed seam — real Binance public data or the synthetic mock.
     {
       provide: LIVE_FEED,
-      inject: [ConfigService],
-      useFactory: (cfg: ConfigService): IBarFeed => {
+      inject: [ConfigService, BINANCE_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient): IBarFeed => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        return app.statArb.mockEnabled ? new MockBarFeed() : new RealCcxtBarFeed();
+        return app.feed.source === 'binance'
+          ? new BinancePublicBarFeed(client, app.feed.interval)
+          : new MockBarFeed();
+      },
+    },
+    // Fill-price source for the paper matching engine.
+    {
+      provide: PRICE_SOURCE,
+      inject: [ConfigService, BINANCE_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient): IPriceSource => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return app.feed.source === 'binance'
+          ? new BinancePriceSource(client)
+          : StaticPriceSource.fromMap({});
+      },
+    },
+    // Execution venue seam, selected by EXECUTION_MODE:
+    //   mock         -> synthetic venue
+    //   paper/canary -> PaperVenue pegged to real prices
+    //   live         -> real venue (armed via LIVE_TRADING_ARMED; dormant otherwise)
+    {
+      provide: TRADING_VENUE,
+      inject: [ConfigService, PRICE_SOURCE],
+      useFactory: (cfg: ConfigService, price: IPriceSource): ITradingVenue => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        switch (app.execution.mode) {
+          case 'live':
+            return new RealBinanceVenue();
+          case 'paper':
+          case 'canary':
+            return new PaperVenue({ pricePoller: (s) => price.priceMicros(s) });
+          default:
+            return new MockTradingVenue();
+        }
+      },
+    },
+    // The live event loop: pairs strategy + venue + feed + persistence.
+    {
+      provide: LivePaperTrader,
+      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository],
+      useFactory: (
+        cfg: ConfigService,
+        venue: ITradingVenue,
+        feed: IBarFeed,
+        repo: StatArbRepository,
+      ): LivePaperTrader => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const strategy = new PairsStrategy({
+          beta: app.live.beta,
+          zLookback: app.live.zLookback,
+          entryZ: app.live.entryZ,
+          exitZ: app.live.exitZ,
+          notionalUnits: app.live.notionalUnits,
+        });
+        return new LivePaperTrader(
+          strategy,
+          venue,
+          feed,
+          {
+            symbolA: app.live.pairA,
+            symbolB: app.live.pairB,
+            pollIntervalMs: app.live.pollIntervalMs,
+            autoStart: app.live.autoStart && app.feed.source === 'binance',
+          },
+          repo,
+        );
       },
     },
     DemoService,
@@ -44,6 +121,13 @@ import { UniverseController } from './discovery/universe.controller';
     StatArbNavCron,
     ExecDemoService,
   ],
-  controllers: [DemoController, DemoPageController, ResearchController, ExecController, UniverseController],
+  controllers: [
+    DemoController,
+    DemoPageController,
+    ResearchController,
+    ExecController,
+    UniverseController,
+    LiveController,
+  ],
 })
 export class StatArbModule {}

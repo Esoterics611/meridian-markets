@@ -4,7 +4,7 @@ import { AppConfig, ExecutionMode } from '@config/app-config.interface';
 
 function cfgService(opts: {
   mode: ExecutionMode;
-  kyb?: boolean;
+  armed?: boolean;
   mockEnabled?: boolean;
 }): ConfigService {
   const cfg: Partial<AppConfig> = {
@@ -13,45 +13,45 @@ function cfgService(opts: {
       mode: opts.mode,
       canaryPaperPct: 100,
       reconciliationIntervalMs: 60_000,
-      kybConfirmed: opts.kyb ?? false,
+      liveTradingArmed: opts.armed ?? false,
     },
   };
   return { getOrThrow: () => cfg } as unknown as ConfigService;
 }
 
 describe('ExecutionModeBootGuard', () => {
-  it('mock mode boots without KYB', () => {
+  it('mock mode boots unarmed', () => {
     const g = new ExecutionModeBootGuard(cfgService({ mode: 'mock' }));
     expect(() => g.assert()).not.toThrow();
   });
 
-  it('paper mode boots without KYB', () => {
+  it('paper mode boots unarmed (real data, simulated fills)', () => {
     const g = new ExecutionModeBootGuard(cfgService({ mode: 'paper' }));
     expect(() => g.assert()).not.toThrow();
   });
 
-  it('canary mode refuses to boot without KYB', () => {
-    const g = new ExecutionModeBootGuard(cfgService({ mode: 'canary', kyb: false }));
+  it('canary mode refuses to boot unarmed', () => {
+    const g = new ExecutionModeBootGuard(cfgService({ mode: 'canary', armed: false }));
     expect(() => g.assert()).toThrow(ExecutionModeNotPermittedError);
   });
 
-  it('canary mode boots when KYB is confirmed', () => {
-    const g = new ExecutionModeBootGuard(cfgService({ mode: 'canary', kyb: true }));
+  it('canary mode boots when armed', () => {
+    const g = new ExecutionModeBootGuard(cfgService({ mode: 'canary', armed: true }));
     expect(() => g.assert()).not.toThrow();
   });
 
-  it('live mode refuses to boot without KYB', () => {
-    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', kyb: false, mockEnabled: false }));
+  it('live mode refuses to boot unarmed', () => {
+    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', armed: false, mockEnabled: false }));
     expect(() => g.assert()).toThrow(ExecutionModeNotPermittedError);
   });
 
   it('live mode refuses to boot when mock trading is still enabled', () => {
-    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', kyb: true, mockEnabled: true }));
+    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', armed: true, mockEnabled: true }));
     expect(() => g.assert()).toThrow(/MOCK_TRADING_ENABLED/);
   });
 
-  it('live mode boots when KYB is confirmed AND mock trading is disabled', () => {
-    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', kyb: true, mockEnabled: false }));
+  it('live mode boots when armed AND mock trading is disabled', () => {
+    const g = new ExecutionModeBootGuard(cfgService({ mode: 'live', armed: true, mockEnabled: false }));
     expect(() => g.assert()).not.toThrow();
   });
 

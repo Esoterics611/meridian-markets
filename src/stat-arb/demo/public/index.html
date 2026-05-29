@@ -716,14 +716,14 @@
           <table>
             <thead><tr><th>Mode</th><th>What it does</th><th class="num">Status</th></tr></thead>
             <tbody>
-              <tr><td><code>mock</code></td><td>Synthetic <code>MockTradingVenue</code> — default.</td><td class="num"><span class="chip ok">ACTIVE</span></td></tr>
-              <tr><td><code>paper</code></td><td><code>PaperVenue</code> — live-price simulated fills, no real orders.</td><td class="num"><span class="chip warn">AVAILABLE</span></td></tr>
-              <tr><td><code>canary</code></td><td>Splits each parent across paper + real (KYB-gated).</td><td class="num"><span class="chip danger">KYB BLOCK</span></td></tr>
-              <tr><td><code>live</code></td><td>All real venue — KYB confirmed + mock disabled required.</td><td class="num"><span class="chip danger">KYB BLOCK</span></td></tr>
+              <tr><td><code>mock</code></td><td>Synthetic <code>MockTradingVenue</code> — offline default.</td><td class="num"><span class="chip ok">ACTIVE</span></td></tr>
+              <tr><td><code>paper</code></td><td><code>PaperVenue</code> — real prices, simulated fills, no real orders.</td><td class="num"><span class="chip ok">AVAILABLE</span></td></tr>
+              <tr><td><code>canary</code></td><td>Splits each parent across paper + real venue.</td><td class="num"><span class="chip warn">NEEDS ARM</span></td></tr>
+              <tr><td><code>live</code></td><td>All real venue — armed + mock disabled required.</td><td class="num"><span class="chip warn">NEEDS ARM</span></td></tr>
             </tbody>
           </table>
           <div class="attest" style="margin-top:12px;">
-            <strong>Boot guard:</strong> <code>ExecutionModeBootGuard</code> refuses to start the process in <code>canary</code> or <code>live</code> mode until <code>KYB_CONFIRMED=true</code>. Live also requires <code>MOCK_TRADING_ENABLED=false</code>.
+            <strong>Boot guard:</strong> <code>ExecutionModeBootGuard</code> refuses to start the process in <code>canary</code> or <code>live</code> mode until <code>LIVE_TRADING_ARMED=true</code> (an engineering arm switch — set it once real venue credentials are wired and a testnet round-trip passes). Live also requires <code>MOCK_TRADING_ENABLED=false</code>. <code>paper</code> needs nothing.
           </div>
         </div>
       </div>
@@ -1073,7 +1073,24 @@ function renderInvestor(s, series) {
 
 // ─── Chart renderers ───
 function newOrReplace(id, type, data, options) {
-  const ctx = document.getElementById(id).getContext('2d');
+  const canvas = document.getElementById(id);
+  // Chart.js with responsive:true + maintainAspectRatio:false sizes the canvas
+  // to its PARENT's height. A bare canvas whose parent height is content-driven
+  // therefore feeds back into itself and grows a few px every frame — the
+  // infinite-scroll bug on the Trader/Risk tabs. Wrapping each canvas once in a
+  // fixed-height position:relative box gives Chart.js a constrained container to
+  // size into, breaking the loop. Idempotent (wraps only on first render).
+  if (!canvas.parentElement || !canvas.parentElement.classList.contains('cjs-wrap')) {
+    const h = canvas.classList.contains('spark') ? 50 : (id === 'tape-chart' ? 60 : 120);
+    const wrap = document.createElement('div');
+    wrap.className = 'cjs-wrap';
+    wrap.style.cssText = 'position:relative; width:100%; height:' + h + 'px';
+    canvas.parentNode.insertBefore(wrap, canvas);
+    wrap.appendChild(canvas);
+    canvas.style.position = 'absolute';
+    canvas.style.inset = '0';
+  }
+  const ctx = canvas.getContext('2d');
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(ctx, { type, data, options });
 }

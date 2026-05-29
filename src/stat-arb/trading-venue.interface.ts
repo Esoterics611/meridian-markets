@@ -1,11 +1,12 @@
-// ITradingVenue is the execution swap seam for the stat-arb engine.
-// Same pattern as IHedgeVenue and IYieldProvider: consumers depend on this
-// interface only; the concrete implementation (Mock vs Binance vs Coinbase
-// vs Kraken) is selected once in StatArbModule's factory based on
-// MOCK_TRADING_ENABLED.
+// ITradingVenue is the execution swap seam for the stat-arb engine. Consumers
+// depend on this interface only; the concrete implementation is selected in
+// StatArbModule's factory by EXECUTION_MODE:
+//   mock          -> MockTradingVenue   (synthetic, offline)
+//   paper/canary  -> PaperVenue         (real prices, simulated fills)
+//   live          -> a real venue       (armed via LIVE_TRADING_ARMED)
 //
-// Scope: Phase 3 stat-arb demo. Spot pairs trading. First-party only, no
-// customer money in Phase 3 (per PHASED_PLAN.md and cross-phase dep #1).
+// Paper and live share this same interface and the same upstream loop, so
+// paper results predict live behaviour.
 
 export const TRADING_VENUE = Symbol('TRADING_VENUE');
 
@@ -42,7 +43,7 @@ export interface ITradingVenue {
 
 export class TradingVenueNotConfiguredError extends Error {
   constructor(venue: string) {
-    super(`${venue} is not configured — populate KYB-gated secrets and set MOCK_TRADING_ENABLED=false`);
+    super(`${venue} is not configured — wire its credentials and set LIVE_TRADING_ARMED=true`);
     this.name = 'TradingVenueNotConfiguredError';
   }
 }

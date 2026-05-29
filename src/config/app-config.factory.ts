@@ -49,6 +49,23 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     mode: parseExecutionMode(process.env['EXECUTION_MODE']),
     canaryPaperPct: parseInt(process.env['CANARY_PAPER_PCT'] ?? '100', 10),
     reconciliationIntervalMs: parseInt(process.env['RECONCILIATION_INTERVAL_MS'] ?? '60000', 10),
-    kybConfirmed: process.env['KYB_CONFIRMED'] === 'true',
+    liveTradingArmed: process.env['LIVE_TRADING_ARMED'] === 'true',
+  },
+  feed: {
+    source: process.env['FEED_SOURCE'] === 'binance' ? 'binance' : 'mock',
+    binanceBaseUrl: process.env['BINANCE_PUBLIC_BASE_URL'] ?? 'https://api.binance.com',
+    quote: process.env['FEED_QUOTE'] ?? 'USDT',
+    interval: process.env['FEED_INTERVAL'] ?? '1m',
+  },
+  live: {
+    autoStart: process.env['LIVE_AUTOSTART'] === 'true',
+    pairA: process.env['LIVE_PAIR_A'] ?? process.env['DEMO_PAIR_A'] ?? 'BTC',
+    pairB: process.env['LIVE_PAIR_B'] ?? process.env['DEMO_PAIR_B'] ?? 'ETH',
+    beta: parseFloat(process.env['LIVE_BETA'] ?? '1'),
+    zLookback: parseInt(process.env['LIVE_Z_LOOKBACK'] ?? '20', 10),
+    entryZ: parseFloat(process.env['LIVE_ENTRY_Z'] ?? '2'),
+    exitZ: parseFloat(process.env['LIVE_EXIT_Z'] ?? '0.5'),
+    notionalUnits: BigInt(process.env['LIVE_NOTIONAL_UNITS'] ?? '1000000000'), // 1000 USDC
+    pollIntervalMs: parseInt(process.env['LIVE_POLL_INTERVAL_MS'] ?? '15000', 10),
   },
 }));

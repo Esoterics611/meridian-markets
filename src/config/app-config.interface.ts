@@ -51,10 +51,45 @@ export interface AppConfig {
     canaryPaperPct: number;
     /** How often the reconciliation cron sweeps. Default 60s. */
     reconciliationIntervalMs: number;
-    /** Hard boot guard — set to true (env: KYB_CONFIRMED=true) to allow canary/live modes. */
-    kybConfirmed: boolean;
+    /**
+     * Engineering arm switch for real-money modes. `paper` needs nothing; this
+     * gate only fronts `canary`/`live`, where real orders reach a venue. Set
+     * LIVE_TRADING_ARMED=true once real venue credentials are wired and a
+     * testnet round-trip has passed. Not a business flag — a "this integration
+     * is verified" flag.
+     */
+    liveTradingArmed: boolean;
+  };
+  /** Market-data source for the live feed + price source. */
+  feed: {
+    /** 'mock' = synthetic generator; 'binance' = real Binance public REST. */
+    source: 'mock' | 'binance';
+    /** Public REST base URL. Override for a regional mirror. No key required. */
+    binanceBaseUrl: string;
+    /** Quote asset the engine trades against (BTC -> BTCUSDT). */
+    quote: string;
+    /** Kline interval for the live feed. */
+    interval: string;
+  };
+  /** Live paper-trading loop configuration. */
+  live: {
+    /** Auto-start the loop on boot when the feed source is real. */
+    autoStart: boolean;
+    pairA: string;
+    pairB: string;
+    /** Initial hedge ratio (overridden by refit if enabled). */
+    beta: number;
+    zLookback: number;
+    entryZ: number;
+    exitZ: number;
+    /** Per-leg notional in 6-decimal USDC units. */
+    notionalUnits: bigint;
+    /** Loop poll cadence (ms). Bars only advance when a new closed bar exists. */
+    pollIntervalMs: number;
   };
 }
+
+export type FeedSource = 'mock' | 'binance';
 
 export type ExecutionMode = 'mock' | 'paper' | 'canary' | 'live';
 export const EXECUTION_MODES: readonly ExecutionMode[] = ['mock', 'paper', 'canary', 'live'];

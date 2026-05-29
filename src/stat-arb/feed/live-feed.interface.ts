@@ -1,11 +1,10 @@
 import { Bar } from '../backtest/bar';
 
-// IBarFeed is the streaming-feed seam for the stat-arb engine. Same pattern
-// as ITradingVenue and IYieldProvider: consumers depend on this interface
-// only; the concrete implementation (MockBarFeed for the demo, CcxtBarFeed
-// dormant) is selected once in StatArbModule's factory based on
-// MOCK_TRADING_ENABLED (we share the existing mock-default flag rather than
-// introducing a second one).
+// IBarFeed is the streaming-feed seam for the stat-arb engine. Consumers depend
+// on this interface only; the concrete implementation is selected in
+// StatArbModule's factory by FEED_SOURCE:
+//   FEED_SOURCE=binance -> BinancePublicBarFeed (real public market data)
+//   FEED_SOURCE=mock    -> MockBarFeed (synthetic generator for offline dev)
 
 export const LIVE_FEED = Symbol('LIVE_FEED');
 
@@ -22,7 +21,7 @@ export interface IBarFeed {
 
 export class BarFeedNotConfiguredError extends Error {
   constructor(feed: string) {
-    super(`${feed} bar feed is not configured — populate KYB-gated secrets and set MOCK_TRADING_ENABLED=false`);
+    super(`${feed} bar feed is not configured — set FEED_SOURCE and any required base URL`);
     this.name = 'BarFeedNotConfiguredError';
   }
 }

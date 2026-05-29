@@ -15,7 +15,15 @@ Every session MUST:
 
 ## 1. Project Overview
 
-Meridian Markets is the yield / treasury / markets sister entity to Lira-Bridge. Phase 0 (this codebase) is a standalone NestJS service that earns yield on Lira-Bridge's first-party Path C reserve-pool USDC. No customer money flows through this service in Phase 0; that gate moves at Phase 4 (3(c)(7) fund — see [PHASED_PLAN.md](PHASED_PLAN.md)).
+Meridian Markets is a **stat-arb trading engine** (with a treasury/yield module alongside). The product is the engine — a market-data spine, a signal/risk library, an execution path, and a live event loop — not the web dashboard, which is a thin read-only view over the engine.
+
+The engine runs in three execution postures, selected by `EXECUTION_MODE` + `FEED_SOURCE` (no business/legal gate is involved — these are engineering switches):
+
+- **mock** — synthetic feed + synthetic venue. Offline, deterministic; for unit tests and the demo.
+- **paper** — **real** market data (Binance public REST, no API key) + `PaperVenue` (simulates fills at real prices). This is real paper trading: `FEED_SOURCE=binance EXECUTION_MODE=paper LIVE_AUTOSTART=true`. See [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md).
+- **canary / live** — routes (some/all) flow to a real venue. Fronted by an *engineering* arm switch (`LIVE_TRADING_ARMED=true`), set only once a real venue adapter is wired and a testnet round-trip passes. Real-money go/no-go is a human decision made outside the code; the code never assumes it.
+
+A separate treasury/yield module earns yield on Lira-Bridge's first-party reserve USDC over the `ITreasuryClient` HTTP contract — see [docs/INTEGRATION_WITH_LIRA_BRIDGE.md](docs/INTEGRATION_WITH_LIRA_BRIDGE.md).
 
 ## 2. Tech Stack
 
@@ -62,16 +70,16 @@ This is a **binding decision**, not a preference. Do not re-litigate it without 
 - **Meridian Markets and Lira-Bridge ARE two separate services** — that's the point of this whole repo existing. They talk only over HTTP, only through the `ITreasuryClient` contract. No shared DB. No cross-repo imports. No shared types. If you ever want a shared type, copy it.
 - **`process.env` is read in exactly one place: `src/config/app-config.factory.ts`.** Everything else uses injected `AppConfig` or `ISecretProvider.get()`. (Tests under `src/test-helpers/` are the only other exception, scoped to test setup.)
 
-## 7. Mock-default discipline
+## 7. Execution modes & the swap seams (binding)
 
-The Lira-Bridge mock-default pattern applies here:
+Every external integration sits behind an interface with a real and a mock implementation, selected by config. This is an **engineering** discipline (so the engine is testable offline and paper-tradable without ceremony), not a business gate.
 
-- `MOCK_YIELD_ENABLED=true` is the default in `.env.example`.
-- `MockYieldProvider` simulates principal + yield deterministically — no network calls.
-- `RealOndoYieldProvider` throws `YieldProviderNotConfiguredError` until `MOCK_YIELD_ENABLED=false` AND the `ONDO_*` secrets are populated.
-- Flipping to real Ondo is a **business gate** (KYB onboarding with Ondo), not an engineering gate. Do not flip without explicit sign-off.
+- **Market data** — `IBarFeed` / `IPriceSource`. `FEED_SOURCE=binance` uses real Binance **public** REST (no API key, no account). `FEED_SOURCE=mock` is the synthetic generator. Default `mock` so tests run offline; flip to `binance` to trade live data.
+- **Trading venue** — `ITradingVenue`, selected by `EXECUTION_MODE`: `mock` (synthetic) → `paper`/`canary` (`PaperVenue`, real prices + simulated fills) → `live` (real venue adapter).
+- **Real-money arming** — `canary`/`live` require `LIVE_TRADING_ARMED=true`, enforced by `ExecutionModeBootGuard` at boot. Arm it once a real venue adapter is wired and a testnet round-trip passes. `paper` requires nothing.
+- **Treasury yield** — `IYieldProvider`: `MockYieldProvider` (default) vs `RealOndoYieldProvider` (throws until `ONDO_*` secrets are populated and `MOCK_YIELD_ENABLED=false`). Same pattern — ship the stub, wire the real adapter when its credentials exist.
 
-Same rule for any future provider (Maker sDAI, BlackRock BUIDL): ship the stub, leave mock-default on, refuse to fire without KYB.
+When adding any new venue/provider: implement the interface, register it in the module factory, leave the safe default on. **Paper trading is a first-class supported mode — `FEED_SOURCE=binance EXECUTION_MODE=paper` paper-trades live data today** (see [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md)).
 
 ## 8. Session Log
 

@@ -6,7 +6,7 @@ import { AppConfig } from '@config/app-config.interface';
 function stubConfig(): ConfigService {
   const cfg: Partial<AppConfig> = {
     nodeEnv: 'test',
-    execution: { mode: 'paper', canaryPaperPct: 100, reconciliationIntervalMs: 60_000, kybConfirmed: false },
+    execution: { mode: 'paper', canaryPaperPct: 100, reconciliationIntervalMs: 60_000, liveTradingArmed: false },
   };
   return { getOrThrow: () => cfg } as unknown as ConfigService;
 }

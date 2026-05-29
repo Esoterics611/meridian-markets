@@ -386,3 +386,30 @@ Includes a small errors-prelude commit (3584961) that brought the int-spec suite
 - **Promotion log → DB.** Append-only `promotion_intents` table with `(symbol_a, symbol_b, logged_by, logged_at, note)` and a unique index on `(symbol_a, symbol_b, day)` for idempotency. Same posture as `treasury_movements`.
 - **Signal-decay wired into the Universe card.** Today decay tracking is a pure library function; the Universe card doesn't display recent vs baseline Sharpe per pair. One column + one fetch.
 - **Session 10 (multi-strategy router + funding-carry + budget allocator).** Still deferred. With S16 done, the gap is starting to bind: the Trader-desk only shows pairs, but the engine could surface multiple strategies if the registry+allocator were in.
+
+---
+
+## 8. Session 17 — Real paper trading: live data spine + live loop (2026-05-29)
+
+**Pivot.** This session changed direction on owner instruction: the repo is a *trading engine*, not a gated demo, and the "business gate" framing (KYB / Phase-2 / Phase-4 / mock-default-as-binding) was wrong for paper trading — public market data and a paper simulator need no business anything. We stripped that framing from the rails and made the engine actually paper-trade live data. (The originally-queued Sessions 17/18 — fund fees/LP/3(c)(7), and KYB-gated venue activation — are explicitly *not* this work; the fee/LP business layer was started and deleted as out of scope for the repo.)
+
+### Shipped
+
+- **Real market-data spine** — `src/stat-arb/feed/binance-public-client.ts` (klines + ticker over Binance **public** REST, injected `HttpGet` so tests run offline), `binance-public-bar-feed.ts` (real `IBarFeed` with a per-symbol closed-bar cursor; returns null until a new 1m bar closes), `binance-symbol.ts` (BTC→BTCUSDT mapping), `price-source.ts` (`IPriceSource`: `BinancePriceSource` + `StaticPriceSource`). Replaced the dormant `RealCcxtBarFeed` stub. No API key, no account, no KYB.
+- **Live event loop** — `src/execution/live-paper-trader.ts`. Pulls aligned closed bars for both legs, runs `PairsStrategy`, routes to the injected venue (`PaperVenue` in paper mode), tracks open-position state, marks to market each bar, books realised PnL on close, persists closed round-trips to `stat_arb_trades`. Depends on a `LiveStrategy` interface, not the concrete class. `legPnlUnits` is a pure, tested per-leg PnL helper. Auto-starts on boot when `LIVE_AUTOSTART=true` + `FEED_SOURCE=binance`.
+- **Control plane** — `src/execution/live.controller.ts`: `POST /api/stat-arb/live/{start,stop,tick}`, `GET /api/stat-arb/live/snapshot`. The dashboard is just one consumer of `/snapshot`; the engine is headless and terminal-drivable.
+- **Rails reframed engineering, not business** — `kybConfirmed`→`liveTradingArmed` (`KYB_CONFIRMED`→`LIVE_TRADING_ARMED`) across config/factory/guard/specs; `ExecutionModeBootGuard` now reads "armed" (paper needs nothing; canary/live need armed). Error messages and interface comments in the feed/venue seams stripped of "business sign-off / KYB-gated" language. New config blocks `feed` + `live`; `.env.example` rewritten with a paper-trading recipe.
+- **Dashboard** — fixed the infinite-scroll bug on the Trader/Risk tabs: `newOrReplace` (the shared Chart.js component) now wraps each sparkline/tape canvas once in a fixed-height `position:relative` box, so `responsive:true + maintainAspectRatio:false` sizes into a constrained container instead of feeding back into page height. Boot-guard panel text updated to the arm-switch framing.
+- **Docs** — [PAPER_TRADING.md](PAPER_TRADING.md) (run guide); CLAUDE.md §1 + §7 reframed (engine-as-product, execution modes, swap seams).
+
+### Verification
+
+- `npx tsc --noEmit` clean; `npx jest` green (**530/530**, +15 net-new: feed client 5, bar feed 5, live trader 5 incl. `legPnlUnits`).
+- Smoke against **real Binance**: `FEED_SOURCE=binance EXECUTION_MODE=paper LIVE_AUTOSTART=true` boots, the loop pulls real closed 1m bars (`feedId=binance.spot`, `venueId=paper`), and `/snapshot` reflects live state. BTC ticker confirmed (~$73.5k at run time).
+
+### Architectural notes / open follow-ups
+
+1. **Paper-vs-live gap to close next:** the slippage model + exec algos (TWAP/VWAP/POV/iceberg) exist but are **not yet in the live loop** — `PaperVenue` assumes a full fill at the ticker. Wiring the exec layer + a real venue adapter (signed REST, rate limits, key rotation via `ISecretProvider`) is the path to `canary`/`live`.
+2. **REST poll, not websocket.** The feed polls klines on a timer. A websocket feed is the latency upgrade; the `IBarFeed` seam absorbs it without touching the loop.
+3. **Single pair, no live MTM dashboard, no risk-engine in the hot path** yet — the risk gates (Session 8) are pure functions not yet consulted per-order in the live loop.
+4. **Full roadmap/DESK_GAPS re-author still pending** — CLAUDE.md was reframed; the long roadmap doc still carries Phase/KYB framing and should be re-authored toward trading-infra.
