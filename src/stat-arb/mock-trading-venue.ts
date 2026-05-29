@@ -10,7 +10,8 @@ import {
 // the demo without any randomness, so backtests are bit-stable across runs.
 //
 // Same swap-seam pattern as MockHedgeVenue / MockYieldProvider — flipping to
-// a real exchange is a one-line factory change in StatArbModule, gated on KYB.
+// a real exchange is a one-line factory change in StatArbModule, behind the
+// LIVE_TRADING_ARMED engineering arm switch.
 
 const BASE_PRICE_MICROS = 1_000_000n; // $1.00 reference; symbol-specific multiplier applied below
 const TAKER_FEE_BPS = 5n; // 5 bps = 0.05% taker fee (Binance spot tier 1, post-VIP rebates ignored)

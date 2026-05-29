@@ -80,6 +80,8 @@ nav:
   - 5. Risk, sizing, circuit breakers: 05-risk.md
   - 6. Backtesting honestly: 06-backtesting.md
   - 7. From paper to production: 07-production.md
+  - 8. More strategies — baskets & funding carry: 08-more-strategies.md
+  - 9. Testing the lessons in Meridian Markets: 09-testing-in-meridian.md
   - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
   - Appendix B — Source notebook (papers, repos, X threads): appendix-b-sources.md
   - Appendix C — Practitioner lore (RohOnChain archive): appendix-c-practitioner-lore.md

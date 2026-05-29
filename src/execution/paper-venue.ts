@@ -14,8 +14,8 @@ import { estimateSlippage } from './slippage-model';
 // can flip EXECUTION_MODE=paper against the same live feed that the strategy
 // reads from. Paper PnL becomes informative without exposing real capital.
 //
-// PaperVenue is mock-default-safe: it never reaches a real network. The KYB
-// gate stays in front of `live` and `canary` modes.
+// PaperVenue never reaches a real network. The LIVE_TRADING_ARMED engineering
+// arm switch stays in front of `live` and `canary` modes.
 
 export interface PaperOrder {
   orderId: string;

@@ -5,7 +5,7 @@ import { BarIngestNotConfiguredError, IBarIngest, IngestedBar } from './bar-inge
 // MOCK_TRADING_ENABLED=false AND CCXT credentials are populated. Same
 // posture as RealBinanceVenue, RealCcxtBarFeed, RealOndoYieldProvider.
 //
-// Wire-up plan (post-KYB):
+// Wire-up plan (when credentials are provisioned):
 //   nextBatch() → CCXT `fetchOHLCV` per configured symbol, normalise the
 //   tuple to Bar, advance per-symbol "since" cursors stored in-memory.
 

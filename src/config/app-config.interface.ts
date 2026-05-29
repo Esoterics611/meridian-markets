@@ -35,7 +35,7 @@ export interface AppConfig {
     positionStalenessMs: number;
   };
   statArb: {
-    /** Mock-default execution venue for the Phase 3 demo. KYB-gated for real venues. */
+    /** Use the synthetic feed/venue (offline, deterministic tests). Real venues are armed via LIVE_TRADING_ARMED. */
     mockEnabled: boolean;
     /** Number of synthetic bars per demo backtest run. Default 90. */
     demoBarCount: number;

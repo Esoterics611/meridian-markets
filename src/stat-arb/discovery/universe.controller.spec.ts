@@ -33,11 +33,11 @@ describe('UniverseController', () => {
     }
   });
 
-  it('POST /universe/promote logs an intent and returns the KYB gate', async () => {
+  it('POST /universe/promote logs a selection intent and points at the live configure step', async () => {
     const c = new UniverseController();
     const r = await c.promote({ symbolA: 'C0-S0', symbolB: 'C0-S1', note: 'manual review' });
     expect(r.ok).toBe(true);
-    expect(r.gate).toBe('KYB_REQUIRED_BEFORE_LIVE');
+    expect(r.nextStep).toBe('POST /api/stat-arb/live/configure then /start');
     expect(r.intent.note).toBe('manual review');
   });
 

@@ -11,11 +11,11 @@ import { Bar } from '../backtest/bar';
 // desk. Synthetic-feed today; once a real-bar ingest cron lands, this swaps
 // to reading from MarketDataRepository without changing the response shape.
 //
-// POST /api/stat-arb/research/universe/promote — logs a "promote to live"
-// intent for a chosen pair. KYB-gated: the endpoint logs and returns ok, but
-// does NOT actually flip the pair into live trading. That step requires a
-// human-approved flag flip (Phase 4 fund + business sign-off per
-// PHASED_PLAN.md). The intent log is the audit trail for that approval flow.
+// POST /api/stat-arb/research/universe/promote — records that a discovered pair
+// was selected to trade. No business gate: paper trading needs nothing, and
+// arming the live loop on this pair is a single engineering call —
+// POST /api/stat-arb/live/configure { symbolA, symbolB, beta } then /start.
+// This endpoint is just the selection/audit log; it does not move the loop.
 
 interface UniverseConfig {
   barCount?: number;
@@ -65,7 +65,8 @@ interface PromoteResponse {
   ok: true;
   loggedAt: string;
   intent: { symbolA: string; symbolB: string; note?: string };
-  gate: 'KYB_REQUIRED_BEFORE_LIVE';
+  /** What to do to actually trade it — an engineering action, not a business gate. */
+  nextStep: 'POST /api/stat-arb/live/configure then /start';
 }
 
 const promotionLog: PromoteResponse[] = [];
@@ -83,7 +84,7 @@ export class UniverseController {
       ok: true,
       loggedAt: new Date().toISOString(),
       intent: { symbolA: req.symbolA, symbolB: req.symbolB, note: req.note },
-      gate: 'KYB_REQUIRED_BEFORE_LIVE',
+      nextStep: 'POST /api/stat-arb/live/configure then /start',
     };
     promotionLog.push(entry);
     if (promotionLog.length > 50) promotionLog.shift();

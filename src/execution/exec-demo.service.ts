@@ -66,7 +66,7 @@ export class ExecDemoService {
   private nonce = 0;
 
   // Three replica MockTradingVenue instances so the demo can show split
-  // routing without needing a real KYB-gated provider. In production each
+  // routing without needing a real venue. In production each
   // venueId maps to a distinct ITradingVenue.
   private readonly venuesById: Map<string, ITradingVenue>;
 
