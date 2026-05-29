@@ -107,7 +107,9 @@
     </section>
 
     <section class="panel">
-      <h2>Discovered pairs (live data)</h2>
+      <h2>Discovered pairs (live data)
+        <button id="trade-all" class="primary" style="float:right;padding:4px 10px;font-size:11px;">▶ Trade top 3 (multi-currency)</button>
+      </h2>
       <div class="desc" id="universe-desc">Pair discovery over the selected market set's real bars. Click a pair to trade or backtest it.</div>
       <div id="notice"></div>
       <table><thead><tr><th>pair</th><th>β</th><th>p-val</th><th>half-life</th><th>vol</th><th>trend</th><th></th></tr></thead>
@@ -118,6 +120,16 @@
       <h2>Backtest on real history</h2>
       <div class="desc" id="bt-desc">Runs the pairs strategy over stored Binance bars for the active pair.</div>
       <div class="stat-grid" id="bt-stats"><div class="muted" style="padding:8px;">run a backtest from a discovered pair</div></div>
+    </section>
+
+    <section class="panel" id="portfolio-panel" style="display:none;">
+      <h2>Multi-currency portfolio
+        <button id="stop-portfolio" class="ghost" style="float:right;padding:4px 10px;font-size:11px;">⏸ Stop all</button>
+      </h2>
+      <div class="desc" id="pf-desc">N pairs trading concurrently on live data, capital split evenly. Each is its own isolated paper book.</div>
+      <div class="stat-grid" id="pf-stats"></div>
+      <table style="margin-top:12px;"><thead><tr><th>pair</th><th>β</th><th>z</th><th>regime</th><th>position</th><th>equity (USDC)</th></tr></thead>
+      <tbody id="pf-books"></tbody></table>
     </section>
   </main>
 
@@ -210,6 +222,38 @@
         stat('Max DD', m.maxDrawdownPct != null ? num(m.maxDrawdownPct, 1) + '%' : '—');
     }
 
+    async function tradeAll() {
+      const presetId = $('preset').value;
+      const hours = Number($('lookback').value) || 72;
+      const r = await jget(`/api/market-data/universe?presetId=${encodeURIComponent(presetId)}&hours=${hours}`);
+      if (r.needsBackfill || !r.topPairs || !r.topPairs.length) { $('notice').style.display='block'; $('notice').textContent='Backfill first — no pairs to trade.'; return; }
+      const pairs = r.topPairs.slice(0, 3).map((p) => ({ symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta }));
+      const capitalUsdc = Number($('capital').value) || 100000;
+      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc });
+      await jpost('/api/stat-arb/live/portfolio/start');
+      $('portfolio-panel').style.display = 'block';
+      await refreshPortfolio();
+    }
+
+    async function refreshPortfolio() {
+      let p; try { p = await jget('/api/stat-arb/live/portfolio'); } catch { return; }
+      if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; return; }
+      $('portfolio-panel').style.display = 'block';
+      const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      const pnl = Number(p.equityUnits) - Number(p.capitalUnits);
+      $('pf-stats').innerHTML =
+        stat('Pairs', p.pairCount) +
+        stat('Capital', fmtUsdc(p.capitalUnits)) +
+        stat('Equity', fmtUsdc(p.equityUnits), pnl >= 0 ? 'pos' : 'neg') +
+        stat('Realised', fmtUsdc(p.realisedPnlUnits), Number(p.realisedPnlUnits) >= 0 ? 'pos' : 'neg') +
+        stat('Live', p.running ? 'yes' : 'paused');
+      $('pf-books').innerHTML = p.books.map((b) => `
+        <tr><td class="mono">${b.pair}</td><td>${num(b.beta,3)}</td><td>${num(b.lastZ,2)}</td>
+        <td><span class="chip ${b.regime}">${b.regime}</span></td>
+        <td>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'}</td>
+        <td>${fmtUsdc(b.equityUnits)}</td></tr>`).join('');
+    }
+
     async function setCapital() {
       const usdc = Number($('capital').value);
       if (!(usdc > 0)) return;
@@ -269,6 +313,8 @@
 
     $('backfill').onclick = backfill;
     $('set-capital').onclick = setCapital;
+    $('trade-all').onclick = tradeAll;
+    $('stop-portfolio').onclick = async () => { await jpost('/api/stat-arb/live/portfolio/stop'); refreshPortfolio(); };
     $('start').onclick = async () => { await jpost('/api/stat-arb/live/start'); refreshSnapshot(); };
     $('stop').onclick = async () => { await jpost('/api/stat-arb/live/stop'); refreshSnapshot(); };
     $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; loadUniverse(); };
@@ -277,7 +323,8 @@
       await loadPresets();
       await refreshSnapshot();
       await loadUniverse();
-      setInterval(refreshSnapshot, 4000);
+      await refreshPortfolio();
+      setInterval(() => { refreshSnapshot(); refreshPortfolio(); }, 4000);
     })();
   </script>
 </body>

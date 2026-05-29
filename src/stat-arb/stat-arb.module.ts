@@ -26,6 +26,7 @@ import { UniverseController } from './discovery/universe.controller';
 import { PaperVenue } from '../execution/paper-venue';
 import { PairsStrategy } from './backtest/pairs-strategy';
 import { LivePaperTrader } from '../execution/live-paper-trader';
+import { LivePortfolioTrader, PortfolioPair } from '../execution/live-portfolio-trader';
 import { LiveController } from '../execution/live.controller';
 import { RiskEngine } from './risk/risk-engine';
 import { DrawdownGate } from './risk/drawdown-gate';
@@ -133,6 +134,64 @@ import { DrawdownGate } from './risk/drawdown-gate';
           undefined,
           (opts) => makeStrategy({ beta: opts.beta }),
         );
+      },
+    },
+    // Multi-currency desk: N pairs concurrently, each an ISOLATED paper book
+    // (own feed cursor + venue + strategy) on the shared live data client.
+    {
+      provide: LivePortfolioTrader,
+      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository],
+      useFactory: (
+        cfg: ConfigService,
+        client: BinancePublicClient,
+        price: IPriceSource,
+        repo: StatArbRepository,
+      ): LivePortfolioTrader => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const makeStrategy = (beta?: number) =>
+          new PairsStrategy({
+            beta: beta ?? app.live.beta,
+            zLookback: app.live.zLookback,
+            entryZ: app.live.entryZ,
+            exitZ: app.live.exitZ,
+            notionalUnits: app.live.notionalUnits,
+          });
+        const makeTrader = (pair: PortfolioPair): LivePaperTrader => {
+          const feed: IBarFeed =
+            app.feed.source === 'binance'
+              ? new BinancePublicBarFeed(client, app.feed.interval)
+              : new MockBarFeed();
+          const venue: ITradingVenue =
+            app.execution.mode === 'mock'
+              ? new MockTradingVenue()
+              : new PaperVenue({
+                  pricePoller: (s) => price.priceMicros(s),
+                  slippage:
+                    app.live.advUnits > 0n
+                      ? { advUnits: app.live.advUnits, lambdaBps: app.live.slippageLambdaBps }
+                      : undefined,
+                });
+          const riskEngine = new RiskEngine({
+            drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
+          });
+          return new LivePaperTrader(
+            makeStrategy(pair.beta),
+            venue,
+            feed,
+            {
+              symbolA: pair.symbolA,
+              symbolB: pair.symbolB,
+              pollIntervalMs: app.live.pollIntervalMs,
+              autoStart: false,
+              riskEngine,
+              capitalUnits: app.live.capitalUnits,
+            },
+            repo,
+            undefined,
+            (o) => makeStrategy(o.beta),
+          );
+        };
+        return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits);
       },
     },
     DemoService,
