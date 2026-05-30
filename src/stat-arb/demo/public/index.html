@@ -109,6 +109,13 @@
     th { letter-spacing: 0.8px; }
     tbody tr:nth-child(even) { background: rgba(255,255,255,0.014); }
     .desc { font-size: 11px; }
+    /* Tabs: split the long page into screens; each deep-links via #hash so you
+       can open Desk / Launch / Signal / Research in separate browser tabs. */
+    .tabs { display: flex; gap: 2px; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+    .tab { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 11px 18px; color: var(--muted); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -151,8 +158,15 @@
     </label>
   </div>
 
+  <div class="tabs">
+    <button class="tab" data-tab="desk">Desk</button>
+    <button class="tab" data-tab="launch">Launch</button>
+    <button class="tab" data-tab="signal">Signal</button>
+    <button class="tab" data-tab="research">Research</button>
+  </div>
+
   <main>
-    <section class="panel span-12" id="fund-panel">
+    <section class="panel span-12" id="fund-panel" data-tab="desk">
       <h2>Fund overview — desk-wide
         <button id="kill-all" class="ghost" style="float:right;padding:4px 10px;font-size:11px;color:var(--danger);border-color:var(--danger-dim);">■ HALT ALL</button>
       </h2>
@@ -164,7 +178,7 @@
       <div style="margin-top:8px;"><span class="spark-k">alerts</span> &nbsp;<span id="alerts"><span class="chip OK">✓ all clear</span></span></div>
     </section>
 
-    <section class="panel span-12" id="launch-panel">
+    <section class="panel span-12" id="launch-panel" data-tab="launch">
       <h2>▶ Launch a station — run a strategy on a market</h2>
       <div class="desc">Your cockpit. Pick an asset class &amp; market, choose a strategy, set its params, and launch. Each launch starts an isolated paper book — a <b>station</b> — on live Binance data; they accumulate in <b>Live books</b> below. You are the supervisor (agentic desk): every station shares one engine and one trade ledger.</div>
       <div class="launch-row">
@@ -197,7 +211,7 @@
       </div>
     </section>
 
-    <section class="panel span-4">
+    <section class="panel span-4" data-tab="research">
       <h2>Live position — <span id="pair" class="mono accent">—</span></h2>
       <div class="desc" id="pair-desc">Real Binance data → strategy → paper venue. No simulated prices.</div>
       <div class="stat-grid" id="live-stats"></div>
@@ -206,26 +220,32 @@
       <tbody id="fills"><tr><td colspan="5" class="muted">no closed trades yet</td></tr></tbody></table>
     </section>
 
-    <section class="panel span-8">
+    <section class="panel span-12" data-tab="signal">
       <h2>Strategy signal — <span id="sig-pair" class="mono accent">—</span>
         <span style="float:right;display:flex;gap:6px;">
           <button id="sig-mode-signal" class="primary" style="padding:4px 10px;font-size:11px;">z-score + bands</button>
           <button id="sig-mode-price" class="ghost" style="padding:4px 10px;font-size:11px;">price</button>
         </span>
       </h2>
-      <div class="desc" id="sig-desc">What the strategy actually trades: z-score of the spread with ±entry/exit bands and ▲▼ trade markers, over the recent real-bar window. Hit ▸ on any live book to focus it here.</div>
-      <div id="signal-chart" style="height:380px;width:100%;"></div>
+      <div class="launch-row" style="margin-bottom:10px;">
+        <label class="ctl">Pair — leg A<select id="sig-a"></select></label>
+        <label class="ctl">vs leg B<select id="sig-b"></select></label>
+        <label class="ctl">Strategy<select id="sig-strategy"></select></label>
+        <label class="ctl">&nbsp;<span style="display:flex;gap:6px;"><button id="sig-trade" class="primary">▶ Trade it</button><button id="sig-backtest" class="ghost">backtest</button></span></label>
+      </div>
+      <div class="desc" id="sig-desc">Visual monitor — pick any pair + strategy to chart its z-score, ±bands and ▲▼ trade marks over the recent window, then backtest or trade it. ▸ on a live book also focuses it here.</div>
+      <div id="signal-chart" style="height:360px;width:100%;"></div>
       <div id="chart" style="display:none;"></div>
       <span id="chart-sym" class="mono" style="display:none;"></span>
     </section>
 
-    <section class="panel span-12">
+    <section class="panel span-12" data-tab="launch">
       <h2>Strategy catalogue — all working strategies</h2>
       <div class="desc">Every live-capable strategy in the desk registry, one under the other, with its frozen params. The strategy selected above arms new books; “one of each” below spreads these across the live books.</div>
       <div id="strat-list"><div class="muted" style="padding:8px;">loading…</div></div>
     </section>
 
-    <section class="panel span-12" id="portfolio-panel" style="display:none;">
+    <section class="panel span-12" id="portfolio-panel" style="display:none;" data-tab="desk">
       <h2>Live books — multi-currency desk
         <button id="stop-portfolio" class="ghost" style="float:right;padding:4px 10px;font-size:11px;">⏸ Stop all</button>
       </h2>
@@ -234,7 +254,7 @@
       <div id="pf-books" class="book-grid" style="margin-top:12px;"></div>
     </section>
 
-    <section class="panel span-6">
+    <section class="panel span-6" data-tab="research">
       <h2>Discovered pairs (live data)
         <span style="float:right;display:flex;gap:6px;align-items:center;">
           <input type="number" id="pf-n" value="5" min="1" max="12" style="width:60px;" title="how many markets to run at once" />
@@ -251,13 +271,13 @@
       <tbody id="pairs"><tr><td colspan="7" class="muted">backfill a market set to discover pairs</td></tr></tbody></table>
     </section>
 
-    <section class="panel span-6">
+    <section class="panel span-6" data-tab="research">
       <h2>Backtest on real history</h2>
       <div class="desc" id="bt-desc">Runs the selected strategy over stored Binance bars for the active pair.</div>
       <div class="stat-grid" id="bt-stats"><div class="muted" style="padding:8px;">run a backtest from a discovered pair</div></div>
     </section>
 
-    <section class="panel span-12">
+    <section class="panel span-12" data-tab="desk">
       <h2>Trade history — persisted
         <span class="badge mono" id="trades-venue" style="float:right;">venue —</span>
       </h2>
@@ -468,8 +488,10 @@
       signalTarget = t;
       maybeRefreshSignal();
     }
+    function signalVisible() { const el = $('signal-chart'); return !!el && el.offsetParent !== null; }
     async function maybeRefreshSignal(force) {
       if (signalMode !== 'signal' || !signalTarget || !signalTarget.symbolA) return;
+      if (!signalVisible()) return; // only render when the Signal tab is shown
       const t = signalTarget;
       const key = `${t.symbolA}/${t.symbolB}/${t.strategyId}/${t.beta}`;
       if (!force && key === signalKey) return;
@@ -479,6 +501,11 @@
     async function refreshSignal(t) {
       ensureSignalChart();
       $('sig-pair').textContent = `${t.symbolA}/${t.symbolB} · ${t.strategyId || 'default'}`;
+      if ($('sig-a')) {
+        if ([...$('sig-a').options].some((o) => o.value === t.symbolA)) $('sig-a').value = t.symbolA;
+        if ([...$('sig-b').options].some((o) => o.value === t.symbolB)) $('sig-b').value = t.symbolB;
+        if (t.strategyId && [...$('sig-strategy').options].some((o) => o.value === t.strategyId)) $('sig-strategy').value = t.strategyId;
+      }
       const hours = Number($('lookback').value) || 72;
       const q = new URLSearchParams({ symbolA: t.symbolA, symbolB: t.symbolB, strategyId: t.strategyId || '', beta: String(t.beta ?? 1), hours: String(hours) });
       let r; try { r = await jget('/api/market-data/signal-series?' + q.toString()); } catch { return; }
@@ -514,8 +541,61 @@
       else { chartSymbol = null; refreshChart(signalTarget ? signalTarget.symbolA : null); }
     }
     function focusSignal(symbolA, symbolB, strategyId, beta) {
+      showTab('signal');
       setSignalMode('signal');
       setSignalTarget({ symbolA, symbolB, strategyId, beta }, true);
+    }
+
+    // Signal panel as a standalone visual monitor: any pair + strategy → chart → trade/backtest.
+    function betaForPair(a, b) {
+      const uni = window.__universe || [];
+      const hit = uni.find((p) => p.symbolA === a && p.symbolB === b);
+      if (hit) return hit.beta;
+      const rev = uni.find((p) => p.symbolA === b && p.symbolB === a);
+      if (rev && rev.beta) return 1 / rev.beta;
+      return 1;
+    }
+    function allSymbols() {
+      const set = new Set();
+      for (const p of (window.__presets || [])) for (const s of p.symbols) set.add(s);
+      return [...set].sort();
+    }
+    function fillSigLegs() {
+      const syms = allSymbols();
+      if (!syms.length || !$('sig-a')) return;
+      const a = $('sig-a').value, b = $('sig-b').value;
+      const opts = syms.map((s) => `<option value="${s}">${s}</option>`).join('');
+      $('sig-a').innerHTML = opts; $('sig-b').innerHTML = opts;
+      $('sig-a').value = syms.includes(a) ? a : (syms.includes('ETH') ? 'ETH' : syms[0]);
+      $('sig-b').value = syms.includes(b) ? b : (syms.includes('BTC') ? 'BTC' : (syms[1] || syms[0]));
+    }
+    function sigFromControls() {
+      const a = $('sig-a').value, b = $('sig-b').value;
+      if (!a || !b || a === b) { $('sig-desc').textContent = 'pick two different legs'; return; }
+      setSignalMode('signal');
+      setSignalTarget({ symbolA: a, symbolB: b, strategyId: $('sig-strategy').value || undefined, beta: betaForPair(a, b) }, true);
+    }
+    async function tradeFromSignal() {
+      const a = $('sig-a').value, b = $('sig-b').value;
+      if (!a || !b || a === b) { $('sig-desc').textContent = 'pick two different legs to trade'; return; }
+      const btn = $('sig-trade'); btn.disabled = true; btn.textContent = '▶ launching…';
+      const body = { symbolA: a, symbolB: b, beta: betaForPair(a, b), strategyId: $('sig-strategy').value || undefined, capitalUsdc: Number($('lx-capital') && $('lx-capital').value) || 100000 };
+      let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch { r = { error: 'request failed' }; }
+      btn.disabled = false; btn.textContent = '▶ Trade it';
+      if (r && r.error) { $('sig-desc').textContent = '⚠ ' + r.error; return; }
+      $('sig-desc').textContent = `✓ launched ${a}/${b} · ${body.strategyId || 'default'} — see Desk → Live books`;
+      $('portfolio-panel').style.display = 'block';
+      await refreshPortfolio();
+    }
+    async function backtestFromSignal() {
+      const a = $('sig-a').value, b = $('sig-b').value;
+      if (!a || !b || a === b) { $('sig-desc').textContent = 'pick two different legs'; return; }
+      $('sig-desc').textContent = 'running backtest on real history…';
+      const lookbackHours = Number($('lookback').value) || 72;
+      let r; try { r = await jpost('/api/market-data/backtest', { symbolA: a, symbolB: b, beta: betaForPair(a, b), lookbackHours, strategyId: $('sig-strategy').value || undefined }); } catch { r = { error: 'request failed' }; }
+      if (r.error) { $('sig-desc').textContent = '⚠ ' + r.error; return; }
+      const m = r.metrics || {};
+      $('sig-desc').textContent = `backtest ${r.pair} · ${r.strategy} · ${r.window.bars} bars → trades ${m.totalTrades ?? r.tradeCount ?? 0} · PnL ${fmtUsdc(m.totalPnlUnits || 0)} · Sharpe ${num(m.sharpeRatio, 2)} · win ${m.winRate != null ? (m.winRate * 100).toFixed(0) + '%' : '—'} · maxDD ${m.maxDrawdownPct != null ? num(m.maxDrawdownPct, 1) + '%' : '—'}`;
     }
 
     async function loadPresets() {
@@ -532,6 +612,9 @@
         .map((s) => `<option value="${s.id}" title="${s.description}">${s.label} · ${s.courseRef}</option>`)
         .join('');
       $('lx-strategy').innerHTML = strategies
+        .map((s) => `<option value="${s.id}" title="${s.description}">${s.label}</option>`)
+        .join('');
+      $('sig-strategy').innerHTML = strategies
         .map((s) => `<option value="${s.id}" title="${s.description}">${s.label}</option>`)
         .join('');
       window.__strategies = strategies;
@@ -776,7 +859,28 @@
     $('lx-launch').onclick = launchStation;
     $('sig-mode-signal').onclick = () => setSignalMode('signal');
     $('sig-mode-price').onclick = () => setSignalMode('price');
+    $('sig-a').onchange = sigFromControls;
+    $('sig-b').onchange = sigFromControls;
+    $('sig-strategy').onchange = sigFromControls;
+    $('sig-trade').onclick = tradeFromSignal;
+    $('sig-backtest').onclick = backtestFromSignal;
     $('kill-all').onclick = async () => { await jpost('/api/stat-arb/live/kill'); await refreshSnapshot(); await refreshPortfolio(); };
+
+    // Tabs — show one screen's sections; deep-link via #hash so each browser tab
+    // can sit on a different screen. tab-hidden uses !important so it wins over a
+    // panel's own inline display toggles (e.g. the portfolio panel).
+    function showTab(name) {
+      const tabs = ['desk', 'launch', 'signal', 'research'];
+      if (!tabs.includes(name)) name = 'desk';
+      document.querySelectorAll('main > section').forEach((s) => {
+        s.classList.toggle('tab-hidden', s.getAttribute('data-tab') !== name);
+      });
+      document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+      if (location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
+      if (name === 'signal') setTimeout(() => { if (chartSignal) chartSignal.timeScale().fitContent(); maybeRefreshSignal(true); }, 40);
+    }
+    document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+    window.addEventListener('hashchange', () => showTab((location.hash || '').replace('#', '')));
 
     (async function init() {
       await loadPresets();
@@ -784,12 +888,14 @@
       renderStrategies();
       renderLaunchParams();
       fillLaunchLegs();
+      fillSigLegs();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
       await refreshTrades();
       tickClock(); setInterval(tickClock, 1000);
       setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); pulse(); }, 4000);
+      showTab((location.hash || '').replace('#', '') || 'desk');
     })();
   </script>
 </body>
