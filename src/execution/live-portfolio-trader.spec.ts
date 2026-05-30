@@ -68,6 +68,23 @@ describe('LivePortfolioTrader', () => {
     expect(pt.snapshot().books.every((b) => b.barsSeen === 2)).toBe(true);
   });
 
+  it('addBook launches one extra book additively with its own capital', () => {
+    const { pt } = build();
+    pt.setPairs([{ symbolA: 'ETH', symbolB: 'BTC' }], 100n * M);
+    pt.addBook({ symbolA: 'SOL', symbolB: 'AVAX', strategyId: 'ou-bertram' }, 40n * M);
+    const s = pt.snapshot();
+    expect(s.pairCount).toBe(2);
+    expect(s.books.find((b) => b.pair === 'SOL/AVAX')?.capitalUnits).toBe((40n * M).toString());
+    // existing book is untouched by the additive launch
+    expect(s.books.find((b) => b.pair === 'ETH/BTC')?.capitalUnits).toBe((100n * M).toString());
+  });
+
+  it('addBook rejects identical legs and non-positive capital', () => {
+    const { pt } = build();
+    expect(() => pt.addBook({ symbolA: 'X', symbolB: 'X' }, 1n * M)).toThrow(/identical/);
+    expect(() => pt.addBook({ symbolA: 'A', symbolB: 'B' }, 0n)).toThrow(/positive/);
+  });
+
   it('setCapital re-splits across existing books', () => {
     const { pt } = build();
     pt.setPairs([{ symbolA: 'ETH', symbolB: 'BTC' }, { symbolA: 'SOL', symbolB: 'AVAX' }], 200n * M);

@@ -51,6 +51,12 @@ export interface StrategyBuildOpts {
   beta: number;
   /** Per-leg notional in 6-decimal USDC units. */
   notionalUnits: bigint;
+  /**
+   * Optional per-launch overrides of the strategy's frozen `defaultParams`,
+   * keyed by the same names (e.g. { entryZ, exitZ, zLookback }). Supplied by the
+   * human launch form; anything omitted falls back to the catalogue default.
+   */
+  params?: Record<string, number>;
 }
 
 export interface StrategyDefinition {
@@ -81,15 +87,17 @@ const PAIRS_ZSCORE: StrategyDefinition = {
   liveCapable: true,
   defaultRiskProfile: 'balanced',
   defaultParams: { zLookback: 60, entryZ: 2.0, exitZ: 0.5 },
-  build: ({ beta, notionalUnits }) =>
-    new PairsStrategy({
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { zLookback: 60, entryZ: 2.0, exitZ: 0.5, ...params };
+    return new PairsStrategy({
       beta,
-      zLookback: 60,
-      entryZ: 2.0,
-      exitZ: 0.5,
+      zLookback: p.zLookback,
+      entryZ: p.entryZ,
+      exitZ: p.exitZ,
       notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
-    }),
+    });
+  },
 };
 
 const PAIRS_EWMA: StrategyDefinition = {
@@ -102,16 +110,18 @@ const PAIRS_EWMA: StrategyDefinition = {
   liveCapable: true,
   defaultRiskProfile: 'balanced',
   defaultParams: { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5 },
-  build: ({ beta, notionalUnits }) =>
-    new BollingerPairsStrategy({
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5, ...params };
+    return new BollingerPairsStrategy({
       beta,
-      lambda: 0.94,
-      warmupBars: 60,
-      entryZ: 2.0,
-      exitZ: 0.5,
+      lambda: p.lambda,
+      warmupBars: p.warmupBars,
+      entryZ: p.entryZ,
+      exitZ: p.exitZ,
       notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
-    }),
+    });
+  },
 };
 
 const OU_BERTRAM: StrategyDefinition = {
@@ -124,14 +134,16 @@ const OU_BERTRAM: StrategyDefinition = {
   liveCapable: true,
   defaultRiskProfile: 'conservative',
   defaultParams: { ouWindow: 120, txCostFraction: 0.0008 },
-  build: ({ beta, notionalUnits }) =>
-    new OuSpreadStrategy({
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { ouWindow: 120, txCostFraction: 0.0008, ...params };
+    return new OuSpreadStrategy({
       beta,
-      ouWindow: 120,
-      txCostFraction: 0.0008,
+      ouWindow: p.ouWindow,
+      txCostFraction: p.txCostFraction,
       notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
-    }),
+    });
+  },
 };
 
 const OU_BERTRAM_FAST: StrategyDefinition = {
@@ -144,13 +156,15 @@ const OU_BERTRAM_FAST: StrategyDefinition = {
   liveCapable: true,
   defaultRiskProfile: 'aggressive',
   defaultParams: { ouWindow: 60, txCostFraction: 0.0004 },
-  build: ({ beta, notionalUnits }) =>
-    new OuSpreadStrategy({
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { ouWindow: 60, txCostFraction: 0.0004, ...params };
+    return new OuSpreadStrategy({
       beta,
-      ouWindow: 60,
-      txCostFraction: 0.0004,
+      ouWindow: p.ouWindow,
+      txCostFraction: p.txCostFraction,
       notionalUnits,
-    }),
+    });
+  },
 };
 
 const DEFINITIONS: StrategyDefinition[] = [

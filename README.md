@@ -63,6 +63,84 @@ curl http://localhost:3100/api/treasury/position \
   -H "x-meridian-client-key: $KEY"
 ```
 
+## The live trading desk — run the quant engine & watch paper trades
+
+Meridian is also a **stat-arb trading engine** (CLAUDE.md §1 — the engine *is* the
+product; the dashboard is a thin view over it). The "trader" is a background event
+loop (`LivePaperTrader`, and the multi-book `LivePortfolioTrader`): each tick it
+pulls the next closed 1-minute bar for both legs of a pair from **real Binance
+public data**, runs the chosen strategy, and routes orders to `PaperVenue` (fills
+at the real ticker, taker fee modelled). Closed round-trips persist to
+`stat_arb_trades`. No API key, no account, no real money — paper predicts live
+because only the injected venue changes.
+
+A **human** drives it from the `/demo` cockpit (this is not AI — *you* launch the
+strategies) or the terminal control plane. Deeper design:
+[docs/PAPER_TRADING.md](docs/PAPER_TRADING.md) ·
+[docs/UI_REWRITE_SPEC.md](docs/UI_REWRITE_SPEC.md) ·
+[docs/QUANT_TERMINAL_SPEC.md](docs/QUANT_TERMINAL_SPEC.md) ·
+[docs/AGENTIC_HEDGE_FUND_DESIGN.md](docs/AGENTIC_HEDGE_FUND_DESIGN.md).
+
+### Prerequisites
+```bash
+docker compose up -d postgres      # Postgres on :5433 (sudo on this host if needed)
+npm run migration:run              # one-time / when the schema changes
+```
+
+### A. The cockpit — launch strategies and watch them live
+```bash
+FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
+  LIVE_AUTOSTART=false npm run start:dev
+# → open http://localhost:3100/demo
+```
+In `/demo`:
+1. **Backfill live history** for a **Market set** (asset class) — pulls real Binance bars.
+2. **▶ Launch a station** (top panel): asset class → market (leg A / leg B) →
+   strategy → **edit its params** (entry/exit z, windows, tx-cost…) → β + capital →
+   **Launch**. Each launch starts an isolated paper book; launch several and they
+   accumulate. β auto-fills from discovery when the pair was found cointegrated.
+3. **Live books** shows every concurrent market as a param card — z-score, β,
+   bands, regime, position, capital, equity, realised/unrealised — with z &
+   equity **sparklines over time**. Run up to 12 at once; the discovered-pairs
+   panel can bulk-launch the top N ("one of each strategy" spreads the catalogue
+   across them).
+4. **Strategy catalogue** stacks every working strategy with its params and which
+   books run it. **Trade history** is the persisted `stat_arb_trades` ledger
+   (survives restart). The header strip shows desk P&L, feed/venue, a live UTC
+   clock and a refresh heartbeat.
+
+> 1-minute bars: a freshly launched book warms from ~240 real klines so its
+> z-score is live immediately, but an *entry* waits for z to cross the band —
+> minutes or longer. Lower the lookback / use a faster interval to iterate.
+
+### B. Headless proof the loop enters trades (no server)
+```bash
+FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false LIVE_AUTOSTART=false \
+  QS_PRESET=crypto-majors QS_HOURS=24 \
+  npx ts-node -r tsconfig-paths/register scripts/quant-session.ts
+```
+Prints the strategy catalogue → discovered cointegrated pairs → a per-strategy
+backtest table on real history → per-strategy live-loop round-trips with realised
+PnL → arms the control plane. Ends `QUANT SESSION OK`.
+
+### C. Terminal control plane
+```bash
+curl -s  localhost:3100/api/stat-arb/live/snapshot  | jq   # single book: z, regime, PnL, position
+curl -s  localhost:3100/api/stat-arb/live/portfolio | jq   # all live books
+curl -s  localhost:3100/api/stat-arb/live/trades    | jq   # persisted blotter (stat_arb_trades)
+# launch one station additively, with param overrides:
+curl -sX POST localhost:3100/api/stat-arb/live/portfolio/launch \
+  -H 'content-type: application/json' \
+  -d '{"symbolA":"ETH","symbolB":"BTC","strategyId":"ou-bertram","beta":18.0,"params":{"ouWindow":90},"capitalUsdc":50000}' | jq
+```
+
+### Execution modes
+`EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +
+simulated fills) · `live` (real venue, requires `LIVE_TRADING_ARMED=true`).
+`FEED_SOURCE`: `binance` (real public REST, no key) · `mock`. Real money is an
+engineering arm switch taken by a human — there is **no** business/KYB gate in the
+trading engine.
+
 ## Test
 
 ```bash

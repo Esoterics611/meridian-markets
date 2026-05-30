@@ -34,8 +34,10 @@
     button.primary { background: var(--accent-dim); color: #eafff8; border-color: var(--accent); }
     button.ghost { background: transparent; }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
-    main { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; padding: 16px 22px; align-items: start; }
-    @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+    main { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; padding: 16px 22px; align-items: start; }
+    .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; } .span-8 { grid-column: span 8; } .span-12 { grid-column: 1 / -1; }
+    @media (max-width: 1300px) { main > [class*="span-"] { grid-column: 1 / -1; } }
     .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
     .panel h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; color: var(--muted); text-transform: uppercase; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
@@ -48,7 +50,7 @@
     .chip.SHORT, .chip.DANGER { color: var(--short); border-color: var(--danger-dim); }
     .chip.FLAT { color: var(--flat); }
     .chip.WARN { color: var(--warn); border-color: var(--warn-dim); }
-    #chart { height: 320px; width: 100%; }
+    #chart { height: 380px; width: 100%; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border); }
     th:first-child, td:first-child { text-align: left; }
@@ -58,15 +60,67 @@
     .row-actions button { padding: 4px 8px; font-size: 11px; }
     #notice { padding: 8px 12px; border-radius: 8px; background: var(--warn-dim); color: var(--warn); font-size: 12px; display: none; margin-bottom: 10px; }
     .desc { font-size: 12px; color: var(--muted); margin: -4px 0 12px; }
+    /* Live-books grid: one full param card per concurrent market. */
+    .book-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 12px; }
+    .book { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .book .bh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .book .bp { font-size: 16px; font-weight: 700; }
+    .book .meta { font-size: 11px; color: var(--muted); margin: 6px 0 10px; }
+    .mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+    .mini { background: var(--panel-3); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+    .mini .k { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .mini .v { font-size: 16px; margin-top: 2px; font-weight: 600; }
+    .pchip { display: inline-block; padding: 2px 8px; margin: 0 5px 5px 0; border-radius: 6px; font-size: 11px; border: 1px solid var(--border); background: var(--panel-3); }
+    .pchip .pk { color: var(--muted); }
+    .spark { display: block; margin-top: 3px; }
+    .spark-k { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    /* Strategy catalogue: every working strategy stacked, label | params. */
+    .strat-row { display: grid; grid-template-columns: 1.1fr 2fr; gap: 16px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .strat-row:last-child { border-bottom: none; }
+    .strat-row .sl { font-size: 15px; font-weight: 600; }
+    .strat-row .sm { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    @media (max-width: 820px) { .strat-row { grid-template-columns: 1fr; } }
+    /* Launch cockpit: the human's primary action — give it presence. */
+    #launch-panel { border-color: var(--accent-dim); background: linear-gradient(180deg, #14202b 0%, var(--panel) 70%); }
+    .launch-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .launch-row .ctl input, .launch-row .ctl select { min-width: 96px; }
+
+    /* ── Terminal theme: dense, tabular-monospace data, crisp grid (quant desk) ── */
+    :root { --bg: #090d12; --panel: #0f151c; --panel-2: #141c25; --panel-3: #1a242f; --border: #223040; }
+    body { font-size: 13px; }
+    /* Every datum renders in tabular monospace so digits and columns line up. */
+    .mono, .stat .v, .mini .v, .book .bp, td, input, select, button,
+    .badge, .pchip, .spark-k, .v { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    td { font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; }
+    header { padding: 8px 18px; }
+    header h1 { font-size: 14px; letter-spacing: 1.5px; font-weight: 600; }
+    header h1 .hsep { color: var(--border); margin: 0 9px; }
+    .badge { border-radius: 3px; padding: 3px 8px; text-transform: none; letter-spacing: 0.5px; }
+    #clock { color: var(--warn); }
+    #heartbeat { color: var(--accent); transition: color 0.6s ease; }
+    main { gap: 13px; padding: 13px 18px; }
+    .panel { border-radius: 5px; padding: 13px 14px; }
+    .panel h2 { font-size: 11px; letter-spacing: 1px; }
+    .panel h2::before { content: "▸ "; color: var(--accent); }
+    .stat, .mini, .chip, .pchip, select, input[type=number], button, .book { border-radius: 4px; }
+    .stat { padding: 8px 10px; } .stat .v { font-size: 18px; }
+    select, input[type=number] { padding: 6px 8px; font-size: 12px; }
+    th, td { padding: 5px 8px; }
+    th { letter-spacing: 0.8px; }
+    tbody tr:nth-child(even) { background: rgba(255,255,255,0.014); }
+    .desc { font-size: 11px; }
   </style>
 </head>
 <body>
   <header>
-    <h1><span class="accent">◆ Meridian Markets</span> — Live Trading Desk</h1>
+    <h1 class="mono"><span class="accent">MERIDIAN</span><span class="hsep">//</span>LIVE DESK</h1>
     <div class="header-right">
+      <span class="badge mono" id="desk-pnl">P&amp;L —</span>
       <span class="badge mono" id="feed-badge">feed —</span>
       <span class="badge mono" id="venue-badge">venue —</span>
       <span class="badge mono" id="live-badge">paused</span>
+      <span class="badge mono" id="clock">--:--:-- UTC</span>
+      <span class="badge mono" id="heartbeat" title="last refresh">●</span>
     </div>
   </header>
 
@@ -98,20 +152,79 @@
   </div>
 
   <main>
-    <section class="panel" style="grid-row: span 2;">
+    <section class="panel span-12" id="launch-panel">
+      <h2>▶ Launch a station — run a strategy on a market</h2>
+      <div class="desc">Your cockpit. Pick an asset class &amp; market, choose a strategy, set its params, and launch. Each launch starts an isolated paper book — a <b>station</b> — on live Binance data; they accumulate in <b>Live books</b> below. You are the supervisor (agentic desk): every station shares one engine and one trade ledger.</div>
+      <div class="launch-row">
+        <label class="ctl">Asset class
+          <select id="lx-preset"></select>
+        </label>
+        <label class="ctl">Market — leg A
+          <select id="lx-a"></select>
+        </label>
+        <label class="ctl">vs leg B
+          <select id="lx-b"></select>
+        </label>
+        <label class="ctl">Strategy
+          <select id="lx-strategy"></select>
+        </label>
+        <label class="ctl">β (hedge ratio)
+          <input type="number" id="lx-beta" value="1" step="0.0001" style="width:96px;" />
+        </label>
+        <label class="ctl">Capital (USDC)
+          <input type="number" id="lx-capital" value="100000" min="1" step="1000" style="width:120px;" />
+        </label>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="spark-k" style="margin-bottom:7px;">Strategy params <span id="lx-strategy-ref" class="muted"></span> — editable, defaults from the catalogue</div>
+        <div class="launch-row" id="lx-params"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button id="lx-launch" class="primary" style="font-size:13px;padding:9px 16px;">▶ Launch station</button>
+        <span id="lx-note" class="muted" style="font-size:12px;"></span>
+      </div>
+    </section>
+
+    <section class="panel span-4">
       <h2>Live position — <span id="pair" class="mono accent">—</span></h2>
-      <div class="desc" id="pair-desc">Real Binance data → pairs strategy → paper venue. No simulated prices.</div>
+      <div class="desc" id="pair-desc">Real Binance data → strategy → paper venue. No simulated prices.</div>
       <div class="stat-grid" id="live-stats"></div>
-      <h2 style="margin-top:18px;">Price — <span id="chart-sym" class="mono"></span></h2>
-      <div id="chart"></div>
-      <h2 style="margin-top:18px;">Recent fills</h2>
+      <h2 style="margin-top:18px;">Recent fills (in-memory)</h2>
       <table><thead><tr><th>side</th><th>entry z</th><th>exit z</th><th>notional</th><th>pnl (USDC)</th></tr></thead>
       <tbody id="fills"><tr><td colspan="5" class="muted">no closed trades yet</td></tr></tbody></table>
     </section>
 
-    <section class="panel">
+    <section class="panel span-8">
+      <h2>Price — <span id="chart-sym" class="mono"></span></h2>
+      <div class="desc">Live OHLC for the active book's leg A. (Per-strategy spread/z-score chart with entry/exit bands lands in the UI rewrite — see docs/UI_REWRITE_SPEC.md §2.3.)</div>
+      <div id="chart"></div>
+    </section>
+
+    <section class="panel span-12">
+      <h2>Strategy catalogue — all working strategies</h2>
+      <div class="desc">Every live-capable strategy in the desk registry, one under the other, with its frozen params. The strategy selected above arms new books; “one of each” below spreads these across the live books.</div>
+      <div id="strat-list"><div class="muted" style="padding:8px;">loading…</div></div>
+    </section>
+
+    <section class="panel span-12" id="portfolio-panel" style="display:none;">
+      <h2>Live books — multi-currency desk
+        <button id="stop-portfolio" class="ghost" style="float:right;padding:4px 10px;font-size:11px;">⏸ Stop all</button>
+      </h2>
+      <div class="desc" id="pf-desc">N markets trading concurrently on live data, capital split evenly. Each is its own isolated paper book — full params + live variables below, z &amp; equity tracked over time.</div>
+      <div class="stat-grid" id="pf-stats"></div>
+      <div id="pf-books" class="book-grid" style="margin-top:12px;"></div>
+    </section>
+
+    <section class="panel span-6">
       <h2>Discovered pairs (live data)
-        <button id="trade-all" class="primary" style="float:right;padding:4px 10px;font-size:11px;">▶ Trade top 3 (multi-currency)</button>
+        <span style="float:right;display:flex;gap:6px;align-items:center;">
+          <input type="number" id="pf-n" value="5" min="1" max="12" style="width:60px;" title="how many markets to run at once" />
+          <select id="pf-mix" title="how strategies are assigned across the books">
+            <option value="selected">selected strategy</option>
+            <option value="roundrobin">one of each strategy</option>
+          </select>
+          <button id="trade-all" class="primary" style="padding:5px 10px;font-size:11px;">▶ Trade top N</button>
+        </span>
       </h2>
       <div class="desc" id="universe-desc">Pair discovery over the selected market set's real bars. Click a pair to trade or backtest it.</div>
       <div id="notice"></div>
@@ -119,27 +232,17 @@
       <tbody id="pairs"><tr><td colspan="7" class="muted">backfill a market set to discover pairs</td></tr></tbody></table>
     </section>
 
-    <section class="panel">
+    <section class="panel span-6">
       <h2>Backtest on real history</h2>
-      <div class="desc" id="bt-desc">Runs the pairs strategy over stored Binance bars for the active pair.</div>
+      <div class="desc" id="bt-desc">Runs the selected strategy over stored Binance bars for the active pair.</div>
       <div class="stat-grid" id="bt-stats"><div class="muted" style="padding:8px;">run a backtest from a discovered pair</div></div>
     </section>
 
-    <section class="panel" id="portfolio-panel" style="display:none;">
-      <h2>Multi-currency portfolio
-        <button id="stop-portfolio" class="ghost" style="float:right;padding:4px 10px;font-size:11px;">⏸ Stop all</button>
-      </h2>
-      <div class="desc" id="pf-desc">N pairs trading concurrently on live data, capital split evenly. Each is its own isolated paper book.</div>
-      <div class="stat-grid" id="pf-stats"></div>
-      <table style="margin-top:12px;"><thead><tr><th>pair</th><th>strategy</th><th>β</th><th>z</th><th>regime</th><th>position</th><th>equity (USDC)</th></tr></thead>
-      <tbody id="pf-books"></tbody></table>
-    </section>
-
-    <section class="panel">
+    <section class="panel span-12">
       <h2>Trade history — persisted
         <span class="badge mono" id="trades-venue" style="float:right;">venue —</span>
       </h2>
-      <div class="desc">Closed round-trips written to <span class="mono">stat_arb_trades</span> — survives restart and spans every book on the venue. This is the durable ledger, not the in-memory fills above.</div>
+      <div class="desc">Closed round-trips written to <span class="mono">stat_arb_trades</span> — survives restart and spans every book on the venue. This is the durable ledger, not the in-memory fills.</div>
       <table><thead><tr><th>closed</th><th>pair</th><th>side</th><th>entry z</th><th>exit z</th><th>pnl (USDC)</th></tr></thead>
       <tbody id="trade-history"><tr><td colspan="6" class="muted">no persisted trades yet — arm a book and let a round-trip close</td></tr></tbody></table>
     </section>
@@ -152,6 +255,111 @@
     const $ = (id) => document.getElementById(id);
     async function jget(u) { const r = await fetch(u); return r.json(); }
     async function jpost(u, body) { const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); return r.json(); }
+
+    // --- per-book rolling history + inline sparkline (watch variables "over time") ---
+    const HIST = {}; // pair -> { z:[], eq:[] }, capped client-side
+    function pushHist(pair, z, eq) {
+      const h = HIST[pair] || (HIST[pair] = { z: [], eq: [] });
+      if (Number.isFinite(z)) { h.z.push(z); if (h.z.length > 90) h.z.shift(); }
+      if (Number.isFinite(eq)) { h.eq.push(eq); if (h.eq.length > 90) h.eq.shift(); }
+      return h;
+    }
+    function spark(values, color, w = 160, h = 30) {
+      if (!values || values.length < 2) return `<svg class="spark" width="${w}" height="${h}"></svg>`;
+      const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1;
+      const pts = values.map((v, i) =>
+        `${(i / (values.length - 1) * (w - 2) + 1).toFixed(1)},${(h - 1 - (v - min) / span * (h - 2)).toFixed(1)}`).join(' ');
+      return `<svg class="spark" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
+    }
+    const paramChips = (params) => Object.entries(params || {})
+      .map(([k, v]) => `<span class="pchip"><span class="pk">${k}</span> ${v}</span>`).join('') || '<span class="muted">—</span>';
+    const stratById = (id) => (window.__strategies || []).find((s) => s.id === id);
+    function bandStr(id) {
+      const p = (stratById(id) || {}).defaultParams || {};
+      if (p.entryZ != null) return `bands ±${num(p.entryZ, 1)}/${num(p.exitZ, 1)}`;
+      const keys = Object.keys(p).slice(0, 2);
+      return keys.map((k) => `${k} ${p[k]}`).join(' · ') || 'params —';
+    }
+
+    // All working strategies, stacked one under the other, with their params.
+    function renderStrategies() {
+      const list = window.__strategies || [];
+      const books = window.__pfBooks || [];
+      $('strat-list').innerHTML = list.map((s) => {
+        const live = books.filter((b) => b.strategyId === s.id);
+        const liveTxt = live.length
+          ? `<span class="chip OK">${live.length} live · ${live.map((b) => b.pair).join(', ')}</span>`
+          : '<span class="chip FLAT">idle</span>';
+        return `<div class="strat-row">
+          <div>
+            <div class="sl">${s.label}</div>
+            <div class="sm">${s.family} · ${s.courseRef} · risk ${s.riskProfile} · <span class="mono">${s.id}</span></div>
+            <div class="sm" style="margin-top:5px;">${s.description}</div>
+          </div>
+          <div>
+            <div>${paramChips(s.defaultParams)}</div>
+            <div style="margin-top:8px;">${liveTxt}</div>
+          </div>
+        </div>`;
+      }).join('') || '<div class="muted" style="padding:8px;">no strategies</div>';
+    }
+
+    // --- Launch cockpit: human picks class → market → strategy → params → go ---
+    function fillLaunchLegs() {
+      const preset = (window.__presets || []).find((p) => p.id === $('lx-preset').value);
+      if (!preset) return;
+      const opts = preset.symbols.map((s) => `<option value="${s}">${s}</option>`).join('');
+      $('lx-a').innerHTML = opts; $('lx-b').innerHTML = opts;
+      if (preset.defaultPair) { $('lx-a').value = preset.defaultPair[0]; $('lx-b').value = preset.defaultPair[1]; }
+      autofillBeta();
+    }
+    function autofillBeta() {
+      const a = $('lx-a').value, b = $('lx-b').value;
+      const uni = window.__universe || [];
+      const hit = uni.find((p) => p.symbolA === a && p.symbolB === b);
+      const rev = uni.find((p) => p.symbolA === b && p.symbolB === a);
+      if (hit) { $('lx-beta').value = num(hit.beta, 4); $('lx-note').textContent = `β ${num(hit.beta,3)} from discovery · p=${num(hit.pValue,3)} · half-life ${num(hit.halfLifeBars,1)}b`; }
+      else if (rev) { $('lx-beta').value = num(1 / rev.beta, 4); $('lx-note').textContent = `β ${num(1/rev.beta,3)} (inverted from discovered ${b}/${a})`; }
+      else { $('lx-note').textContent = 'pair not in discovered set — β defaults to 1; backfill + discover for a fitted β'; }
+    }
+    function stepFor(v) { const a = Math.abs(Number(v)); if (!a) return 0.01; if (a < 0.01) return 0.0001; if (a < 1) return 0.01; return 1; }
+    function renderLaunchParams() {
+      const s = stratById($('lx-strategy').value);
+      $('lx-strategy-ref').textContent = s ? `· ${s.family} · ${s.courseRef}` : '';
+      const entries = Object.entries((s && s.defaultParams) || {});
+      $('lx-params').innerHTML = entries.length
+        ? entries.map(([k, v]) => `<label class="ctl">${k}<input type="number" id="lxp-${k}" value="${v}" step="${stepFor(v)}" style="width:104px;" /></label>`).join('')
+        : '<span class="muted" style="font-size:12px;">this strategy has no tunable params</span>';
+    }
+    function collectLaunchParams() {
+      const s = stratById($('lx-strategy').value);
+      const out = {};
+      Object.keys((s && s.defaultParams) || {}).forEach((k) => {
+        const el = $(`lxp-${k}`);
+        if (el && el.value !== '' && Number.isFinite(Number(el.value))) out[k] = Number(el.value);
+      });
+      return out;
+    }
+    async function launchStation() {
+      const symbolA = $('lx-a').value, symbolB = $('lx-b').value;
+      if (!symbolA || !symbolB || symbolA === symbolB) { $('lx-note').textContent = 'pick two different legs'; return; }
+      const btn = $('lx-launch'); btn.disabled = true; btn.textContent = '▶ launching…';
+      const params = collectLaunchParams();
+      const body = {
+        symbolA, symbolB,
+        beta: Number($('lx-beta').value) || 1,
+        strategyId: $('lx-strategy').value || undefined,
+        params,
+        capitalUsdc: Number($('lx-capital').value) || 100000,
+      };
+      let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch (e) { r = { error: 'request failed' }; }
+      btn.disabled = false; btn.textContent = '▶ Launch station';
+      if (r && r.error) { $('lx-note').textContent = '⚠ ' + r.error; return; }
+      const pstr = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
+      $('lx-note').textContent = `✓ launched ${symbolA}/${symbolB} · ${body.strategyId || 'default'} · β ${num(body.beta,3)} · ${fmtUsdc(body.capitalUsdc * USDC)} USDC${pstr ? ' · ' + pstr : ''}`;
+      $('portfolio-panel').style.display = 'block';
+      await refreshPortfolio();
+    }
 
     let chart, candleSeries, chartSymbol = null;
 
@@ -169,7 +377,9 @@
 
     async function loadPresets() {
       const { presets } = await jget('/api/market-data/presets');
-      $('preset').innerHTML = presets.map((p) => `<option value="${p.id}">${p.label} — ${p.assetClass}</option>`).join('');
+      const optsHtml = presets.map((p) => `<option value="${p.id}">${p.label} — ${p.assetClass}</option>`).join('');
+      $('preset').innerHTML = optsHtml;
+      $('lx-preset').innerHTML = optsHtml;
       window.__presets = presets;
     }
 
@@ -177,6 +387,9 @@
       const { strategies } = await jget('/api/stat-arb/live/strategies');
       $('strategy').innerHTML = strategies
         .map((s) => `<option value="${s.id}" title="${s.description}">${s.label} · ${s.courseRef}</option>`)
+        .join('');
+      $('lx-strategy').innerHTML = strategies
+        .map((s) => `<option value="${s.id}" title="${s.description}">${s.label}</option>`)
         .join('');
       window.__strategies = strategies;
     }
@@ -202,6 +415,8 @@
         return;
       }
       notice.style.display = 'none';
+      window.__universe = r.topPairs || [];
+      if ($('lx-a')) autofillBeta(); // refresh the launch β now discovery is in
       const tb = $('pairs');
       if (!r.topPairs || r.topPairs.length === 0) { tb.innerHTML = '<tr><td colspan="7" class="muted">no cointegrated pairs found in this window</td></tr>'; return; }
       tb.innerHTML = r.topPairs.slice(0, 12).map((p) => `
@@ -247,12 +462,20 @@
     async function tradeAll() {
       const presetId = $('preset').value;
       const hours = Number($('lookback').value) || 72;
+      const n = Math.max(1, Math.min(12, Number($('pf-n').value) || 5));
       const r = await jget(`/api/market-data/universe?presetId=${encodeURIComponent(presetId)}&hours=${hours}`);
       if (r.needsBackfill || !r.topPairs || !r.topPairs.length) { $('notice').style.display='block'; $('notice').textContent='Backfill first — no pairs to trade.'; return; }
-      const pairs = r.topPairs.slice(0, 3).map((p) => ({ symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta }));
+      const mix = $('pf-mix').value;
+      const cat = window.__strategies || [];
+      const selected = $('strategy').value || undefined;
+      // selected: every book runs the chosen strategy; roundrobin: spread the
+      // whole catalogue across the books so all strategies trade at once.
+      const pairs = r.topPairs.slice(0, n).map((p, i) => ({
+        symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta,
+        strategyId: (mix === 'roundrobin' && cat.length) ? cat[i % cat.length].id : selected,
+      }));
       const capitalUsdc = Number($('capital').value) || 100000;
-      const strategyId = $('strategy').value || undefined;
-      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc, strategyId });
+      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc });
       await jpost('/api/stat-arb/live/portfolio/start');
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
@@ -260,21 +483,45 @@
 
     async function refreshPortfolio() {
       let p; try { p = await jget('/api/stat-arb/live/portfolio'); } catch { return; }
-      if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; return; }
+      if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; window.__pfBooks = []; PNL.pf = 0; paintDeskPnl(); renderStrategies(); return; }
       $('portfolio-panel').style.display = 'block';
+      window.__pfBooks = p.books || [];
+      PNL.pf = Number(p.realisedPnlUnits) + Number(p.unrealisedPnlUnits); paintDeskPnl();
       const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
       const pnl = Number(p.equityUnits) - Number(p.capitalUnits);
       $('pf-stats').innerHTML =
-        stat('Pairs', p.pairCount) +
+        stat('Books', p.pairCount) +
         stat('Capital', fmtUsdc(p.capitalUnits)) +
         stat('Equity', fmtUsdc(p.equityUnits), pnl >= 0 ? 'pos' : 'neg') +
         stat('Realised', fmtUsdc(p.realisedPnlUnits), Number(p.realisedPnlUnits) >= 0 ? 'pos' : 'neg') +
+        stat('Unrealised', fmtUsdc(p.unrealisedPnlUnits), Number(p.unrealisedPnlUnits) >= 0 ? 'pos' : 'neg') +
         stat('Live', p.running ? 'yes' : 'paused');
-      $('pf-books').innerHTML = p.books.map((b) => `
-        <tr><td class="mono">${b.pair}</td><td class="mono">${b.strategyId||'—'}</td><td>${num(b.beta,3)}</td><td>${num(b.lastZ,2)}</td>
-        <td><span class="chip ${b.regime}">${b.regime}</span></td>
-        <td>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'}</td>
-        <td>${fmtUsdc(b.equityUnits)}</td></tr>`).join('');
+      // One full param card per concurrent market, with z + equity sparklines.
+      const mini = (k, v, cls = '') => `<div class="mini"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      $('pf-books').innerHTML = p.books.map((b) => {
+        const h = pushHist(b.pair, Number(b.lastZ), Number(b.equityUnits) / USDC);
+        const real = Number(b.realisedPnlUnits), unreal = Number(b.unrealisedPnlUnits);
+        const eqPnl = Number(b.equityUnits) - Number(b.capitalUnits);
+        return `<div class="book">
+          <div class="bh">
+            <span class="bp mono accent">${b.pair}</span>
+            <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span></span>
+          </div>
+          <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars seen</div>
+          <div class="mini-grid">
+            ${mini('z-score', num(b.lastZ, 2))}
+            ${mini('Equity', fmtUsdc(b.equityUnits), eqPnl >= 0 ? 'pos' : 'neg')}
+            ${mini('Capital', fmtUsdc(b.capitalUnits))}
+            ${mini('Realised', fmtUsdc(real), real >= 0 ? 'pos' : 'neg')}
+            ${mini('Unrealised', fmtUsdc(unreal), unreal >= 0 ? 'pos' : 'neg')}
+          </div>
+          <div style="display:flex;gap:22px;margin-top:10px;flex-wrap:wrap;">
+            <div><div class="spark-k">z over time</div>${spark(h.z, '#f5b942')}</div>
+            <div><div class="spark-k">equity over time</div>${spark(h.eq, eqPnl >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
+          </div>
+        </div>`;
+      }).join('');
+      renderStrategies(); // reflect live-usage counts in the catalogue
     }
 
     async function refreshTrades() {
@@ -310,6 +557,7 @@
       $('pair').textContent = s.symbolA + '/' + s.symbolB;
 
       const realised = Number(s.realisedPnlUnits), unreal = Number(s.unrealisedPnlUnits);
+      PNL.single = realised + unreal; paintDeskPnl();
       const pnlCls = (v) => v >= 0 ? 'pos' : 'neg';
       const lastBarAge = s.lastBarAt ? Math.round((Date.now() - new Date(s.lastBarAt)) / 1000) + 's ago' : '—';
       const reg = (s.regime || 'FLAT');
@@ -351,22 +599,42 @@
       if (candles && candles.length) { candleSeries.setData(candles); chart.timeScale().fitContent(); chartSymbol = symbol; }
     }
 
+    // --- terminal status strip: live UTC clock, heartbeat, aggregated desk P&L ---
+    const PNL = { single: 0, pf: 0 };
+    function paintDeskPnl() {
+      const total = PNL.single + PNL.pf;
+      const el = $('desk-pnl');
+      el.textContent = 'P&L ' + (total >= 0 ? '+' : '') + fmtUsdc(total);
+      el.className = 'badge mono ' + (total >= 0 ? 'live' : 'danger');
+    }
+    function tickClock() { $('clock').textContent = new Date().toISOString().slice(11, 19) + ' UTC'; }
+    function pulse() { const el = $('heartbeat'); el.style.color = 'var(--accent)'; setTimeout(() => { el.style.color = 'var(--muted)'; }, 350); }
+
     $('backfill').onclick = backfill;
     $('set-capital').onclick = setCapital;
     $('trade-all').onclick = tradeAll;
     $('stop-portfolio').onclick = async () => { await jpost('/api/stat-arb/live/portfolio/stop'); refreshPortfolio(); };
     $('start').onclick = async () => { await jpost('/api/stat-arb/live/start'); refreshSnapshot(); };
     $('stop').onclick = async () => { await jpost('/api/stat-arb/live/stop'); refreshSnapshot(); };
-    $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; loadUniverse(); };
+    $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; $('lx-preset').value = $('preset').value; fillLaunchLegs(); loadUniverse(); };
+    $('lx-preset').onchange = () => { $('preset').value = $('lx-preset').value; fillLaunchLegs(); loadUniverse(); };
+    $('lx-a').onchange = autofillBeta;
+    $('lx-b').onchange = autofillBeta;
+    $('lx-strategy').onchange = renderLaunchParams;
+    $('lx-launch').onclick = launchStation;
 
     (async function init() {
       await loadPresets();
       await loadStrategies();
+      renderStrategies();
+      renderLaunchParams();
+      fillLaunchLegs();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
       await refreshTrades();
-      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); }, 4000);
+      tickClock(); setInterval(tickClock, 1000);
+      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); pulse(); }, 4000);
     })();
   </script>
 </body>

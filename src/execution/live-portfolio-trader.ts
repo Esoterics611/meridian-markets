@@ -20,6 +20,8 @@ export interface PortfolioPair {
   beta?: number;
   /** Strategy catalogue id this book runs. Defaults to the live config default. */
   strategyId?: string;
+  /** Per-launch overrides of the strategy's frozen params (from the launch form). */
+  params?: Record<string, number>;
 }
 
 export interface PortfolioBookRow {
@@ -91,6 +93,23 @@ export class LivePortfolioTrader {
       this.books.set(pairKey(p), trader);
     }
     this.logger.log(`portfolio set to ${unique.length} pairs: ${unique.map(pairKey).join(', ')}`);
+  }
+
+  /**
+   * Launch a single additional book without disturbing the others — the human
+   * "launch a station" action. Builds an isolated trader for `pair`, gives it
+   * its own starting capital, and adds it to the live set; if the loop is
+   * already running it begins ticking on the next interval. Replaces any
+   * existing book on the same pair (re-launch with new params).
+   */
+  addBook(pair: PortfolioPair, capitalUnits: bigint): void {
+    if (pair.symbolA === pair.symbolB) throw new Error('cannot launch a book on identical legs');
+    if (capitalUnits <= 0n) throw new Error('launch capital must be positive');
+    const key = pairKey(pair);
+    const trader = this.makeTrader(pair);
+    trader.setStartingCapital(capitalUnits);
+    this.books.set(key, trader);
+    this.logger.log(`launched book ${key} via ${pair.strategyId ?? 'default'} (capital=${capitalUnits})`);
   }
 
   start(): void {

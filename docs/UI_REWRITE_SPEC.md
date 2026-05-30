@@ -1,8 +1,27 @@
 # UI Rewrite Spec — from "demo desk" to a Fund Cockpit
 
-Status: **proposed** (2026-05-31). Owner: next UI session.
+Status: **partially shipped** (2026-05-31). Owner: next UI session.
 Companion specs: [QUANT_TERMINAL_SPEC.md](./QUANT_TERMINAL_SPEC.md),
 [AGENTIC_HEDGE_FUND_DESIGN.md](./AGENTIC_HEDGE_FUND_DESIGN.md).
+
+### Shipped on the current `/demo` (2026-05-31)
+A first pass already landed on the existing page, ahead of the full rewrite:
+- **Launch cockpit** (`▶ Launch a station`): human picks asset class → market (leg
+  A/B) → strategy → **editable params** → β (auto-filled from discovery) → capital →
+  Launch. Backed by `POST /api/stat-arb/live/portfolio/launch`, which appends one
+  isolated book additively (param overrides threaded registry→trader→portfolio).
+- **Full-bleed 12-col layout**; run up to **12 concurrent markets**; "one of each
+  strategy" spreads the catalogue across books.
+- **Live books** as param cards (z, β, bands, regime, position, capital, equity,
+  realised/unrealised) with **z + equity sparklines over time**.
+- **Strategy catalogue** stacked, each with params + live-usage.
+- **Persisted Trade history** (`GET /…/live/trades`) + NAV-venue fix (see §6).
+- **Terminal aesthetic**: tabular-monospace data, dense low-radius grid, status
+  strip with desk P&L + live UTC clock + refresh heartbeat.
+
+Still to do for the full cockpit: the **Strategy Chart** (§2.3, spread/z + bands +
+trade markers), the unified **Fund Overview** (§2.1) and **Risk/kill-switch** (§2.4),
+the consolidated `/books` + `/fund` read-models (§5), and SSE streaming (§4).
 
 ## 0. The reframing
 

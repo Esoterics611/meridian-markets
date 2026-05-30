@@ -102,6 +102,7 @@ export class LiveController {
       symbolB?: string;
       beta?: number;
       strategyId?: string;
+      params?: Record<string, number>;
       startingCapitalUnits?: string;
       startingCapitalUsdc?: number;
     },
@@ -115,11 +116,11 @@ export class LiveController {
       this.trader.setStartingCapital(BigInt(Math.round(body.startingCapitalUsdc)) * USDC);
     }
     if (body.symbolA && body.symbolB) {
-      this.trader.reconfigure({ symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId });
+      this.trader.reconfigure({ symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params });
     } else if (body.strategyId) {
       // Strategy-only switch: re-arm the current pair with the new strategy.
       const s = this.trader.snapshot();
-      this.trader.reconfigure({ symbolA: s.symbolA, symbolB: s.symbolB, beta: s.beta, strategyId: body.strategyId });
+      this.trader.reconfigure({ symbolA: s.symbolA, symbolB: s.symbolB, beta: s.beta, strategyId: body.strategyId, params: body.params });
     }
     return this.trader.snapshot();
   }
@@ -182,6 +183,47 @@ export class LiveController {
           ? BigInt(Math.round(body.capitalUsdc)) * USDC
           : undefined;
     this.portfolio.setPairs(pairs, capital);
+    return this.portfolio.snapshot();
+  }
+
+  /**
+   * Launch ONE station additively — the human "launch a strategy on a market"
+   * action from the UI cockpit. Unlike POST /portfolio (which replaces the whole
+   * set and even-splits capital), this appends a single isolated book with its
+   * own capital + param overrides and leaves existing books untouched, then
+   * ensures the loop is running. Re-launching the same pair replaces it.
+   *   { symbolA, symbolB, beta?, strategyId?, params?, capitalUsdc? | startingCapitalUnits? }
+   */
+  @Post('portfolio/launch')
+  launch(
+    @Body()
+    body: {
+      symbolA?: string;
+      symbolB?: string;
+      beta?: number;
+      strategyId?: string;
+      params?: Record<string, number>;
+      capitalUsdc?: number;
+      startingCapitalUnits?: string;
+    },
+  ) {
+    if (!body.symbolA || !body.symbolB) return { error: 'symbolA and symbolB are required to launch a station' };
+    if (body.strategyId && !strategyRegistry.has(body.strategyId)) {
+      return { error: `unknown strategyId: ${body.strategyId}`, known: strategyRegistry.liveCapable().map((d) => d.id) };
+    }
+    const capital =
+      body.startingCapitalUnits !== undefined
+        ? BigInt(body.startingCapitalUnits)
+        : BigInt(Math.round(body.capitalUsdc ?? 100_000)) * USDC;
+    try {
+      this.portfolio.addBook(
+        { symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params },
+        capital,
+      );
+    } catch (err) {
+      return { error: (err as Error).message };
+    }
+    this.portfolio.start();
     return this.portfolio.snapshot();
   }
 

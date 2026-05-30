@@ -136,10 +136,11 @@ async function warmupFromBinance(
         // A fresh strategy per pair from the desk registry: switching presaved
         // markets (or strategies) at runtime rebuilds with the discovered β and
         // the chosen catalogue id rather than carrying state across pairs.
-        const makeStrategy = (opts: { beta?: number; strategyId?: string }) =>
+        const makeStrategy = (opts: { beta?: number; strategyId?: string; params?: Record<string, number> }) =>
           strategyRegistry.build(opts.strategyId ?? app.live.strategyId, {
             beta: opts.beta ?? app.live.beta,
             notionalUnits: app.live.notionalUnits,
+            params: opts.params,
           });
         const riskEngine = new RiskEngine({
           drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
@@ -163,7 +164,7 @@ async function warmupFromBinance(
           },
           repo,
           undefined,
-          (opts) => makeStrategy({ beta: opts.beta, strategyId: opts.strategyId }),
+          (opts) => makeStrategy({ beta: opts.beta, strategyId: opts.strategyId, params: opts.params }),
           warmup,
         );
       },
@@ -180,10 +181,11 @@ async function warmupFromBinance(
         repo: StatArbRepository,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        const makeStrategy = (beta?: number, strategyId?: string) =>
+        const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>) =>
           strategyRegistry.build(strategyId ?? app.live.strategyId, {
             beta: beta ?? app.live.beta,
             notionalUnits: app.live.notionalUnits,
+            params,
           });
         const makeTrader = (pair: PortfolioPair): LivePaperTrader => {
           const feed: IBarFeed =
@@ -208,7 +210,7 @@ async function warmupFromBinance(
               ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
               : undefined;
           return new LivePaperTrader(
-            makeStrategy(pair.beta, pair.strategyId),
+            makeStrategy(pair.beta, pair.strategyId, pair.params),
             venue,
             feed,
             {
@@ -222,7 +224,7 @@ async function warmupFromBinance(
             },
             repo,
             undefined,
-            (o) => makeStrategy(o.beta, o.strategyId),
+            (o) => makeStrategy(o.beta, o.strategyId, o.params),
             warmup,
           );
         };

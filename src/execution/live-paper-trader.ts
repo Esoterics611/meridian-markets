@@ -21,8 +21,8 @@ export interface LiveStrategy {
   reset?(): void;
 }
 
-/** Builds a fresh strategy for a chosen pair (per-pair β from discovery + chosen catalogue id). */
-export type StrategyFactory = (opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string }) => LiveStrategy;
+/** Builds a fresh strategy for a chosen pair (per-pair β from discovery + chosen catalogue id + optional param overrides). */
+export type StrategyFactory = (opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string; params?: Record<string, number> }) => LiveStrategy;
 
 /**
  * Warms the rolling window from recent real bars before the first live tick.
@@ -189,7 +189,7 @@ export class LivePaperTrader implements OnApplicationBootstrap {
    * was supplied) rebuilds the strategy with the new pair's β. Does NOT auto
    * restart — the caller decides when to re-arm.
    */
-  reconfigure(opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string }): void {
+  reconfigure(opts: { symbolA: string; symbolB: string; beta?: number; strategyId?: string; params?: Record<string, number> }): void {
     this.stop();
     this.cfg.symbolA = opts.symbolA;
     this.cfg.symbolB = opts.symbolB;
