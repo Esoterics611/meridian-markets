@@ -122,6 +122,8 @@ export interface UniverseOnBarsMeta {
   /** Discovery knobs; defaults match the synthetic path. */
   minBars?: number;
   pValueCutoff?: number;
+  minHalfLifeBars?: number;
+  maxHalfLifeBars?: number;
   distanceThreshold?: number;
   regimeLookbackBars?: number;
 }
@@ -140,6 +142,8 @@ export function runUniverseOnBars(
   const cands = discoverPairs(bars, {
     minBars: meta.minBars ?? 50,
     pValueCutoff: meta.pValueCutoff ?? 0.20,
+    minHalfLifeBars: meta.minHalfLifeBars,
+    maxHalfLifeBars: meta.maxHalfLifeBars,
   });
   const clustering = clusterSymbols(bars, { distanceThreshold: meta.distanceThreshold ?? 0.35 });
   const reps = pickRepresentativePairs(cands, clustering.symbolToCluster);

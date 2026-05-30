@@ -117,6 +117,7 @@ export class MarketDataController {
       exitZ?: number;
       notionalUnits?: string;
       strategyId?: string;
+      params?: Record<string, number>;
     },
   ) {
     const symbolA = body.symbolA ?? 'BTC';
@@ -142,7 +143,7 @@ export class MarketDataController {
     const strategyId =
       body.strategyId && strategyRegistry.has(body.strategyId) ? body.strategyId : null;
     const strategy = strategyId
-      ? strategyRegistry.build(strategyId, { beta: body.beta ?? 1, notionalUnits })
+      ? strategyRegistry.build(strategyId, { beta: body.beta ?? 1, notionalUnits, params: body.params })
       : new PairsStrategy({
           beta: body.beta ?? 1,
           zLookback: body.zLookback ?? 20,
@@ -225,7 +226,10 @@ export class MarketDataController {
     @Query('presetId') presetId = 'crypto-majors',
     @Query('venue') venue = 'binance.spot',
     @Query('hours') hours = '72',
-  ): Promise<ApiUniverseResponse | { error: string; needsBackfill: boolean; perSymbol: Record<string, number> }> {
+  ): Promise<
+    | ApiUniverseResponse
+    | { error: string; needsBackfill: boolean; perSymbol: Record<string, number>; dropped?: string[] }
+  > {
     const preset = getPreset(presetId);
     if (!preset) return { error: `unknown preset: ${presetId}`, needsBackfill: false, perSymbol: {} };
     const to = new Date();
@@ -234,6 +238,14 @@ export class MarketDataController {
     const rowsBySymbol = await this.repo.barsForSymbols(venue, preset.symbols, from, to);
     const barsBySymbol = new Map<string, Bar[]>();
     for (const [sym, rows] of rowsBySymbol) barsBySymbol.set(sym, rows.map(rowToBar));
+
+    // Drop delisted/sparse symbols (a renamed ticker returns ~no bars) BEFORE
+    // intersecting timestamps — otherwise one empty symbol collapses the whole
+    // preset's common window to nothing, the recurring "nothing comes up".
+    const dropped: string[] = [];
+    for (const [sym, b] of [...barsBySymbol]) {
+      if (b.length < 60) { barsBySymbol.delete(sym); dropped.push(sym); }
+    }
     const aligned = alignMany(barsBySymbol);
 
     const lengths = [...aligned.values()].map((b) => b.length);
@@ -241,10 +253,15 @@ export class MarketDataController {
     if (aligned.size < 2 || minLen < 60) {
       const perSymbol: Record<string, number> = {};
       for (const [sym, rows] of rowsBySymbol) perSymbol[sym] = rows.length;
-      return { error: 'not enough overlapping real bars — backfill this preset first', needsBackfill: true, perSymbol };
+      return { error: 'not enough overlapping real bars — backfill this preset first', needsBackfill: true, perSymbol, dropped };
     }
 
-    return jsonSafe(runUniverseOnBars(aligned, { source: 'real-binance-history' }));
+    // Looser knobs for noisy real 1m crypto so candidates actually surface — a
+    // higher p-value cutoff (still ranked best-first) and a wider half-life
+    // window than the synthetic default.
+    return jsonSafe(
+      runUniverseOnBars(aligned, { source: 'real-binance-history', pValueCutoff: 0.6, maxHalfLifeBars: 240 }),
+    );
   }
 
   /** Real OHLC bars for charting (Lightweight Charts format: Unix-seconds time). */

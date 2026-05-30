@@ -41,10 +41,18 @@ export class BinanceBackfillService {
     const venue = req.venue ?? 'binance.spot';
     const out: BackfillResult[] = [];
     for (const symbol of req.symbols) {
-      const bars = await this.client.historicalKlines(symbol, interval, req.fromMs, req.toMs);
-      const inserted = await this.repo.insertBars(bars.map((bar) => ({ venue, symbol, bar })));
-      this.logger.log(`backfill ${symbol} ${interval}: fetched ${bars.length}, inserted ${inserted}`);
-      out.push({ symbol, fetched: bars.length, inserted });
+      // Per-symbol isolation: a delisted/renamed ticker (e.g. MATIC→POL) makes
+      // Binance 400 on that symbol. Don't let it abort the whole preset — log
+      // it, record 0, and keep backfilling the rest.
+      try {
+        const bars = await this.client.historicalKlines(symbol, interval, req.fromMs, req.toMs);
+        const inserted = await this.repo.insertBars(bars.map((bar) => ({ venue, symbol, bar })));
+        this.logger.log(`backfill ${symbol} ${interval}: fetched ${bars.length}, inserted ${inserted}`);
+        out.push({ symbol, fetched: bars.length, inserted });
+      } catch (err) {
+        this.logger.warn(`backfill ${symbol} ${interval} failed (skipped): ${(err as Error).message}`);
+        out.push({ symbol, fetched: 0, inserted: 0 });
+      }
     }
     return out;
   }
