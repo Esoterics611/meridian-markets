@@ -195,9 +195,16 @@
     </section>
 
     <section class="panel span-8">
-      <h2>Price — <span id="chart-sym" class="mono"></span></h2>
-      <div class="desc">Live OHLC for the active book's leg A. (Per-strategy spread/z-score chart with entry/exit bands lands in the UI rewrite — see docs/UI_REWRITE_SPEC.md §2.3.)</div>
-      <div id="chart"></div>
+      <h2>Strategy signal — <span id="sig-pair" class="mono accent">—</span>
+        <span style="float:right;display:flex;gap:6px;">
+          <button id="sig-mode-signal" class="primary" style="padding:4px 10px;font-size:11px;">z-score + bands</button>
+          <button id="sig-mode-price" class="ghost" style="padding:4px 10px;font-size:11px;">price</button>
+        </span>
+      </h2>
+      <div class="desc" id="sig-desc">What the strategy actually trades: z-score of the spread with ±entry/exit bands and ▲▼ trade markers, over the recent real-bar window. Hit ▸ on any live book to focus it here.</div>
+      <div id="signal-chart" style="height:380px;width:100%;"></div>
+      <div id="chart" style="display:none;"></div>
+      <span id="chart-sym" class="mono" style="display:none;"></span>
     </section>
 
     <section class="panel span-12">
@@ -375,6 +382,73 @@
       candleSeries = chart.addCandlestickSeries({ upColor: '#00d4aa', downColor: '#ff5c5c', borderVisible: false, wickUpColor: '#00d4aa', wickDownColor: '#ff5c5c' });
     }
 
+    // --- Strategy signal chart: z-score of the spread + entry/exit bands + trade marks ---
+    const CHART_THEME = { layout: { background: { color: '#0f151c' }, textColor: '#7889a0' }, grid: { vertLines: { color: '#16202b' }, horzLines: { color: '#16202b' } }, timeScale: { timeVisible: true, borderColor: '#223040' }, rightPriceScale: { borderColor: '#223040' }, autoSize: true };
+    let chartSignal, sigZ, sigBands = [], signalMode = 'signal', signalKey = null, signalUserFocused = false, signalTarget = null;
+
+    function ensureSignalChart() {
+      if (chartSignal) return;
+      chartSignal = LightweightCharts.createChart($('signal-chart'), CHART_THEME);
+      sigZ = chartSignal.addLineSeries({ color: '#f5b942', lineWidth: 2, priceLineVisible: false });
+    }
+    function clearBands() { for (const l of sigBands) sigZ.removePriceLine(l); sigBands = []; }
+    function addBand(price, color, title) { sigBands.push(sigZ.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: title || '' })); }
+
+    function setSignalTarget(t, userFocused) {
+      if (userFocused) signalUserFocused = true;
+      signalTarget = t;
+      maybeRefreshSignal();
+    }
+    async function maybeRefreshSignal(force) {
+      if (signalMode !== 'signal' || !signalTarget || !signalTarget.symbolA) return;
+      const t = signalTarget;
+      const key = `${t.symbolA}/${t.symbolB}/${t.strategyId}/${t.beta}`;
+      if (!force && key === signalKey) return;
+      signalKey = key;
+      await refreshSignal(t);
+    }
+    async function refreshSignal(t) {
+      ensureSignalChart();
+      $('sig-pair').textContent = `${t.symbolA}/${t.symbolB} · ${t.strategyId || 'default'}`;
+      const hours = Number($('lookback').value) || 72;
+      const q = new URLSearchParams({ symbolA: t.symbolA, symbolB: t.symbolB, strategyId: t.strategyId || '', beta: String(t.beta ?? 1), hours: String(hours) });
+      let r; try { r = await jget('/api/market-data/signal-series?' + q.toString()); } catch { return; }
+      if (!r || r.error || !r.series || !r.series.length) {
+        $('sig-desc').textContent = (r && r.error) ? r.error : 'no signal yet — backfill this market set first';
+        sigZ.setData([]); clearBands(); sigZ.setMarkers([]); return;
+      }
+      $('sig-desc').textContent = `${r.pair} · ${r.strategy} · ${r.window.bars} real bars · ${r.trades.length} round-trips in window`;
+      sigZ.setData(r.series.map((p) => ({ time: p.time, value: p.z })));
+      clearBands();
+      addBand(0, '#243245', '0');
+      if (r.bands && r.bands.entryZ != null) {
+        addBand(r.bands.entryZ, '#ff5c5c', '+entry'); addBand(-r.bands.entryZ, '#ff5c5c', '-entry');
+        addBand(r.bands.exitZ, '#1f6f5e', '+exit'); addBand(-r.bands.exitZ, '#1f6f5e', '-exit');
+      }
+      const markers = [];
+      for (const tr of r.trades) {
+        if (tr.openTime) markers.push({ time: tr.openTime, position: tr.side === 'LONG' ? 'belowBar' : 'aboveBar', color: tr.side === 'LONG' ? '#00d4aa' : '#ff5c5c', shape: tr.side === 'LONG' ? 'arrowUp' : 'arrowDown', text: tr.side === 'LONG' ? 'L' : 'S' });
+        if (tr.closeTime) markers.push({ time: tr.closeTime, position: 'inBar', color: Number(tr.pnlUnits) >= 0 ? '#00d4aa' : '#ff5c5c', shape: 'circle', text: 'x' });
+      }
+      markers.sort((a, b) => a.time - b.time);
+      sigZ.setMarkers(markers);
+      chartSignal.timeScale().fitContent();
+    }
+    function setSignalMode(mode) {
+      signalMode = mode;
+      const sig = mode === 'signal';
+      $('signal-chart').style.display = sig ? 'block' : 'none';
+      $('chart').style.display = sig ? 'none' : 'block';
+      $('sig-mode-signal').className = sig ? 'primary' : 'ghost';
+      $('sig-mode-price').className = sig ? 'ghost' : 'primary';
+      if (sig) maybeRefreshSignal(true);
+      else { chartSymbol = null; refreshChart(signalTarget ? signalTarget.symbolA : null); }
+    }
+    function focusSignal(symbolA, symbolB, strategyId, beta) {
+      setSignalMode('signal');
+      setSignalTarget({ symbolA, symbolB, strategyId, beta }, true);
+    }
+
     async function loadPresets() {
       const { presets } = await jget('/api/market-data/presets');
       const optsHtml = presets.map((p) => `<option value="${p.id}">${p.label} — ${p.assetClass}</option>`).join('');
@@ -439,6 +513,7 @@
       await jpost('/api/stat-arb/live/configure', { symbolA, symbolB, beta, strategyId });
       await jpost('/api/stat-arb/live/start');
       chartSymbol = null; // force chart reload for the new symbol
+      signalUserFocused = false; // chart follows the newly armed single book
       await refreshSnapshot();
     }
 
@@ -505,7 +580,8 @@
         return `<div class="book">
           <div class="bh">
             <span class="bp mono accent">${b.pair}</span>
-            <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span></span>
+            <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span>
+              <button onclick='focusSignal(${JSON.stringify(b.symbolA)},${JSON.stringify(b.symbolB)},${JSON.stringify(b.strategyId)},${b.beta})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="show this book's signal in the chart">▸</button></span>
           </div>
           <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars seen</div>
           <div class="mini-grid">
@@ -586,7 +662,8 @@
         fills.innerHTML = '<tr><td colspan="5" class="muted">no closed trades yet</td></tr>';
       }
 
-      await refreshChart(s.symbolA);
+      if (!signalUserFocused) setSignalTarget({ symbolA: s.symbolA, symbolB: s.symbolB, strategyId: s.strategyId, beta: s.beta }, false);
+      if (signalMode === 'price') await refreshChart(s.symbolA);
     }
 
     async function refreshChart(symbol) {
@@ -622,6 +699,8 @@
     $('lx-b').onchange = autofillBeta;
     $('lx-strategy').onchange = renderLaunchParams;
     $('lx-launch').onclick = launchStation;
+    $('sig-mode-signal').onclick = () => setSignalMode('signal');
+    $('sig-mode-price').onclick = () => setSignalMode('price');
 
     (async function init() {
       await loadPresets();

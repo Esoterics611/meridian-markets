@@ -16,12 +16,17 @@ A first pass already landed on the existing page, ahead of the full rewrite:
   realised/unrealised) with **z + equity sparklines over time**.
 - **Strategy catalogue** stacked, each with params + live-usage.
 - **Persisted Trade history** (`GET /…/live/trades`) + NAV-venue fix (see §6).
+- **Strategy Chart** (§2.3): `GET /api/market-data/signal-series` runs the chosen
+  strategy over the stored window and returns per-bar z + entry/exit bands +
+  trade markers; the chart plots the z-score line with ±band price-lines and ▲▼/×
+  trade marks, follows the active book, and any live book focuses it with ▸. (OU
+  shows z + marks; its bands are model-derived, so no band lines yet.)
 - **Terminal aesthetic**: tabular-monospace data, dense low-radius grid, status
   strip with desk P&L + live UTC clock + refresh heartbeat.
 
-Still to do for the full cockpit: the **Strategy Chart** (§2.3, spread/z + bands +
-trade markers), the unified **Fund Overview** (§2.1) and **Risk/kill-switch** (§2.4),
-the consolidated `/books` + `/fund` read-models (§5), and SSE streaming (§4).
+Still to do for the full cockpit: the unified **Fund Overview** (§2.1) and
+**Risk/kill-switch** (§2.4), the consolidated `/books` + `/fund` read-models (§5),
+OU band overlay (μ ± Bertram in z-space), and SSE streaming (§4).
 
 ## 0. The reframing
 

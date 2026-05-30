@@ -272,4 +272,62 @@ export class MarketDataController {
       }),
     };
   }
+
+  /**
+   * The signal the strategy actually trades, for the Strategy Chart: per-bar
+   * z-score of the spread + entry/exit bands + trade markers, computed by
+   * running the chosen strategy over the stored real-bar window (the same
+   * backtest path as /backtest, exposing its spreadSeries + trades). Pairs/EWMA
+   * carry numeric entry/exit z bands; OU has no z bands (model-derived), so
+   * `bands` is null there and the chart shows the z line + markers only.
+   *   GET /api/market-data/signal-series?symbolA=ETH&symbolB=BTC&strategyId=ou-bertram&beta=18&hours=72
+   */
+  @Get('signal-series')
+  async signalSeries(
+    @Query('symbolA') symbolA = 'BTC',
+    @Query('symbolB') symbolB = 'ETH',
+    @Query('venue') venue = 'binance.spot',
+    @Query('hours') hours = '72',
+    @Query('beta') beta = '1',
+    @Query('strategyId') strategyId?: string,
+  ) {
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(hours) * HOUR_MS);
+    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+    const aligned = alignPair(a, b);
+    if (aligned.a.length < 30) {
+      return { error: 'not enough overlapping bars — backfill first', overlap: aligned.a.length };
+    }
+    const betaN = Number(beta) || 1;
+    const notionalUnits = 1_000_000_000n;
+    const hasStrat = !!strategyId && strategyRegistry.has(strategyId);
+    const strategy = hasStrat
+      ? strategyRegistry.build(strategyId as string, { beta: betaN, notionalUnits })
+      : new PairsStrategy({ beta: betaN, zLookback: 20, entryZ: 2, exitZ: 0.5, notionalUnits });
+    const replayVenue = new HistoricalReplayVenue({ [symbolA]: aligned.a, [symbolB]: aligned.b });
+    const result = await new BacktestRunner().run({ barsA: aligned.a, barsB: aligned.b, strategy, venue: replayVenue });
+
+    const defaults = hasStrat ? strategyRegistry.get(strategyId as string).defaultParams : { entryZ: 2, exitZ: 0.5 };
+    const series = result.spreadSeries.map((p) => ({
+      time: Math.floor(p.timestamp.getTime() / 1000),
+      z: p.zScore,
+      position: p.position,
+    }));
+    const trades = result.trades.map((t) => ({
+      openTime: series[t.openIndex]?.time ?? null,
+      closeTime: series[t.closeIndex]?.time ?? null,
+      side: t.side,
+      entryZ: t.entryZ,
+      exitZ: t.exitZ,
+      pnlUnits: t.pnlUnits.toString(),
+    }));
+    return jsonSafe({
+      pair: `${symbolA}/${symbolB}`,
+      strategy: hasStrat ? strategyId : 'pairs-zscore',
+      window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
+      bands: defaults.entryZ != null ? { entryZ: defaults.entryZ, exitZ: defaults.exitZ } : null,
+      series,
+      trades,
+    });
+  }
 }
