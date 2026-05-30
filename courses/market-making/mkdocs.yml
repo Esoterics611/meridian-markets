@@ -1,0 +1,81 @@
+site_name: Market Making — A Working Course
+site_description: A working course on electronic market making. Theory → math → code, end-to-end. No marketing voice, no curve-fit backtests, no "secrets revealed."
+site_url: ''
+docs_dir: docs
+use_directory_urls: false
+
+validation:
+  links:
+    not_found: ignore
+    unrecognized_links: ignore
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - js/mathjax-config.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - 0. Course charter & sources: 00-charter-and-sources.md
+  - 1. What market making actually is: 01-introduction.md
+  - 2. Microstructure foundations: 02-microstructure.md
+  - 3. Avellaneda-Stoikov & inventory-aware quoting: 03-avellaneda-stoikov.md
+  - 4. Execution & queue position: 04-execution.md
+  - 5. Risk, inventory, kill switches: 05-risk.md
+  - 6. Backtesting & LOB replay: 06-backtesting.md
+  - 7. From paper to production: 07-production.md
+  - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
+  - Appendix B — Source notebook: appendix-b-sources.md
