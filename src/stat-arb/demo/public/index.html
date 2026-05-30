@@ -152,6 +152,17 @@
   </div>
 
   <main>
+    <section class="panel span-12" id="fund-panel">
+      <h2>Fund overview — desk-wide
+        <button id="kill-all" class="ghost" style="float:right;padding:4px 10px;font-size:11px;color:var(--danger);border-color:var(--danger-dim);">■ HALT ALL</button>
+      </h2>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="stat-grid" id="fund-stats" style="flex:1;min-width:540px;"></div>
+        <div><div class="spark-k">equity over time</div><div id="fund-spark"></div></div>
+      </div>
+      <div style="margin-top:10px;"><span class="spark-k">exposure by asset class</span> &nbsp;<span id="fund-exposure"><span class="muted">no live books</span></span></div>
+    </section>
+
     <section class="panel span-12" id="launch-panel">
       <h2>▶ Launch a station — run a strategy on a market</h2>
       <div class="desc">Your cockpit. Pick an asset class &amp; market, choose a strategy, set its params, and launch. Each launch starts an isolated paper book — a <b>station</b> — on live Binance data; they accumulate in <b>Live books</b> below. You are the supervisor (agentic desk): every station shares one engine and one trade ledger.</div>
@@ -309,6 +320,49 @@
           </div>
         </div>`;
       }).join('') || '<div class="muted" style="padding:8px;">no strategies</div>';
+    }
+
+    // --- Fund overview: aggregate the single book + all portfolio stations ---
+    const FUNDHIST = [];
+    function classFor(a, b) {
+      const ps = window.__presets || [];
+      for (const p of ps) { if (p.symbols.includes(a) && p.symbols.includes(b)) return p.assetClass; }
+      for (const p of ps) { if (p.symbols.includes(a) || p.symbols.includes(b)) return p.assetClass; }
+      return '—';
+    }
+    function renderFund() {
+      const s = window.__single, p = window.__pf;
+      let cap = 0, eq = 0, real = 0, unreal = 0, books = 0, openPos = 0;
+      const byClass = {};
+      if (p && p.pairCount > 0) {
+        cap += Number(p.capitalUnits); eq += Number(p.equityUnits); real += Number(p.realisedPnlUnits); unreal += Number(p.unrealisedPnlUnits);
+        books += p.pairCount; openPos += (p.books || []).filter((b) => b.position).length;
+        for (const b of (p.books || [])) { const c = classFor(b.symbolA, b.symbolB); byClass[c] = (byClass[c] || 0) + Number(b.equityUnits); }
+      }
+      if (s && (s.running || s.openPosition)) {
+        cap += Number(s.capitalUnits); eq += Number(s.equityUnits); real += Number(s.realisedPnlUnits); unreal += Number(s.unrealisedPnlUnits);
+        books += 1; if (s.openPosition) openPos += 1;
+        const c = classFor(s.symbolA, s.symbolB); byClass[c] = (byClass[c] || 0) + Number(s.equityUnits);
+      }
+      const pnl = eq - cap;
+      if (eq > 0) { FUNDHIST.push(eq); if (FUNDHIST.length > 120) FUNDHIST.shift(); }
+      const peak = FUNDHIST.length ? Math.max(...FUNDHIST) : eq;
+      const dd = peak > 0 ? (peak - eq) / peak * 100 : 0;
+      const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      $('fund-stats').innerHTML =
+        stat('Equity', fmtUsdc(eq), pnl >= 0 ? 'pos' : 'neg') +
+        stat('Capital', fmtUsdc(cap)) +
+        stat('Net P&L', (pnl >= 0 ? '+' : '') + fmtUsdc(pnl), pnl >= 0 ? 'pos' : 'neg') +
+        stat('Realised', fmtUsdc(real), real >= 0 ? 'pos' : 'neg') +
+        stat('Unrealised', fmtUsdc(unreal), unreal >= 0 ? 'pos' : 'neg') +
+        stat('Books', books) +
+        stat('Open pos', openPos) +
+        stat('Drawdown', dd.toFixed(2) + '%', dd > 0.0001 ? 'neg' : '');
+      $('fund-spark').innerHTML = spark(FUNDHIST, pnl >= 0 ? '#00d4aa' : '#ff5c5c', 220, 38);
+      const total = Object.values(byClass).reduce((a, b) => a + b, 0) || 1;
+      $('fund-exposure').innerHTML = Object.keys(byClass).length
+        ? Object.entries(byClass).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<span class="pchip"><span class="pk">${c}</span> ${(v / total * 100).toFixed(0)}%</span>`).join('')
+        : '<span class="muted">no live books</span>';
     }
 
     // --- Launch cockpit: human picks class → market → strategy → params → go ---
@@ -558,8 +612,9 @@
 
     async function refreshPortfolio() {
       let p; try { p = await jget('/api/stat-arb/live/portfolio'); } catch { return; }
-      if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; window.__pfBooks = []; PNL.pf = 0; paintDeskPnl(); renderStrategies(); return; }
+      if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; window.__pfBooks = []; window.__pf = { pairCount: 0 }; PNL.pf = 0; paintDeskPnl(); renderStrategies(); renderFund(); return; }
       $('portfolio-panel').style.display = 'block';
+      window.__pf = p;
       window.__pfBooks = p.books || [];
       PNL.pf = Number(p.realisedPnlUnits) + Number(p.unrealisedPnlUnits); paintDeskPnl();
       const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
@@ -598,6 +653,7 @@
         </div>`;
       }).join('');
       renderStrategies(); // reflect live-usage counts in the catalogue
+      renderFund();
     }
 
     async function refreshTrades() {
@@ -625,6 +681,7 @@
     async function refreshSnapshot() {
       let s;
       try { s = await jget('/api/stat-arb/live/snapshot'); } catch { return; }
+      window.__single = s;
       $('feed-badge').textContent = 'feed ' + (s.feedId || '—');
       $('venue-badge').textContent = 'venue ' + (s.venueId || '—');
       const live = $('live-badge');
@@ -664,6 +721,7 @@
 
       if (!signalUserFocused) setSignalTarget({ symbolA: s.symbolA, symbolB: s.symbolB, strategyId: s.strategyId, beta: s.beta }, false);
       if (signalMode === 'price') await refreshChart(s.symbolA);
+      renderFund();
     }
 
     async function refreshChart(symbol) {
@@ -701,6 +759,7 @@
     $('lx-launch').onclick = launchStation;
     $('sig-mode-signal').onclick = () => setSignalMode('signal');
     $('sig-mode-price').onclick = () => setSignalMode('price');
+    $('kill-all').onclick = async () => { await jpost('/api/stat-arb/live/kill'); await refreshSnapshot(); await refreshPortfolio(); };
 
     (async function init() {
       await loadPresets();

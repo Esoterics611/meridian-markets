@@ -21,12 +21,19 @@ A first pass already landed on the existing page, ahead of the full rewrite:
   trade markers; the chart plots the z-score line with ±band price-lines and ▲▼/×
   trade marks, follows the active book, and any live book focuses it with ▸. (OU
   shows z + marks; its bands are model-derived, so no band lines yet.)
+- **Fund Overview** (§2.1): a desk-wide top strip aggregating the single book +
+  every station — equity, capital, net/realised/unrealised P&L, book + open-pos
+  counts, client-side drawdown vs peak, an equity sparkline, and exposure-by-asset
+  -class chips (mapped from the presets).
+- **Desk kill-switch** (§2.4): `POST /api/stat-arb/live/kill` halts the single
+  book + all stations; `■ HALT ALL` in the Fund Overview header.
 - **Terminal aesthetic**: tabular-monospace data, dense low-radius grid, status
   strip with desk P&L + live UTC clock + refresh heartbeat.
 
-Still to do for the full cockpit: the unified **Fund Overview** (§2.1) and
-**Risk/kill-switch** (§2.4), the consolidated `/books` + `/fund` read-models (§5),
-OU band overlay (μ ± Bertram in z-space), and SSE streaming (§4).
+Still to do for the full cockpit: a server-side consolidated `/books` + `/fund`
+read-model (the aggregate is computed client-side today), **flatten** (force-close
+an open position — kill only halts new entries), per-book risk gauges + alerts
+feed, the OU band overlay (μ ± Bertram in z-space), and SSE streaming (§4).
 
 ## 0. The reframing
 

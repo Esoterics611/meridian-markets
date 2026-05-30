@@ -147,6 +147,14 @@ export class LiveController {
     return this.trader.snapshot();
   }
 
+  /** Desk-wide kill switch: halt the single book AND every portfolio book. */
+  @Post('kill')
+  kill() {
+    this.trader.stop();
+    this.portfolio.stop();
+    return { halted: true, single: this.trader.isRunning(), portfolio: this.portfolio.isRunning() };
+  }
+
   @Post('tick')
   async tick() {
     await this.trader.tick();
