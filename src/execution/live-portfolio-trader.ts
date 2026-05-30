@@ -118,6 +118,26 @@ export class LivePortfolioTrader {
     this.logger.log(`launched book ${key} via ${pair.strategyId ?? 'default'} (capital=${capitalUnits})`);
   }
 
+  /** Flatten every book's open position (manual desk-wide flatten). */
+  async flattenAll(): Promise<void> {
+    await Promise.all([...this.books.values()].map((b) => b.flatten().catch(() => undefined)));
+  }
+
+  /**
+   * Stop and remove a single station: flatten its open position, then drop it
+   * from the live set. Stops the loop when the last book is removed. Returns
+   * whether a book was removed.
+   */
+  async removeBook(pair: string): Promise<boolean> {
+    const t = this.books.get(pair);
+    if (!t) return false;
+    await t.flatten().catch(() => undefined);
+    this.books.delete(pair);
+    this.logger.log(`removed book ${pair}`);
+    if (this.books.size === 0) this.stop();
+    return true;
+  }
+
   start(): void {
     if (this.timer || this.books.size === 0) return;
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);

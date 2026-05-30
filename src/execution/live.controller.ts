@@ -155,6 +155,28 @@ export class LiveController {
     return { halted: true, single: this.trader.isRunning(), portfolio: this.portfolio.isRunning() };
   }
 
+  /** Force-close the single book's open position (manual flatten). */
+  @Post('flatten')
+  async flatten() {
+    await this.trader.flatten();
+    return this.trader.snapshot();
+  }
+
+  /** Force-close every station's open position. */
+  @Post('portfolio/flatten')
+  async flattenPortfolio() {
+    await this.portfolio.flattenAll();
+    return this.portfolio.snapshot();
+  }
+
+  /** Stop + remove one station by pair (e.g. "ETH/BTC"): flattens then drops it. */
+  @Post('portfolio/remove')
+  async removeBook(@Body() body: { pair?: string }) {
+    if (!body.pair) return { error: 'pair required (e.g. "ETH/BTC")' };
+    const removed = await this.portfolio.removeBook(body.pair);
+    return { removed, ...this.portfolio.snapshot() };
+  }
+
   @Post('tick')
   async tick() {
     await this.trader.tick();

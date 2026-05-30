@@ -168,7 +168,10 @@
   <main>
     <section class="panel span-12" id="fund-panel" data-tab="desk">
       <h2>Fund overview — desk-wide
-        <button id="kill-all" class="ghost" style="float:right;padding:4px 10px;font-size:11px;color:var(--danger);border-color:var(--danger-dim);">■ HALT ALL</button>
+        <span style="float:right;display:flex;gap:6px;">
+          <button id="flatten-all" class="ghost" style="padding:4px 10px;font-size:11px;color:var(--warn);border-color:var(--warn-dim);">⚑ FLATTEN ALL</button>
+          <button id="kill-all" class="ghost" style="padding:4px 10px;font-size:11px;color:var(--danger);border-color:var(--danger-dim);">■ HALT ALL</button>
+        </span>
       </h2>
       <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;">
         <div class="stat-grid" id="fund-stats" style="flex:1;min-width:540px;"></div>

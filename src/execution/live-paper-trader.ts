@@ -283,6 +283,23 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   }
 
   /**
+   * Force-close the open position now (manual flatten): book the round-trip via
+   * the venue at the latest fills, then stop the loop so the strategy's stale
+   * in-position state can't immediately re-fire. Re-arming rebuilds a fresh
+   * strategy. No-op when already flat. Returns whether a position was closed.
+   */
+  async flatten(): Promise<boolean> {
+    if (!this.open) return false;
+    const aLong = this.open.side === 'LONG';
+    await this.closePosition([
+      { symbol: this.cfg.symbolA, side: aLong ? 'SELL' : 'BUY', notionalUnits: this.open.notionalUnits, reason: 'CLOSE' },
+      { symbol: this.cfg.symbolB, side: aLong ? 'BUY' : 'SELL', notionalUnits: this.open.notionalUnits, reason: 'CLOSE' },
+    ]);
+    this.stop();
+    return true;
+  }
+
+  /**
    * One loop iteration. Pulls a bar for each leg; only proceeds when BOTH legs
    * advanced (aligned bars). Safe to call directly in tests. Never throws —
    * feed/venue errors are logged and the loop continues next tick.
