@@ -34,6 +34,12 @@ export interface PortfolioBookRow {
   regime: string;
   running: boolean;
   barsSeen: number;
+  /** ISO time of the last aligned bar this book processed (staleness check). */
+  lastBarAt: string | null;
+  /** How many of barsSeen were warmup-seeded (not live ticks). */
+  seededBars: number;
+  /** OPENs blocked by this book's risk gate so far. */
+  blockedEntries: number;
   capitalUnits: string;
   equityUnits: string;
   realisedPnlUnits: string;
@@ -176,6 +182,9 @@ export class LivePortfolioTrader {
         regime: s.regime,
         running: this.isRunning(),
         barsSeen: s.barsSeen,
+        lastBarAt: s.lastBarAt,
+        seededBars: s.seededBars,
+        blockedEntries: s.blockedEntries,
         capitalUnits: s.capitalUnits,
         equityUnits: s.equityUnits,
         realisedPnlUnits: s.realisedPnlUnits,

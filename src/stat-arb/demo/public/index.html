@@ -161,6 +161,7 @@
         <div><div class="spark-k">equity over time</div><div id="fund-spark"></div></div>
       </div>
       <div style="margin-top:10px;"><span class="spark-k">exposure by asset class</span> &nbsp;<span id="fund-exposure"><span class="muted">no live books</span></span></div>
+      <div style="margin-top:8px;"><span class="spark-k">alerts</span> &nbsp;<span id="alerts"><span class="chip OK">✓ all clear</span></span></div>
     </section>
 
     <section class="panel span-12" id="launch-panel">
@@ -363,6 +364,20 @@
       $('fund-exposure').innerHTML = Object.keys(byClass).length
         ? Object.entries(byClass).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<span class="pchip"><span class="pk">${c}</span> ${(v / total * 100).toFixed(0)}%</span>`).join('')
         : '<span class="muted">no live books</span>';
+
+      // Alerts — the Ops/Monitor surface: stale feeds, gate trips, drawdown.
+      const alerts = [];
+      const now = Date.now();
+      const allBooks = ((p && p.books) || []).slice();
+      if (s && (s.running || s.openPosition)) allBooks.push({ pair: `${s.symbolA}/${s.symbolB}`, lastBarAt: s.lastBarAt, running: s.running, blockedEntries: s.blockedEntries });
+      for (const b of allBooks) {
+        if (b.running && b.lastBarAt) { const age = (now - new Date(b.lastBarAt)) / 1000; if (age > 180) alerts.push(`STALE FEED · ${b.pair} · ${Math.round(age)}s`); }
+        if (b.blockedEntries > 0) alerts.push(`RISK GATE · ${b.pair} · ${b.blockedEntries} blocked`);
+      }
+      if (dd > 5) alerts.push(`DRAWDOWN · desk ${dd.toFixed(1)}%`);
+      $('alerts').innerHTML = alerts.length
+        ? alerts.map((a) => `<span class="chip WARN" style="margin-right:6px;">⚠ ${a}</span>`).join('')
+        : '<span class="chip OK">✓ all clear</span>';
     }
 
     // --- Launch cockpit: human picks class → market → strategy → params → go ---
@@ -632,13 +647,15 @@
         const h = pushHist(b.pair, Number(b.lastZ), Number(b.equityUnits) / USDC);
         const real = Number(b.realisedPnlUnits), unreal = Number(b.unrealisedPnlUnits);
         const eqPnl = Number(b.equityUnits) - Number(b.capitalUnits);
+        const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
+        const stale = age != null && b.running && age > 180;
         return `<div class="book">
           <div class="bh">
             <span class="bp mono accent">${b.pair}</span>
             <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span>
               <button onclick='focusSignal(${JSON.stringify(b.symbolA)},${JSON.stringify(b.symbolB)},${JSON.stringify(b.strategyId)},${b.beta})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="show this book's signal in the chart">▸</button></span>
           </div>
-          <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars seen</div>
+          <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${stale ? ' <span class="chip WARN">STALE</span>' : ''}${b.blockedEntries > 0 ? ` <span class="chip WARN">${b.blockedEntries} blocked</span>` : ''}</div>
           <div class="mini-grid">
             ${mini('z-score', num(b.lastZ, 2))}
             ${mini('Equity', fmtUsdc(b.equityUnits), eqPnl >= 0 ? 'pos' : 'neg')}
