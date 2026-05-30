@@ -16,7 +16,9 @@ import { StatArbRepository } from './stat-arb.repository';
 export class StatArbNavCron implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StatArbNavCron.name);
   private handle: NodeJS.Timeout | null = null;
-  private readonly venue = 'mock';
+  // Set from EXECUTION_MODE in onModuleInit. Paper trades persist under the
+  // PaperVenue id ('paper'), not 'mock' — reading 'mock' kept fund NAV at 0.
+  private venue = 'mock';
 
   constructor(
     private readonly cfg: ConfigService,
@@ -25,6 +27,7 @@ export class StatArbNavCron implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     const app = this.cfg.getOrThrow<AppConfig>('app');
+    this.venue = navVenueForMode(app.execution?.mode);
     if (app.nodeEnv === 'test') return; // tests drive the tick explicitly
     // 60s cadence keeps the dashboard fresh; the partial unique index dedupes.
     this.handle = setInterval(() => {
@@ -54,5 +57,18 @@ export class StatArbNavCron implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.error(`stat-arb NAV tick failed: ${(err as Error).message}`);
     }
+  }
+}
+
+/** Venue id the active execution mode persists trades under (matches the module wiring). */
+function navVenueForMode(mode: string | undefined): string {
+  switch (mode) {
+    case 'live':
+      return 'binance';
+    case 'paper':
+    case 'canary':
+      return 'paper';
+    default:
+      return 'mock';
   }
 }

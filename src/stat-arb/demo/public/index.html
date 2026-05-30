@@ -134,6 +134,15 @@
       <table style="margin-top:12px;"><thead><tr><th>pair</th><th>strategy</th><th>β</th><th>z</th><th>regime</th><th>position</th><th>equity (USDC)</th></tr></thead>
       <tbody id="pf-books"></tbody></table>
     </section>
+
+    <section class="panel">
+      <h2>Trade history — persisted
+        <span class="badge mono" id="trades-venue" style="float:right;">venue —</span>
+      </h2>
+      <div class="desc">Closed round-trips written to <span class="mono">stat_arb_trades</span> — survives restart and spans every book on the venue. This is the durable ledger, not the in-memory fills above.</div>
+      <table><thead><tr><th>closed</th><th>pair</th><th>side</th><th>entry z</th><th>exit z</th><th>pnl (USDC)</th></tr></thead>
+      <tbody id="trade-history"><tr><td colspan="6" class="muted">no persisted trades yet — arm a book and let a round-trip close</td></tr></tbody></table>
+    </section>
   </main>
 
   <script>
@@ -268,6 +277,21 @@
         <td>${fmtUsdc(b.equityUnits)}</td></tr>`).join('');
     }
 
+    async function refreshTrades() {
+      let r; try { r = await jget('/api/stat-arb/live/trades?limit=50'); } catch { return; }
+      $('trades-venue').textContent = 'venue ' + (r.venue || '—');
+      const tb = $('trade-history');
+      if (r.trades && r.trades.length) {
+        tb.innerHTML = r.trades.map((t) => {
+          const p = Number(t.pnlUnits);
+          const when = new Date(t.closedAt).toLocaleTimeString();
+          return `<tr><td class="mono">${when}</td><td class="mono">${t.pair}</td><td><span class="chip ${t.side}">${t.side}</span></td><td>${num(t.entryZ,2)}</td><td>${num(t.exitZ,2)}</td><td class="${p>=0?'pos':'neg'}">${fmtUsdc(p)}</td></tr>`;
+        }).join('');
+      } else {
+        tb.innerHTML = '<tr><td colspan="6" class="muted">no persisted trades yet — arm a book and let a round-trip close</td></tr>';
+      }
+    }
+
     async function setCapital() {
       const usdc = Number($('capital').value);
       if (!(usdc > 0)) return;
@@ -341,7 +365,8 @@
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
-      setInterval(() => { refreshSnapshot(); refreshPortfolio(); }, 4000);
+      await refreshTrades();
+      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); }, 4000);
     })();
   </script>
 </body>
