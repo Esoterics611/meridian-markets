@@ -1,8 +1,20 @@
 # Quant Terminal Spec — the `mq` workstation
 
-Status: **proposed** (2026-05-31). Owner: next tooling session.
+Status: **P0 shipped** (2026-05-31). Owner: next tooling session.
 Companion: [UI_REWRITE_SPEC.md](./UI_REWRITE_SPEC.md),
 [AGENTIC_HEDGE_FUND_DESIGN.md](./AGENTIC_HEDGE_FUND_DESIGN.md).
+
+### Shipped (2026-05-31)
+`bin/mq.ts` (run via `npm run mq -- <cmd>`) implements the full P0 surface as a
+thin `fetch` wrapper over the existing control plane: `presets`, `strategies`,
+`backfill`, `discover`, `backtest`, `sweep` (every live-capable strategy ranked
+by Sharpe), `arm`, `stop`/`tick`/`flatten`/`kill`, `book add/start/stop/flatten/
+remove`, `status`, `book`, `trades`, and `session` (wraps `scripts/quant-session.ts`).
+Every command takes `--json`; `MQ_HOST` overrides the default `:3100`. The pure
+arg-parse / format / rank logic lives in `src/cli/mq-lib.ts` with unit tests
+(`src/cli/mq-lib.spec.ts`, 14 specs) — jest's rootDir is `src`, so the executable
+stays a thin shell over a tested core. **Still open:** `mq watch` TUI (P1),
+`mq fund` (needs the `/fund` read-model, UI spec §5), `mq validate` (P2).
 
 ## 0. What a "quant trading app" is here
 
@@ -122,9 +134,9 @@ hotkeys (arm/stop/flatten/kill) are P2 and call the same endpoints as the CLI.
   auditable and identical to what a human types.
 
 ## 5. Phasing
-- **P0:** `mq` with presets/strategies/backfill/discover/backtest/sweep/arm/stop/
-  status/book/session + `--json`. Pure wrapper over today's endpoints + the new
-  `/trades`.
+- **P0 — ✅ shipped (2026-05-31):** `mq` with presets/strategies/backfill/discover/
+  backtest/sweep/arm/stop/tick/flatten/kill/book/status/trades/session + `--json`.
+  Pure wrapper over today's endpoints + `/live/trades`. (`bin/mq.ts` + `src/cli/`.)
 - **P1:** `mq watch` read-only TUI; `mq fund`/`mq trades` once those endpoints land.
 - **P2:** TUI hotkeys (arm/stop/flatten/kill); `mq validate` (the promote gate).
 </content>

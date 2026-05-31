@@ -10,6 +10,7 @@
     "start:prod": "node dist/src/main",
     "test": "jest",
     "test:watch": "jest --watch",
+    "mq": "ts-node -r tsconfig-paths/register bin/mq.ts",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:run": "npm run typeorm -- migration:run -d database/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d database/data-source.ts"
