@@ -148,6 +148,12 @@ $ scales). Size is a *risk* lever (vol-target / Kelly) capped by *market impact*
 
 ## 8. Standing backlog (the worklist — keep it stocked)
 
+> Production-readiness gates (what must land before backtest numbers are
+> trustworthy / before real capital) are tracked in
+> [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md). The **P0** items there
+> (backtest slippage/spread/borrow + real-history OOS) gate full-time strategy work.
+
+
 - [ ] **Maker-execution stat-arb** — post entries/exits passively (reuse MM quoting) to kill the fee floor. *Highest expected value.*
 - [ ] **Risk-parity allocator** — take the scan's fee-clearing pairs, size ∝ 1/σ_spread, auto-launch a diversified book; rebalance daily.
 - [ ] **Real-history robustness** — plumb `ReplayEngine` into `/api/stat-arb/research/*` so walk-forward/sweep/MC run on the scanned pair, not the synthetic feed; add deflated-Sharpe.
