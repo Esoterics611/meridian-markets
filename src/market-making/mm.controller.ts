@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { MmPortfolioTrader } from './live/mm-portfolio-trader';
+import { MmScreener } from './screen/mm-screener';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
 import { listMmPresets, getMmPreset } from './markets/mm-market-presets';
 
@@ -19,7 +20,22 @@ const USDC = 1_000_000n;
 
 @Controller('api/market-making')
 export class MmController {
-  constructor(private readonly portfolio: MmPortfolioTrader) {}
+  constructor(
+    private readonly portfolio: MmPortfolioTrader,
+    private readonly screener: MmScreener,
+  ) {}
+
+  /**
+   * Spread-capture screener: rank instruments by expected MM profit/day
+   * (spread + rebate − adverse, weighted by fillability). "Where should we quote?"
+   *   GET /api/market-making/screen            — all presets
+   *   GET /api/market-making/screen?preset=ID  — one preset
+   */
+  @Get('screen')
+  async screen(@Query('preset') preset?: string) {
+    const filter = preset && preset !== 'all' ? [preset] : undefined;
+    return this.screener.screen(filter);
+  }
 
   @Get('strategies')
   strategies() {

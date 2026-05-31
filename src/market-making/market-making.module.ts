@@ -8,8 +8,11 @@ import { IBarFeed } from '../stat-arb/feed/live-feed.interface';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
+import { MmScreener } from './screen/mm-screener';
+import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
 import { CompositeRiskGate } from './risk/risk-gate';
+import { barsPerDayForInterval } from '../stat-arb/discovery/net-edge-scorer';
 
 // MarketMakingModule — the automated market-making desk. Self-contained: it
 // provides its own Binance public client + per-book feed (the same swap-seam
@@ -86,6 +89,29 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         };
 
         return new MmPortfolioTrader(makeBook, mm.pollIntervalMs, mm.capitalUnits);
+      },
+    },
+    // Spread-capture screener: ranks instruments by expected MM profit/day.
+    {
+      provide: MmScreener,
+      inject: [ConfigService, MM_BINANCE_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient): MmScreener => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const mm = app.marketMaking;
+        const barsToLoad = Math.max(mm.volWindowBars * 3, 120);
+        const presets = MM_MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] }));
+        return new MmScreener(
+          (sym) => client.klines(sym, app.feed.interval, barsToLoad),
+          presets,
+          {
+            quoteHalfSpreadBps: mm.minHalfSpreadBps,
+            makerFeeBps: mm.makerFeeBps,
+            barsPerDay: barsPerDayForInterval(app.feed.interval),
+            volWindowBars: mm.volWindowBars,
+            adverseCoef: 0.5,
+            barsToLoad,
+          },
+        );
       },
     },
   ],

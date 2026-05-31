@@ -23,6 +23,10 @@ import { ResearchController } from './research/research.controller';
 import { ExecDemoService } from '../execution/exec-demo.service';
 import { ExecController } from '../execution/exec.controller';
 import { UniverseController } from './discovery/universe.controller';
+import { OpportunityScanner } from './discovery/opportunity-scanner';
+import { OpportunityController } from './discovery/opportunity.controller';
+import { barsPerDayForInterval } from './discovery/net-edge-scorer';
+import { MARKET_PRESETS } from './markets/market-presets';
 import { PaperVenue } from '../execution/paper-venue';
 import { Bar } from './backtest/bar';
 import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader';
@@ -235,6 +239,32 @@ async function warmupFromBinance(
     StatArbRepository,
     StatArbNavCron,
     ExecDemoService,
+    // Cross-asset opportunity scanner: ranks every preset's pairs by expected
+    // net-edge-after-fees per day (the "scan wide, trade rarely" board).
+    {
+      provide: OpportunityScanner,
+      inject: [ConfigService, BINANCE_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient): OpportunityScanner => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const barsToLoad = 240;
+        const presets = MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] }));
+        return new OpportunityScanner(
+          (sym) => client.klines(sym, app.feed.interval, barsToLoad),
+          presets,
+          {
+            entryZ: app.live.entryZ,
+            exitZ: app.live.exitZ,
+            feeBps: 5, // matches the registry fee gate + PaperVenue taker
+            minEdgeMultiple: 1.5,
+            barsPerDay: barsPerDayForInterval(app.feed.interval),
+            sigmaWindowBars: 60,
+            roundTripFactor: 2,
+            barsToLoad,
+            discovery: { minBars: 120, pValueCutoff: 0.1, minHalfLifeBars: 3, maxHalfLifeBars: 50 },
+          },
+        );
+      },
+    },
   ],
   controllers: [
     DemoController,
@@ -243,6 +273,7 @@ async function warmupFromBinance(
     ExecController,
     UniverseController,
     LiveController,
+    OpportunityController,
   ],
 })
 export class StatArbModule {}

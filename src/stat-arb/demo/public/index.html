@@ -162,6 +162,7 @@
     <button class="tab" data-tab="desk">Desk</button>
     <button class="tab" data-tab="launch">Launch</button>
     <button class="tab" data-tab="mm">Market Making</button>
+    <button class="tab" data-tab="scan">Scanner</button>
     <button class="tab" data-tab="signal">Signal</button>
     <button class="tab" data-tab="research">Research</button>
   </div>
@@ -291,6 +292,22 @@
         <div class="spark-k" style="margin-bottom:8px;">Maker books <span id="mm-summary" class="muted"></span></div>
         <div id="mm-books" class="book-grid"><div class="muted">no maker books — launch one above</div></div>
       </div>
+    </section>
+
+    <section class="panel span-12" data-tab="scan">
+      <h2>⊹ Opportunity scanner — scan wide, trade rarely</h2>
+      <div class="desc">Sweep the asset-class presets and rank by expected profit <b>after fees</b>. Stat-arb ranks pairs by net-edge-per-day (only those clearing the fee gate); market-making ranks instruments by spread-capture suitability. Click a row to launch it. Scans hit live Binance — a full sweep takes a few seconds.</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <label class="ctl">Universe<select id="scan-preset"></select></label>
+        <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">⊹ Scan now</button>
+        <span id="scan-note" class="muted" style="font-size:12px;"></span>
+      </div>
+      <div class="spark-k" style="margin:12px 0 6px;">Stat-arb opportunities <span id="opp-summary" class="muted"></span></div>
+      <table><thead><tr><th>pair</th><th>class</th><th>σ spread</th><th>half-life</th><th>edge/trade</th><th>trades/day</th><th>conf</th><th>net/day (bps)</th><th>fees?</th><th></th></tr></thead>
+      <tbody id="opp-rows"><tr><td colspan="10" class="muted">scan to populate</td></tr></tbody></table>
+      <div class="spark-k" style="margin:16px 0 6px;">Market-making targets <span id="mmscreen-summary" class="muted"></span></div>
+      <table><thead><tr><th>instrument</th><th>class</th><th>vol (bps)</th><th>net/round-trip</th><th>fills/day</th><th>score/day</th><th>quote?</th><th></th></tr></thead>
+      <tbody id="mmscreen-rows"><tr><td colspan="8" class="muted">scan to populate</td></tr></tbody></table>
     </section>
 
     <section class="panel span-6" data-tab="research">
@@ -590,6 +607,60 @@
           <div style="margin-top:10px;"><div class="spark-k">equity over time</div>${spark(h.eq, net >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
         </div>`;
       }).join('');
+    }
+
+    // --- Opportunity scanner: net-edge board (stat-arb) + spread-capture board (MM) ---
+    const col = (v) => `style="color:${Number(v) >= 0 ? '#00d4aa' : '#ff5c5c'}"`;
+    function fillScanPresets() {
+      const src = $('preset');
+      const ids = Array.from(src.options).map((o) => `<option value="${o.value}">${o.textContent}</option>`);
+      $('scan-preset').innerHTML = '<option value="all">all presets</option>' + ids.join('');
+    }
+    async function scanRun() {
+      const preset = $('scan-preset').value;
+      const q = preset && preset !== 'all' ? ('?preset=' + encodeURIComponent(preset)) : '';
+      const btn = $('scan-run'); btn.disabled = true; btn.textContent = '⊹ scanning…';
+      $('scan-note').textContent = 'scanning live Binance…';
+      let opp, mm;
+      try { [opp, mm] = await Promise.all([jget('/api/opportunities' + q), jget('/api/market-making/screen' + q)]); }
+      catch { $('scan-note').textContent = '⚠ scan failed'; btn.disabled = false; btn.textContent = '⊹ Scan now'; return; }
+      btn.disabled = false; btn.textContent = '⊹ Scan now';
+      renderOpp(opp); renderMmScreen(mm);
+      $('scan-note').textContent = `scanned ${opp.presetsScanned || 0} preset(s) · ${opp.pairsTested || 0} pairs · ${opp.cleared || 0} clear fees`;
+    }
+    function renderOpp(b) {
+      const rows = (b && b.opportunities) || [];
+      $('opp-summary').textContent = rows.length ? `${b.cleared}/${rows.length} clear the fee gate` : '';
+      $('opp-rows').innerHTML = rows.length ? rows.slice(0, 40).map((o) => `<tr>
+        <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}</td>
+        <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
+        <td ${col(o.perTradeNetEdgeBps)}>${num(o.perTradeNetEdgeBps, 2)} bps</td>
+        <td>${num(o.tradesPerDay, 1)}</td><td>${num(o.certainty, 2)}</td>
+        <td ${col(o.netEdgePerDayBps)}>${num(o.netEdgePerDayBps, 1)}</td>
+        <td>${o.clearsFees ? '<span class="chip OK">clears</span>' : '<span class="chip WARN">sub-fee</span>'}</td>
+        <td>${o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="10" class="muted">no opportunities — try another universe</td></tr>';
+    }
+    async function launchOpp(a, b, beta) {
+      const r = await jpost('/api/stat-arb/live/portfolio/launch', { symbolA: a, symbolB: b, beta, capitalUsdc: 100000 });
+      $('scan-note').textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b} — see Desk`;
+      refreshPortfolio();
+    }
+    function renderMmScreen(b) {
+      const rows = (b && b.instruments) || [];
+      $('mmscreen-summary').textContent = rows.length ? `${b.attractive}/${rows.length} attractive` : '';
+      $('mmscreen-rows').innerHTML = rows.length ? rows.slice(0, 40).map((i) => `<tr>
+        <td class="mono accent">${i.symbol}</td><td class="muted">${i.assetClass}</td>
+        <td>${num(i.volBps, 2)}</td><td ${col(i.netPerRoundTripBps)}>${num(i.netPerRoundTripBps, 2)} bps</td>
+        <td>${num(i.roundTripsPerDay, 0)}</td><td ${col(i.scorePerDayBps)}>${num(i.scorePerDayBps, 0)}</td>
+        <td>${i.attractive ? '<span class="chip OK">yes</span>' : '<span class="chip WARN">no</span>'}</td>
+        <td>${i.attractive ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='quoteMm(${JSON.stringify(i.symbol)})'>◆ quote</button>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="8" class="muted">no instruments</td></tr>';
+    }
+    async function quoteMm(symbol) {
+      const r = await jpost('/api/market-making/launch', { symbol, capitalUsdc: 100000 });
+      $('scan-note').textContent = r && r.error ? ('⚠ ' + r.error) : `✓ quoting ${symbol} — see Market Making`;
+      refreshMm();
     }
 
     let chart, candleSeries, chartSymbol = null;
@@ -999,6 +1070,7 @@
     $('mm-start').onclick = async () => { await jpost('/api/market-making/start'); refreshMm(); };
     $('mm-stop').onclick = async () => { await jpost('/api/market-making/stop'); refreshMm(); };
     $('mm-flatten').onclick = async () => { await jpost('/api/market-making/flatten'); refreshMm(); };
+    $('scan-run').onclick = scanRun;
     $('sig-mode-signal').onclick = () => setSignalMode('signal');
     $('sig-mode-price').onclick = () => setSignalMode('price');
     $('sig-a').onchange = sigFromControls;
@@ -1012,7 +1084,7 @@
     // can sit on a different screen. tab-hidden uses !important so it wins over a
     // panel's own inline display toggles (e.g. the portfolio panel).
     function showTab(name) {
-      const tabs = ['desk', 'launch', 'mm', 'signal', 'research'];
+      const tabs = ['desk', 'launch', 'mm', 'scan', 'signal', 'research'];
       if (!tabs.includes(name)) name = 'desk';
       document.querySelectorAll('main > section').forEach((s) => {
         s.classList.toggle('tab-hidden', s.getAttribute('data-tab') !== name);
@@ -1033,6 +1105,7 @@
       fillSigLegs();
       await loadMmMarkets();
       await loadMmStrategies();
+      fillScanPresets();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
