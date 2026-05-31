@@ -8,7 +8,7 @@
 
 Electronic market making is one of the most over-promised topics in quantitative finance, in roughly the same way and for roughly the same reasons that statistical arbitrage is. On any given week the internet will hand you a "delta-neutral quoter that prints money from the bid-ask spread" and ask you to take it on faith. Most of those quoters do not survive ten minutes of careful examination — they assume away adverse selection, they price queue position as zero, they ignore inventory risk, or they backtest against trade prints rather than against a reconstructed limit order book. If anyone tells you their market-making course will make you rich on default parameters, they are either lying or have not run a calibrated LOB-replay backtest.
 
-There is also a real, working version of the field. Its math is settled and has been since [Glosten & Milgrom (1985)](appendix-b-sources.md), [Kyle (1985)](appendix-b-sources.md), and [Ho & Stoll (1981)](appendix-b-sources.md). Its modern operational form was written down by [Avellaneda & Stoikov (2008)](appendix-b-sources.md) and extended in closed form by [Guéant, Lehalle & Fernandez-Tapia (2013)](appendix-b-sources.md). The textbook synthesis is [Cartea, Jaimungal & Penalva (2015)](appendix-b-sources.md). What changes year to year is not the math — it is the *venue plumbing*: tick sizes, fee schedules, queue priority rules, message-rate caps, post-only flags, the difference between FIFO and pro-rata matching engines. This course teaches the math the field has agreed on and the operational discipline that makes the math survive contact with a real venue. It is the companion to [the stat-arb course](../stat-arb/00-charter-and-sources.md), same voice, same rules, same refusal to ship equity curves as proof.
+There is also a real, working version of the field. Its math is settled and has been since [Glosten & Milgrom (1985)](appendix-b-sources.md), [Kyle (1985)](appendix-b-sources.md), and [Ho & Stoll (1981)](appendix-b-sources.md). Its modern operational form was written down by [Avellaneda & Stoikov (2008)](appendix-b-sources.md) and extended in closed form by [Guéant, Lehalle & Fernandez-Tapia (2013)](appendix-b-sources.md). The textbook synthesis is [Cartea, Jaimungal & Penalva (2015)](appendix-b-sources.md). What changes year to year is not the math — it is the *venue plumbing*: tick sizes, fee schedules, queue priority rules, message-rate caps, post-only flags, the difference between FIFO and pro-rata matching engines. This course teaches the math the field has agreed on and the operational discipline that makes the math survive contact with a real venue. It is the companion to [the stat-arb course](../../stat-arb/docs/00-charter-and-sources.md), same voice, same rules, same refusal to ship equity curves as proof.
 
 This is **not** a textbook. A textbook would prove every result; we cite where the proof is and say which proofs are worth reading end-to-end versus which to skim. Read [Cartea, Jaimungal & Penalva (2015)](appendix-b-sources.md) cover-to-cover; skim [Avellaneda & Stoikov (2008)](appendix-b-sources.md) once you have implemented the closed-form quotes twice. It is also **not** a "secrets revealed" pitch — the math is public, the edge is in latency, queue position, inventory control, and the operational stack the math sits inside. We are not teaching the latency arms race; see the [home page](index.md) for who the course is and is not for.
 
@@ -28,7 +28,7 @@ Every claim in this course should be traceable to one of three tiers. The tierin
 
 ## 0.3 Source-collection method
 
-Same method as the [stat-arb course](../stat-arb/00-charter-and-sources.md), with one addition specific to market making.
+Same method as the [stat-arb course](../../stat-arb/docs/00-charter-and-sources.md), with one addition specific to market making.
 
 **Step one: list before reading.** Before reading a paper, we list it with a one-line "what claim does this support." This forces the question "do we actually need this paper, or are we citing it because it sounds impressive?" The seven canonical papers in §0.4 all earn their place by supporting a *specific* claim the course makes.
 
@@ -38,7 +38,7 @@ Same method as the [stat-arb course](../stat-arb/00-charter-and-sources.md), wit
 
 **Step four (new for market making): record the venue assumptions.** Every market-making result is stated under venue assumptions: tick size, fee schedule, matching rule (FIFO vs pro-rata), message-rate cap, maker rebate, self-trade prevention. Papers state these abstractly; the course records the *specific* venue parameters under which each claim has been tested, so you know whether to expect it to transfer to your venue.
 
-**Step five: archive Tier-C, do not just link.** Timelines rot, blogs go behind paywalls, exchange engineering teams rotate. Every promoted Tier-C source is archived in `_archive/` with a fetch date — same discipline as the [stat-arb course's RohOnChain archive](../stat-arb/00-charter-and-sources.md).
+**Step five: archive Tier-C, do not just link.** Timelines rot, blogs go behind paywalls, exchange engineering teams rotate. Every promoted Tier-C source is archived in `_archive/` with a fetch date — same discipline as the [stat-arb course's RohOnChain archive](../../stat-arb/docs/00-charter-and-sources.md).
 
 ## 0.4 The canonical market-making papers you must read
 
@@ -115,15 +115,15 @@ Convention: interactions between components get a Mermaid; state evolution over 
 
 ## 0.6 Relationship to the stat-arb sister course
 
-This course and [the stat-arb course](../stat-arb/00-charter-and-sources.md) are written to be read together, in either order, by the same reader. They share three things:
+This course and [the stat-arb course](../../stat-arb/docs/00-charter-and-sources.md) are written to be read together, in either order, by the same reader. They share three things:
 
-- **The voice and source discipline.** Same tiering rule, same promotion discipline, same flat tone, same refusal to ship equity curves. If you have read [stat-arb §0](../stat-arb/00-charter-and-sources.md) you can skip to §0.4 above.
+- **The voice and source discipline.** Same tiering rule, same promotion discipline, same flat tone, same refusal to ship equity curves. If you have read [stat-arb §0](../../stat-arb/docs/00-charter-and-sources.md) you can skip to §0.4 above.
 - **The infrastructure layer.** The execution abstraction (`ITradingVenue`), the risk module (kill switches, inventory caps), and the backtest harness are shared. Both courses' §4 (execution) and §5 (risk) deliberately use the same chapter numbers for the shared concerns.
 - **The reader.** Same baseline — undergrad linear algebra and probability, stochastic processes through Itô's lemma, comfort reading code.
 
 They differ in three places:
 
-- **The signal.** Stat arb's signal is a mean-reverting spread between cointegrated instruments; the bet is that the spread reverts. Market making's signal is the bid-ask spread itself; the bet is that the spread compensates for inventory risk and adverse-selection cost. The machinery differs: stat arb uses cointegration tests and OU fits ([§2–§3 of stat-arb](../stat-arb/02-cointegration.md)); market making uses Hamilton-Jacobi-Bellman equations and Poisson order-arrival models ([§3 here](03-avellaneda-stoikov.md)).
+- **The signal.** Stat arb's signal is a mean-reverting spread between cointegrated instruments; the bet is that the spread reverts. Market making's signal is the bid-ask spread itself; the bet is that the spread compensates for inventory risk and adverse-selection cost. The machinery differs: stat arb uses cointegration tests and OU fits ([§2–§3 of stat-arb](../../stat-arb/docs/02-cointegration.md)); market making uses Hamilton-Jacobi-Bellman equations and Poisson order-arrival models ([§3 here](03-avellaneda-stoikov.md)).
 - **The operational tempo.** Hours-to-weeks vs milliseconds-to-minutes. A stat-arb desk can afford a one-second polling loop and human review; a market-making desk cannot. Stat-arb §7 is about *capital-ramp discipline*; market-making §7 is about *latency budgets and circuit breakers*.
 - **What kills you.** Stat-arb books die when cointegration breaks (§3 and §5 of stat-arb). Market-making books die when toxic flow finds them (§2.7 and §5.4 of this course). Stat arb is about *recognising regime change*; market making is about *recognising adversaries in real time*.
 
@@ -139,6 +139,6 @@ This chapter is methodology; its citations are to the seven canonical papers it 
 
 - **Tier C — practitioner commentary**: deferred. None promoted into this chapter's body. The chapter is methodology; practitioner folklore enters in §2 (microstructure operational lore) and §5 (kill-switch design) and is archived in `_archive/` per §0.3 step five.
 
-- **Sister course**: [Meridian stat-arb course, §0 charter and sources](../stat-arb/00-charter-and-sources.md). Read in parallel.
+- **Sister course**: [Meridian stat-arb course, §0 charter and sources](../../stat-arb/docs/00-charter-and-sources.md). Read in parallel.
 
 Next: [§1 — what market making actually is](01-introduction.md).

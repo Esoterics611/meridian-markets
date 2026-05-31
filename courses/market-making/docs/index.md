@@ -1,6 +1,6 @@
 # Market Making — A Working Course
 
-> Theory, math, and code for the strategy family that pays *the other half* of the rent on modern quant desks. The companion to [statistical arbitrage](../stat-arb/index.md) — same flat voice, same citation discipline, same refusal to ship equity curves as proof.
+> Theory, math, and code for the strategy family that pays *the other half* of the rent on modern quant desks. The companion to [statistical arbitrage](../../stat-arb/docs/index.md) — same flat voice, same citation discipline, same refusal to ship equity curves as proof.
 
 ## Who this is for
 
@@ -44,7 +44,7 @@ If you've read the stat-arb course's §4 (execution) and §5 (risk), you've seen
 
 | You are... | Start here | Then read |
 |---|---|---|
-| Brand new — never read the stat-arb course | [stat-arb §1](../stat-arb/01-introduction.md) | come back, then read §1, §2, §3 in order |
+| Brand new — never read the stat-arb course | [stat-arb §1](../../stat-arb/docs/01-introduction.md) | come back, then read §1, §2, §3 in order |
 | Have read stat-arb | [§1](01-introduction.md) | §2 → §3 in order |
 | Software engineer, want the code shape | [§4 execution](04-execution.md) → [Appendix A](appendix-a-code-shapes.md) | §3 backwards for the math |
 | Already a quant; want the operational discipline | [§5 risk](05-risk.md) | §7 production, §6 backtesting |
