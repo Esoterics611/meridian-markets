@@ -235,6 +235,7 @@ export class LiveController {
       params?: Record<string, number>;
       capitalUsdc?: number;
       startingCapitalUnits?: string;
+      source?: string;
     },
   ) {
     if (!body.symbolA || !body.symbolB) return { error: 'symbolA and symbolB are required to launch a station' };
@@ -247,7 +248,7 @@ export class LiveController {
         : BigInt(Math.round(body.capitalUsdc ?? 100_000)) * USDC;
     try {
       this.portfolio.addBook(
-        { symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params },
+        { symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params, source: body.source },
         capital,
       );
     } catch (err) {

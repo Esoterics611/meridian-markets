@@ -33,6 +33,11 @@ import {
   buildReferenceSources,
 } from '../market-data/reference/reference-bar-loader';
 import { REFERENCE_PRESETS } from '../market-data/reference/reference-presets';
+import {
+  ReferenceBarFeed,
+  ReferencePriceSource,
+  warmupFromReference,
+} from '../market-data/reference/reference-bar-feed';
 import { PaperVenue } from '../execution/paper-venue';
 import { Bar } from './backtest/bar';
 import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader';
@@ -183,12 +188,13 @@ async function warmupFromBinance(
     // (own feed cursor + venue + strategy) on the shared live data client.
     {
       provide: LivePortfolioTrader,
-      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository],
+      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry],
       useFactory: (
         cfg: ConfigService,
         client: BinancePublicClient,
         price: IPriceSource,
         repo: StatArbRepository,
+        refRegistry: ReferenceSourceRegistry,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>) =>
@@ -198,15 +204,20 @@ async function warmupFromBinance(
             params,
           });
         const makeTrader = (pair: PortfolioPair): LivePaperTrader => {
-          const feed: IBarFeed =
-            app.feed.source === 'binance'
+          // A reference-source pair (e.g. Pyth FX) trades on a per-source feed +
+          // price source so it rides the same live loop as a Binance pair.
+          const refSrc = pair.source && pair.source !== 'binance' ? refRegistry.get(pair.source) : undefined;
+          const feed: IBarFeed = refSrc
+            ? new ReferenceBarFeed(refSrc, app.feed.interval)
+            : app.feed.source === 'binance'
               ? new BinancePublicBarFeed(client, app.feed.interval)
               : new MockBarFeed();
+          const priceSource: IPriceSource = refSrc ? new ReferencePriceSource(refSrc, app.feed.interval) : price;
           const venue: ITradingVenue =
             app.execution.mode === 'mock'
               ? new MockTradingVenue()
               : new PaperVenue({
-                  pricePoller: (s) => price.priceMicros(s),
+                  pricePoller: (s) => priceSource.priceMicros(s),
                   slippage:
                     app.live.advUnits > 0n
                       ? { advUnits: app.live.advUnits, lambdaBps: app.live.slippageLambdaBps }
@@ -215,8 +226,9 @@ async function warmupFromBinance(
           const riskEngine = new RiskEngine({
             drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
           });
-          const warmup: WarmupProvider | undefined =
-            app.feed.source === 'binance'
+          const warmup: WarmupProvider | undefined = refSrc
+            ? (a, b) => warmupFromReference(refSrc, app.feed.interval, a, b)
+            : app.feed.source === 'binance'
               ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
               : undefined;
           return new LivePaperTrader(

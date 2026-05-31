@@ -93,21 +93,36 @@ FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
   LIVE_AUTOSTART=false npm run start:dev
 # → open http://localhost:3100/demo
 ```
+
+> **Same command as before — the new data sources need no extra env.** The
+> reference sources wired into the scanner (Pyth FX, DefiLlama peg, Bit2C ILS)
+> are **public, no API key**, with built-in default URLs. Override only if you
+> need a mirror/proxy:
+> `PYTH_BENCHMARKS_BASE_URL`, `DEFILLAMA_STABLECOINS_BASE_URL`, `BIT2C_BASE_URL`
+> (see `.env.example`). They do make outbound calls, which paper mode already does
+> for Binance.
+
 In `/demo`:
-1. **Backfill live history** for a **Market set** (asset class) — pulls real Binance bars.
-2. **▶ Launch a station** (top panel): asset class → market (leg A / leg B) →
-   strategy → **edit its params** (entry/exit z, windows, tx-cost…) → β + capital →
-   **Launch**. Each launch starts an isolated paper book; launch several and they
-   accumulate. β auto-fills from discovery when the pair was found cointegrated.
-3. **Live books** shows every concurrent market as a param card — z-score, β,
-   bands, regime, position, capital, equity, realised/unrealised — with z &
-   equity **sparklines over time**. Run up to 12 at once; the discovered-pairs
-   panel can bulk-launch the top N ("one of each strategy" spreads the catalogue
-   across them).
-4. **Strategy catalogue** stacks every working strategy with its params and which
-   books run it. **Trade history** is the persisted `stat_arb_trades` ledger
-   (survives restart). The header strip shows desk P&L, feed/venue, a live UTC
-   clock and a refresh heartbeat.
+1. **Research → ⊹ Scan all source data** is the front door: it sweeps **every
+   asset class at once** (crypto, stablecoin, **FX via Pyth**, …) and ranks each
+   candidate by net-edge-after-fees, **grouped by asset class** with a rollup of
+   which classes fit the model. A "data sources wired" readout shows the live
+   sources (binance.spot + Pyth/DefiLlama/Bit2C). **Trade** straight from a row —
+   every trade launches an isolated paper book (a *station*).
+2. **▶ Launch a station** (Launch tab): asset class → market (leg A / leg B) →
+   strategy → **edit its params** (entry/exit z, windows, tx-cost…) → β + capital
+   → **Launch**. β auto-fills from discovery when the pair was found cointegrated.
+3. **Desk → Live books** shows every concurrent station as a param card — z-score,
+   β, bands, regime, position, capital, equity, realised/unrealised, **feed** —
+   with z & equity **sparklines**. Each card has ▸ (chart its signal) and ✕
+   (flatten + remove). **FLATTEN ALL** / **HALT ALL** are desk-wide.
+4. **Research → Deep-dive** discovers one market set in detail (after ⤓ Backfill);
+   **Validate before you trade** runs walk-forward / sweep / Monte-Carlo. **Trade
+   history** is the persisted `stat_arb_trades` ledger (survives restart). The
+   header strip shows desk P&L, feed/venue, a live UTC clock and a heartbeat.
+
+> **Verify the reference sources** (no server, no DB):
+> `npx ts-node -r tsconfig-paths/register scripts/smoke-reference-sources.ts`
 
 > 1-minute bars: a freshly launched book warms from ~240 real klines so its
 > z-score is live immediately, but an *entry* waits for z to cross the band —

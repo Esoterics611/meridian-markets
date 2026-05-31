@@ -22,6 +22,8 @@ export interface PortfolioPair {
   strategyId?: string;
   /** Per-launch overrides of the strategy's frozen params (from the launch form). */
   params?: Record<string, number>;
+  /** Data source for this book's feed/prices ('binance' default, or 'pyth', …). */
+  source?: string;
 }
 
 export interface PortfolioBookRow {
@@ -30,6 +32,8 @@ export interface PortfolioBookRow {
   symbolB: string;
   strategyId: string;
   beta: number;
+  /** This book's data feed id (e.g. 'binance.spot', 'ref.pyth'). */
+  feedId: string;
   lastZ: number;
   regime: string;
   running: boolean;
@@ -198,6 +202,7 @@ export class LivePortfolioTrader {
         symbolB: s.symbolB,
         strategyId: s.strategyId,
         beta: s.beta,
+        feedId: s.feedId,
         lastZ: s.lastZ,
         regime: s.regime,
         running: this.isRunning(),

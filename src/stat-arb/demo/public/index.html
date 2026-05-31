@@ -656,13 +656,13 @@
       $('opp-rows').innerHTML = groupByClass(rows, 'netEdgePerDayBps').map(([cls, items]) => {
         const clears = items.filter((o) => o.clearsFees).length;
         return grpRow(cls, 10, `${clears}/${items.length} clear fees`) + items.slice(0, 12).map((o) => {
-          const ref = o.source && o.source !== 'binance';
-          const srcTag = ref ? ` <span class="chip" style="border-color:var(--warn-dim);color:var(--warn);" title="reference source">${o.source}</span>` : '';
-          // The live paper trader is Binance-fed today, so reference-source pairs
-          // are scan-only until a per-source live feed lands (Phase-3 follow-up).
-          const action = ref
-            ? '<span class="chip WARN" title="reference source — live paper trader is Binance-fed for now; scan-only">scan-only</span>'
-            : (o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : '');
+          // Reference-source pairs (e.g. Pyth FX) now trade on a per-source feed,
+          // so every clearing pair is launchable; the source tag shows the feed.
+          const srcTag = o.source && o.source !== 'binance'
+            ? ` <span class="chip" style="border-color:var(--accent-dim);" title="data source">${o.source}</span>` : '';
+          const action = o.clearsFees
+            ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta},${JSON.stringify(o.source)})'>▶ trade</button>`
+            : '';
           return `<tr>
           <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}${srcTag}</td>
           <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
@@ -675,7 +675,7 @@
         }).join('');
       }).join('');
     }
-    async function launchOpp(a, b, beta) { await launchStationQuick(a, b, beta, undefined, 'scan-note'); }
+    async function launchOpp(a, b, beta, source) { await launchStationQuick(a, b, beta, undefined, 'scan-note', source); }
     function renderMmScreen(b) {
       const rows = (b && b.instruments) || [];
       $('mmscreen-summary').textContent = rows.length ? `${b.attractive}/${rows.length} attractive` : '';
@@ -716,10 +716,10 @@
     }
     // Unified "launch a station": every trade button across the desk (scanner,
     // discovered pairs, signal) appends a portfolio station — one mental model.
-    async function launchStationQuick(a, b, beta, strategyId, noteId) {
-      const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, capitalUsdc: Number($('capital').value) || 100000 };
+    async function launchStationQuick(a, b, beta, strategyId, noteId, source) {
+      const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, capitalUsdc: Number($('capital').value) || 100000, source: source || undefined };
       let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch { r = { error: 'request failed' }; }
-      if (noteId && $(noteId)) $(noteId).textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b} — see Desk → Live books`;
+      if (noteId && $(noteId)) $(noteId).textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b}${source && source !== 'binance' ? ' (' + source + ')' : ''} — see Desk → Live books`;
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
     }
@@ -1005,7 +1005,7 @@
             <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span>
               <button onclick='focusSignal(${JSON.stringify(b.symbolA)},${JSON.stringify(b.symbolB)},${JSON.stringify(b.strategyId)},${b.beta})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="show this book's signal in the chart">▸</button><button onclick='removeStation(${JSON.stringify(b.pair)})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="flatten + remove this station">✕</button></span>
           </div>
-          <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${stale ? ' <span class="chip WARN">STALE</span>' : ''}${b.blockedEntries > 0 ? ` <span class="chip WARN">${b.blockedEntries} blocked</span>` : ''}</div>
+          <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · <span class="mono">${b.feedId || '—'}</span> · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${stale ? ' <span class="chip WARN">STALE</span>' : ''}${b.blockedEntries > 0 ? ` <span class="chip WARN">${b.blockedEntries} blocked</span>` : ''}</div>
           <div class="mini-grid">
             ${mini('z-score', num(b.lastZ, 2))}
             ${mini('Equity', fmtUsdc(b.equityUnits), eqPnl >= 0 ? 'pos' : 'neg')}
