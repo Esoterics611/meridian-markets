@@ -570,6 +570,9 @@
       refreshMm();
     }
     async function removeMm(symbol) { await jpost('/api/market-making/remove', { symbol }); refreshMm(); }
+    // Stop + drop one stat-arb station (flattens, then removes). Mirrors removeMm
+    // so both desks expose the same per-book control.
+    async function removeStation(pair) { if (!pair) return; await jpost('/api/stat-arb/live/portfolio/remove', { pair }); refreshPortfolio(); }
     const px6 = (m) => (m === null || m === undefined) ? '—' : (Number(m) / USDC).toLocaleString(undefined, { maximumFractionDigits: 6 });
     async function refreshMm() {
       let p; try { p = await jget('/api/market-making/snapshot'); } catch { return; }
@@ -908,8 +911,13 @@
         strategyId: (mix === 'roundrobin' && cat.length) ? cat[i % cat.length].id : selected,
       }));
       const capitalUsdc = Number($('capital').value) || 100000;
-      await jpost('/api/stat-arb/live/portfolio', { pairs, capitalUsdc });
-      await jpost('/api/stat-arb/live/portfolio/start');
+      const per = Math.max(1, Math.floor(capitalUsdc / n));
+      // Append each pair as its own station (same /portfolio/launch path as every
+      // other launch button) so this never silently wipes books you already have.
+      // Capital is split evenly across the N being launched.
+      for (const p of pairs) {
+        await jpost('/api/stat-arb/live/portfolio/launch', { symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta, strategyId: p.strategyId, capitalUsdc: per });
+      }
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
     }
@@ -942,7 +950,7 @@
           <div class="bh">
             <span class="bp mono accent">${b.pair}</span>
             <span>${b.position ? `<span class="chip ${b.position}">${b.position}</span>` : '<span class="chip FLAT">FLAT</span>'} <span class="chip ${b.regime}">${b.regime}</span>
-              <button onclick='focusSignal(${JSON.stringify(b.symbolA)},${JSON.stringify(b.symbolB)},${JSON.stringify(b.strategyId)},${b.beta})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="show this book's signal in the chart">▸</button></span>
+              <button onclick='focusSignal(${JSON.stringify(b.symbolA)},${JSON.stringify(b.symbolB)},${JSON.stringify(b.strategyId)},${b.beta})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="show this book's signal in the chart">▸</button><button onclick='removeStation(${JSON.stringify(b.pair)})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="flatten + remove this station">✕</button></span>
           </div>
           <div class="meta"><span class="mono">${b.strategyId || '—'}</span> · β ${num(b.beta, 3)} · ${bandStr(b.strategyId)} · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${stale ? ' <span class="chip WARN">STALE</span>' : ''}${b.blockedEntries > 0 ? ` <span class="chip WARN">${b.blockedEntries} blocked</span>` : ''}</div>
           <div class="mini-grid">
@@ -1079,6 +1087,20 @@
     $('sig-trade').onclick = tradeFromSignal;
     $('sig-backtest').onclick = backtestFromSignal;
     $('kill-all').onclick = async () => { await jpost('/api/stat-arb/live/kill'); await refreshSnapshot(); await refreshPortfolio(); };
+    // FLATTEN ALL: force-close open positions across the single book, every
+    // stat-arb station, and every maker book — the backend flatten endpoints
+    // exist; this wires the (previously dead) header button to them.
+    $('flatten-all').onclick = async () => {
+      const btn = $('flatten-all'); btn.disabled = true;
+      try {
+        await Promise.all([
+          jpost('/api/stat-arb/live/flatten'),
+          jpost('/api/stat-arb/live/portfolio/flatten'),
+          jpost('/api/market-making/flatten'),
+        ]);
+      } finally { btn.disabled = false; }
+      await refreshSnapshot(); await refreshPortfolio(); await refreshMm();
+    };
 
     // Tabs — show one screen's sections; deep-link via #hash so each browser tab
     // can sit on a different screen. tab-hidden uses !important so it wins over a
