@@ -161,6 +161,7 @@
   <div class="tabs">
     <button class="tab" data-tab="desk">Desk</button>
     <button class="tab" data-tab="launch">Launch</button>
+    <button class="tab" data-tab="mm">Market Making</button>
     <button class="tab" data-tab="signal">Signal</button>
     <button class="tab" data-tab="research">Research</button>
   </div>
@@ -255,6 +256,41 @@
       <div class="desc" id="pf-desc">N markets trading concurrently on live data, capital split evenly. Each is its own isolated paper book — full params + live variables below, z &amp; equity tracked over time.</div>
       <div class="stat-grid" id="pf-stats"></div>
       <div id="pf-books" class="book-grid" style="margin-top:12px;"></div>
+    </section>
+
+    <section class="panel span-12" data-tab="mm">
+      <h2>◆ Market making — quote a spread, earn it</h2>
+      <div class="desc">Launch an automated <b>maker book</b> on one instrument: it posts a bid and an ask every bar, earns the spread + rebate on passive fills, and skews quotes (Avellaneda-Stoikov / GLFT) to shed inventory. Runs on the same live Binance feed as the stat-arb stations — same engine, same ledger. Stablecoins are the natural home (pegged ≈1.0 ⇒ low inventory risk).</div>
+      <div class="launch-row">
+        <label class="ctl">Preset
+          <select id="mm-preset"></select>
+        </label>
+        <label class="ctl">Instrument
+          <select id="mm-symbol"></select>
+        </label>
+        <label class="ctl">Quoter
+          <select id="mm-strategy"></select>
+        </label>
+        <label class="ctl">Capital (USDC)
+          <input type="number" id="mm-capital" value="100000" min="1" step="1000" style="width:120px;" />
+        </label>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="spark-k" style="margin-bottom:7px;">Quoter params <span id="mm-strategy-ref" class="muted"></span> — editable, defaults from the catalogue</div>
+        <div class="launch-row" id="mm-params"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button id="mm-launch" class="primary" style="font-size:13px;padding:9px 16px;">◆ Launch maker book</button>
+        <button id="mm-launch-preset" class="ghost" style="font-size:12px;">launch whole preset</button>
+        <button id="mm-start" class="ghost" style="font-size:12px;">▶ Start</button>
+        <button id="mm-stop" class="ghost" style="font-size:12px;">⏸ Stop</button>
+        <button id="mm-flatten" class="ghost" style="font-size:12px;color:var(--warn);border-color:var(--warn-dim);">⚑ Flatten all</button>
+        <span id="mm-note" class="muted" style="font-size:12px;"></span>
+      </div>
+      <div style="margin-top:16px;">
+        <div class="spark-k" style="margin-bottom:8px;">Maker books <span id="mm-summary" class="muted"></span></div>
+        <div id="mm-books" class="book-grid"><div class="muted">no maker books — launch one above</div></div>
+      </div>
     </section>
 
     <section class="panel span-6" data-tab="research">
@@ -458,6 +494,102 @@
       $('lx-note').textContent = `✓ launched ${symbolA}/${symbolB} · ${body.strategyId || 'default'} · β ${num(body.beta,3)} · ${fmtUsdc(body.capitalUsdc * USDC)} USDC${pstr ? ' · ' + pstr : ''}`;
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
+    }
+
+    // --- Market making: launch + monitor maker books (mirrors the stat-arb launch flow) ---
+    const mmStratById = (id) => (window.__mmStrategies || []).find((s) => s.id === id);
+    async function loadMmMarkets() {
+      let r; try { r = await jget('/api/market-making/markets'); } catch { return; }
+      window.__mmPresets = (r && r.presets) || [];
+      $('mm-preset').innerHTML = window.__mmPresets.map((p) => `<option value="${p.id}">${p.label} · ${p.assetClass}</option>`).join('');
+      fillMmSymbols();
+    }
+    function fillMmSymbols() {
+      const p = (window.__mmPresets || []).find((x) => x.id === $('mm-preset').value) || (window.__mmPresets || [])[0];
+      if (!p) return;
+      $('mm-symbol').innerHTML = p.symbols.map((s) => `<option value="${s}"${s === p.defaultSymbol ? ' selected' : ''}>${s}</option>`).join('');
+    }
+    async function loadMmStrategies() {
+      let r; try { r = await jget('/api/market-making/strategies'); } catch { return; }
+      window.__mmStrategies = (r && r.strategies) || [];
+      $('mm-strategy').innerHTML = window.__mmStrategies.map((s) => `<option value="${s.id}">${s.label}</option>`).join('');
+      renderMmParams();
+    }
+    function renderMmParams() {
+      const s = mmStratById($('mm-strategy').value);
+      $('mm-strategy-ref').textContent = s ? `· ${s.family} · ${s.courseRef}` : '';
+      const entries = Object.entries((s && s.defaultParams) || {});
+      $('mm-params').innerHTML = entries.length
+        ? entries.map(([k, v]) => `<label class="ctl">${k}<input type="number" id="mmp-${k}" value="${v}" step="${stepFor(v)}" style="width:104px;" /></label>`).join('')
+        : '<span class="muted" style="font-size:12px;">this quoter has no tunable params</span>';
+    }
+    function collectMmParams() {
+      const s = mmStratById($('mm-strategy').value);
+      const out = {};
+      Object.keys((s && s.defaultParams) || {}).forEach((k) => {
+        const el = $(`mmp-${k}`);
+        if (el && el.value !== '' && Number.isFinite(Number(el.value))) out[k] = Number(el.value);
+      });
+      return out;
+    }
+    async function launchMmBook() {
+      const symbol = $('mm-symbol').value;
+      if (!symbol) { $('mm-note').textContent = 'pick an instrument'; return; }
+      const btn = $('mm-launch'); btn.disabled = true; btn.textContent = '◆ launching…';
+      const body = { symbol, strategyId: $('mm-strategy').value || undefined, params: collectMmParams(), capitalUsdc: Number($('mm-capital').value) || 100000 };
+      let r; try { r = await jpost('/api/market-making/launch', body); } catch { r = { error: 'request failed' }; }
+      btn.disabled = false; btn.textContent = '◆ Launch maker book';
+      if (r && r.error) { $('mm-note').textContent = '⚠ ' + r.error; return; }
+      $('mm-note').textContent = `✓ launched ${symbol} · ${body.strategyId || 'default'} · ${fmtUsdc(body.capitalUsdc * USDC)} USDC`;
+      refreshMm();
+    }
+    async function launchMmPreset() {
+      const presetId = $('mm-preset').value;
+      const btn = $('mm-launch-preset'); btn.disabled = true; btn.textContent = 'launching…';
+      const body = { presetId, strategyId: $('mm-strategy').value || undefined, capitalUsdcPerBook: Number($('mm-capital').value) || 100000 };
+      let r; try { r = await jpost('/api/market-making/launch-preset', body); } catch { r = { error: 'request failed' }; }
+      btn.disabled = false; btn.textContent = 'launch whole preset';
+      $('mm-note').textContent = r && r.error ? '⚠ ' + r.error : `✓ launched preset ${presetId} (${(r.books || []).length} books)`;
+      refreshMm();
+    }
+    async function removeMm(symbol) { await jpost('/api/market-making/remove', { symbol }); refreshMm(); }
+    const px6 = (m) => (m === null || m === undefined) ? '—' : (Number(m) / USDC).toLocaleString(undefined, { maximumFractionDigits: 6 });
+    async function refreshMm() {
+      let p; try { p = await jget('/api/market-making/snapshot'); } catch { return; }
+      window.__mm = p;
+      const books = (p && p.books) || [];
+      $('mm-summary').textContent = books.length
+        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC · ${p.running ? 'live' : 'paused'}`
+        : '';
+      if (!books.length) { $('mm-books').innerHTML = '<div class="muted">no maker books — launch one above</div>'; return; }
+      const mini = (k, v, cls = '') => `<div class="mini"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      $('mm-books').innerHTML = books.map((b) => {
+        const h = pushHist('mm:' + b.symbol, NaN, Number(b.equityUnits) / USDC);
+        const net = Number(b.netPnlUnits), inv = Number(b.inventoryUnits) / USDC;
+        const spreadBps = (b.bidMicros && b.askMicros && b.midMicros)
+          ? (Number(b.askMicros) - Number(b.bidMicros)) / Number(b.midMicros) * 10000 : null;
+        const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
+        const verdictCls = b.lastVerdict === 'Allow' ? 'OK' : 'WARN';
+        return `<div class="book">
+          <div class="bh">
+            <span class="bp mono accent">${b.symbol}</span>
+            <span><span class="chip ${verdictCls}">${b.lastVerdict}</span>${b.warm ? '' : ' <span class="chip WARN">warming</span>'}
+              <button onclick='removeMm(${JSON.stringify(b.symbol)})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="flatten + remove this book">✕</button></span>
+          </div>
+          <div class="meta"><span class="mono">${b.family}</span> · ${b.fills} fills (${b.bidFills}▾/${b.askFills}▴) · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${b.blockedQuotes > 0 ? ` · <span class="chip WARN">${b.blockedQuotes} blocked</span>` : ''}</div>
+          <div class="mini-grid">
+            ${mini('bid', px6(b.bidMicros))}
+            ${mini('ask', px6(b.askMicros))}
+            ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
+            ${mini('inventory', num(inv, 2))}
+            ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), 'pos')}
+            ${mini('fees', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg')}
+            ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg')}
+            ${mini('equity', fmtUsdc(b.equityUnits), (Number(b.equityUnits) - Number(b.capitalUnits)) >= 0 ? 'pos' : 'neg')}
+          </div>
+          <div style="margin-top:10px;"><div class="spark-k">equity over time</div>${spark(h.eq, net >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
+        </div>`;
+      }).join('');
     }
 
     let chart, candleSeries, chartSymbol = null;
@@ -860,6 +992,13 @@
     $('lx-b').onchange = autofillBeta;
     $('lx-strategy').onchange = renderLaunchParams;
     $('lx-launch').onclick = launchStation;
+    $('mm-preset').onchange = fillMmSymbols;
+    $('mm-strategy').onchange = renderMmParams;
+    $('mm-launch').onclick = launchMmBook;
+    $('mm-launch-preset').onclick = launchMmPreset;
+    $('mm-start').onclick = async () => { await jpost('/api/market-making/start'); refreshMm(); };
+    $('mm-stop').onclick = async () => { await jpost('/api/market-making/stop'); refreshMm(); };
+    $('mm-flatten').onclick = async () => { await jpost('/api/market-making/flatten'); refreshMm(); };
     $('sig-mode-signal').onclick = () => setSignalMode('signal');
     $('sig-mode-price').onclick = () => setSignalMode('price');
     $('sig-a').onchange = sigFromControls;
@@ -873,7 +1012,7 @@
     // can sit on a different screen. tab-hidden uses !important so it wins over a
     // panel's own inline display toggles (e.g. the portfolio panel).
     function showTab(name) {
-      const tabs = ['desk', 'launch', 'signal', 'research'];
+      const tabs = ['desk', 'launch', 'mm', 'signal', 'research'];
       if (!tabs.includes(name)) name = 'desk';
       document.querySelectorAll('main > section').forEach((s) => {
         s.classList.toggle('tab-hidden', s.getAttribute('data-tab') !== name);
@@ -892,12 +1031,15 @@
       renderLaunchParams();
       fillLaunchLegs();
       fillSigLegs();
+      await loadMmMarkets();
+      await loadMmStrategies();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
       await refreshTrades();
+      await refreshMm();
       tickClock(); setInterval(tickClock, 1000);
-      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); pulse(); }, 4000);
+      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); refreshMm(); pulse(); }, 4000);
       showTab((location.hash || '').replace('#', '') || 'desk');
     })();
   </script>
