@@ -23,6 +23,7 @@
  */
 import { spawnSync } from 'child_process';
 import { parseArgs, numFlag, fmtUnits, usdcToUnits, table, rankSweep, SweepRow } from '../src/cli/mq-lib';
+import { evaluateGate, thresholdsFor, RISK_GATES, RiskProfileId, GateInput } from '../src/cli/validate-gate';
 
 const BASE = process.env.MQ_HOST ?? 'http://localhost:3100';
 const LIVE = '/api/stat-arb/live';
@@ -180,6 +181,104 @@ async function cmdSweep(a: string, b: string, hours: number, beta: number, json:
   else out('\nno strategy produced trades on this window — try more --hours or another pair');
 }
 
+/**
+ * The promotion gate (docs/AGENTIC_HEDGE_FUND_DESIGN.md §3): backtest the pair on
+ * real history, resolve its risk profile, optionally re-check cointegration, then
+ * run the pass/fail checklist in src/cli/validate-gate.ts. Exit 0 = cleared the
+ * gate (flip the station to `paper` and arm it); exit 1 = do not promote.
+ * `--preset` turns on the cointegration p-value check against the latest discovery.
+ */
+async function cmdValidate(
+  a: string,
+  b: string,
+  opts: {
+    strategy?: string; hours: number; beta: number;
+    profile?: string; preset?: string;
+    minSharpe?: number; minTrades?: number; maxPValue?: number;
+  },
+  json: boolean,
+): Promise<number> {
+  const r = await backtestOne(a, b, opts.strategy, opts.hours, opts.beta);
+  if (r.error) {
+    if (json) printJson({ error: r.error });
+    else out(`error: ${r.error}`);
+    return 1;
+  }
+
+  // Risk profile: explicit --profile wins; else the one the chosen strategy
+  // declares in the catalogue; else fall back to 'balanced'.
+  let profile: RiskProfileId = 'balanced';
+  if (opts.profile && opts.profile in RISK_GATES) {
+    profile = opts.profile as RiskProfileId;
+  } else {
+    try {
+      const cat = await api('GET', `${LIVE}/strategies`);
+      const def = (cat.strategies ?? []).find((s: any) => s.id === r.strategy);
+      if (def && def.riskProfile in RISK_GATES) profile = def.riskProfile;
+    } catch {
+      /* catalogue unreachable — keep the 'balanced' default */
+    }
+  }
+
+  // Cointegration p-value: only when --preset is given; otherwise the gate skips
+  // the check (and says so). A pair absent from the discovery list is reported,
+  // not silently failed — discovery truncates to the top N.
+  let pValue: number | null | undefined;
+  let pValueNote = '';
+  if (opts.preset) {
+    try {
+      const u = await api('GET', `${MD}/universe`, { query: { presetId: opts.preset, hours: opts.hours } });
+      const pair = (u.topPairs ?? []).find(
+        (p: any) => (p.symbolA === a && p.symbolB === b) || (p.symbolA === b && p.symbolB === a),
+      );
+      if (pair) pValue = pair.pValue;
+      else pValueNote = `pair not in '${opts.preset}' discovery top list — p-value check skipped`;
+    } catch (e) {
+      pValueNote = `discovery unavailable (${(e as Error).message.slice(0, 60)}) — p-value check skipped`;
+    }
+  }
+
+  const thresholds = thresholdsFor(profile, {
+    ...(opts.minSharpe !== undefined ? { minSharpe: opts.minSharpe } : {}),
+    ...(opts.minTrades !== undefined ? { minTrades: opts.minTrades } : {}),
+    ...(opts.maxPValue !== undefined ? { maxPValue: opts.maxPValue } : {}),
+  });
+  const m = r.metrics;
+  const input: GateInput = {
+    tradeCount: r.tradeCount,
+    sharpe: m.sharpeRatio,
+    maxDrawdownPct: m.maxDrawdownPct,
+    netPnlUnits: BigInt(m.totalPnlUnits),
+    pValue,
+  };
+  const result = evaluateGate(input, thresholds);
+
+  if (json) {
+    printJson({
+      pair: r.pair, strategy: r.strategy, profile,
+      window: r.window, source: r.source,
+      pass: result.pass, checks: result.checks,
+    });
+    return result.pass ? 0 : 1;
+  }
+
+  out(`validate ${r.pair} · ${r.strategy} · profile ${profile} · ${r.window.bars} bars (${r.source})\n`);
+  out(table(
+    ['CHECK', 'ACTUAL', 'THRESHOLD', 'RESULT'],
+    result.checks.map((c) => [
+      c.name, c.actual, c.threshold,
+      c.skipped ? 'SKIP' : c.pass ? 'PASS' : 'FAIL',
+    ]),
+  ));
+  if (pValueNote) out(`\nnote: ${pValueNote}`);
+  out(
+    `\n${result.pass
+      ? '✓ PASS — cleared the promotion gate; flip status: paper and arm it'
+      : '✗ FAIL — do not promote; address the failing checks above'}`,
+  );
+  return result.pass ? 0 : 1;
+}
+
 function printSingleSnapshot(s: any): void {
   kv([
     ['pair', `${s.symbolA}/${s.symbolB}`],
@@ -325,6 +424,8 @@ research:
 backtest:
   mq backtest <A> <B> [--strategy id] [--hours 72] [--beta n]
   mq sweep    <A> <B> [--hours 72] [--beta n]    every strategy, ranked by Sharpe
+  mq validate <A> <B> [--strategy id] [--profile balanced] [--preset id]
+                                      promotion gate — PASS/FAIL per check (exit 0=pass)
 
 deploy (live paper):
   mq arm <A> <B> [--strategy id] [--capital 100000] [--beta n]
@@ -351,6 +452,8 @@ async function main(): Promise<number> {
   const beta = flags.beta !== undefined ? numFlag(flags, 'beta', 1) : undefined;
   const strategy = typeof flags.strategy === 'string' ? flags.strategy : undefined;
   const venue = typeof flags.venue === 'string' ? flags.venue : undefined;
+  const profile = typeof flags.profile === 'string' ? flags.profile : undefined;
+  const preset = typeof flags.preset === 'string' ? flags.preset : undefined;
 
   switch (command) {
     case 'presets': await cmdPresets(json); break;
@@ -359,6 +462,13 @@ async function main(): Promise<number> {
     case 'discover': await cmdDiscover(positionals[0], hours, venue, json); break;
     case 'backtest': await cmdBacktest(positionals[0], positionals[1], strategy, hours, beta ?? 1, json); break;
     case 'sweep': await cmdSweep(positionals[0], positionals[1], hours, beta ?? 1, json); break;
+    case 'validate':
+      return cmdValidate(positionals[0], positionals[1], {
+        strategy, hours, beta: beta ?? 1, profile, preset,
+        minSharpe: flags['min-sharpe'] !== undefined ? numFlag(flags, 'min-sharpe', 0.5) : undefined,
+        minTrades: flags['min-trades'] !== undefined ? numFlag(flags, 'min-trades', 5) : undefined,
+        maxPValue: flags['max-pvalue'] !== undefined ? numFlag(flags, 'max-pvalue', 0.2) : undefined,
+      }, json);
     case 'arm': await cmdArm(positionals[0], positionals[1], strategy, numFlag(flags, 'capital', 100_000), beta, json); break;
     case 'stop': await cmdSimplePost(`${LIVE}/stop`, json, printSingleSnapshot); break;
     case 'tick': await cmdSimplePost(`${LIVE}/tick`, json, printSingleSnapshot); break;
