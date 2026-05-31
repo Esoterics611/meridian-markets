@@ -86,9 +86,9 @@ const PAIRS_ZSCORE: StrategyDefinition = {
   courseRef: '§2 Cointegration',
   liveCapable: true,
   defaultRiskProfile: 'balanced',
-  defaultParams: { zLookback: 60, entryZ: 2.0, exitZ: 0.5 },
+  defaultParams: { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5 },
   build: ({ beta, notionalUnits, params }) => {
-    const p = { zLookback: 60, entryZ: 2.0, exitZ: 0.5, ...params };
+    const p = { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5, ...params };
     return new PairsStrategy({
       beta,
       zLookback: p.zLookback,
@@ -96,6 +96,8 @@ const PAIRS_ZSCORE: StrategyDefinition = {
       exitZ: p.exitZ,
       notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+      feeBps: p.feeBps,
+      minEdgeMultiple: p.minEdgeMultiple,
     });
   },
 };
@@ -109,9 +111,9 @@ const PAIRS_EWMA: StrategyDefinition = {
   courseRef: '§2 Cointegration (EWMA)',
   liveCapable: true,
   defaultRiskProfile: 'balanced',
-  defaultParams: { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5 },
+  defaultParams: { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5 },
   build: ({ beta, notionalUnits, params }) => {
-    const p = { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5, ...params };
+    const p = { lambda: 0.94, warmupBars: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5, ...params };
     return new BollingerPairsStrategy({
       beta,
       lambda: p.lambda,
@@ -120,6 +122,8 @@ const PAIRS_EWMA: StrategyDefinition = {
       exitZ: p.exitZ,
       notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+      feeBps: p.feeBps,
+      minEdgeMultiple: p.minEdgeMultiple,
     });
   },
 };

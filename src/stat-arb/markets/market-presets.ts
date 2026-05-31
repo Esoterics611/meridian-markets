@@ -36,6 +36,16 @@ export interface MarketPreset {
 
 export const MARKET_PRESETS: readonly MarketPreset[] = [
   {
+    id: 'stablecoin-peg',
+    label: 'Stablecoin Peg',
+    assetClass: 'Stablecoin',
+    description:
+      'USD-stables quoted vs USDT — all pegged ≈1.0, so a cointegrated pair is a pure peg-basis (credit/liquidity) spread. Pairs with the automated MM books on the same class.',
+    symbols: ['USDC', 'FDUSD', 'TUSD', 'DAI', 'USD1'],
+    defaultPair: ['USDC', 'FDUSD'],
+    quote: 'USDT',
+  },
+  {
     id: 'crypto-majors',
     label: 'Crypto — Large Cap',
     assetClass: 'Large Cap',

@@ -4,6 +4,7 @@ import {
   slidingCointegration,
   SlidingCointegrationResult,
 } from '../signal/sliding-cointegration';
+import { entryClearsFees, stdev } from '../signal/fee-gate';
 import { BarContext, DesiredOrder, IStrategy } from '../backtest/strategy.interface';
 
 // BollingerPairsStrategy — course §2 cointegration pairs, EWMA variant.
@@ -45,9 +46,13 @@ export interface BollingerPairsStrategyConfig {
   notionalUnits: bigint;
   /** Optional sliding-β refit. */
   betaRefit?: BollingerBetaRefitConfig;
+  /** Round-trip taker fee in bps for the fee-aware entry gate. Default off. See signal/fee-gate.ts. */
+  feeBps?: number;
+  /** Margin-of-safety multiple on the fee floor. Default 1. */
+  minEdgeMultiple?: number;
 }
 
-export type GateEventKind = 'P_VALUE_BLOCK';
+export type GateEventKind = 'P_VALUE_BLOCK' | 'FEE_GATE';
 export interface GateEvent {
   kind: GateEventKind;
   barIndex: number;
@@ -152,6 +157,22 @@ export class BollingerPairsStrategy implements IStrategy {
           });
         }
         return [];
+      }
+      // Fee-aware entry gate (EWMA variant): σ_spread over an EWMA-equivalent
+      // window ≈ 1/(1−λ). Refuse entries whose expected reversion can't clear fees.
+      const wantsEntry = zNow > this.cfg.entryZ || zNow < -this.cfg.entryZ;
+      if (wantsEntry && this.cfg.feeBps !== undefined) {
+        const effWindow = Math.min(spread.length, Math.max(10, Math.round(1 / (1 - this.cfg.lambda))));
+        const sigmaSpread = stdev(spread.slice(-effWindow));
+        if (!entryClearsFees(zNow, this.cfg.exitZ, sigmaSpread, this.cfg.feeBps, this.cfg.minEdgeMultiple ?? 1)) {
+          this.gateEvents.push({
+            kind: 'FEE_GATE',
+            barIndex: ctx.index,
+            reason: `expected edge below fee floor (feeBps ${this.cfg.feeBps})`,
+            zAtBlock: zNow,
+          });
+          return [];
+        }
       }
       if (zNow > this.cfg.entryZ) {
         this.regime = 'SHORT';

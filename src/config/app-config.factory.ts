@@ -73,4 +73,21 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     advUnits: BigInt(process.env['LIVE_ADV_UNITS'] ?? '0'), // 0 = slippage off
     slippageLambdaBps: parseFloat(process.env['LIVE_SLIPPAGE_LAMBDA_BPS'] ?? '100'),
   },
+  marketMaking: {
+    defaultStrategyId: process.env['MM_STRATEGY_ID'] ?? 'mm-avellaneda-stoikov',
+    defaultSymbol: process.env['MM_SYMBOL'] ?? 'FDUSD',
+    quoteSizeUnits: BigInt(process.env['MM_QUOTE_SIZE_UNITS'] ?? '1000000000'), // 1000 asset units
+    capitalUnits: BigInt(process.env['MM_CAPITAL_UNITS'] ?? '100000000000'), // 100k USDC
+    pollIntervalMs: parseInt(process.env['MM_POLL_INTERVAL_MS'] ?? '15000', 10),
+    volWindowBars: parseInt(process.env['MM_VOL_WINDOW_BARS'] ?? '30', 10),
+    volFloor: parseFloat(process.env['MM_VOL_FLOOR'] ?? '0.0001'),
+    horizonBars: parseFloat(process.env['MM_HORIZON_BARS'] ?? '1'),
+    gamma: parseFloat(process.env['MM_GAMMA'] ?? '0.0025'),
+    kappa: parseFloat(process.env['MM_KAPPA'] ?? '2'),
+    minHalfSpreadBps: parseFloat(process.env['MM_MIN_HALF_SPREAD_BPS'] ?? '1'),
+    maxHalfSpreadBps: parseFloat(process.env['MM_MAX_HALF_SPREAD_BPS'] ?? '200'),
+    maxInventoryLots: parseFloat(process.env['MM_MAX_INVENTORY_LOTS'] ?? '8'),
+    makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-1'), // Binance maker rebate ≈ −1 bps
+    maxDrawdownPct: parseFloat(process.env['MM_MAX_DRAWDOWN_PCT'] ?? '10'),
+  },
 }));

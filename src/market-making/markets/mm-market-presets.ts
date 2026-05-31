@@ -1,0 +1,70 @@
+// MM market presets — curated sets of single instruments to run automated
+// market-making books on, grouped by asset class. Unlike the stat-arb presets
+// (which are symbol *sets* fed to pair discovery), a market-making preset is a
+// list of individually-quotable instruments: each becomes its own MM book with
+// its own inventory and quotes. Every symbol quotes against a single quote asset
+// (USDT) and resolves to a real Binance public-REST market at the venue
+// boundary, so these ride the same feed the stat-arb engine already uses — no
+// new adapter.
+//
+// The stablecoin sets are the point of this whole feature: USDC/FDUSD/TUSD/DAI
+// vs USDT are pegged ≈1.0, so the bid/ask straddles par and the spread captured
+// is the peg's micro-volatility — a low-inventory-risk book that's the natural
+// home for AS/GLFT quoting. EUR/EURI vs USDT is the FX-via-stables bridge: the
+// quote is the on-chain euro, and the spread you earn is the EUR/USD micro-
+// structure (TESSERA §1.3). Crypto majors are included so a desk can A/B the
+// same quoter on a high-vol class and watch inventory risk dominate.
+
+export interface MmMarketPreset {
+  id: string;
+  label: string;
+  assetClass: string;
+  description: string;
+  /** Internal short symbols; each runs as its own MM book. */
+  symbols: string[];
+  /** The instrument the MM screen loads first. */
+  defaultSymbol: string;
+  /** Quote asset for the Binance market symbol. */
+  quote: string;
+}
+
+export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
+  {
+    id: 'stablecoin-peg',
+    label: 'Stablecoin Peg',
+    assetClass: 'Stablecoin',
+    description:
+      'USD-stable vs USDT, all pegged ≈1.0. The spread is pure peg micro-volatility — low inventory risk, the cleanest home for inventory-aware quoting.',
+    symbols: ['USDC', 'FDUSD', 'TUSD', 'DAI', 'USD1'],
+    defaultSymbol: 'FDUSD',
+    quote: 'USDT',
+  },
+  {
+    id: 'fx-via-stables',
+    label: 'FX via Stables (EUR)',
+    assetClass: 'FX',
+    description:
+      'EUR-stables vs USDT — the spread is the on-chain EUR/USD microstructure, a 24/7 FX-basis book (TESSERA §1.3).',
+    symbols: ['EUR', 'EURI'],
+    defaultSymbol: 'EUR',
+    quote: 'USDT',
+  },
+  {
+    id: 'crypto-majors-mm',
+    label: 'Crypto Majors (high-vol MM)',
+    assetClass: 'Large Cap',
+    description:
+      'BTC/ETH/SOL/BNB vs USDT — a high-vol class to A/B the quoter against the stablecoin book and watch inventory risk dominate.',
+    symbols: ['BTC', 'ETH', 'SOL', 'BNB'],
+    defaultSymbol: 'SOL',
+    quote: 'USDT',
+  },
+];
+
+export function listMmPresets(): readonly MmMarketPreset[] {
+  return MM_MARKET_PRESETS;
+}
+
+export function getMmPreset(id: string): MmMarketPreset | undefined {
+  return MM_MARKET_PRESETS.find((p) => p.id === id);
+}

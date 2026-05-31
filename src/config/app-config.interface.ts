@@ -97,6 +97,39 @@ export interface AppConfig {
     /** Slippage lambda (bps per notional/ADV). */
     slippageLambdaBps: number;
   };
+  /** Automated market-making books (runs alongside the stat-arb portfolio). */
+  marketMaking: {
+    /** Default quoter catalogue id (mmStrategyRegistry): mm-symmetric | mm-avellaneda-stoikov | mm-glft. */
+    defaultStrategyId: string;
+    /** Default instrument the MM screen loads. */
+    defaultSymbol: string;
+    /** Asset units quoted per side (6-dec; 1.0 asset = 1_000_000). */
+    quoteSizeUnits: bigint;
+    /** Per-book capital anchor (6-dec USDC units). */
+    capitalUnits: bigint;
+    /** Loop poll cadence (ms). */
+    pollIntervalMs: number;
+    /** Rolling realised-σ window (bars). */
+    volWindowBars: number;
+    /** σ floor as a fraction of price, so a flat warmup never yields a zero spread. */
+    volFloor: number;
+    /** Horizon (bars) for the AS (T−t) inventory term. */
+    horizonBars: number;
+    /** γ — quoter risk aversion. */
+    gamma: number;
+    /** κ — quoter order-arrival decay. */
+    kappa: number;
+    /** Half-spread floor in bps of mid. */
+    minHalfSpreadBps: number;
+    /** Half-spread cap in bps of mid (safety rail). */
+    maxHalfSpreadBps: number;
+    /** Saturation cap on |inventory| in lots (one lot = one quote size). */
+    maxInventoryLots: number;
+    /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
+    makerFeeBps: number;
+    /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */
+    maxDrawdownPct: number;
+  };
 }
 
 export type FeedSource = 'mock' | 'binance';

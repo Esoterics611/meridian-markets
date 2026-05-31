@@ -443,3 +443,35 @@ Includes a small errors-prelude commit (3584961) that brought the int-spec suite
 3. **Orphaned Track-B real-venue adapter** — set aside in git `stash@{0}` (2 known-bad specs: wrong signer vector; bucket refill anchor). Restart fresh.
 4. **Exec algos + WebSocket feed in the live loop**; risk-engine per-order in the portfolio hot path.
 5. **Course gaps**: Johansen, purged k-fold CV, deflated-Sharpe endpoint (course §9.9).
+
+---
+
+## 10. Session 19 — Automated market-making desk + fee discipline (2026-05-31)
+
+**Goal:** add automated market-making (MM) strategies that run as books *next to* the stat-arb portfolio — backtestable, pluggable into any asset class (stablecoin-first), on the same real Binance feed. Then make fees real in the *entry decision* of every strategy, and tune for profit-with-certainty.
+
+### Shipped — the MM desk (`src/market-making/`)
+
+- **Quoters (`IQuoter`, the MM twin of `IStrategy`):** `SymmetricQuoter` (baseline), `AvellanedaStoikovQuoter` (AS08 reservation price `r=s−qγσ²(T−t)` + inventory skew + optimal half-spread), `GlftQuoter` (the §3.5 steady-state / infinite-horizon variant — invariant to the horizon countdown). Inventory is normalised to **lots** (inv ÷ quote size) so skew is size-agnostic; half-spread rails are **bps of mid** so the same quoter is sane from a $1 stablecoin to $60k BTC.
+- **`InventoryBook`** — average-cost inventory + realised/unrealised/fees accounting, shared by backtest and live so P&L is computed identically.
+- **Risk:** `VpinEstimator` (toxic-flow signal) + `CompositeRiskGate` with the MM-specific **Pause** verdict (stand still through a VPIN/adverse burst, don't panic-flatten).
+- **Backtest:** `MmBacktestRunner` (bar-driven, runnable on today's OHLCV) + 4-component `PnlAttributor` (spread / adverse selection / inventory carry / fees) + `SimpleQueueModel` (the honest queue-aware scaffold; the full `LobReplayHarness` lands with L2 ingest). Fill model is fill-on-touch — documented as an upper bound on fills (course §6.8).
+- **`MmStrategyRegistry`** (mirrors `StrategyRegistry`) + `mm-market-presets` (stablecoin-peg, fx-via-stables, crypto-majors). Added a `stablecoin-peg` preset to the stat-arb presets too.
+- **Live:** `MmBook` (one instrument, real bars → quote → passive fills → mark) + `MmPortfolioTrader` (N books, one control plane) + `MmController` (`/api/market-making/*`). `MarketMakingModule` is self-contained (own Binance client + per-book feed) and imported once into `AppModule` — never touches `StatArbModule`.
+
+### Shipped — fees in the entry decision (both engines)
+
+- **Stat-arb:** confirmed `MockTradingVenue`/`PaperVenue` charge 5 bps taker and the backtest subtracts all 4 legs. Added `signal/fee-gate.ts`: the z-score pairs strategies (`PairsStrategy`, `BollingerPairsStrategy`) now **only open when the expected reversion `(|z|−exitZ)·σ_spread` clears `minEdgeMultiple ×` the 4-leg round-trip fee**. Registry turns it on by default (5 bps, 1.5×). Routes sub-fee spreads (a stablecoin peg) *away* from taker stat-arb and *toward* the maker MM books.
+- **MM:** maker fee (signed; `-1` = rebate) on every fill, folded into net P&L; a fee-aware spread floor so the quoter never quotes below the maker round-trip break-even.
+
+### Verification
+
+- `tsc --noEmit` clean; `npm run build` clean; `jest` **673/673** (101 suites, +49 MM + 8 fee-gate). No DB migrations (MM is DB-free).
+- **Live**: `scripts/smoke-mm-stablecoin.ts` (DB-free) backfilled real FDUSD/USDC/TUSD, backtested all three quoters (FDUSD AS: 156 fills, +13.67 spread, +15.59 rebate, −7.30 adverse → **+21.67 net** over ~6.6h), and drove one live `MmBook` tick (quoting bid 0.9993 / ask 0.9995, verdict Allow).
+
+### Open follow-ups (S19)
+
+1. **Cross-asset opportunity scanner** — the "scan far and wide, place few trades" engine. Sweep all presets + the TESSERA stablecoin/FX/ILS universe; rank each candidate by **net-edge-after-fees per unit time** (per-trade edge over the fee gate × expected trades/day from half-life × signal stability); surface only what clears. Reuses `discovery/pair-discovery`, `signal-decay`, `signal/fee-gate`. Add a deflated-Sharpe correction (we'll be multiple-testing hard).
+2. **MM spread-capture screener** — rank instruments by `realised-spread − adverse(VPIN) − inventory-risk(vol) + rebate`, weighted by depth/fill-rate; a "where to quote" board.
+3. **Reference-data adapters** (TESSERA): OANDA/Pyth FX (`EUR/USD`, `USD/ILS`), DefiLlama peg, Bit2C `USDC/NIS` — unlock the FX-via-stables and ILS basis trades.
+4. **L2 ingest** → promote `SimpleQueueModel` to the honest `LobReplayHarness`.

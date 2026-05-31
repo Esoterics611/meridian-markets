@@ -4,6 +4,7 @@ import {
   slidingCointegration,
   SlidingCointegrationResult,
 } from '../signal/sliding-cointegration';
+import { entryClearsFees, stdev } from '../signal/fee-gate';
 import { BarContext, DesiredOrder, IStrategy } from './strategy.interface';
 
 // Pairs trading strategy:
@@ -42,9 +43,18 @@ export interface PairsStrategyConfig {
   notionalUnits: bigint;
   /** Optional sliding-β refit. Default disabled (preserves Session 5 demo determinism). */
   betaRefit?: BetaRefitConfig;
+  /**
+   * Round-trip taker fee in bps for the fee-aware entry gate. When set (> 0), an
+   * entry is only taken if the expected reversion (|z|−exitZ)·σ_spread clears
+   * the 4-leg round-trip cost × `minEdgeMultiple`. Default undefined = gate off
+   * (fee-blind, preserves prior determinism). See signal/fee-gate.ts.
+   */
+  feeBps?: number;
+  /** Margin-of-safety multiple on the fee floor. Default 1. Higher = more selective. */
+  minEdgeMultiple?: number;
 }
 
-export type GateEventKind = 'P_VALUE_BLOCK';
+export type GateEventKind = 'P_VALUE_BLOCK' | 'FEE_GATE';
 export interface GateEvent {
   kind: GateEventKind;
   barIndex: number;
@@ -160,6 +170,21 @@ export class PairsStrategy implements IStrategy {
           });
         }
         return [];
+      }
+      // Fee-aware entry gate: refuse a trade whose expected reversion can't clear
+      // the round-trip fee. Routes sub-fee spreads away from taker stat-arb.
+      const wantsEntry = zNow > this.cfg.entryZ || zNow < -this.cfg.entryZ;
+      if (wantsEntry && this.cfg.feeBps !== undefined) {
+        const sigmaSpread = stdev(spread.slice(-this.cfg.zLookback));
+        if (!entryClearsFees(zNow, this.cfg.exitZ, sigmaSpread, this.cfg.feeBps, this.cfg.minEdgeMultiple ?? 1)) {
+          this.gateEvents.push({
+            kind: 'FEE_GATE',
+            barIndex: ctx.index,
+            reason: `expected edge below fee floor (feeBps ${this.cfg.feeBps})`,
+            zAtBlock: zNow,
+          });
+          return [];
+        }
       }
       if (zNow > this.cfg.entryZ) {
         this.regime = 'SHORT';
