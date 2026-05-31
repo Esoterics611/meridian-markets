@@ -108,14 +108,18 @@ quant flips `status: paper` and arms.
 ## 5. What to build first (so it's working, not a title)
 
 1. **Make trades visible + persistent** — the UI/`/trades` endpoint + NAV-venue fix
-   (UI spec §6). Without this the supervisor can't supervise. *(Being wired now.)*
+   (UI spec §6). Without this the supervisor can't supervise. **✅ done.**
 2. **`mq arm/stop/book/status/trades`** (terminal spec P0) — the agent + human
-   action interface.
+   action interface. **✅ done.**
 3. **`desk/STATION_BRIEF.md` + `desk/roster.yaml`** — the role brief + manifest.
-4. **`mq validate`** — the promotion gate.
+   **✅ done** — plus `mq roster` and station-aware `mq validate <id>` / `mq arm <id>`
+   (one positional = a roster station; two symbols = an ad-hoc pair).
+4. **`mq validate`** — the promotion gate. **✅ done.**
 5. Run **2–3 stations** across different asset classes (start them as separate
    sessions, each owning one book) → they accumulate paper PnL into the shared DB →
    you watch the Fund Overview. That is the agentic hedge fund, minimally real.
+   **← next.** The roster is seeded with three: `majors-zscore`, `l1-ou`,
+   `defi-dispersion`.
 
 ## 6. Non-goals
 - No per-agent microservices / DBs (CLAUDE.md §6 is binding).

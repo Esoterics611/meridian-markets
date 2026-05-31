@@ -1,0 +1,37 @@
+# desk/roster.yaml — the trading-station manifest for the agentic desk.
+# Read by `mq roster`, `mq validate <station-id>`, `mq arm <station-id>` and the
+# supervisor UI. See desk/STATION_BRIEF.md for the field reference and the quant
+# lifecycle, and docs/AGENTIC_HEDGE_FUND_DESIGN.md §2 for the why.
+#
+# One station = one strategy on one book, owned by one agent (a Claude session).
+# Fields: id (required), owner, preset (a market-preset id, alias: assetClass),
+# pairs (required, flow-style), strategy, capitalUsdc, status.
+# status: draft -> validated (passed `mq validate`) -> paper (armed) -> stopped.
+#
+# Parsed by src/cli/roster.ts (a fixed YAML subset): full-line `#` comments and
+# blank lines are ignored; pairs are flow-style `[[A, B]]`; scalars may be quoted.
+
+stations:
+  - id: majors-zscore
+    owner: quant-a
+    preset: crypto-majors
+    pairs: [[ETH, BTC]]
+    strategy: pairs-zscore
+    capitalUsdc: 34000
+    status: validated
+
+  - id: l1-ou
+    owner: quant-b
+    preset: l1-smart-contract
+    pairs: [[SOL, AVAX]]
+    strategy: ou-bertram
+    capitalUsdc: 33000
+    status: draft
+
+  - id: defi-dispersion
+    owner: quant-c
+    preset: defi-bluechip
+    pairs: [[AAVE, UNI]]
+    strategy: pairs-ewma
+    capitalUsdc: 33000
+    status: draft

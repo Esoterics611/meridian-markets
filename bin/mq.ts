@@ -24,6 +24,7 @@
 import { spawnSync } from 'child_process';
 import { parseArgs, numFlag, fmtUnits, usdcToUnits, table, rankSweep, SweepRow } from '../src/cli/mq-lib';
 import { evaluateGate, thresholdsFor, RISK_GATES, RiskProfileId, GateInput } from '../src/cli/validate-gate';
+import { loadRoster, findStation, Station } from '../src/cli/roster';
 
 const BASE = process.env.MQ_HOST ?? 'http://localhost:3100';
 const LIVE = '/api/stat-arb/live';
@@ -279,6 +280,65 @@ async function cmdValidate(
   return result.pass ? 0 : 1;
 }
 
+/** Resolve a single positional arg against desk/roster.yaml. Returns the station
+ *  for `mq <cmd> <station-id>`, null for the two-symbol pair form, and throws a
+ *  clear error if a lone arg names no station. */
+function resolveStation(positionals: string[], rosterPath: string | undefined): Station | null {
+  if (positionals.length !== 1) return null;
+  const id = positionals[0];
+  const roster = loadRoster(rosterPath);
+  const st = findStation(roster, id);
+  if (!st) {
+    const ids = roster.stations.map((s) => s.id).join(', ') || 'none';
+    throw new Error(`no station '${id}' in roster (have: ${ids}) — or pass two symbols for an ad-hoc pair`);
+  }
+  return st;
+}
+
+/** `mq roster` — the station manifest the supervisor + tooling read. */
+function cmdRoster(json: boolean, rosterPath: string | undefined): void {
+  const roster = loadRoster(rosterPath);
+  if (json) return printJson(roster);
+  if (!roster.stations.length) return out('roster is empty — add stations to desk/roster.yaml');
+  out(table(
+    ['ID', 'OWNER', 'PRESET', 'PAIRS', 'STRATEGY', 'CAPITAL', 'STATUS'],
+    roster.stations.map((s) => [
+      s.id, s.owner ?? '—', s.preset ?? '—',
+      s.pairs.map((p) => p.join('/')).join(' '),
+      s.strategy ?? '—',
+      s.capitalUsdc !== undefined ? `$${s.capitalUsdc.toLocaleString()}` : '—',
+      s.status,
+    ]),
+  ));
+  const paper = roster.stations.filter((s) => s.status === 'paper').length;
+  out(`\n${roster.stations.length} stations · ${paper} in paper`);
+}
+
+/** Arm a roster station's book in paper. One pair → single book; a basket → portfolio. */
+async function cmdArmStation(
+  st: Station,
+  strategyFlag: string | undefined,
+  capitalFlag: number | undefined,
+  beta: number | undefined,
+  json: boolean,
+): Promise<void> {
+  const strategy = strategyFlag ?? st.strategy;
+  const capital = capitalFlag ?? st.capitalUsdc ?? 100_000;
+  if (!json) out(`arming station ${st.id}${st.owner ? ` · owner ${st.owner}` : ''} (was ${st.status})\n`);
+  if (st.pairs.length === 1) {
+    await cmdArm(st.pairs[0][0], st.pairs[0][1], strategy, capital, beta, json);
+  } else {
+    const pairs = st.pairs.map(([symbolA, symbolB]) => ({ symbolA, symbolB }));
+    const cfg = await api('POST', `${LIVE}/portfolio`, { body: { pairs, capitalUsdc: capital, strategyId: strategy } });
+    if (cfg.error) return out(`error: ${cfg.error}`);
+    const snap = await api('POST', `${LIVE}/portfolio/start`);
+    if (json) return printJson(snap);
+    out(`armed ${st.pairs.length}-pair basket on $${capital.toLocaleString()}\n`);
+    printPortfolio(snap);
+  }
+  if (!json) out(`\n→ set status: paper for '${st.id}' in desk/roster.yaml`);
+}
+
 function printSingleSnapshot(s: any): void {
   kv([
     ['pair', `${s.symbolA}/${s.symbolB}`],
@@ -438,10 +498,16 @@ monitor:
   mq book                             portfolio snapshot
   mq trades [--venue paper] [--limit 50]   persisted blotter
 
+desk (agentic hedge fund — docs/AGENTIC_HEDGE_FUND_DESIGN.md):
+  mq roster                           the station manifest (desk/roster.yaml)
+  mq validate <station-id>            run the promotion gate for a station
+  mq arm <station-id>                 arm a station's book in paper
+  (validate/arm also take <A> <B> for an ad-hoc pair instead of a station)
+
 runbook:
   mq session [--preset crypto-majors] [--hours 24] [--capital 100000]
 
-global: --json (machine output) · MQ_HOST overrides ${BASE}`);
+global: --json (machine output) · --roster <path> · MQ_HOST overrides ${BASE}`);
 }
 
 async function main(): Promise<number> {
@@ -454,6 +520,12 @@ async function main(): Promise<number> {
   const venue = typeof flags.venue === 'string' ? flags.venue : undefined;
   const profile = typeof flags.profile === 'string' ? flags.profile : undefined;
   const preset = typeof flags.preset === 'string' ? flags.preset : undefined;
+  const rosterPath = typeof flags.roster === 'string' ? flags.roster : undefined;
+  const gateOverrides = {
+    minSharpe: flags['min-sharpe'] !== undefined ? numFlag(flags, 'min-sharpe', 0.5) : undefined,
+    minTrades: flags['min-trades'] !== undefined ? numFlag(flags, 'min-trades', 5) : undefined,
+    maxPValue: flags['max-pvalue'] !== undefined ? numFlag(flags, 'max-pvalue', 0.2) : undefined,
+  };
 
   switch (command) {
     case 'presets': await cmdPresets(json); break;
@@ -462,14 +534,35 @@ async function main(): Promise<number> {
     case 'discover': await cmdDiscover(positionals[0], hours, venue, json); break;
     case 'backtest': await cmdBacktest(positionals[0], positionals[1], strategy, hours, beta ?? 1, json); break;
     case 'sweep': await cmdSweep(positionals[0], positionals[1], hours, beta ?? 1, json); break;
-    case 'validate':
+    case 'validate': {
+      const st = resolveStation(positionals, rosterPath);
+      if (st) {
+        if (!json) {
+          out(`station ${st.id}${st.owner ? ` · owner ${st.owner}` : ''} · status ${st.status}`);
+          if (st.pairs.length > 1) {
+            out(`(basket of ${st.pairs.length}; validating the first pair ${st.pairs[0].join('/')} — run the rest per-pair)`);
+          }
+        }
+        return cmdValidate(st.pairs[0][0], st.pairs[0][1], {
+          strategy: strategy ?? st.strategy, hours, beta: beta ?? 1,
+          profile, preset: preset ?? st.preset, ...gateOverrides,
+        }, json);
+      }
       return cmdValidate(positionals[0], positionals[1], {
-        strategy, hours, beta: beta ?? 1, profile, preset,
-        minSharpe: flags['min-sharpe'] !== undefined ? numFlag(flags, 'min-sharpe', 0.5) : undefined,
-        minTrades: flags['min-trades'] !== undefined ? numFlag(flags, 'min-trades', 5) : undefined,
-        maxPValue: flags['max-pvalue'] !== undefined ? numFlag(flags, 'max-pvalue', 0.2) : undefined,
+        strategy, hours, beta: beta ?? 1, profile, preset, ...gateOverrides,
       }, json);
-    case 'arm': await cmdArm(positionals[0], positionals[1], strategy, numFlag(flags, 'capital', 100_000), beta, json); break;
+    }
+    case 'arm': {
+      const st = resolveStation(positionals, rosterPath);
+      if (st) {
+        const capFlag = flags.capital !== undefined ? numFlag(flags, 'capital', 100_000) : undefined;
+        await cmdArmStation(st, strategy, capFlag, beta, json);
+        break;
+      }
+      await cmdArm(positionals[0], positionals[1], strategy, numFlag(flags, 'capital', 100_000), beta, json);
+      break;
+    }
+    case 'roster': cmdRoster(json, rosterPath); break;
     case 'stop': await cmdSimplePost(`${LIVE}/stop`, json, printSingleSnapshot); break;
     case 'tick': await cmdSimplePost(`${LIVE}/tick`, json, printSingleSnapshot); break;
     case 'flatten': await cmdSimplePost(`${LIVE}/flatten`, json, printSingleSnapshot); break;
