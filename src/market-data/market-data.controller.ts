@@ -224,6 +224,113 @@ export class MarketDataController {
     });
   }
 
+  /**
+   * Position-sizing & fee economics for a pair, over stored real bars. Answers
+   * the desk's "does bigger size beat the fees?" question HONESTLY:
+   *
+   *  - Fees here are 5 bps *of notional* (×4 fills/round-trip), so they scale
+   *    linearly with size — net edge *in bps* is INVARIANT to notional. We run
+   *    the same backtest at 1×/10×/100× to show net P&L scales linearly while
+   *    edge-per-trade (bps) and Sharpe stay flat. (Only a FIXED commission would
+   *    make bigger size cheaper per unit; we don't have one.)
+   *  - The real size lever is market impact: it grows ~quadratically, so there
+   *    is an interior-optimal participation N* = a/(2b) where a = net edge per
+   *    unit notional and b is the impact coefficient (from the leg's ADV).
+   *
+   *   POST /api/market-data/sizing-study
+   *     { symbolA, symbolB, beta?, lookbackHours?, strategyId?, params?, impactLambdaBps? }
+   */
+  @Post('sizing-study')
+  async sizingStudy(
+    @Body()
+    body: {
+      symbolA?: string;
+      symbolB?: string;
+      venue?: string;
+      lookbackHours?: number;
+      beta?: number;
+      strategyId?: string;
+      params?: Record<string, number>;
+      impactLambdaBps?: number;
+    },
+  ) {
+    const symbolA = body.symbolA ?? 'BTC';
+    const symbolB = body.symbolB ?? 'ETH';
+    const venue = body.venue ?? 'binance.spot';
+    const beta = body.beta ?? 1;
+    const to = new Date();
+    const from = new Date(to.getTime() - (body.lookbackHours ?? 72) * HOUR_MS);
+    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+    const aligned = alignPair(a, b);
+    if (aligned.a.length < 30) {
+      return { error: 'not enough overlapping bars — backfill this market set first', overlap: aligned.a.length };
+    }
+
+    const FEE_BPS = 5n;
+    const base = 25_000_000_000n; // $25k/leg — balanced 25% deployment of a $100k book
+    const hasStrat = !!body.strategyId && strategyRegistry.has(body.strategyId);
+    const buildStrategy = (notionalUnits: bigint) =>
+      hasStrat
+        ? strategyRegistry.build(body.strategyId as string, { beta, notionalUnits, params: body.params })
+        : new PairsStrategy({
+            beta,
+            zLookback: 20,
+            entryZ: body.params?.entryZ ?? 2,
+            exitZ: body.params?.exitZ ?? 0.5,
+            notionalUnits,
+          });
+
+    const sizes: { label: string; notionalUnits: bigint }[] = [
+      { label: '1×', notionalUnits: base },
+      { label: '10×', notionalUnits: base * 10n },
+      { label: '100×', notionalUnits: base * 100n },
+    ];
+    const rows: Array<{ label: string; notionalUnits: string; trades: number; netPnlUnits: string; edgePerTradeBps: number; sharpe: number }> = [];
+    let edgePerNotional = 0; // a (USDC-micros net PnL per micro of notional)
+    let tradesBase = 0;
+    for (const s of sizes) {
+      const replayVenue = new HistoricalReplayVenue({ [symbolA]: aligned.a, [symbolB]: aligned.b }, { takerFeeBps: FEE_BPS });
+      const res = await new BacktestRunner().run({ barsA: aligned.a, barsB: aligned.b, strategy: buildStrategy(s.notionalUnits), venue: replayVenue });
+      const pnl = Number(res.metrics.totalPnlUnits);
+      const edgeBps = res.metrics.totalTrades > 0 ? (pnl / res.metrics.totalTrades / Number(s.notionalUnits)) * 1e4 : 0;
+      rows.push({ label: s.label, notionalUnits: s.notionalUnits.toString(), trades: res.metrics.totalTrades, netPnlUnits: pnl.toString(), edgePerTradeBps: edgeBps, sharpe: res.metrics.sharpeRatio });
+      if (s.notionalUnits === base) { edgePerNotional = pnl / Number(base); tradesBase = res.metrics.totalTrades; }
+    }
+
+    // Market-impact-aware optimum. ADV (USDC/bar) of the thinner leg; linear
+    // impact lambda·N/ADV; net(N)=a·N−b·N²; N*=a/(2b).
+    const advUsdc = (bars: typeof aligned.a) => {
+      let s = 0;
+      for (const x of bars) s += x.volume * x.close;
+      return (s / Math.max(1, bars.length)) * 1e6; // micros
+    };
+    const adv = Math.min(advUsdc(aligned.a), advUsdc(aligned.b));
+    const lambda = body.impactLambdaBps ?? 10;
+    const bCoef = (4 * tradesBase * lambda) / (1e4 * Math.max(1, adv));
+    const hasOptimum = edgePerNotional > 0 && bCoef > 0;
+    const nStar = hasOptimum ? edgePerNotional / (2 * bCoef) : null;
+    const netAtStar = nStar != null ? edgePerNotional * nStar - bCoef * nStar * nStar : null;
+
+    return jsonSafe({
+      pair: `${symbolA}/${symbolB}`,
+      strategy: hasStrat ? body.strategyId : 'pairs-zscore',
+      window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
+      feeBps: Number(FEE_BPS),
+      roundTripFeeBps: Number(FEE_BPS) * 4, // 2 legs × open+close
+      sizes: rows,
+      impact: {
+        advUsdcPerBar: adv,
+        lambdaBps: lambda,
+        edgePerTradeBpsAtBase: rows[0]?.edgePerTradeBps ?? 0,
+        optimalNotionalUnits: nStar != null ? Math.round(nStar).toString() : null,
+        netAtOptimalUnits: netAtStar != null ? Math.round(netAtStar).toString() : null,
+        note: hasOptimum
+          ? 'net edge is size-invariant in bps; market impact (∝N²) sets the optimal participation N*'
+          : 'no positive-edge optimum — config is sub-fee/net-negative, so any size loses (impact only worsens it)',
+      },
+    });
+  }
+
   // --- Live multi-asset surface (presaved markets + real-data discovery) ---
 
   /** The presaved market sets the demo can switch between. */

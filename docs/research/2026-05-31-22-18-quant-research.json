@@ -1,0 +1,466 @@
+{
+  "generatedAt": "2026-05-31T22:18:29.017Z",
+  "window": {
+    "bars": 1000,
+    "feeBps": 5
+  },
+  "presets": [
+    "crypto-majors",
+    "l1-smart-contract",
+    "defi-bluechip",
+    "eth-ecosystem",
+    "stablecoin-peg"
+  ],
+  "strategies": [
+    "pairs-zscore",
+    "pairs-ewma",
+    "ou-bertram",
+    "ou-bertram-fast"
+  ],
+  "entryGrid": [
+    1.5,
+    2,
+    2.5
+  ],
+  "results": [
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-zscore",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 3,
+      "netPnlUnits": -8409743,
+      "avgSharpe": -0.2173388977527247,
+      "avgWinRate": 0,
+      "edgePerTradeBps": -28.032476666666664,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-zscore",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 3,
+      "netPnlUnits": -8409743,
+      "avgSharpe": -0.2173388977527247,
+      "avgWinRate": 0,
+      "edgePerTradeBps": -28.032476666666664,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-zscore",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 3,
+      "netPnlUnits": -8409743,
+      "avgSharpe": -0.2173388977527247,
+      "avgWinRate": 0,
+      "edgePerTradeBps": -28.032476666666664,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-ewma",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 0,
+      "netPnlUnits": 0,
+      "avgSharpe": 0,
+      "avgWinRate": 0,
+      "edgePerTradeBps": 0,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-ewma",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 0,
+      "netPnlUnits": 0,
+      "avgSharpe": 0,
+      "avgWinRate": 0,
+      "edgePerTradeBps": 0,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "pairs-ewma",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 0,
+      "netPnlUnits": 0,
+      "avgSharpe": 0,
+      "avgWinRate": 0,
+      "edgePerTradeBps": 0,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "ou-bertram",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 92,
+      "netPnlUnits": -98165866,
+      "avgSharpe": -1.0407519027226972,
+      "avgWinRate": 0.12374921826141339,
+      "edgePerTradeBps": -10.670202826086955,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": -17768738,
+        "sharpe": -1.87531411157758,
+        "trades": 14
+      }
+    },
+    {
+      "preset": "crypto-majors",
+      "strategy": "ou-bertram-fast",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 147,
+      "netPnlUnits": -206543963,
+      "avgSharpe": -1.168584791310374,
+      "avgWinRate": 0.0914141414141414,
+      "edgePerTradeBps": -14.050609727891159,
+      "best": {
+        "pair": "ADA/DOGE",
+        "netPnlUnits": -43277543,
+        "sharpe": -1.640339826093403,
+        "trades": 33
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-zscore",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 1,
+      "totalTrades": 12,
+      "netPnlUnits": -4629878,
+      "avgSharpe": -0.1500577823003088,
+      "avgWinRate": 0.16964285714285715,
+      "edgePerTradeBps": -3.8582316666666667,
+      "best": {
+        "pair": "SUI/TIA",
+        "netPnlUnits": 275898,
+        "sharpe": 0.02172437836455542,
+        "trades": 7
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-zscore",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 9,
+      "netPnlUnits": -6362790,
+      "avgSharpe": -0.1966537085571138,
+      "avgWinRate": 0.1875,
+      "edgePerTradeBps": -7.069766666666666,
+      "best": {
+        "pair": "ADA/SUI",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-zscore",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 1,
+      "totalTrades": 9,
+      "netPnlUnits": -4884367,
+      "avgSharpe": -0.1548833475100644,
+      "avgWinRate": 0.25,
+      "edgePerTradeBps": -5.427074444444445,
+      "best": {
+        "pair": "SUI/TIA",
+        "netPnlUnits": 21409,
+        "sharpe": 0.002422117525532998,
+        "trades": 4
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-ewma",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 5,
+      "netPnlUnits": -2111492,
+      "avgSharpe": -0.0705940859568659,
+      "avgWinRate": 0.15,
+      "edgePerTradeBps": -4.222984,
+      "best": {
+        "pair": "ADA/SUI",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-ewma",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 2,
+      "netPnlUnits": -3511401,
+      "avgSharpe": -0.2818257355201851,
+      "avgWinRate": 0,
+      "edgePerTradeBps": -17.557005,
+      "best": {
+        "pair": "ADA/SUI",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "pairs-ewma",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 0,
+      "netPnlUnits": 0,
+      "avgSharpe": 0,
+      "avgWinRate": 0,
+      "edgePerTradeBps": 0,
+      "best": {
+        "pair": "ADA/SUI",
+        "netPnlUnits": 0,
+        "sharpe": 0,
+        "trades": 0
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "ou-bertram",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 103,
+      "netPnlUnits": -96032563,
+      "avgSharpe": -0.59276336996078,
+      "avgWinRate": 0.2018116434967595,
+      "edgePerTradeBps": -9.323549805825243,
+      "best": {
+        "pair": "SUI/TIA",
+        "netPnlUnits": -7399780,
+        "sharpe": -0.2696504344988401,
+        "trades": 16
+      }
+    },
+    {
+      "preset": "l1-smart-contract",
+      "strategy": "ou-bertram-fast",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 154,
+      "netPnlUnits": -213202175,
+      "avgSharpe": -0.8193477942807135,
+      "avgWinRate": 0.16425155428024868,
+      "edgePerTradeBps": -13.844297077922079,
+      "best": {
+        "pair": "ADA/TIA",
+        "netPnlUnits": -36195700,
+        "sharpe": -0.5333750765507551,
+        "trades": 41
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-zscore",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 1,
+      "totalTrades": 30,
+      "netPnlUnits": -8731295,
+      "avgSharpe": -0.2261076089433291,
+      "avgWinRate": 0.45833333333333326,
+      "edgePerTradeBps": -2.9104316666666668,
+      "best": {
+        "pair": "ARB/OP",
+        "netPnlUnits": 1619410,
+        "sharpe": 0.06523612339352929,
+        "trades": 9
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-zscore",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 3,
+      "totalTrades": 29,
+      "netPnlUnits": -1659948,
+      "avgSharpe": -0.1644102018962823,
+      "avgWinRate": 0.4833333333333333,
+      "edgePerTradeBps": -0.5723958620689655,
+      "best": {
+        "pair": "ARB/MANTA",
+        "netPnlUnits": 2511950,
+        "sharpe": 0.10881548962966556,
+        "trades": 4
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-zscore",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 2,
+      "totalTrades": 24,
+      "netPnlUnits": 6469063,
+      "avgSharpe": -0.01629068914165921,
+      "avgWinRate": 0.5248015873015872,
+      "edgePerTradeBps": 2.695442916666667,
+      "best": {
+        "pair": "ARB/MANTA",
+        "netPnlUnits": 8615004,
+        "sharpe": 0.5139192765149755,
+        "trades": 4
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-ewma",
+      "entryZ": 1.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 2,
+      "totalTrades": 6,
+      "netPnlUnits": 11602583,
+      "avgSharpe": 0.9331409020694619,
+      "avgWinRate": 0.625,
+      "edgePerTradeBps": 19.337638333333334,
+      "best": {
+        "pair": "ARB/IMX",
+        "netPnlUnits": 11550585,
+        "sharpe": 3.801082922207912,
+        "trades": 3
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-ewma",
+      "entryZ": 2,
+      "pairsTested": 4,
+      "pairsNetPositive": 2,
+      "totalTrades": 6,
+      "netPnlUnits": 11602583,
+      "avgSharpe": 0.9331409020694619,
+      "avgWinRate": 0.625,
+      "edgePerTradeBps": 19.337638333333334,
+      "best": {
+        "pair": "ARB/IMX",
+        "netPnlUnits": 11550585,
+        "sharpe": 3.801082922207912,
+        "trades": 3
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "pairs-ewma",
+      "entryZ": 2.5,
+      "pairsTested": 4,
+      "pairsNetPositive": 1,
+      "totalTrades": 3,
+      "netPnlUnits": 4635825,
+      "avgSharpe": -0.01712982848251608,
+      "avgWinRate": 0.375,
+      "edgePerTradeBps": 15.45275,
+      "best": {
+        "pair": "ARB/IMX",
+        "netPnlUnits": 4773535,
+        "sharpe": 0,
+        "trades": 1
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "ou-bertram",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 2,
+      "totalTrades": 51,
+      "netPnlUnits": -5974111,
+      "avgSharpe": -0.057501422250437646,
+      "avgWinRate": 0.40150375939849625,
+      "edgePerTradeBps": -1.1713943137254903,
+      "best": {
+        "pair": "ARB/OP",
+        "netPnlUnits": 13959909,
+        "sharpe": 0.1667932011060768,
+        "trades": 19
+      }
+    },
+    {
+      "preset": "eth-ecosystem",
+      "strategy": "ou-bertram-fast",
+      "entryZ": null,
+      "pairsTested": 4,
+      "pairsNetPositive": 0,
+      "totalTrades": 141,
+      "netPnlUnits": -143628415,
+      "avgSharpe": -0.4954655906927963,
+      "avgWinRate": 0.2710210945663532,
+      "edgePerTradeBps": -10.186412411347517,
+      "best": {
+        "pair": "ARB/IMX",
+        "netPnlUnits": -19810037,
+        "sharpe": -0.21011563076497877,
+        "trades": 32
+      }
+    }
+  ],
+  "bestForSizing": {
+    "preset": "eth-ecosystem",
+    "strategy": "ou-bertram",
+    "entryZ": null,
+    "pair": "ARB/OP",
+    "beta": 0.6198868294375905
+  }
+}

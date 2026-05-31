@@ -165,9 +165,10 @@
           <button id="kill-all" class="ghost" style="padding:4px 10px;font-size:11px;color:var(--danger);border-color:var(--danger-dim);">■ HALT ALL</button>
         </span>
       </h2>
-      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;">
-        <div class="stat-grid" id="fund-stats" style="flex:1;min-width:540px;"></div>
-        <div><div class="spark-k">equity over time</div><div id="fund-spark"></div></div>
+      <div class="stat-grid" id="fund-stats"></div>
+      <div style="margin-top:12px;">
+        <div class="spark-k">desk equity — this session <span id="fund-session" class="muted" style="text-transform:none;letter-spacing:0;"></span></div>
+        <div id="fund-spark"></div>
       </div>
       <div style="margin-top:10px;"><span class="spark-k">exposure by asset class</span> &nbsp;<span id="fund-exposure"><span class="muted">no live books</span></span></div>
       <div style="margin-top:8px;"><span class="spark-k">alerts</span> &nbsp;<span id="alerts"><span class="chip OK">✓ all clear</span></span></div>
@@ -331,6 +332,16 @@
       <div id="rt-table" style="margin-top:12px;"></div>
     </section>
 
+    <section class="panel span-12" data-tab="research">
+      <h2>⚖ Position sizing &amp; fee economics</h2>
+      <div class="desc">Fees here are <b>5 bps of notional × 4 fills/round-trip (~20 bps)</b> — a fixed <i>percentage</i>, so they scale with size: net edge <b>in bps is the same at 1 lot or 1000 lots</b>. Bigger size only multiplies the dollars (and the risk), not the edge. What kills small thin-edge trades is <b>edge-per-trade &lt; the fee floor</b>, not the size. The real size limit is <b>market impact</b> (∝ N²), which sets an optimal participation N*. Backtest a discovered pair first, then study it here.</div>
+      <div class="launch-row" style="margin-bottom:8px;">
+        <button id="sz-run" class="primary" style="font-size:13px;padding:8px 14px;">⚖ Study sizing — last backtested pair</button>
+        <span id="sz-note" class="muted" style="font-size:12px;">backtest a pair (Deep-dive or Signal) to load it here</span>
+      </div>
+      <div id="sz-result"></div>
+    </section>
+
     <section class="panel span-12" data-tab="desk">
       <h2>Trade history — persisted
         <span class="badge mono" id="trades-venue" style="float:right;">venue —</span>
@@ -398,7 +409,23 @@
     }
 
     // --- Fund overview: aggregate the single book + all portfolio stations ---
-    const FUNDHIST = [];
+    // Desk equity over the session, persisted to localStorage so leaving /demo
+    // open for HOURS builds a real curve that survives an accidental refresh.
+    // Points are {t: unixSec, v: equityUnits}; keyed per UTC day; capped ~8h.
+    const FUND_KEY = 'mm-fund-eq-' + new Date().toISOString().slice(0, 10);
+    const FUND_CAP = 7200; // 8h @ 4s
+    function loadFundHist() {
+      try { const a = JSON.parse(localStorage.getItem(FUND_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+    }
+    function saveFundHist() {
+      try { localStorage.setItem(FUND_KEY, JSON.stringify(FUNDHIST)); } catch { /* quota — ignore */ }
+    }
+    const FUNDHIST = loadFundHist();
+    function fmtDur(sec) {
+      if (!Number.isFinite(sec) || sec < 0) return '—';
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
     function classFor(a, b) {
       const ps = window.__presets || [];
       for (const p of ps) { if (p.symbols.includes(a) && p.symbols.includes(b)) return p.assetClass; }
@@ -415,8 +442,16 @@
         for (const b of (p.books || [])) { const c = classFor(b.symbolA, b.symbolB); byClass[c] = (byClass[c] || 0) + Number(b.equityUnits); }
       }
       const pnl = eq - cap;
-      if (eq > 0) { FUNDHIST.push(eq); if (FUNDHIST.length > 120) FUNDHIST.shift(); }
-      const peak = FUNDHIST.length ? Math.max(...FUNDHIST) : eq;
+      if (eq > 0) {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const last = FUNDHIST[FUNDHIST.length - 1];
+        if (last && last.t === nowSec) last.v = eq; // dedup within the same second
+        else FUNDHIST.push({ t: nowSec, v: eq });
+        while (FUNDHIST.length > FUND_CAP) FUNDHIST.shift();
+        saveFundHist();
+      }
+      const vals = FUNDHIST.map((p) => p.v);
+      const peak = vals.length ? Math.max(...vals) : eq;
       const dd = peak > 0 ? (peak - eq) / peak * 100 : 0;
       const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
       $('fund-stats').innerHTML =
@@ -428,7 +463,13 @@
         stat('Books', books) +
         stat('Open pos', openPos) +
         stat('Drawdown', dd.toFixed(2) + '%', dd > 0.0001 ? 'neg' : '');
-      $('fund-spark').innerHTML = spark(FUNDHIST, pnl >= 0 ? '#00d4aa' : '#ff5c5c', 220, 38);
+      $('fund-spark').innerHTML = spark(vals, pnl >= 0 ? '#00d4aa' : '#ff5c5c', 760, 120);
+      if (vals.length >= 2) {
+        const durSec = FUNDHIST[FUNDHIST.length - 1].t - FUNDHIST[0].t;
+        $('fund-session').textContent = `· ${fmtDur(durSec)} · ${vals.length} samples · peak ${fmtUsdc(peak)} · started ${new Date(FUNDHIST[0].t * 1000).toLocaleTimeString()}`;
+      } else {
+        $('fund-session').textContent = '· accumulating… (leave open to build the curve)';
+      }
       const total = Object.values(byClass).reduce((a, b) => a + b, 0) || 1;
       $('fund-exposure').innerHTML = Object.keys(byClass).length
         ? Object.entries(byClass).sort((a, b) => b[1] - a[1]).map(([c, v]) => `<span class="pchip"><span class="pk">${c}</span> ${(v / total * 100).toFixed(0)}%</span>`).join('')
@@ -857,6 +898,8 @@
     async function backtestFromSignal() {
       const a = $('sig-a').value, b = $('sig-b').value;
       if (!a || !b || a === b) { $('sig-desc').textContent = 'pick two different legs'; return; }
+      window.__lastBacktest = { symbolA: a, symbolB: b, beta: betaForPair(a, b), strategyId: $('sig-strategy').value || undefined };
+      $('sz-note').textContent = `loaded ${a}/${b} — click to study sizing`;
       $('sig-desc').textContent = 'running backtest on real history…';
       const lookbackHours = Number($('lookback').value) || 72;
       let r; try { r = await jpost('/api/market-data/backtest', { symbolA: a, symbolB: b, beta: betaForPair(a, b), lookbackHours, strategyId: $('sig-strategy').value || undefined }); } catch { r = { error: 'request failed' }; }
@@ -928,6 +971,8 @@
     }
 
     async function backtest(symbolA, symbolB, beta) {
+      window.__lastBacktest = { symbolA, symbolB, beta, strategyId: $('strategy').value || undefined };
+      $('sz-note').textContent = `loaded ${symbolA}/${symbolB} — click to study sizing`;
       $('bt-stats').innerHTML = '<div class="muted" style="padding:8px;">running backtest on real history…</div>';
       const lookbackHours = Number($('lookback').value) || 72;
       const strategyId = $('strategy').value || undefined;
@@ -1065,8 +1110,29 @@
       el.textContent = 'P&L ' + (total >= 0 ? '+' : '') + fmtUsdc(total);
       el.className = 'badge mono ' + (total >= 0 ? 'live' : 'danger');
     }
-    function tickClock() { $('clock').textContent = new Date().toISOString().slice(11, 19) + ' UTC'; }
-    function pulse() { const el = $('heartbeat'); el.style.color = 'var(--accent)'; setTimeout(() => { el.style.color = 'var(--muted)'; }, 350); }
+    // Connection health for a desk left open for hours: every successful poll
+    // stamps lastUpdateMs; the 1s clock colours the heartbeat by data age and
+    // flips the live badge to a visible "stale Ns" if the poll loop stalls
+    // (server restart / network blip) — so frozen numbers never read as live.
+    let lastUpdateMs = 0;
+    function tickClock() {
+      $('clock').textContent = new Date().toISOString().slice(11, 19) + ' UTC';
+      const hb = $('heartbeat');
+      if (!lastUpdateMs) { hb.style.color = 'var(--muted)'; hb.title = 'waiting for first update…'; return; }
+      const age = (Date.now() - lastUpdateMs) / 1000;
+      hb.title = `data updated ${Math.round(age)}s ago`;
+      hb.textContent = age > 20 ? '◌' : '●';
+      hb.style.color = age < 8 ? 'var(--accent)' : age < 20 ? 'var(--warn)' : 'var(--danger)';
+      if (age > 20) { const lb = $('live-badge'); lb.textContent = 'stale ' + Math.round(age) + 's'; lb.className = 'badge mono danger'; }
+    }
+    let polling = false;
+    async function pollAll() {
+      if (polling) return; // never overlap (a slow/hung fetch shouldn't pile up)
+      polling = true;
+      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm()]); lastUpdateMs = Date.now(); }
+      catch { /* refreshers swallow their own errors; a stalled poll shows via heartbeat age */ }
+      finally { polling = false; }
+    }
 
     // --- Research tools: walk-forward / parameter sweep / Monte-Carlo. These hit
     // /api/stat-arb/research/* which run on the engine's SYNTHETIC feed (caveat is
@@ -1111,6 +1177,34 @@
         rtStat('Mean final', fmtUsdc(s.meanFinalPnl), s.meanFinalPnl >= 0 ? 'pos' : 'neg');
       $('rt-table').innerHTML = '';
     }
+
+    // --- Position sizing & fee economics: backtest the same pair at 1×/10×/100×
+    // notional to SHOW that net edge in bps is size-invariant under flat fees,
+    // plus the market-impact-optimal participation N*. ---
+    async function runSizing() {
+      const lb = window.__lastBacktest;
+      if (!lb) { $('sz-note').textContent = 'backtest a pair first (Deep-dive or Signal tab)'; return; }
+      const btn = $('sz-run'); btn.disabled = true; btn.textContent = '⚖ studying…';
+      $('sz-note').textContent = `sizing ${lb.symbolA}/${lb.symbolB}…`;
+      const lookbackHours = Number($('lookback').value) || 72;
+      let r; try { r = await jpost('/api/market-data/sizing-study', { symbolA: lb.symbolA, symbolB: lb.symbolB, beta: lb.beta, strategyId: lb.strategyId, lookbackHours }); } catch { r = { error: 'request failed' }; }
+      btn.disabled = false; btn.textContent = '⚖ Study sizing — last backtested pair';
+      if (!r || r.error) { $('sz-note').textContent = '⚠ ' + ((r && r.error) || 'failed'); $('sz-result').innerHTML = ''; return; }
+      $('sz-note').textContent = `${r.pair} · ${r.strategy} · ${r.window.bars} bars · round-trip fee ${r.roundTripFeeBps} bps`;
+      const sizeRows = (r.sizes || []).map((s) => `<tr>
+        <td>${s.label}</td><td>${fmtUsdc(s.notionalUnits)}</td><td>${s.trades}</td>
+        <td class="${Number(s.netPnlUnits) >= 0 ? 'pos' : 'neg'}">${fmtUsdc(s.netPnlUnits)}</td>
+        <td ${col(s.edgePerTradeBps)}>${num(s.edgePerTradeBps, 2)}</td><td>${num(s.sharpe, 2)}</td></tr>`).join('');
+      const imp = r.impact || {};
+      const impLine = imp.optimalNotionalUnits
+        ? `Thinner-leg ADV ≈ ${fmtUsdc(imp.advUsdcPerBar)} USDC/bar · impact λ=${imp.lambdaBps}bps. Net edge is flat in bps across sizes; market impact (∝N²) caps the optimal participation at <b>N* ≈ ${fmtUsdc(imp.optimalNotionalUnits)} units</b> (est. net ≈ ${fmtUsdc(imp.netAtOptimalUnits)} USDC).`
+        : `No positive-edge optimum — this pair is sub-fee/net-negative, so <b>no size</b> makes it pay (impact only worsens it). ${imp.note || ''}`;
+      $('sz-result').innerHTML = `
+        <table><thead><tr><th>size</th><th>notional (units)</th><th>trades</th><th>net PnL (USDC)</th><th>edge/trade (bps)</th><th>Sharpe</th></tr></thead><tbody>${sizeRows}</tbody></table>
+        <div class="desc" style="margin-top:8px;">${impLine}</div>
+        <div class="desc"><b>Takeaway:</b> net PnL scales linearly with size (×10, ×100) while <b>edge/trade and Sharpe stay flat</b> — size is a risk/impact lever, not alpha. Profit comes from <b>edge/trade clearing the ${r.roundTripFeeBps}bps floor</b>, not from sizing up.</div>`;
+    }
+    $('sz-run').onclick = runSizing;
 
     $('backfill').onclick = backfill;
     $('trade-all').onclick = tradeAll;
@@ -1190,7 +1284,7 @@
       await refreshTrades();
       await refreshMm();
       tickClock(); setInterval(tickClock, 1000);
-      setInterval(() => { refreshSnapshot(); refreshPortfolio(); refreshTrades(); refreshMm(); pulse(); }, 4000);
+      pollAll(); setInterval(pollAll, 4000);
       showTab((location.hash || '').replace('#', '') || 'desk');
     })();
   </script>

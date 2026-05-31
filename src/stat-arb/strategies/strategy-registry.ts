@@ -128,6 +128,83 @@ const PAIRS_EWMA: StrategyDefinition = {
   },
 };
 
+// Added by the quant desk (see docs/QUANT_JOURNAL.md, 2026-06-01): the 15m /
+// ~10-day study found that net-of-fee profit + a high Sharpe come from FEW,
+// HIGH-EDGE entries — a wider entry band and a stiffer fee-floor gate — not from
+// trading often. This codifies that regime: ±2.5 entry and a 2× fee-floor edge
+// requirement. Best deployed on slower bars (5–15m) where σ-per-trade clears the
+// ~20 bps round-trip cost with margin.
+const PAIRS_ZSCORE_SELECTIVE: StrategyDefinition = {
+  id: 'pairs-zscore-selective',
+  family: 'cointegration',
+  label: 'Pairs — z-score (selective)',
+  description:
+    'Cointegration pairs (§2), high-conviction tuning: ±2.5 entry band + a 2× fee-floor edge gate so only entries with edge well clear of the ~20 bps round-trip fire. Fewer trades, higher edge each — the desk-research regime that turns a profit after fees.',
+  courseRef: '§2 Cointegration (selective)',
+  liveCapable: true,
+  defaultRiskProfile: 'conservative',
+  defaultParams: { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0 },
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0, ...params };
+    return new PairsStrategy({
+      beta,
+      zLookback: p.zLookback,
+      entryZ: p.entryZ,
+      exitZ: p.exitZ,
+      notionalUnits,
+      betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+      feeBps: p.feeBps,
+      minEdgeMultiple: p.minEdgeMultiple,
+    });
+  },
+};
+
+// Most selective cointegration entry: only extreme ±3σ dislocations, exit at
+// ±0.5, 2.5× fee gate. Rarest trades, fattest edge each — for noisy alt classes
+// where the spread occasionally blows out far past the band.
+const PAIRS_ZSCORE_WIDE: StrategyDefinition = {
+  id: 'pairs-zscore-wide',
+  family: 'cointegration',
+  label: 'Pairs — z-score (wide ±3σ)',
+  description:
+    'Cointegration pairs (§2): only ±3σ dislocations fire, with a 2.5× fee-floor gate. Trades rarely; each entry has a large expected reversion well clear of fees. Built for high-vol alt classes (AI, gaming, L1) that overshoot.',
+  courseRef: '§2 Cointegration (wide)',
+  liveCapable: true,
+  defaultRiskProfile: 'conservative',
+  defaultParams: { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5 },
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5, ...params };
+    return new PairsStrategy({
+      beta, zLookback: p.zLookback, entryZ: p.entryZ, exitZ: p.exitZ, notionalUnits,
+      betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+      feeBps: p.feeBps, minEdgeMultiple: p.minEdgeMultiple,
+    });
+  },
+};
+
+// EWMA analog of the selective regime: faster-reacting z (no hard window) but
+// the same high-conviction ±2.5 entry + 2× fee gate. The research's highest
+// edge-per-trade configs were EWMA at a wide band (small n, fat edge).
+const PAIRS_EWMA_CONVICTION: StrategyDefinition = {
+  id: 'pairs-ewma-conviction',
+  family: 'cointegration',
+  label: 'Pairs — EWMA (conviction)',
+  description:
+    'Cointegration pairs (§2), EWMA z with a high-conviction ±2.5 entry and a 2× fee-floor gate. The fast EWMA catches a regime turn; the stiff gate keeps only entries whose edge clears the round-trip fee.',
+  courseRef: '§2 Cointegration (EWMA conviction)',
+  liveCapable: true,
+  defaultRiskProfile: 'conservative',
+  defaultParams: { lambda: 0.94, warmupBars: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0 },
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { lambda: 0.94, warmupBars: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0, ...params };
+    return new BollingerPairsStrategy({
+      beta, lambda: p.lambda, warmupBars: p.warmupBars, entryZ: p.entryZ, exitZ: p.exitZ, notionalUnits,
+      betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+      feeBps: p.feeBps, minEdgeMultiple: p.minEdgeMultiple,
+    });
+  },
+};
+
 const OU_BERTRAM: StrategyDefinition = {
   id: 'ou-bertram',
   family: 'ou',
@@ -171,10 +248,38 @@ const OU_BERTRAM_FAST: StrategyDefinition = {
   },
 };
 
+// OU's default txCostFraction (8 bps) UNDER-prices the real ~20 bps round-trip
+// (4 taker fills), so its Bertram bands are too tight → it overtrades and bleeds
+// on fees (the research's worst performers were OU-fast: 100+ trades, deep
+// losses). Pricing the true cost widens the bands → far fewer, profitable
+// trades. Same OU signal, honest cost.
+const OU_BERTRAM_THROTTLED: StrategyDefinition = {
+  id: 'ou-bertram-throttled',
+  family: 'ou',
+  label: 'OU — Bertram bands (fee-throttled)',
+  description:
+    'OU mean-reversion (§3) with the cost set to the TRUE ~20 bps round-trip, not the optimistic 8 bps default. Wider optimal bands ⇒ many fewer trades, each clearing fees — the fix for OU overtrading itself to death on a fee-heavy book.',
+  courseRef: '§3 OU process (fee-throttled)',
+  liveCapable: true,
+  defaultRiskProfile: 'conservative',
+  defaultParams: { ouWindow: 120, txCostFraction: 0.0020 },
+  build: ({ beta, notionalUnits, params }) => {
+    const p = { ouWindow: 120, txCostFraction: 0.0020, ...params };
+    return new OuSpreadStrategy({
+      beta, ouWindow: p.ouWindow, txCostFraction: p.txCostFraction, notionalUnits,
+      betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
+    });
+  },
+};
+
 const DEFINITIONS: StrategyDefinition[] = [
   PAIRS_ZSCORE,
+  PAIRS_ZSCORE_SELECTIVE,
+  PAIRS_ZSCORE_WIDE,
   PAIRS_EWMA,
+  PAIRS_EWMA_CONVICTION,
   OU_BERTRAM,
+  OU_BERTRAM_THROTTLED,
   OU_BERTRAM_FAST,
 ];
 

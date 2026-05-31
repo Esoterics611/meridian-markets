@@ -1,12 +1,27 @@
 import { StrategyRegistry, strategyRegistry, RISK_PROFILES } from './strategy-registry';
 
 describe('StrategyRegistry', () => {
-  it('catalogues the live-capable strategies across the cointegration + OU families', () => {
-    const ids = strategyRegistry.liveCapable().map((d) => d.id).sort();
-    expect(ids).toEqual(['ou-bertram', 'ou-bertram-fast', 'pairs-ewma', 'pairs-zscore']);
-    const families = new Set(strategyRegistry.liveCapable().map((d) => d.family));
+  // The catalogue grows daily (quant desk adds/ships strategies — see
+  // docs/QUANT_ROLE.md), so we assert STRUCTURE, not an exact list: the core
+  // ids are present, every entry has the required shape and a unique id, and
+  // both founding families are represented. New registry entries must not break
+  // this test — that's the point.
+  it('catalogues live-capable strategies across the cointegration + OU families', () => {
+    const live = strategyRegistry.liveCapable();
+    const ids = live.map((d) => d.id);
+    // Founding strategies that other code/docs reference by id.
+    for (const core of ['pairs-zscore', 'pairs-ewma', 'ou-bertram']) expect(ids).toContain(core);
+    expect(new Set(ids).size).toBe(ids.length); // unique ids
+    expect(live.length).toBeGreaterThanOrEqual(4);
+    const families = new Set(live.map((d) => d.family));
     expect(families.has('cointegration')).toBe(true);
     expect(families.has('ou')).toBe(true);
+    // Every entry is well-formed for the UI + deploy path.
+    for (const d of live) {
+      expect(d.id && d.label && d.courseRef).toBeTruthy();
+      expect(typeof d.defaultParams).toBe('object');
+      expect(['conservative', 'balanced', 'aggressive']).toContain(d.defaultRiskProfile);
+    }
   });
 
   it('builds a usable, FLAT strategy carrying the supplied β for every catalogue id', () => {
