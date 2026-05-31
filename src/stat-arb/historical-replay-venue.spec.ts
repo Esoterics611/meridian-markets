@@ -49,4 +49,29 @@ describe('HistoricalReplayVenue', () => {
     });
     expect(fill.feesUnits).toBe(500_000n); // 1000e6 * 5 / 10000
   });
+
+  it('half-spread worsens the fill: BUY above mid, SELL below — symmetrically', async () => {
+    const v = new HistoricalReplayVenue({ BTC: bars('BTC', [100]) }, { takerFeeBps: 0n, halfSpreadBps: 10 });
+    const buy = await v.placeOrder({ symbol: 'BTC', side: 'BUY', notionalUnits: 1_000_000n, idempotencyKey: 'backtest-0-BTC-OPEN_LONG' });
+    const sell = await v.placeOrder({ symbol: 'BTC', side: 'SELL', notionalUnits: 1_000_000n, idempotencyKey: 'backtest-0-BTC-OPEN_LONG' });
+    expect(buy.priceMicros).toBe(100_100_000n); // 100 × (1 + 10bps)
+    expect(sell.priceMicros).toBe(99_900_000n); // 100 × (1 − 10bps)
+  });
+
+  it('market impact scales with participation (notional / ADV)', async () => {
+    // ADV = mean(volume×close). volume=1, close=100 → ADV = 100 USDC = 100e6 micros.
+    const v = new HistoricalReplayVenue({ BTC: bars('BTC', [100]) }, { takerFeeBps: 0n, impactLambdaBps: 10 });
+    // notional = ADV (100e6) → participation 1 → impact = 10bps → BUY at 100×1.001.
+    const atAdv = await v.placeOrder({ symbol: 'BTC', side: 'BUY', notionalUnits: 100_000_000n, idempotencyKey: 'backtest-0-BTC-OPEN_LONG' });
+    expect(atAdv.priceMicros).toBe(100_100_000n);
+    // 10× the notional → 10× participation → ~100bps impact → strictly worse fill.
+    const big = await v.placeOrder({ symbol: 'BTC', side: 'BUY', notionalUnits: 1_000_000_000n, idempotencyKey: 'backtest-0-BTC-OPEN_LONG' });
+    expect(big.priceMicros).toBeGreaterThan(atAdv.priceMicros);
+  });
+
+  it('is frictionless by default (no slippage params) — fills exactly at close', async () => {
+    const v = new HistoricalReplayVenue({ BTC: bars('BTC', [100]) }, { takerFeeBps: 0n });
+    const fill = await v.placeOrder({ symbol: 'BTC', side: 'BUY', notionalUnits: 1_000_000_000n, idempotencyKey: 'backtest-0-BTC-OPEN_LONG' });
+    expect(fill.priceMicros).toBe(100_000_000n);
+  });
 });

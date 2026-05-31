@@ -101,3 +101,47 @@ Same strategy, same pairs, only the bar changes:
 5. **Data hygiene**: `defi-bluechip` + `stablecoin-peg` presets collapse to 0
    aligned bars (sparse/late-listed tickers); fix the harness/`alignMany` to drop
    the offenders, then re-scan those classes.
+
+---
+
+## 2026-06-01 — Entry #2: slippage shipped (P0.1) — and it flips the ranking
+
+**Change:** `HistoricalReplayVenue` now models **half-spread + linear market
+impact** (λ·notional/ADV), charged on every fill (BUY pays up, SELL receives
+less), defaulting off for back-compat. The harness value board + `/api/market-
+data/backtest` now run **net of fees + 2 bps half-spread + 10 bps impact/
+participation**. Re-ran 15m/$25k/leg: `docs/research/2026-05-31-22-43-*.json`.
+
+**The result is a sharp, honest reversal — liquidity decides what survives:**
+
+| Class | Strategy | eZ | Pre-slippage net | **Post-slippage net** | edge/trade | Sharpe | +ve |
+|---|---|---|---|---|---|---|---|
+| **ai-data** | pairs-zscore | 2.0 | +$4,549 | **+$4,460** | 71 bps | 0.35 | 3/4 |
+| ai-data | pairs-zscore | 2.5 | +$1,691 | +$3,074 | 68 bps | 0.37 | 3/4 |
+| **eth-ecosystem** | pairs-zscore | 2.5 | +$2,614 (Sh 3.16!) | **≈ −$270 / marginal** | — | — | — |
+| (most other configs) | — | — | small + | **negative / sub-fee** | — | — | — |
+
+- **eth-ecosystem — the Entry-#1 "consistency winner" — was largely a frictionless
+  artifact.** Its legs (ARB/STRK/IMX/OP) are thin; at $25k/leg the impact term
+  (notional/ADV) is large and eats the edge. *Sharpe 3.16 → gone once you pay to
+  cross + move the book.* This is the single most important lesson of the session:
+  **a backtest without slippage overstates exactly the thin-leg pairs that look
+  best, and they're the ones that don't survive size.**
+- **ai-data survives** (GRT/WLD/RENDER/NEAR are more liquid → smaller impact). It's
+  now the top class by net $ — but Sharpe is only ~0.35 (lumpy), so "nice
+  consistent profits over days" is **not yet proven post-cost**. Honest state:
+  there is net edge after realistic costs on the liquid alt-dispersion classes,
+  but not yet a clean high-Sharpe book.
+
+**Decisions:**
+- The value board is now the honest one; treat Entry-#1's eth-ecosystem numbers as
+  superseded. **New deploy candidate: ai-data z-score @ eZ2–2.5**, sized to its
+  impact-optimal lots (run the sizing study per pair; thin legs cap hard).
+- Liquidity (ADV) is now a first-class screen: prefer classes whose legs absorb
+  $25k+/leg without large impact. Add an **ADV/impact column to the scanner**.
+- Still **blocked on OOS** (Entry-#1 next-action #1) before any "profitable" claim.
+
+**What this proves about the roadmap:** P0.1 (slippage) was correctly the top
+gate — it changed the answer, not just the precision. Next gate: **real-history
+OOS + deflated-Sharpe**, then **maker execution** (which would cut the spread/
+impact this entry just showed is decisive).

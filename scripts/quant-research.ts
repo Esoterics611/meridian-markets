@@ -39,6 +39,9 @@ const USDC = 1e6;
 // honest size below this on thin legs — these are gross figures, pre-impact.
 const NOTIONAL = BigInt(Math.round(Number(process.env.QR_NOTIONAL_USDC ?? 25_000))) * 1_000_000n;
 const FEE_BPS = 5n;
+// Cost-fidelity (P0.1): a taker fill crosses the spread + moves the market.
+const HALF_SPREAD_BPS = Number(process.env.QR_HALF_SPREAD_BPS ?? 2); // half bid-ask, bps of price
+const IMPACT_LAMBDA_BPS = Number(process.env.QR_IMPACT_LAMBDA_BPS ?? 10); // impact bps at participation=1
 const TOPK = 4; // top discovered pairs per preset to backtest
 const ENTRY_GRID = [1.5, 2.0, 2.5];
 const EXIT_Z = 0.5;
@@ -96,12 +99,15 @@ async function backtestPair(
   strat: string,
   entryZ: number | null,
   notionalUnits = NOTIONAL,
+  slippage = true, // value board: honest costs ON; sizing invariance: OFF (flat-fee truth)
 ) {
   const params = entryZ != null ? { entryZ, exitZ: EXIT_Z } : undefined;
   const strategy = strategyRegistry.build(strat, { beta, notionalUnits, params });
   const venue = new HistoricalReplayVenue(
     { [barsA[0].symbol]: barsA, [barsB[0].symbol]: barsB },
-    { takerFeeBps: FEE_BPS },
+    slippage
+      ? { takerFeeBps: FEE_BPS, halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS }
+      : { takerFeeBps: FEE_BPS },
   );
   const res = await new BacktestRunner().run({ barsA, barsB, strategy, venue });
   return res;
@@ -111,7 +117,7 @@ async function main(): Promise<void> {
   const client = new BinancePublicClient({});
   const started = new Date();
   console.log(`\n=== Meridian quant research — ${started.toISOString()} ===`);
-  console.log(`window: ${BARS} × ${INTERVAL} bars (~${windowHours < 48 ? windowHours.toFixed(0) + 'h' : (windowHours / 24).toFixed(1) + 'd'}) · fee ${FEE_BPS}bps/leg · notional $${fmt(NOTIONAL, 0)}/leg\n`);
+  console.log(`window: ${BARS} × ${INTERVAL} bars (~${windowHours < 48 ? windowHours.toFixed(0) + 'h' : (windowHours / 24).toFixed(1) + 'd'}) · fee ${FEE_BPS}bps/leg + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact/participation · notional $${fmt(NOTIONAL, 0)}/leg\n`);
 
   const results: ConfigResult[] = [];
   // Stash the best pair window for the sizing study.
@@ -174,7 +180,7 @@ async function main(): Promise<void> {
   }
 
   // --- Report 1: value board (net-of-fee), ranked ---
-  console.log(`\n── VALUE BOARD — net of ${FEE_BPS}bps/leg fees, ranked by net P&L ──`);
+  console.log(`\n── VALUE BOARD — net of fees + slippage (${HALF_SPREAD_BPS}bps spread, ${IMPACT_LAMBDA_BPS}bps impact/participation), ranked by net P&L ──`);
   console.log('preset            strategy          eZ   pairs  +ve  trades   netPnL(USDC)  edge/trade(bps)  avgSharpe  win%');
   const ranked = [...results].sort((a, b) => b.netPnlUnits - a.netPnlUnits);
   for (const r of ranked) {
@@ -193,7 +199,9 @@ async function main(): Promise<void> {
     let edgePerUnit = 0; // a: net edge per unit notional (USDC micros per micro-notional)
     let tradesAtBase = 0;
     for (const N of sizes) {
-      const res = await backtestPair(a, b, beta, strat, entryZ, N);
+      // Frictionless (slippage OFF) so the table shows the flat-fee invariance;
+      // the analytic impact section (B) then adds the size-dependent cost.
+      const res = await backtestPair(a, b, beta, strat, entryZ, N, false);
       const pnl = Number(res.metrics.totalPnlUnits);
       const bps = res.metrics.totalTrades > 0 ? (pnl / res.metrics.totalTrades / Number(N)) * 1e4 : 0;
       console.log(`   ${fmt(N, 0).padStart(14)}    ${String(res.metrics.totalTrades).padStart(6)}    ${fmt(pnl).padStart(12)}    ${r2(bps).padStart(20)}    ${r2(res.metrics.sharpeRatio).padStart(6)}`);
@@ -231,7 +239,8 @@ async function main(): Promise<void> {
   const stamp = started.toISOString().slice(0, 16).replace(/[:T]/g, '-');
   const outPath = path.join(outDir, `${stamp}-quant-research.json`);
   fs.writeFileSync(outPath, JSON.stringify({
-    generatedAt: started.toISOString(), window: { bars: BARS, interval: INTERVAL, hours: windowHours, feeBps: Number(FEE_BPS) },
+    generatedAt: started.toISOString(),
+    window: { bars: BARS, interval: INTERVAL, hours: windowHours, feeBps: Number(FEE_BPS), halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS },
     presets: PRESETS, strategies: STRATS, entryGrid: ENTRY_GRID, results,
     bestForSizing: bestForSizing ? { preset: bestForSizing.preset, strategy: bestForSizing.strat, entryZ: bestForSizing.entryZ, pair: `${bestForSizing.pair.symbolA}/${bestForSizing.pair.symbolB}`, beta: bestForSizing.beta } : null,
   }, null, 2));

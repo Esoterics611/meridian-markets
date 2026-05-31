@@ -172,6 +172,8 @@ export class MarketDataController {
       notionalUnits?: string;
       strategyId?: string;
       params?: Record<string, number>;
+      halfSpreadBps?: number;
+      impactLambdaBps?: number;
     },
   ) {
     const symbolA = body.symbolA ?? 'BTC';
@@ -205,7 +207,14 @@ export class MarketDataController {
           exitZ: body.exitZ ?? 0.5,
           notionalUnits,
         });
-    const replayVenue = new HistoricalReplayVenue({ [symbolA]: aligned.a, [symbolB]: aligned.b });
+    // Cost-fidelity (P0.1): fills cross the spread + move the market, so the
+    // backtest P&L is net of realistic costs, not frictionless-at-close.
+    const halfSpreadBps = body.halfSpreadBps ?? 2;
+    const impactLambdaBps = body.impactLambdaBps ?? 10;
+    const replayVenue = new HistoricalReplayVenue(
+      { [symbolA]: aligned.a, [symbolB]: aligned.b },
+      { halfSpreadBps, impactLambdaBps },
+    );
     const result = await new BacktestRunner().run({
       barsA: aligned.a,
       barsB: aligned.b,
@@ -218,6 +227,7 @@ export class MarketDataController {
       pair: `${symbolA}/${symbolB}`,
       strategy: strategyId ?? 'pairs-zscore',
       source: 'real-binance-history',
+      costs: { feeBps: 5, halfSpreadBps, impactLambdaBps },
       metrics: result.metrics,
       tradeCount: result.trades.length,
       trades: result.trades.slice(0, 25),
