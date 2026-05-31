@@ -15,13 +15,15 @@ import { scoreNetEdge } from './net-edge-scorer';
 // the module wires it to the Binance public client; a test wires a fixture map.
 // Symbols are cached within a scan so overlapping presets don't refetch.
 
-export type BarLoader = (symbol: string) => Promise<Bar[]>;
+export type BarLoader = (symbol: string, source?: string) => Promise<Bar[]>;
 
 export interface ScannerPreset {
   id: string;
   label: string;
   assetClass: string;
   symbols: string[];
+  /** Data source id ('binance' default, or a reference source like 'pyth'). */
+  source?: string;
 }
 
 export interface OpportunityScannerConfig {
@@ -45,6 +47,8 @@ export interface OpportunityScannerConfig {
 export interface ScoredOpportunity {
   presetId: string;
   assetClass: string;
+  /** Data source the pair was scanned from ('binance', 'pyth', ...). */
+  source: string;
   symbolA: string;
   symbolB: string;
   beta: number;
@@ -80,11 +84,13 @@ export class OpportunityScanner {
         ? this.presets.filter((p) => filterPresetIds.includes(p.id))
         : this.presets;
     const cache = new Map<string, Bar[]>();
-    const load = async (sym: string): Promise<Bar[]> => {
-      const hit = cache.get(sym);
+    // Cache by source+symbol so a symbol shared across sources never collides.
+    const load = async (sym: string, source?: string): Promise<Bar[]> => {
+      const key = `${source ?? 'binance'}:${sym}`;
+      const hit = cache.get(key);
       if (hit) return hit;
-      const bars = await this.loadBars(sym).catch(() => [] as Bar[]);
-      cache.set(sym, bars);
+      const bars = await this.loadBars(sym, source).catch(() => [] as Bar[]);
+      cache.set(key, bars);
       return bars;
     };
 
@@ -96,7 +102,7 @@ export class OpportunityScanner {
       try {
         const universe = new Map<string, Bar[]>();
         for (const sym of preset.symbols) {
-          const bars = await load(sym);
+          const bars = await load(sym, preset.source);
           if (bars.length >= this.cfg.discovery.minBars) universe.set(sym, bars);
         }
         if (universe.size < 2) {
@@ -121,6 +127,7 @@ export class OpportunityScanner {
           opportunities.push({
             presetId: preset.id,
             assetClass: preset.assetClass,
+            source: preset.source ?? 'binance',
             symbolA: c.symbolA,
             symbolB: c.symbolB,
             beta: c.beta,

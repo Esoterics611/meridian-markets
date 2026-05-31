@@ -9,6 +9,7 @@ import { HistoricalReplayVenue } from '../stat-arb/historical-replay-venue';
 import { Bar } from '../stat-arb/backtest/bar';
 import { listPresets, getPreset } from '../stat-arb/markets/market-presets';
 import { runUniverseOnBars, ApiUniverseResponse } from '../stat-arb/discovery/universe.controller';
+import { ReferenceSourceRegistry } from './reference/reference-bar-loader';
 
 /** Align many symbol series to the timestamps present in ALL of them (inner join). */
 export function alignMany(bySymbol: Map<string, Bar[]>): Map<string, Bar[]> {
@@ -65,7 +66,60 @@ export class MarketDataController {
     private readonly backfillSvc: BinanceBackfillService,
     private readonly repo: MarketDataRepository,
     private readonly replay: ReplayEngine,
+    private readonly refSources: ReferenceSourceRegistry,
   ) {}
+
+  /**
+   * The non-Binance reference data sources wired into the engine (TESSERA):
+   * Pyth FX OHLC, DefiLlama peg, Bit2C (ILS). Lets the UI show which external
+   * sources are incorporated, each with a sample symbol to probe.
+   *   GET /api/market-data/reference/sources
+   */
+  @Get('reference/sources')
+  referenceSources() {
+    return {
+      sources: this.refSources.list().map((s) => ({
+        id: s.sourceId,
+        label: s.label,
+        sampleSymbol: s.sampleSymbol,
+      })),
+    };
+  }
+
+  /**
+   * Recent bars from one reference source — the latest level for the UI readout
+   * (Pyth returns true OHLC history; DefiLlama/Bit2C return the latest spot).
+   *   GET /api/market-data/reference?source=pyth&symbol=EURUSD&limit=2
+   */
+  @Get('reference')
+  async reference(
+    @Query('source') source = 'pyth',
+    @Query('symbol') symbol = 'EURUSD',
+    @Query('interval') interval = '1m',
+    @Query('limit') limit = '2',
+  ) {
+    const src = this.refSources.get(source);
+    if (!src) {
+      return { error: `unknown source: ${source}`, known: this.refSources.list().map((s) => s.sourceId) };
+    }
+    const lim = Math.min(Math.max(Number(limit) || 2, 1), 500);
+    const bars = await src.klines(symbol, interval, lim).catch(() => []);
+    const last = bars[bars.length - 1] ?? null;
+    return {
+      source,
+      label: src.label,
+      symbol,
+      count: bars.length,
+      last: last ? { time: Math.floor(last.timestamp.getTime() / 1000), price: last.close } : null,
+      bars: bars.slice(-lim).map((b) => ({
+        time: Math.floor(b.timestamp.getTime() / 1000),
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+      })),
+    };
+  }
 
   @Post('backfill')
   async backfill(

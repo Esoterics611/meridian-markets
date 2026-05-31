@@ -9,6 +9,7 @@ import { CcxtBarIngest } from './ingest/ccxt-bar-ingest';
 import { BinanceBackfillService } from './ingest/binance-backfill.service';
 import { BinancePublicClient, BINANCE_CLIENT } from '../stat-arb/feed/binance-public-client';
 import { MarketDataController } from './market-data.controller';
+import { ReferenceSourceRegistry, buildReferenceSources } from './reference/reference-bar-loader';
 
 // MarketDataModule — ingest + replay for the trading engine.
 //
@@ -39,6 +40,21 @@ import { MarketDataController } from './market-data.controller';
       useFactory: (cfg: ConfigService, mock: MockBarIngest, real: CcxtBarIngest): IBarIngest => {
         const app = cfg.getOrThrow<AppConfig>('app');
         return app.statArb.mockEnabled ? mock : real;
+      },
+    },
+    {
+      // Reference-data sources (TESSERA): Pyth FX / DefiLlama peg / Bit2C ILS.
+      provide: ReferenceSourceRegistry,
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService): ReferenceSourceRegistry => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return new ReferenceSourceRegistry(
+          buildReferenceSources({
+            pythBaseUrl: app.feed.pythBaseUrl,
+            defillamaBaseUrl: app.feed.defillamaBaseUrl,
+            bit2cBaseUrl: app.feed.bit2cBaseUrl,
+          }),
+        );
       },
     },
   ],

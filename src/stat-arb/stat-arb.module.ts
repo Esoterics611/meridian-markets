@@ -27,6 +27,12 @@ import { OpportunityScanner } from './discovery/opportunity-scanner';
 import { OpportunityController } from './discovery/opportunity.controller';
 import { barsPerDayForInterval } from './discovery/net-edge-scorer';
 import { MARKET_PRESETS } from './markets/market-presets';
+import {
+  ReferenceSourceRegistry,
+  makeScannerLoader,
+  buildReferenceSources,
+} from '../market-data/reference/reference-bar-loader';
+import { REFERENCE_PRESETS } from '../market-data/reference/reference-presets';
 import { PaperVenue } from '../execution/paper-venue';
 import { Bar } from './backtest/bar';
 import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader';
@@ -239,17 +245,49 @@ async function warmupFromBinance(
     StatArbRepository,
     StatArbNavCron,
     ExecDemoService,
+    // Reference-data sources (TESSERA): Pyth FX OHLC, DefiLlama peg, Bit2C ILS.
+    // Stateless public HTTP clients — a per-module instance mirrors the
+    // duplicated BINANCE_CLIENT provider pattern.
+    {
+      provide: ReferenceSourceRegistry,
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService): ReferenceSourceRegistry => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return new ReferenceSourceRegistry(
+          buildReferenceSources({
+            pythBaseUrl: app.feed.pythBaseUrl,
+            defillamaBaseUrl: app.feed.defillamaBaseUrl,
+            bit2cBaseUrl: app.feed.bit2cBaseUrl,
+          }),
+        );
+      },
+    },
     // Cross-asset opportunity scanner: ranks every preset's pairs by expected
-    // net-edge-after-fees per day (the "scan wide, trade rarely" board).
+    // net-edge-after-fees per day (the "scan wide, trade rarely" board). Sweeps
+    // the Binance MARKET_PRESETS plus the reference-source presets (Pyth FX),
+    // routing each preset's symbols to its data source.
     {
       provide: OpportunityScanner,
-      inject: [ConfigService, BINANCE_CLIENT],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient): OpportunityScanner => {
+      inject: [ConfigService, BINANCE_CLIENT, ReferenceSourceRegistry],
+      useFactory: (
+        cfg: ConfigService,
+        client: BinancePublicClient,
+        refRegistry: ReferenceSourceRegistry,
+      ): OpportunityScanner => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const barsToLoad = 240;
-        const presets = MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] }));
-        return new OpportunityScanner(
+        const presets = [
+          ...MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] })),
+          ...REFERENCE_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols], source: p.source })),
+        ];
+        const loader = makeScannerLoader(
           (sym) => client.klines(sym, app.feed.interval, barsToLoad),
+          refRegistry,
+          app.feed.interval,
+          barsToLoad,
+        );
+        return new OpportunityScanner(
+          loader,
           presets,
           {
             entryZ: app.live.entryZ,

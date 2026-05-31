@@ -70,6 +70,12 @@ export interface AppConfig {
     quote: string;
     /** Kline interval for the live feed. */
     interval: string;
+    /** Pyth Benchmarks base URL (TradingView OHLC shim). Public, no key. */
+    pythBaseUrl: string;
+    /** DefiLlama stablecoins base URL (peg reference). Public, no key. */
+    defillamaBaseUrl: string;
+    /** Bit2C base URL (Israeli exchange, ILS reference). Public, no key. */
+    bit2cBaseUrl: string;
   };
   /** Live paper-trading loop configuration. */
   live: {

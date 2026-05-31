@@ -1,6 +1,12 @@
 # Research Tab Realignment — Plan
 
-Status: **DRAFT for review** (2026-05-31). UI under review: `src/stat-arb/demo/public/index.html` (1120 lines, single file). No code run — findings are from reading the UI + every backend surface it calls.
+Status: **IMPLEMENTED** (Phases 0–3, 2026-06-01). UI: `src/stat-arb/demo/public/index.html`. 110 suites / 709 tests green; `tsc --noEmit` clean. Verify in-app per the "How to test" section at the bottom.
+
+> Implementation summary
+> - **P0** — FLATTEN ALL wired; per-station ✕ remove on stat-arb cards; Trade-top-N now appends (no silent wipe).
+> - **P1** — Research is now the scan→asset-classes→trade flow: "⊹ Scan all source data", results grouped **by asset class** + cross-class rollup, Scanner tab folded in, single-book path retired (every "trade" launches a station), robustness tools (walk-forward/sweep/Monte-Carlo) surfaced with a synthetic-feed caveat.
+> - **P2** — FX (EUR stables) stat-arb preset added; unified scan covers crypto + stablecoin + FX on both boards.
+> - **P3** — TESSERA reference sources implemented (Pyth FX OHLC, DefiLlama peg, Bit2C ILS) behind one interface, injected HTTP, mock-default-safe; Pyth FX wired into the scanner as a new asset class; `GET /api/market-data/reference[/sources]` + a "data sources wired" UI readout. **Caveat:** the live paper trader is Binance-fed, so reference-source pairs show as **scan-only** until a per-source live feed lands (the remaining follow-up).
 
 ## 0. The target user flow (what we actually want)
 

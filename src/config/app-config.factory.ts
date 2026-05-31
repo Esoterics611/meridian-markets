@@ -56,6 +56,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     binanceBaseUrl: process.env['BINANCE_PUBLIC_BASE_URL'] ?? 'https://api.binance.com',
     quote: process.env['FEED_QUOTE'] ?? 'USDT',
     interval: process.env['FEED_INTERVAL'] ?? '1m',
+    pythBaseUrl: process.env['PYTH_BENCHMARKS_BASE_URL'] ?? 'https://benchmarks.pyth.network',
+    defillamaBaseUrl: process.env['DEFILLAMA_STABLECOINS_BASE_URL'] ?? 'https://stablecoins.llama.fi',
+    bit2cBaseUrl: process.env['BIT2C_BASE_URL'] ?? 'https://bit2c.co.il',
   },
   live: {
     autoStart: process.env['LIVE_AUTOSTART'] === 'true',

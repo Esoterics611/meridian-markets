@@ -283,6 +283,7 @@
         <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">⊹ Scan all source data</button>
         <span id="scan-note" class="muted" style="font-size:12px;"></span>
       </div>
+      <div id="data-sources" style="margin:8px 0;"></div>
       <div id="class-rollup" style="margin:10px 0 4px;"></div>
       <div class="spark-k" style="margin:14px 0 6px;">Stat-arb opportunities — by asset class <span id="opp-summary" class="muted"></span></div>
       <table><thead><tr><th>pair</th><th>class</th><th>σ spread</th><th>half-life</th><th>edge/trade</th><th>trades/day</th><th>conf</th><th>net/day (bps)</th><th>fees?</th><th></th></tr></thead>
@@ -654,15 +655,24 @@
       if (!rows.length) { $('opp-rows').innerHTML = '<tr><td colspan="10" class="muted">no opportunities — try another universe</td></tr>'; return; }
       $('opp-rows').innerHTML = groupByClass(rows, 'netEdgePerDayBps').map(([cls, items]) => {
         const clears = items.filter((o) => o.clearsFees).length;
-        return grpRow(cls, 10, `${clears}/${items.length} clear fees`) + items.slice(0, 12).map((o) => `<tr>
-          <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}</td>
+        return grpRow(cls, 10, `${clears}/${items.length} clear fees`) + items.slice(0, 12).map((o) => {
+          const ref = o.source && o.source !== 'binance';
+          const srcTag = ref ? ` <span class="chip" style="border-color:var(--warn-dim);color:var(--warn);" title="reference source">${o.source}</span>` : '';
+          // The live paper trader is Binance-fed today, so reference-source pairs
+          // are scan-only until a per-source live feed lands (Phase-3 follow-up).
+          const action = ref
+            ? '<span class="chip WARN" title="reference source — live paper trader is Binance-fed for now; scan-only">scan-only</span>'
+            : (o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : '');
+          return `<tr>
+          <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}${srcTag}</td>
           <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
           <td ${col(o.perTradeNetEdgeBps)}>${num(o.perTradeNetEdgeBps, 2)} bps</td>
           <td>${num(o.tradesPerDay, 1)}</td><td>${num(o.certainty, 2)}</td>
           <td ${col(o.netEdgePerDayBps)}>${num(o.netEdgePerDayBps, 1)}</td>
           <td>${o.clearsFees ? '<span class="chip OK">clears</span>' : '<span class="chip WARN">sub-fee</span>'}</td>
-          <td>${o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : ''}</td>
-        </tr>`).join('');
+          <td>${action}</td>
+        </tr>`;
+        }).join('');
       }).join('');
     }
     async function launchOpp(a, b, beta) { await launchStationQuick(a, b, beta, undefined, 'scan-note'); }
@@ -685,6 +695,24 @@
       const r = await jpost('/api/market-making/launch', { symbol, capitalUsdc: Number($('capital').value) || 100000 });
       $('scan-note').textContent = r && r.error ? ('⚠ ' + r.error) : `✓ quoting ${symbol} — see Market Making`;
       refreshMm();
+    }
+    // External data sources readout — proves which feeds beyond Binance are wired
+    // (Pyth FX, DefiLlama peg, Bit2C ILS). Renders the list immediately, then
+    // probes each for its latest sample level (non-blocking, graceful offline).
+    async function loadDataSources() {
+      let r; try { r = await jget('/api/market-data/reference/sources'); } catch { return; }
+      const sources = (r && r.sources) || [];
+      const render = (levels) => {
+        $('data-sources').innerHTML = '<span class="spark-k">data sources wired</span> '
+          + '<span class="pchip" style="border-color:var(--accent-dim);"><span class="pk">binance.spot</span> crypto · stables</span>'
+          + sources.map((s) => `<span class="pchip"><span class="pk">${s.label}</span> ${s.sampleSymbol}${levels[s.id] != null ? ' ' + num(levels[s.id], 4) : ''}</span>`).join('');
+      };
+      render({});
+      const levels = {};
+      await Promise.all(sources.map(async (s) => {
+        try { const d = await jget(`/api/market-data/reference?source=${encodeURIComponent(s.id)}&symbol=${encodeURIComponent(s.sampleSymbol)}&limit=1`); if (d && d.last) levels[s.id] = d.last.price; } catch {}
+      }));
+      render(levels);
     }
     // Unified "launch a station": every trade button across the desk (scanner,
     // discovered pairs, signal) appends a portfolio station — one mental model.
@@ -1155,6 +1183,7 @@
       await loadMmMarkets();
       await loadMmStrategies();
       fillScanPresets();
+      loadDataSources();
       await refreshSnapshot();
       await loadUniverse();
       await refreshPortfolio();
