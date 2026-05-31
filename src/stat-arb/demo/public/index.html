@@ -144,17 +144,8 @@
     <label class="ctl">&nbsp;
       <button id="backfill" class="primary">⤓ Backfill live history</button>
     </label>
-    <label class="ctl">Starting capital (USDC)
+    <label class="ctl">Capital / book (USDC)
       <input type="number" id="capital" value="100000" min="1" step="1000" />
-    </label>
-    <label class="ctl">&nbsp;
-      <button id="set-capital">Set capital</button>
-    </label>
-    <label class="ctl">Live loop
-      <span>
-        <button id="start" class="ghost">▶ Start</button>
-        <button id="stop" class="ghost">⏸ Stop</button>
-      </span>
     </label>
   </div>
 
@@ -162,7 +153,6 @@
     <button class="tab" data-tab="desk">Desk</button>
     <button class="tab" data-tab="launch">Launch</button>
     <button class="tab" data-tab="mm">Market Making</button>
-    <button class="tab" data-tab="scan">Scanner</button>
     <button class="tab" data-tab="signal">Signal</button>
     <button class="tab" data-tab="research">Research</button>
   </div>
@@ -214,15 +204,6 @@
         <button id="lx-launch" class="primary" style="font-size:13px;padding:9px 16px;">▶ Launch station</button>
         <span id="lx-note" class="muted" style="font-size:12px;"></span>
       </div>
-    </section>
-
-    <section class="panel span-4" data-tab="research">
-      <h2>Live position — <span id="pair" class="mono accent">—</span></h2>
-      <div class="desc" id="pair-desc">Real Binance data → strategy → paper venue. No simulated prices.</div>
-      <div class="stat-grid" id="live-stats"></div>
-      <h2 style="margin-top:18px;">Recent fills (in-memory)</h2>
-      <table><thead><tr><th>side</th><th>entry z</th><th>exit z</th><th>notional</th><th>pnl (USDC)</th></tr></thead>
-      <tbody id="fills"><tr><td colspan="5" class="muted">no closed trades yet</td></tr></tbody></table>
     </section>
 
     <section class="panel span-12" data-tab="signal">
@@ -294,24 +275,25 @@
       </div>
     </section>
 
-    <section class="panel span-12" data-tab="scan">
-      <h2>⊹ Opportunity scanner — scan wide, trade rarely</h2>
-      <div class="desc">Sweep the asset-class presets and rank by expected profit <b>after fees</b>. Stat-arb ranks pairs by net-edge-per-day (only those clearing the fee gate); market-making ranks instruments by spread-capture suitability. Click a row to launch it. Scans hit live Binance — a full sweep takes a few seconds.</div>
+    <section class="panel span-12" data-tab="research">
+      <h2>⊹ Scan the source data — every asset class that fits the model</h2>
+      <div class="desc">Sweep all asset-class market sets at once and rank by expected profit <b>after fees</b>. Results group <b>by asset class</b>: stat-arb pairs by net-edge-per-day (those clearing the fee gate), market-making instruments by spread-capture suitability. Trade or quote straight from a row — each launches an isolated paper book on the Desk. Scans hit live data; a full sweep takes a few seconds.</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
         <label class="ctl">Universe<select id="scan-preset"></select></label>
-        <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">⊹ Scan now</button>
+        <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">⊹ Scan all source data</button>
         <span id="scan-note" class="muted" style="font-size:12px;"></span>
       </div>
-      <div class="spark-k" style="margin:12px 0 6px;">Stat-arb opportunities <span id="opp-summary" class="muted"></span></div>
+      <div id="class-rollup" style="margin:10px 0 4px;"></div>
+      <div class="spark-k" style="margin:14px 0 6px;">Stat-arb opportunities — by asset class <span id="opp-summary" class="muted"></span></div>
       <table><thead><tr><th>pair</th><th>class</th><th>σ spread</th><th>half-life</th><th>edge/trade</th><th>trades/day</th><th>conf</th><th>net/day (bps)</th><th>fees?</th><th></th></tr></thead>
       <tbody id="opp-rows"><tr><td colspan="10" class="muted">scan to populate</td></tr></tbody></table>
-      <div class="spark-k" style="margin:16px 0 6px;">Market-making targets <span id="mmscreen-summary" class="muted"></span></div>
+      <div class="spark-k" style="margin:16px 0 6px;">Market-making targets — by asset class <span id="mmscreen-summary" class="muted"></span></div>
       <table><thead><tr><th>instrument</th><th>class</th><th>vol (bps)</th><th>net/round-trip</th><th>fills/day</th><th>score/day</th><th>quote?</th><th></th></tr></thead>
       <tbody id="mmscreen-rows"><tr><td colspan="8" class="muted">scan to populate</td></tr></tbody></table>
     </section>
 
     <section class="panel span-6" data-tab="research">
-      <h2>Discovered pairs (live data)
+      <h2>Deep-dive: discover one market set
         <span style="float:right;display:flex;gap:6px;align-items:center;">
           <input type="number" id="pf-n" value="5" min="1" max="12" style="width:60px;" title="how many markets to run at once" />
           <select id="pf-mix" title="how strategies are assigned across the books">
@@ -321,7 +303,7 @@
           <button id="trade-all" class="primary" style="padding:5px 10px;font-size:11px;">▶ Trade top N</button>
         </span>
       </h2>
-      <div class="desc" id="universe-desc">Pair discovery over the selected market set's real bars. Click a pair to trade or backtest it.</div>
+      <div class="desc" id="universe-desc">Drill into the market set chosen in the top strip (after ⤓ Backfill): full cointegration detail — β, p-value, half-life, regime — for every pair. The scan above ranks across <i>all</i> classes; this is the close-up. Click a pair to trade or backtest it.</div>
       <div id="notice"></div>
       <table><thead><tr><th>pair</th><th>β</th><th>p-val</th><th>half-life</th><th>vol</th><th>trend</th><th></th></tr></thead>
       <tbody id="pairs"><tr><td colspan="7" class="muted">backfill a market set to discover pairs</td></tr></tbody></table>
@@ -331,6 +313,21 @@
       <h2>Backtest on real history</h2>
       <div class="desc" id="bt-desc">Runs the selected strategy over stored Binance bars for the active pair.</div>
       <div class="stat-grid" id="bt-stats"><div class="muted" style="padding:8px;">run a backtest from a discovered pair</div></div>
+    </section>
+
+    <section class="panel span-12" data-tab="research">
+      <h2>Validate before you trade — robustness tools</h2>
+      <div id="notice-research" style="display:block;padding:8px 12px;border-radius:4px;background:var(--warn-dim);color:var(--warn);font-size:11px;margin-bottom:10px;">
+        ⚠ These run on the engine's <b>synthetic feed</b> (deterministic generator), not the scanned real history — they demonstrate the robustness machinery (walk-forward, parameter sweep, Monte-Carlo) and its shape, not numbers for a specific live pair. Real-history plumbing is the next step.
+      </div>
+      <div class="launch-row" style="margin-bottom:10px;">
+        <button id="rt-walkforward" class="ghost">↻ Walk-forward</button>
+        <button id="rt-sweep" class="ghost">⊞ Parameter sweep</button>
+        <button id="rt-montecarlo" class="ghost">⚄ Monte-Carlo (200×)</button>
+        <span id="rt-note" class="muted" style="font-size:12px;"></span>
+      </div>
+      <div class="stat-grid" id="rt-stats"><div class="muted" style="padding:8px;">run a tool to populate</div></div>
+      <div id="rt-table" style="margin-top:12px;"></div>
     </section>
 
     <section class="panel span-12" data-tab="desk">
@@ -408,18 +405,13 @@
       return '—';
     }
     function renderFund() {
-      const s = window.__single, p = window.__pf;
+      const p = window.__pf;
       let cap = 0, eq = 0, real = 0, unreal = 0, books = 0, openPos = 0;
       const byClass = {};
       if (p && p.pairCount > 0) {
         cap += Number(p.capitalUnits); eq += Number(p.equityUnits); real += Number(p.realisedPnlUnits); unreal += Number(p.unrealisedPnlUnits);
         books += p.pairCount; openPos += (p.books || []).filter((b) => b.position).length;
         for (const b of (p.books || [])) { const c = classFor(b.symbolA, b.symbolB); byClass[c] = (byClass[c] || 0) + Number(b.equityUnits); }
-      }
-      if (s && (s.running || s.openPosition)) {
-        cap += Number(s.capitalUnits); eq += Number(s.equityUnits); real += Number(s.realisedPnlUnits); unreal += Number(s.unrealisedPnlUnits);
-        books += 1; if (s.openPosition) openPos += 1;
-        const c = classFor(s.symbolA, s.symbolB); byClass[c] = (byClass[c] || 0) + Number(s.equityUnits);
       }
       const pnl = eq - cap;
       if (eq > 0) { FUNDHIST.push(eq); if (FUNDHIST.length > 120) FUNDHIST.shift(); }
@@ -445,7 +437,6 @@
       const alerts = [];
       const now = Date.now();
       const allBooks = ((p && p.books) || []).slice();
-      if (s && (s.running || s.openPosition)) allBooks.push({ pair: `${s.symbolA}/${s.symbolB}`, lastBarAt: s.lastBarAt, running: s.running, blockedEntries: s.blockedEntries });
       for (const b of allBooks) {
         if (b.running && b.lastBarAt) { const age = (now - new Date(b.lastBarAt)) / 1000; if (age > 180) alerts.push(`STALE FEED · ${b.pair} · ${Math.round(age)}s`); }
         if (b.blockedEntries > 0) alerts.push(`RISK GATE · ${b.pair} · ${b.blockedEntries} blocked`);
@@ -626,44 +617,83 @@
       $('scan-note').textContent = 'scanning live Binance…';
       let opp, mm;
       try { [opp, mm] = await Promise.all([jget('/api/opportunities' + q), jget('/api/market-making/screen' + q)]); }
-      catch { $('scan-note').textContent = '⚠ scan failed'; btn.disabled = false; btn.textContent = '⊹ Scan now'; return; }
-      btn.disabled = false; btn.textContent = '⊹ Scan now';
-      renderOpp(opp); renderMmScreen(mm);
-      $('scan-note').textContent = `scanned ${opp.presetsScanned || 0} preset(s) · ${opp.pairsTested || 0} pairs · ${opp.cleared || 0} clear fees`;
+      catch { $('scan-note').textContent = '⚠ scan failed'; btn.disabled = false; btn.textContent = '⊹ Scan all source data'; return; }
+      btn.disabled = false; btn.textContent = '⊹ Scan all source data';
+      renderOpp(opp); renderMmScreen(mm); renderClassRollup(opp, mm);
+      $('scan-note').textContent = `scanned ${opp.presetsScanned || 0} class(es) · ${opp.pairsTested || 0} pairs · ${opp.cleared || 0} clear fees`;
+    }
+    // Group scored rows by asset class, best class first. The literal ask:
+    // "show all the asset classes that fit the model" — one header per class.
+    function groupByClass(rows, scoreKey) {
+      const groups = new Map();
+      for (const r of rows) { const k = r.assetClass || '—'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+      return [...groups.entries()].sort((a, b) =>
+        Math.max(...b[1].map((x) => x[scoreKey] || 0)) - Math.max(...a[1].map((x) => x[scoreKey] || 0)));
+    }
+    const grpRow = (cls, span, txt) =>
+      `<tr><td colspan="${span}" style="background:var(--panel-3);color:var(--accent);font-size:10px;letter-spacing:.8px;text-transform:uppercase;padding:6px 8px;">${cls} · ${txt}</td></tr>`;
+    // Cross-class rollup chips: which asset classes actually have something that
+    // fits the model (a pair clearing fees, or an attractive maker instrument).
+    function renderClassRollup(opp, mm) {
+      const oppRows = (opp && opp.opportunities) || [], mmRows = (mm && mm.instruments) || [];
+      const classes = new Map();
+      const get = (c) => classes.get(c) || { cls: c, pairs: 0, clears: 0, bestNet: 0, instr: 0, quotable: 0 };
+      for (const o of oppRows) { const c = get(o.assetClass); c.pairs++; if (o.clearsFees) c.clears++; c.bestNet = Math.max(c.bestNet, o.netEdgePerDayBps || 0); classes.set(o.assetClass, c); }
+      for (const i of mmRows) { const c = get(i.assetClass); c.instr++; if (i.attractive) c.quotable++; classes.set(i.assetClass, c); }
+      const arr = [...classes.values()].sort((a, b) => (b.clears + b.quotable) - (a.clears + a.quotable));
+      $('class-rollup').innerHTML = arr.length
+        ? '<span class="spark-k">asset classes that fit the model</span><br>' + arr.map((c) => {
+            const fits = c.clears > 0 || c.quotable > 0;
+            return `<span class="pchip" style="${fits ? 'border-color:var(--accent);' : 'opacity:.55;'}"><span class="pk">${c.cls}</span> ${c.clears}/${c.pairs} pairs${c.instr ? ` · ${c.quotable}/${c.instr} mkr` : ''}${c.bestNet > 0 ? ` · best ${num(c.bestNet, 0)}bps/d` : ''}</span>`;
+          }).join('')
+        : '';
     }
     function renderOpp(b) {
       const rows = (b && b.opportunities) || [];
-      $('opp-summary').textContent = rows.length ? `${b.cleared}/${rows.length} clear the fee gate` : '';
-      $('opp-rows').innerHTML = rows.length ? rows.slice(0, 40).map((o) => `<tr>
-        <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}</td>
-        <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
-        <td ${col(o.perTradeNetEdgeBps)}>${num(o.perTradeNetEdgeBps, 2)} bps</td>
-        <td>${num(o.tradesPerDay, 1)}</td><td>${num(o.certainty, 2)}</td>
-        <td ${col(o.netEdgePerDayBps)}>${num(o.netEdgePerDayBps, 1)}</td>
-        <td>${o.clearsFees ? '<span class="chip OK">clears</span>' : '<span class="chip WARN">sub-fee</span>'}</td>
-        <td>${o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : ''}</td>
-      </tr>`).join('') : '<tr><td colspan="10" class="muted">no opportunities — try another universe</td></tr>';
+      $('opp-summary').textContent = rows.length ? `${b.cleared}/${rows.length} clear the fee gate · ${b.presetsScanned || 0} classes` : '';
+      if (!rows.length) { $('opp-rows').innerHTML = '<tr><td colspan="10" class="muted">no opportunities — try another universe</td></tr>'; return; }
+      $('opp-rows').innerHTML = groupByClass(rows, 'netEdgePerDayBps').map(([cls, items]) => {
+        const clears = items.filter((o) => o.clearsFees).length;
+        return grpRow(cls, 10, `${clears}/${items.length} clear fees`) + items.slice(0, 12).map((o) => `<tr>
+          <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}</td>
+          <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
+          <td ${col(o.perTradeNetEdgeBps)}>${num(o.perTradeNetEdgeBps, 2)} bps</td>
+          <td>${num(o.tradesPerDay, 1)}</td><td>${num(o.certainty, 2)}</td>
+          <td ${col(o.netEdgePerDayBps)}>${num(o.netEdgePerDayBps, 1)}</td>
+          <td>${o.clearsFees ? '<span class="chip OK">clears</span>' : '<span class="chip WARN">sub-fee</span>'}</td>
+          <td>${o.clearsFees ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>▶ trade</button>` : ''}</td>
+        </tr>`).join('');
+      }).join('');
     }
-    async function launchOpp(a, b, beta) {
-      const r = await jpost('/api/stat-arb/live/portfolio/launch', { symbolA: a, symbolB: b, beta, capitalUsdc: 100000 });
-      $('scan-note').textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b} — see Desk`;
-      refreshPortfolio();
-    }
+    async function launchOpp(a, b, beta) { await launchStationQuick(a, b, beta, undefined, 'scan-note'); }
     function renderMmScreen(b) {
       const rows = (b && b.instruments) || [];
       $('mmscreen-summary').textContent = rows.length ? `${b.attractive}/${rows.length} attractive` : '';
-      $('mmscreen-rows').innerHTML = rows.length ? rows.slice(0, 40).map((i) => `<tr>
-        <td class="mono accent">${i.symbol}</td><td class="muted">${i.assetClass}</td>
-        <td>${num(i.volBps, 2)}</td><td ${col(i.netPerRoundTripBps)}>${num(i.netPerRoundTripBps, 2)} bps</td>
-        <td>${num(i.roundTripsPerDay, 0)}</td><td ${col(i.scorePerDayBps)}>${num(i.scorePerDayBps, 0)}</td>
-        <td>${i.attractive ? '<span class="chip OK">yes</span>' : '<span class="chip WARN">no</span>'}</td>
-        <td>${i.attractive ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='quoteMm(${JSON.stringify(i.symbol)})'>◆ quote</button>` : ''}</td>
-      </tr>`).join('') : '<tr><td colspan="8" class="muted">no instruments</td></tr>';
+      if (!rows.length) { $('mmscreen-rows').innerHTML = '<tr><td colspan="8" class="muted">no instruments</td></tr>'; return; }
+      $('mmscreen-rows').innerHTML = groupByClass(rows, 'scorePerDayBps').map(([cls, items]) => {
+        const ok = items.filter((i) => i.attractive).length;
+        return grpRow(cls, 8, `${ok}/${items.length} attractive`) + items.slice(0, 12).map((i) => `<tr>
+          <td class="mono accent">${i.symbol}</td><td class="muted">${i.assetClass}</td>
+          <td>${num(i.volBps, 2)}</td><td ${col(i.netPerRoundTripBps)}>${num(i.netPerRoundTripBps, 2)} bps</td>
+          <td>${num(i.roundTripsPerDay, 0)}</td><td ${col(i.scorePerDayBps)}>${num(i.scorePerDayBps, 0)}</td>
+          <td>${i.attractive ? '<span class="chip OK">yes</span>' : '<span class="chip WARN">no</span>'}</td>
+          <td>${i.attractive ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='quoteMm(${JSON.stringify(i.symbol)})'>◆ quote</button>` : ''}</td>
+        </tr>`).join('');
+      }).join('');
     }
     async function quoteMm(symbol) {
-      const r = await jpost('/api/market-making/launch', { symbol, capitalUsdc: 100000 });
+      const r = await jpost('/api/market-making/launch', { symbol, capitalUsdc: Number($('capital').value) || 100000 });
       $('scan-note').textContent = r && r.error ? ('⚠ ' + r.error) : `✓ quoting ${symbol} — see Market Making`;
       refreshMm();
+    }
+    // Unified "launch a station": every trade button across the desk (scanner,
+    // discovered pairs, signal) appends a portfolio station — one mental model.
+    async function launchStationQuick(a, b, beta, strategyId, noteId) {
+      const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, capitalUsdc: Number($('capital').value) || 100000 };
+      let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch { r = { error: 'request failed' }; }
+      if (noteId && $(noteId)) $(noteId).textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b} — see Desk → Live books`;
+      $('portfolio-panel').style.display = 'block';
+      await refreshPortfolio();
     }
 
     let chart, candleSeries, chartSymbol = null;
@@ -863,19 +893,10 @@
           <td><span class="chip ${p.regime.vol === 'HIGH' ? 'DANGER' : p.regime.vol === 'NORMAL' ? 'WARN' : 'OK'}">${p.regime.vol}</span></td>
           <td><span class="chip ${p.regime.trend === 'TRENDING' ? 'WARN' : 'OK'}">${p.regime.trend}</span></td>
           <td class="row-actions">
-            <button onclick='tradeLive(${JSON.stringify(p.symbolA)}, ${JSON.stringify(p.symbolB)}, ${p.beta})'>trade</button>
+            <button onclick='launchStationQuick(${JSON.stringify(p.symbolA)}, ${JSON.stringify(p.symbolB)}, ${p.beta}, undefined, "universe-desc")'>trade</button>
             <button class="ghost" onclick='backtest(${JSON.stringify(p.symbolA)}, ${JSON.stringify(p.symbolB)}, ${p.beta})'>backtest</button>
           </td>
         </tr>`).join('');
-    }
-
-    async function tradeLive(symbolA, symbolB, beta) {
-      const strategyId = $('strategy').value || undefined;
-      await jpost('/api/stat-arb/live/configure', { symbolA, symbolB, beta, strategyId });
-      await jpost('/api/stat-arb/live/start');
-      chartSymbol = null; // force chart reload for the new symbol
-      signalUserFocused = false; // chart follows the newly armed single book
-      await refreshSnapshot();
     }
 
     async function backtest(symbolA, symbolB, beta) {
@@ -924,6 +945,10 @@
 
     async function refreshPortfolio() {
       let p; try { p = await jget('/api/stat-arb/live/portfolio'); } catch { return; }
+      // The desk-wide live/paused badge follows the portfolio loop (the single
+      // book is retired); reflect it in both the empty and populated branches.
+      const lb = $('live-badge'); const running = !!(p && p.running);
+      lb.textContent = running ? 'live' : 'paused'; lb.className = 'badge mono ' + (running ? 'live' : '');
       if (!p || p.pairCount === 0) { $('portfolio-panel').style.display = 'none'; window.__pfBooks = []; window.__pf = { pairCount: 0 }; PNL.pf = 0; paintDeskPnl(); renderStrategies(); renderFund(); return; }
       $('portfolio-panel').style.display = 'block';
       window.__pf = p;
@@ -985,57 +1010,13 @@
       }
     }
 
-    async function setCapital() {
-      const usdc = Number($('capital').value);
-      if (!(usdc > 0)) return;
-      await jpost('/api/stat-arb/live/configure', { startingCapitalUsdc: usdc });
-      await refreshSnapshot();
-    }
-
+    // Header badges only. The single-book trade path is retired (every "trade"
+    // launches a portfolio station); feed/venue are process-static, and the
+    // live/paused badge is driven by refreshPortfolio.
     async function refreshSnapshot() {
-      let s;
-      try { s = await jget('/api/stat-arb/live/snapshot'); } catch { return; }
-      window.__single = s;
+      let s; try { s = await jget('/api/stat-arb/live/snapshot'); } catch { return; }
       $('feed-badge').textContent = 'feed ' + (s.feedId || '—');
       $('venue-badge').textContent = 'venue ' + (s.venueId || '—');
-      const live = $('live-badge');
-      live.textContent = s.running ? 'live' : 'paused';
-      live.className = 'badge mono ' + (s.running ? 'live' : '');
-      $('pair').textContent = s.symbolA + '/' + s.symbolB;
-
-      const realised = Number(s.realisedPnlUnits), unreal = Number(s.unrealisedPnlUnits);
-      PNL.single = realised + unreal; paintDeskPnl();
-      const pnlCls = (v) => v >= 0 ? 'pos' : 'neg';
-      const lastBarAge = s.lastBarAt ? Math.round((Date.now() - new Date(s.lastBarAt)) / 1000) + 's ago' : '—';
-      const reg = (s.regime || 'FLAT');
-      const stat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
-      $('live-stats').innerHTML =
-        stat('Equity', fmtUsdc(s.equityUnits), pnlCls(Number(s.equityUnits) - Number(s.capitalUnits))) +
-        stat('Capital', fmtUsdc(s.capitalUnits)) +
-        stat('Realised', fmtUsdc(realised), pnlCls(realised)) +
-        stat('Unrealised', fmtUsdc(unreal), pnlCls(unreal)) +
-        stat('Strategy', s.strategyId || '—') +
-        stat('z-score', num(s.lastZ, 2)) +
-        stat('β', num(s.beta, 3)) +
-        stat('Regime', `<span class="chip ${reg}">${reg}</span>`) +
-        stat('Position', s.openPosition ? `<span class="chip ${s.openPosition.side}">${s.openPosition.side}</span>` : '<span class="chip FLAT">FLAT</span>') +
-        stat('Bars seen', s.barsSeen) +
-        stat('Seeded', s.seededBars ?? 0) +
-        stat('Last bar', lastBarAge);
-
-      const fills = $('fills');
-      if (s.recentTrades && s.recentTrades.length) {
-        fills.innerHTML = s.recentTrades.slice().reverse().map((t) => {
-          const p = Number(t.pnlUnits);
-          return `<tr><td><span class="chip ${t.side}">${t.side}</span></td><td>${num(t.entryZ,2)}</td><td>${num(t.exitZ,2)}</td><td>${fmtUsdc(t.notionalUnits)}</td><td class="${p>=0?'pos':'neg'}">${fmtUsdc(p)}</td></tr>`;
-        }).join('');
-      } else {
-        fills.innerHTML = '<tr><td colspan="5" class="muted">no closed trades yet</td></tr>';
-      }
-
-      if (!signalUserFocused) setSignalTarget({ symbolA: s.symbolA, symbolB: s.symbolB, strategyId: s.strategyId, beta: s.beta }, false);
-      if (signalMode === 'price') await refreshChart(s.symbolA);
-      renderFund();
     }
 
     async function refreshChart(symbol) {
@@ -1059,12 +1040,53 @@
     function tickClock() { $('clock').textContent = new Date().toISOString().slice(11, 19) + ' UTC'; }
     function pulse() { const el = $('heartbeat'); el.style.color = 'var(--accent)'; setTimeout(() => { el.style.color = 'var(--muted)'; }, 350); }
 
+    // --- Research tools: walk-forward / parameter sweep / Monte-Carlo. These hit
+    // /api/stat-arb/research/* which run on the engine's SYNTHETIC feed (caveat is
+    // shown in the panel) — they demonstrate the robustness machinery, not numbers
+    // for a specific scanned pair. ---
+    const rtStat = (k, v, cls = '') => `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+    function rtBusy(label) { $('rt-note').textContent = label + '…'; $('rt-stats').innerHTML = '<div class="muted" style="padding:8px;">running on synthetic feed…</div>'; $('rt-table').innerHTML = ''; }
+    async function runWalkForward() {
+      rtBusy('walk-forward');
+      let r; try { r = await jget('/api/stat-arb/research/walk-forward'); } catch { $('rt-note').textContent = '⚠ failed'; return; }
+      $('rt-note').textContent = `walk-forward · ${r.windows.length} windows (synthetic)`;
+      $('rt-stats').innerHTML =
+        rtStat('Avg test Sharpe', num(r.avgTestSharpe, 2), r.avgTestSharpe >= 0 ? 'pos' : 'neg') +
+        rtStat('Positive windows', (r.positiveWindowShare * 100).toFixed(0) + '%') +
+        rtStat('Windows', r.windows.length);
+      $('rt-table').innerHTML = '<table><thead><tr><th>window</th><th>train Sharpe</th><th>test Sharpe</th><th>test PnL</th><th>test maxDD</th><th>calmar</th></tr></thead><tbody>' +
+        r.windows.map((w) => `<tr><td>${w.windowIndex}</td><td>${num(w.train.sharpeRatio,2)}</td><td class="${w.test.sharpeRatio>=0?'pos':'neg'}">${num(w.test.sharpeRatio,2)}</td><td class="${Number(w.test.totalPnlUnits)>=0?'pos':'neg'}">${fmtUsdc(w.test.totalPnlUnits)}</td><td>${num(w.test.maxDrawdownPct,1)}%</td><td>${num(w.test.calmar,2)}</td></tr>`).join('') +
+        '</tbody></table>';
+    }
+    async function runSweep() {
+      rtBusy('parameter sweep');
+      let r; try { r = await jget('/api/stat-arb/research/sweep'); } catch { $('rt-note').textContent = '⚠ failed'; return; }
+      const cells = r.cells || [], best = cells[0];
+      $('rt-note').textContent = `sweep · ${cells.length} cells (synthetic)`;
+      $('rt-stats').innerHTML = best
+        ? rtStat('Best Sharpe', num(best.sharpeRatio,2), 'pos') + rtStat('Best params', Object.entries(best.params).map(([k,v])=>`${k}=${v}`).join(' ')) + rtStat('Cells', cells.length)
+        : '<div class="muted" style="padding:8px;">no cells</div>';
+      $('rt-table').innerHTML = '<table><thead><tr><th>params</th><th>Sharpe</th><th>PnL</th><th>maxDD</th><th>trades</th></tr></thead><tbody>' +
+        cells.slice(0, 16).map((c) => `<tr><td class="mono">${Object.entries(c.params).map(([k,v])=>`${k}=${v}`).join(' ')}</td><td class="${c.sharpeRatio>=0?'pos':'neg'}">${num(c.sharpeRatio,2)}</td><td class="${Number(c.totalPnlUnits)>=0?'pos':'neg'}">${fmtUsdc(c.totalPnlUnits)}</td><td>${num(c.maxDrawdownPct,1)}%</td><td>${c.totalTrades}</td></tr>`).join('') +
+        '</tbody></table>';
+    }
+    async function runMonteCarlo() {
+      rtBusy('Monte-Carlo');
+      let r; try { r = await jget('/api/stat-arb/research/monte-carlo'); } catch { $('rt-note').textContent = '⚠ failed'; return; }
+      const s = r.summary || {};
+      $('rt-note').textContent = `Monte-Carlo · ${r.replications} reps (synthetic)`;
+      $('rt-stats').innerHTML =
+        rtStat('Prob. positive', (s.probPositive * 100).toFixed(0) + '%', s.probPositive >= 0.5 ? 'pos' : 'neg') +
+        rtStat('Median final', fmtUsdc(s.medianFinalPnl), s.medianFinalPnl >= 0 ? 'pos' : 'neg') +
+        rtStat('p05 final', fmtUsdc(s.p05FinalPnl), s.p05FinalPnl >= 0 ? 'pos' : 'neg') +
+        rtStat('p95 final', fmtUsdc(s.p95FinalPnl), 'pos') +
+        rtStat('Mean final', fmtUsdc(s.meanFinalPnl), s.meanFinalPnl >= 0 ? 'pos' : 'neg');
+      $('rt-table').innerHTML = '';
+    }
+
     $('backfill').onclick = backfill;
-    $('set-capital').onclick = setCapital;
     $('trade-all').onclick = tradeAll;
     $('stop-portfolio').onclick = async () => { await jpost('/api/stat-arb/live/portfolio/stop'); refreshPortfolio(); };
-    $('start').onclick = async () => { await jpost('/api/stat-arb/live/start'); refreshSnapshot(); };
-    $('stop').onclick = async () => { await jpost('/api/stat-arb/live/stop'); refreshSnapshot(); };
     $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; $('lx-preset').value = $('preset').value; fillLaunchLegs(); loadUniverse(); };
     $('lx-preset').onchange = () => { $('preset').value = $('lx-preset').value; fillLaunchLegs(); loadUniverse(); };
     $('lx-a').onchange = autofillBeta;
@@ -1079,6 +1101,9 @@
     $('mm-stop').onclick = async () => { await jpost('/api/market-making/stop'); refreshMm(); };
     $('mm-flatten').onclick = async () => { await jpost('/api/market-making/flatten'); refreshMm(); };
     $('scan-run').onclick = scanRun;
+    $('rt-walkforward').onclick = runWalkForward;
+    $('rt-sweep').onclick = runSweep;
+    $('rt-montecarlo').onclick = runMonteCarlo;
     $('sig-mode-signal').onclick = () => setSignalMode('signal');
     $('sig-mode-price').onclick = () => setSignalMode('price');
     $('sig-a').onchange = sigFromControls;
@@ -1106,7 +1131,7 @@
     // can sit on a different screen. tab-hidden uses !important so it wins over a
     // panel's own inline display toggles (e.g. the portfolio panel).
     function showTab(name) {
-      const tabs = ['desk', 'launch', 'mm', 'scan', 'signal', 'research'];
+      const tabs = ['desk', 'launch', 'mm', 'signal', 'research'];
       if (!tabs.includes(name)) name = 'desk';
       document.querySelectorAll('main > section').forEach((s) => {
         s.classList.toggle('tab-hidden', s.getAttribute('data-tab') !== name);
@@ -1125,6 +1150,8 @@
       renderLaunchParams();
       fillLaunchLegs();
       fillSigLegs();
+      // Default the Signal chart to the sig-control pair (single book retired).
+      setSignalTarget({ symbolA: $('sig-a').value, symbolB: $('sig-b').value, strategyId: $('sig-strategy').value || undefined, beta: betaForPair($('sig-a').value, $('sig-b').value) }, false);
       await loadMmMarkets();
       await loadMmStrategies();
       fillScanPresets();
