@@ -46,6 +46,16 @@ export const MARKET_PRESETS: readonly MarketPreset[] = [
     quote: 'USDT',
   },
   {
+    id: 'fx-stables',
+    label: 'FX — EUR Stables',
+    assetClass: 'FX',
+    description:
+      'Euro-denominated stablecoins quoted vs USDT — a cointegrated EUR-stable pair is the on-chain EUR/USD basis (TESSERA §1.3). Pairs with the FX maker books on the same class.',
+    symbols: ['EUR', 'EURI'],
+    defaultPair: ['EUR', 'EURI'],
+    quote: 'USDT',
+  },
+  {
     id: 'crypto-majors',
     label: 'Crypto — Large Cap',
     assetClass: 'Large Cap',
