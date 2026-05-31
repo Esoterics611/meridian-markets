@@ -205,7 +205,13 @@ The formula has two limits worth checking by hand, because they catch most of th
 
 ### 3.4.3 Asymmetric split
 
-The total spread is set; how does it split between $\delta^a$ and $\delta^b$ individually? That is the question §3.5 answers, and the answer is: the reservation price sits at the *midpoint* of $[\delta^b, \delta^a]$ relative to the mid, so the split depends on inventory. The §3.5 formulas make this explicit.
+The total spread is set; how does it split between $\delta^a$ and $\delta^b$ individually? The whole of the split is governed by inventory, and the mechanism is a single move: **the two quotes are placed symmetrically around the reservation price $r$, not around the mid $s$.** Each sits a distance $\tfrac{1}{2}(\delta^a + \delta^b)$ from $r$. Since §3.3 fixed $r = s - q\,\gamma\sigma^2(T-t)$ — below the mid when the maker is long, above it when short — placement that is symmetric *around $r$* renders asymmetric *around the mid*. That asymmetry is the entire inventory skew:
+
+- **Long inventory ($q > 0$).** $r$ sits below the mid, so both quotes shift down. The ask moves *toward* the mid (a more competitive, eager-to-sell offer) and the bid moves *away* from it (a reluctant, uncompetitive bid). The maker leans on the side that sheds inventory.
+- **Short inventory ($q < 0$).** The mirror image: $r$ sits above the mid, both quotes shift up, the bid turns aggressive (eager to buy back) and the ask retreats.
+- **Flat ($q = 0$).** $r = s$ and the split is symmetric about the mid — equal half-spreads on each side.
+
+So the two results compose cleanly: §3.4.1 says the *width* $\delta^a + \delta^b$ is inventory-independent, and §3.4.3 says the *placement* of that fixed width — which side is the aggressive one — is pure inventory skew. The maker never widens to manage inventory; it only slides the fixed-width quote up or down the price axis. The §3.5 formulas make the magnitudes explicit and §3.5.2 works a numerical example end to end.
 
 ## 3.5 Optimal bid and ask separately
 
