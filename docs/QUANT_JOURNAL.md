@@ -358,3 +358,69 @@ spread, don't pay it) — exactly why the desk already built the MM module (S19:
    work — the only paths are (a) maker execution to beat the fee floor, or (b) a
    fundamentally different signal (cross-sectional baskets, funding-carry), **not** more
    z-score/entry-Z tuning. Stop hunting taker pairs in these classes.
+
+---
+
+## 2026-06-01 — Entry #6: the pivot — MM is the live earner; stat-arb library gets a total rewrite (S23)
+
+**Decision (Ronnie/Yoda): stop trying to rescue taker stat-arb; invest everything in
+market-making, and rewrite the strategy library to span FX / rates / options & swaps
+(Greeks).** Entries #4–#5 paid for this: cointegration is a cliff, fee drag dominates,
+the gate kills every survivor. The one structural spread (stablecoin-peg) only pays as a
+**maker**. So this session proves MM as the live earner and writes the rewrite brief.
+
+### A. MM running for hours — `scripts/mm-paper-session.ts` (new, DB-free, real Binance)
+Drives the **same live `MmBook` + registry** the control plane runs; two modes (replay
+real history now / live-poll for hours on your box). Honest **fee sweep**: the report
+derives net at −1bps (VIP maker rebate), **0bps (structural = spread − adverse)**, and
++1bps (retail maker cost) from the book's P&L components. Conservation is judged on the
+**structural** equity curve, never on the rebate.
+
+**Headline — 24h replay, GLFT on FDUSD/USDC/TUSD, $50k/quote, $400k max inv/book, $3M desk:**
+
+| Fee assumption | Desk net / 24h | % of $3M |
+|---|---|---|
+| **0 bps — structural (real edge)** | **+$1,361** | +0.045% |
+| −1 bps — VIP maker rebate | +$4,844 | +0.161% |
+| +1 bps — retail maker cost | **−$2,121** | −0.071% |
+
+- **Stable:** structural net rose monotonically across **all 12 two-hour buckets (12/12 ≥ 0)** — not one lucky bar.
+- **Equity conserved:** desk **max drawdown 0.0011%** at $50k lots / $400k max inventory. Large lots, ~zero DD — because a peg's MtM swing on $400k is tiny, bounded by the inventory cap + nav stop.
+- **FDUSD carries it** (673 of 697 fills); USDC/TUSD are too tightly pegged to fill much.
+
+### B. The honest catch (the deploy condition)
+The structural edge (spread − adverse) is **real and positive but thin**; the clear
+profit comes from the **maker rebate**. **At a +1bps retail maker cost the book loses.**
+So: **DEPLOY only on a maker venue at ≤ 0 bps** (a rebate tier, or zero-fee maker). And
+fills are **fill-on-touch — an upper bound**, not a promise (queue-aware LOB replay is
+the honest next correction; it needs an L2 tape we don't ingest yet). This is the
+conservation-first read: a clean spread-capture book on a structurally-tethered
+instrument, profitable *if and only if* the execution economics are maker-favourable.
+
+### C. The strategy-library rewrite — brief written (next deliverable)
+[STRATEGY_LIBRARY_REWRITE.md](./STRATEGY_LIBRARY_REWRITE.md) + the Strategy Developer hat
+([desk/ROLE_strategy_developer.md](../desk/ROLE_strategy_developer.md)) now carry the
+binding next deliverable: generalise `IStrategy` (2-leg `BarContext` → N-leg,
+instrument-typed `MarketContext`), add a pricing/**Greeks** layer (`IOptionPricer` mock+
+real, BS + Bachelier, Deribit IV), a **Greeks-budget risk gate**, and carry/funding in
+the cost model — all behind the **unchanged validation gate**. Ranked strategy menu
+(funding-carry → FX basis → options vol-sell → term/rate carry). **Build funding-rate
+carry first** (Binance funding is public — no new venue).
+
+### Decisions
+- **DEPLOY (paper, live now):** stablecoin-peg **MM**, GLFT, **scale toward $50k+/quote** —
+  it conserves equity and prints a stable structural edge. **Go-live gate: a ≤0 bps maker
+  venue** + queue-aware fills before real money.
+- **A/B next:** the same quoter on the `fx-via-stables` (EUR) book.
+- **STRATEGY DEV next session:** execute the rewrite; funding-rate carry first; run it
+  through the real-history OOS gate before any deploy.
+- **RESEARCHER next:** wire Binance funding history (unblocks carry) and Deribit IV
+  (unblocks the Greeks families).
+
+### Reproduce
+```bash
+# 24h replay (deterministic, runs anywhere):
+MM_SESSION_HOURS=24 npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+# live, for hours, on your own machine:
+MM_SESSION_MODE=live MM_SESSION_HOURS=8 npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+```

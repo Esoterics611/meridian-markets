@@ -93,6 +93,33 @@ SMOKE_MM_SYMBOLS=FDUSD,USDC,TUSD SMOKE_MM_BARS=400 \
 You'll see a per-quoter table (fills, fill-rate, spread, fees, adverse selection,
 net P&L) and a live book line (`mid / bid / ask / inventory / equity`).
 
+### 1.5 The long-running session — MM for hours (`scripts/mm-paper-session.ts`)
+
+The "show me MM running for hours, stable profit, large lots, equity conserved"
+harness. It drives the **same live `MmBook`** and registry the control plane runs
+— no server, no DB — at **desk scale** ($50k/quote, $1M/book, 8-lot inventory cap)
+and reports an **hourly equity curve** plus a **fee sweep**: net at −1 bps (VIP
+maker rebate), **0 bps (structural = spread − adverse)**, and +1 bps (retail maker
+cost). Conservation is judged on the **structural** curve, never on the rebate.
+
+```bash
+# replay 24h of REAL Binance 1m history bar-by-bar (deterministic, runs anywhere):
+npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+MM_SESSION_HOURS=6 MM_SESSION_STRATEGY=mm-glft \
+  npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+
+# the literal "running for hours" — live poll on your own machine:
+MM_SESSION_MODE=live MM_SESSION_HOURS=8 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+```
+
+A representative 24h replay (GLFT, FDUSD/USDC/TUSD): **structural net positive and
+monotone across every 2h bucket, desk max drawdown ~0.001%** at $400k max inventory
+— large lots, equity conserved. **But at a +1 bps retail maker cost the book
+loses**, so the deploy condition is a **≤0 bps maker venue**; and fills are
+fill-on-touch (an upper bound — see the honesty note above). Env knobs:
+`MM_SESSION_{MODE,SYMBOLS,STRATEGY,QUOTE_UNITS,CAPITAL_UNITS,MAX_LOTS,HOURS,MAKER_BPS,POLL_MS}`.
+
 ### 2. Run the tests
 ```bash
 npx jest src/market-making        # the MM suite (49 tests)
