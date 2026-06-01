@@ -258,3 +258,103 @@ That is the whole point of the gate, and it just earned its keep.
 3. **Maker execution / lower interval** to lift trade frequency without paying the
    ~20 bps taker floor.
 4. (Deferred) **P0.4 borrow/funding** on the short leg.
+
+---
+
+## 2026-06-01 — Entry #5: the cointegration cliff is universal — ai-data KILLED, stablecoin-peg is the only structural spread
+
+**Setup.** Entry #4 left ai-data "INSUFFICIENT — need 6–12 months of 15m." The
+research scripts reach Binance directly from this desk (DB-free, no server), so I
+went and got the history and settled it — then asked whether the failure is
+ai-data-specific or universal.
+
+### Step 1 — settle ai-data on real long history (`scripts/oos-candidates.ts`)
+Terminal (one run per horizon):
+```
+OOS_PRESET=ai-data OOS_DAYS=30  OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+OOS_PRESET=ai-data OOS_DAYS=90  OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+OOS_PRESET=ai-data OOS_DAYS=180 OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+OOS_PRESET=ai-data OOS_DAYS=365 OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```
+UI: Research → backtest/scan an ai-data pair (sets the active pair) → **↻ Walk-forward (real OOS)**.
+
+| horizon | cointegrated pairs | OOS verdict |
+|---|---|---|
+| 30d  | 19 | INSUFFICIENT — 3–18 OOS trades/pair (Entry #4) |
+| **90d**  | 4  | **all NOISE** — pooled OOS Sharpe −0.5…−1.6, OOS PnL −$36k…−$128k @ $100k/leg, in-sample optimism (degradation) **1.8–24 Sharpe**, DSR 0% |
+| 180d | 0  | no stable cointegration |
+| 365d | 0  | no stable cointegration |
+
+The 90d row is the verdict: with **enough OOS trades to actually judge (24–53/pair)**,
+every pair *loses money out-of-sample* and the train→test degradation is enormous —
+textbook overfit. **ai-data z-score pair-trading is KILLED.** Entry #4 read it as
+"blocked on data"; the data now exists and **rejects** it. Supersedes the ai-data
+numbers in Entries #1/#2/#4.
+
+### Step 2 — is the failure universal? (`scripts/cointegration-stability.ts`, new + durable)
+Runs the *same* discovery gate (p<0.6, maxHalfLife 240 bars) across every preset ×
+{30,90,180}d and persists the map.
+Terminal:
+```
+STAB_HORIZONS=30,90,180 STAB_INTERVAL=15m npx ts-node -r tsconfig-paths/register scripts/cointegration-stability.ts
+# → docs/research/2026-06-01-14-09-cointegration-stability.json
+```
+UI: no button yet — **handoff item**: wire a "cointegration-persistence" column into ⊹ Scan.
+
+| class | 30d | 90d | 180d |
+|---|---|---|---|
+| crypto-majors | 41 | 13 | **0** |
+| ai-data | 18 | 4 | **0** |
+| l1-smart-contract | 38 | 18 | **0** |
+| eth-ecosystem | 22 | 5 | **0** |
+| gaming-meta | 22 | 4 | 1 |
+| defi-bluechip | 53 | 13 | 1 |
+| payments-sov | 14 | 2 | **0** |
+| fx-stables | 0 | 0 | 0 *(only 2 symbols align — data-hygiene)* |
+| **stablecoin-peg** | **4** | **6** | **6** |
+
+**Headline (desk-wide):** for *every directional-crypto class*, the cointegrated-pair
+count collapses toward 0 as the window grows 30→180d. The scanner's short-window
+"cointegrated pairs" are **systematically spurious** — 30-day cointegration is a
+measurement artifact across the whole universe, not an ai-data quirk. This is *why*
+Entry #1's high in-sample Sharpes evaporated OOS: we were ranking the best of ~80–90
+short-window flukes per class.
+
+**The one exception is structural:** **stablecoin-peg holds 4→6→6** — the only class
+whose cointegration *strengthens* with horizon, because stablecoins are tethered to
+the same \$1 peg (the spread mean-reverts by construction, not coincidence). It is the
+only genuinely-cointegrated class on the desk.
+
+**The catch (doctrine — flag the unmodelled cost):** stablecoin σ-spread is tiny, so
+the edge per trade is a few bps — the ~20 bps **taker** round-trip floor eats it whole.
+Gating stablecoin-peg through the *taker* OOS harness (5+2+10 bps) would correctly show
+it unprofitable *as a taker strategy*. Its real home is **maker execution** (capture the
+spread, don't pay it) — exactly why the desk already built the MM module (S19:
+`src/market-making/`, `scripts/smoke-mm-stablecoin.ts`, the `stablecoin-peg` preset).
+
+### Decisions
+- **DEPLOY: nothing as a taker pair-trade.** Conserve equity. This is the doctrine's
+  "nothing clears the bar" outcome — now *proven across 9 classes*, not assumed.
+- **KILL: ai-data z-score**, and by the cliff, do **not** deploy taker pair-trades on
+  any short-window-discovered directional-crypto pair.
+- **LEAD: stablecoin-peg as a maker/MM book** — the only structural spread. Evaluate it
+  through the MM backtest with *maker* economics, not the taker harness.
+  Runnable today: `npx ts-node -r tsconfig-paths/register scripts/smoke-mm-stablecoin.ts`
+  + /demo **Market-Making** tab.
+- **METHODOLOGY FIX:** require multi-horizon cointegration *persistence* (cointegrate at
+  90d **and** 180d) before a pair is a deploy candidate. `cointegration-stability.ts`
+  *is* that filter — wire it into ⊹ Scan so short-window artifacts never reach a trade
+  button.
+
+### Next actions
+1. **Evaluate stablecoin-peg as MM (maker), not pairs (taker).** Run `smoke-mm-stablecoin.ts`;
+   build a maker-economics OOS gate for the MM book (queue-position fill model scaffolded
+   in S19). This is the live lead — the only structurally-honest edge found.
+2. **Wire the persistence filter into the scanner** — a pair must cointegrate at ≥2
+   horizons to surface as a candidate. Kills the short-window-artifact pipeline at source.
+3. **fx-stables data hygiene** — only 2 symbols align, can't form a pair universe; fix the
+   preset/alignment before it's scannable.
+4. **If pursuing directional crypto at all:** the cliff says taker z-score pairs won't
+   work — the only paths are (a) maker execution to beat the fee floor, or (b) a
+   fundamentally different signal (cross-sectional baskets, funding-carry), **not** more
+   z-score/entry-Z tuning. Stop hunting taker pairs in these classes.

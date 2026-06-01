@@ -1,0 +1,746 @@
+{
+  "generatedAt": "2026-06-01T14:09:23.865Z",
+  "interval": "15m",
+  "pValueCutoff": 0.6,
+  "maxHalfLifeBars": 240,
+  "minBars": 400,
+  "horizonsDays": [
+    30,
+    90,
+    180
+  ],
+  "presets": [
+    "crypto-majors",
+    "ai-data",
+    "l1-smart-contract",
+    "eth-ecosystem",
+    "gaming-meta",
+    "defi-bluechip",
+    "payments-sov",
+    "fx-stables",
+    "stablecoin-peg"
+  ],
+  "results": [
+    {
+      "preset": "crypto-majors",
+      "horizonDays": 30,
+      "alignedSymbols": 14,
+      "commonBars": 2880,
+      "pairs": 41,
+      "topPairs": [
+        {
+          "pair": "AVAX/LINK",
+          "pValue": 0.005,
+          "halfLifeBars": 37.7,
+          "beta": 0.76
+        },
+        {
+          "pair": "SOL/AVAX",
+          "pValue": 0.005,
+          "halfLifeBars": 38,
+          "beta": 1.2
+        },
+        {
+          "pair": "LTC/ADA",
+          "pValue": 0.005,
+          "halfLifeBars": 55.4,
+          "beta": 0.778
+        },
+        {
+          "pair": "BTC/BCH",
+          "pValue": 0.005,
+          "halfLifeBars": 55.9,
+          "beta": 0.221
+        },
+        {
+          "pair": "AVAX/DOT",
+          "pValue": 0.005,
+          "halfLifeBars": 58.7,
+          "beta": 0.823
+        }
+      ]
+    },
+    {
+      "preset": "crypto-majors",
+      "horizonDays": 90,
+      "alignedSymbols": 14,
+      "commonBars": 8640,
+      "pairs": 13,
+      "topPairs": [
+        {
+          "pair": "SOL/AVAX",
+          "pValue": 0.005,
+          "halfLifeBars": 126.4,
+          "beta": 1.033
+        },
+        {
+          "pair": "XRP/LTC",
+          "pValue": 0.005,
+          "halfLifeBars": 164.1,
+          "beta": 0.998
+        },
+        {
+          "pair": "SOL/ADA",
+          "pValue": 0.005,
+          "halfLifeBars": 184.8,
+          "beta": 0.806
+        },
+        {
+          "pair": "AVAX/DOT",
+          "pValue": 0.005,
+          "halfLifeBars": 198.9,
+          "beta": 0.256
+        },
+        {
+          "pair": "XRP/AVAX",
+          "pValue": 0.025,
+          "halfLifeBars": 196.6,
+          "beta": 0.77
+        }
+      ]
+    },
+    {
+      "preset": "crypto-majors",
+      "horizonDays": 180,
+      "alignedSymbols": 14,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "ai-data",
+      "horizonDays": 30,
+      "alignedSymbols": 9,
+      "commonBars": 2880,
+      "pairs": 18,
+      "topPairs": [
+        {
+          "pair": "TAO/THETA",
+          "pValue": 0.025,
+          "halfLifeBars": 73.4,
+          "beta": 0.783
+        },
+        {
+          "pair": "AR/TAO",
+          "pValue": 0.5,
+          "halfLifeBars": 113.2,
+          "beta": 0.554
+        },
+        {
+          "pair": "AR/THETA",
+          "pValue": 0.5,
+          "halfLifeBars": 115.8,
+          "beta": 0.465
+        },
+        {
+          "pair": "WLD/RENDER",
+          "pValue": 0.5,
+          "halfLifeBars": 124.4,
+          "beta": 1.844
+        },
+        {
+          "pair": "AR/NEAR",
+          "pValue": 0.5,
+          "halfLifeBars": 130.3,
+          "beta": -0.052
+        }
+      ]
+    },
+    {
+      "preset": "ai-data",
+      "horizonDays": 90,
+      "alignedSymbols": 9,
+      "commonBars": 8640,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "GRT/AR",
+          "pValue": 0.025,
+          "halfLifeBars": 224.6,
+          "beta": 0.223
+        },
+        {
+          "pair": "GRT/THETA",
+          "pValue": 0.025,
+          "halfLifeBars": 230.9,
+          "beta": 0.211
+        },
+        {
+          "pair": "GRT/INJ",
+          "pValue": 0.025,
+          "halfLifeBars": 234.9,
+          "beta": 0.114
+        },
+        {
+          "pair": "GRT/NEAR",
+          "pValue": 0.025,
+          "halfLifeBars": 239.6,
+          "beta": 0.133
+        }
+      ]
+    },
+    {
+      "preset": "ai-data",
+      "horizonDays": 180,
+      "alignedSymbols": 9,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "l1-smart-contract",
+      "horizonDays": 30,
+      "alignedSymbols": 14,
+      "commonBars": 2880,
+      "pairs": 38,
+      "topPairs": [
+        {
+          "pair": "SOL/AVAX",
+          "pValue": 0.005,
+          "halfLifeBars": 38,
+          "beta": 1.2
+        },
+        {
+          "pair": "AVAX/EGLD",
+          "pValue": 0.005,
+          "halfLifeBars": 44.3,
+          "beta": 0.431
+        },
+        {
+          "pair": "ADA/EGLD",
+          "pValue": 0.005,
+          "halfLifeBars": 56.4,
+          "beta": 0.614
+        },
+        {
+          "pair": "AVAX/DOT",
+          "pValue": 0.005,
+          "halfLifeBars": 59.1,
+          "beta": 0.823
+        },
+        {
+          "pair": "ATOM/TRX",
+          "pValue": 0.005,
+          "halfLifeBars": 63,
+          "beta": 1.322
+        }
+      ]
+    },
+    {
+      "preset": "l1-smart-contract",
+      "horizonDays": 90,
+      "alignedSymbols": 14,
+      "commonBars": 8640,
+      "pairs": 18,
+      "topPairs": [
+        {
+          "pair": "AVAX/EGLD",
+          "pValue": 0.005,
+          "halfLifeBars": 117.1,
+          "beta": 0.455
+        },
+        {
+          "pair": "SOL/AVAX",
+          "pValue": 0.005,
+          "halfLifeBars": 126.4,
+          "beta": 1.033
+        },
+        {
+          "pair": "SOL/EGLD",
+          "pValue": 0.005,
+          "halfLifeBars": 153.1,
+          "beta": 0.54
+        },
+        {
+          "pair": "AVAX/SUI",
+          "pValue": 0.005,
+          "halfLifeBars": 171.3,
+          "beta": 0.321
+        },
+        {
+          "pair": "SOL/ADA",
+          "pValue": 0.005,
+          "halfLifeBars": 184.5,
+          "beta": 0.806
+        }
+      ]
+    },
+    {
+      "preset": "l1-smart-contract",
+      "horizonDays": 180,
+      "alignedSymbols": 13,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "eth-ecosystem",
+      "horizonDays": 30,
+      "alignedSymbols": 10,
+      "commonBars": 2880,
+      "pairs": 22,
+      "topPairs": [
+        {
+          "pair": "OP/STRK",
+          "pValue": 0.005,
+          "halfLifeBars": 49,
+          "beta": 0.832
+        },
+        {
+          "pair": "LINK/IMX",
+          "pValue": 0.005,
+          "halfLifeBars": 65.3,
+          "beta": 0.734
+        },
+        {
+          "pair": "ARB/LDO",
+          "pValue": 0.025,
+          "halfLifeBars": 82.2,
+          "beta": 1.32
+        },
+        {
+          "pair": "LINK/STRK",
+          "pValue": 0.075,
+          "halfLifeBars": 92,
+          "beta": 0.387
+        },
+        {
+          "pair": "OP/LINK",
+          "pValue": 0.075,
+          "halfLifeBars": 100.2,
+          "beta": 1.87
+        }
+      ]
+    },
+    {
+      "preset": "eth-ecosystem",
+      "horizonDays": 90,
+      "alignedSymbols": 10,
+      "commonBars": 8640,
+      "pairs": 5,
+      "topPairs": [
+        {
+          "pair": "OP/LINK",
+          "pValue": 0.005,
+          "halfLifeBars": 109.4,
+          "beta": 1.785
+        },
+        {
+          "pair": "LINK/STRK",
+          "pValue": 0.005,
+          "halfLifeBars": 145.6,
+          "beta": 0.366
+        },
+        {
+          "pair": "LINK/IMX",
+          "pValue": 0.005,
+          "halfLifeBars": 150.2,
+          "beta": 0.47
+        },
+        {
+          "pair": "IMX/STRK",
+          "pValue": 0.005,
+          "halfLifeBars": 175.8,
+          "beta": 0.687
+        },
+        {
+          "pair": "OP/STRK",
+          "pValue": 0.005,
+          "halfLifeBars": 177.7,
+          "beta": 0.761
+        }
+      ]
+    },
+    {
+      "preset": "eth-ecosystem",
+      "horizonDays": 180,
+      "alignedSymbols": 10,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "gaming-meta",
+      "horizonDays": 30,
+      "alignedSymbols": 8,
+      "commonBars": 2880,
+      "pairs": 22,
+      "topPairs": [
+        {
+          "pair": "APE/ENJ",
+          "pValue": 0.005,
+          "halfLifeBars": 42.9,
+          "beta": 0.721
+        },
+        {
+          "pair": "SAND/MANA",
+          "pValue": 0.005,
+          "halfLifeBars": 55.9,
+          "beta": 1.042
+        },
+        {
+          "pair": "ENJ/FLOW",
+          "pValue": 0.005,
+          "halfLifeBars": 59.2,
+          "beta": 1.011
+        },
+        {
+          "pair": "APE/FLOW",
+          "pValue": 0.005,
+          "halfLifeBars": 64.2,
+          "beta": 0.761
+        },
+        {
+          "pair": "AXS/APE",
+          "pValue": 0.075,
+          "halfLifeBars": 111.2,
+          "beta": 0.88
+        }
+      ]
+    },
+    {
+      "preset": "gaming-meta",
+      "horizonDays": 90,
+      "alignedSymbols": 8,
+      "commonBars": 8640,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "MANA/GMT",
+          "pValue": 0.005,
+          "halfLifeBars": 126.8,
+          "beta": 0.565
+        },
+        {
+          "pair": "AXS/APE",
+          "pValue": 0.025,
+          "halfLifeBars": 206.4,
+          "beta": 0.268
+        },
+        {
+          "pair": "MANA/FLOW",
+          "pValue": 0.025,
+          "halfLifeBars": 223.7,
+          "beta": 0.172
+        },
+        {
+          "pair": "IMX/GMT",
+          "pValue": 0.025,
+          "halfLifeBars": 228.5,
+          "beta": 0.993
+        }
+      ]
+    },
+    {
+      "preset": "gaming-meta",
+      "horizonDays": 180,
+      "alignedSymbols": 8,
+      "commonBars": 17280,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "MANA/GMT",
+          "pValue": 0.005,
+          "halfLifeBars": 205.3,
+          "beta": 1.03
+        }
+      ]
+    },
+    {
+      "preset": "defi-bluechip",
+      "horizonDays": 30,
+      "alignedSymbols": 13,
+      "commonBars": 2880,
+      "pairs": 53,
+      "topPairs": [
+        {
+          "pair": "LDO/1INCH",
+          "pValue": 0.005,
+          "halfLifeBars": 33.5,
+          "beta": 1.334
+        },
+        {
+          "pair": "LDO/SUSHI",
+          "pValue": 0.005,
+          "halfLifeBars": 35.4,
+          "beta": 0.951
+        },
+        {
+          "pair": "AAVE/1INCH",
+          "pValue": 0.005,
+          "halfLifeBars": 39.3,
+          "beta": 1.093
+        },
+        {
+          "pair": "AAVE/LDO",
+          "pValue": 0.005,
+          "halfLifeBars": 57.9,
+          "beta": 0.786
+        },
+        {
+          "pair": "LDO/SNX",
+          "pValue": 0.005,
+          "halfLifeBars": 61.7,
+          "beta": 1.174
+        }
+      ]
+    },
+    {
+      "preset": "defi-bluechip",
+      "horizonDays": 90,
+      "alignedSymbols": 13,
+      "commonBars": 8640,
+      "pairs": 13,
+      "topPairs": [
+        {
+          "pair": "CRV/SNX",
+          "pValue": 0.005,
+          "halfLifeBars": 108.8,
+          "beta": 0.934
+        },
+        {
+          "pair": "SNX/GMX",
+          "pValue": 0.005,
+          "halfLifeBars": 130.8,
+          "beta": 0.684
+        },
+        {
+          "pair": "LINK/SUSHI",
+          "pValue": 0.005,
+          "halfLifeBars": 145.3,
+          "beta": 0.647
+        },
+        {
+          "pair": "SNX/SUSHI",
+          "pValue": 0.005,
+          "halfLifeBars": 153.7,
+          "beta": 0.695
+        },
+        {
+          "pair": "LINK/PENDLE",
+          "pValue": 0.005,
+          "halfLifeBars": 155.1,
+          "beta": 0.198
+        }
+      ]
+    },
+    {
+      "preset": "defi-bluechip",
+      "horizonDays": 180,
+      "alignedSymbols": 13,
+      "commonBars": 17280,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "LINK/SUSHI",
+          "pValue": 0.005,
+          "halfLifeBars": 238.7,
+          "beta": 0.826
+        }
+      ]
+    },
+    {
+      "preset": "payments-sov",
+      "horizonDays": 30,
+      "alignedSymbols": 8,
+      "commonBars": 2880,
+      "pairs": 14,
+      "topPairs": [
+        {
+          "pair": "BTC/BCH",
+          "pValue": 0.005,
+          "halfLifeBars": 55.8,
+          "beta": 0.221
+        },
+        {
+          "pair": "LTC/XRP",
+          "pValue": 0.025,
+          "halfLifeBars": 71.4,
+          "beta": 1.204
+        },
+        {
+          "pair": "BCH/DOGE",
+          "pValue": 0.075,
+          "halfLifeBars": 100.3,
+          "beta": 2.864
+        },
+        {
+          "pair": "XRP/DOGE",
+          "pValue": 0.5,
+          "halfLifeBars": 114.9,
+          "beta": 0.688
+        },
+        {
+          "pair": "LTC/BCH",
+          "pValue": 0.5,
+          "halfLifeBars": 124.7,
+          "beta": 0.268
+        }
+      ]
+    },
+    {
+      "preset": "payments-sov",
+      "horizonDays": 90,
+      "alignedSymbols": 8,
+      "commonBars": 8640,
+      "pairs": 2,
+      "topPairs": [
+        {
+          "pair": "LTC/XRP",
+          "pValue": 0.005,
+          "halfLifeBars": 166,
+          "beta": 0.75
+        },
+        {
+          "pair": "LTC/BCH",
+          "pValue": 0.025,
+          "halfLifeBars": 206.3,
+          "beta": 0.165
+        }
+      ]
+    },
+    {
+      "preset": "payments-sov",
+      "horizonDays": 180,
+      "alignedSymbols": 8,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "fx-stables",
+      "horizonDays": 30,
+      "alignedSymbols": 2,
+      "commonBars": 2880,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "fx-stables",
+      "horizonDays": 90,
+      "alignedSymbols": 2,
+      "commonBars": 8640,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "fx-stables",
+      "horizonDays": 180,
+      "alignedSymbols": 2,
+      "commonBars": 17280,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "stablecoin-peg",
+      "horizonDays": 30,
+      "alignedSymbols": 4,
+      "commonBars": 2880,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "FDUSD/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 27.5,
+          "beta": -0.469
+        },
+        {
+          "pair": "FDUSD/TUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 33.5,
+          "beta": -0.271
+        },
+        {
+          "pair": "TUSD/USD1",
+          "pValue": 0.025,
+          "halfLifeBars": 89,
+          "beta": 0.052
+        },
+        {
+          "pair": "USDC/TUSD",
+          "pValue": 0.5,
+          "halfLifeBars": 216.1,
+          "beta": 0.394
+        }
+      ]
+    },
+    {
+      "preset": "stablecoin-peg",
+      "horizonDays": 90,
+      "alignedSymbols": 4,
+      "commonBars": 8640,
+      "pairs": 6,
+      "topPairs": [
+        {
+          "pair": "FDUSD/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 29.2,
+          "beta": -0.687
+        },
+        {
+          "pair": "FDUSD/TUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 48.4,
+          "beta": -0.168
+        },
+        {
+          "pair": "USDC/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 53.5,
+          "beta": 0.459
+        },
+        {
+          "pair": "TUSD/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 79.4,
+          "beta": -0.055
+        },
+        {
+          "pair": "USDC/FDUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 85.4,
+          "beta": -0.158
+        }
+      ]
+    },
+    {
+      "preset": "stablecoin-peg",
+      "horizonDays": 180,
+      "alignedSymbols": 4,
+      "commonBars": 17280,
+      "pairs": 6,
+      "topPairs": [
+        {
+          "pair": "USDC/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 30.8,
+          "beta": 0.473
+        },
+        {
+          "pair": "FDUSD/TUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 58.1,
+          "beta": 0.07
+        },
+        {
+          "pair": "FDUSD/USD1",
+          "pValue": 0.005,
+          "halfLifeBars": 58.7,
+          "beta": 0.002
+        },
+        {
+          "pair": "USDC/TUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 70.7,
+          "beta": 0.078
+        },
+        {
+          "pair": "USDC/FDUSD",
+          "pValue": 0.005,
+          "halfLifeBars": 73.3,
+          "beta": 0.017
+        }
+      ]
+    }
+  ]
+}

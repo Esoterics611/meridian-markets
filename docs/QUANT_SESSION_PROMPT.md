@@ -67,19 +67,38 @@ never overwrite — with the commands you ran.
 - **Backfill more history.** `POST /api/market-data/backfill-preset` `{ "presetId":"ai-data", "interval":"15m", "lookbackHours":720 }`. UI: (API; preset switcher shows what's stored).
 - **Lots.** The top-strip **Lots / leg (USDC)** is the single sizing master for every trade button; default is desk-scale, not $1.
 
-## This session's agenda (suggested)
+## State as of Entry #5 (read the journal first — this is a summary)
 
-1. **Data check.** State how much history you have vs what you need for regime
-   coverage; if thin, backfill more (and say why) before trusting anything.
-2. **Re-scan** for candidates (`quant-research.ts` and/or the UI ⊹ Scan). Note the
-   top fee-clearing configs per class.
-3. **Gate each candidate through the real walk-forward.** Read avgTestSharpe,
-   positiveWindowShare, sharpeDegradation, β drift. Kill anything with large
-   degradation or unstable β. The standing candidate to settle is **ai-data
-   z-score @ eZ2–2.5** (Journal Entry #2 left it "blocked on OOS").
-4. **Size survivors to N\*** via the sizing study — big, not past N\*.
-5. **Decide and write it down:** deploy (and how big / how you'll exit), wait, or
-   need-more-data. New `QUANT_JOURNAL.md` entry with commands + verdict.
+- **ai-data z-score is KILLED.** Settled on real long history: 90d has enough OOS
+  trades (24–53/pair) and every pair loses money OOS with huge train→test
+  degradation (DSR 0%); 180d/365d have **zero** cointegrated pairs. Don't reopen it.
+- **The cointegration cliff is universal.** `scripts/cointegration-stability.ts`
+  shows every directional-crypto class collapses toward 0 cointegrated pairs from
+  30→180d — short-window "cointegrated pairs" are systematically spurious. Do **not**
+  deploy taker z-score pairs on short-window-discovered directional-crypto pairs.
+- **stablecoin-peg is the only structural spread** (4→6→6 across horizons) — but its
+  edge is a few bps, so it's a **maker/MM** play (taker fees eat it), not a pair-trade.
+
+## This session's agenda (suggested) — pick up Entry #5's next actions
+
+1. **Evaluate stablecoin-peg as a maker/MM book** (the live lead — the only
+   structurally-honest edge). Run `npx ts-node -r tsconfig-paths/register scripts/smoke-mm-stablecoin.ts`
+   + /demo **Market-Making** tab; build a maker-economics OOS gate (don't gate it
+   through the *taker* harness — that wrongly kills it on fees).
+2. **Wire cointegration-persistence into the scanner.** A pair must cointegrate at
+   ≥2 horizons (90d **and** 180d) before it surfaces as a candidate —
+   `scripts/cointegration-stability.ts` is the filter. Kills the short-window-artifact
+   pipeline at the source; add the column to ⊹ Scan.
+3. **fx-stables data hygiene** — only 2 symbols align (no pair universe); fix before scannable.
+4. **Don't keep tuning taker z-score pairs in directional-crypto classes** — the cliff
+   says they won't survive. The only paths are maker execution or a different signal
+   (cross-sectional baskets / funding-carry).
+
+Tools added since the S22 prompt: `scripts/oos-candidates.ts` (DB-free real-history
+OOS gate + deflated-Sharpe over the scan pool), `scripts/cointegration-stability.ts`
+(cross-class cointegration-persistence map → `docs/research/*.json`), and the
+deflated-Sharpe / purged-k-fold gate on `POST /api/market-data/walk-forward`
+(`cv`/`trials`/`folds` params) + the **⊟ Purged k-fold (real OOS)** button.
 
 Deliverable: a `QUANT_JOURNAL.md` entry that answers "is anything tradeable OOS
 after real costs, and at what size?" — with the exact terminal commands and the
