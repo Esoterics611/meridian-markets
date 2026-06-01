@@ -192,3 +192,69 @@ faked); the live numbers come from running it against Binance on the desk.*
    notional — still missing, still optimistic for the short side.
 4. **Maker execution** — the lever that would cut the spread/impact Entry #2
    showed is decisive (re-opens crypto-majors + 1m).
+
+---
+
+## 2026-06-01 — Entry #4: the gate's verdict + the multiple-testing haircut (P0.3/P0.5) — candidate KILLED
+
+**Shipped (P0.3 + P0.5):** the OOS gate now (a) **deflates the Sharpe for
+selection bias** — `deflatedSharpe`/PSR over the # of pairs scanned (Bailey &
+López de Prado), (b) offers **purged k-fold** CV (interior folds, purge+embargo)
+as an alternative to sequential walk-forward, and (c) reports **regime coverage**
+(days/bars/splits) + a survivorship caveat. All in `POST /api/market-data/walk-
+forward` (`cv`, `trials`, `folds` params) and the two Research "real OOS" buttons.
+
+**Closed the flag — ran the gate on the standing candidate.** `scripts/oos-
+candidates.ts` (DB-free, live Binance) pulled **30 days × 15m** of the ai-data
+universe (2,880 aligned bars/symbol), discovered **19 cointegrated pairs**, and
+walk-forwarded each (25 windows, β re-fit/window, net of fee+spread+impact, $100k/
+leg). Verdict on **every** pair: **INSUFFICIENT** — none clears the bar.
+
+| pair | eZ | OOS trades | pooled OOS Sharpe | pos-win | OOS PnL | PSR | DSR (÷19 trials) | verdict |
+|---|---|---|---|---|---|---|---|---|
+| AR/TAO | 2.5 | 6 | 0.78 | 0% | +$4.2k | 95% | 95%* | INSUFFICIENT |
+| WLD/RENDER | 2.5 | 8 | 0.55 | 0% | +$5.7k | 97% | **0%** | INSUFFICIENT |
+| AR/TAO | 2.0 | 16 | 0.36 | 4% | +$6.2k | 91% | **68%** | INSUFFICIENT |
+| GRT/TAO | 2.5 | 6 | 0.40 | 0% | +$2.2k | 85% | 85%* | INSUFFICIENT |
+| (the other 14) | — | 3–18 | mostly **negative** | 0–8% | mostly **−** | ≤46% | ~0% | INSUFFICIENT |
+
+\* PSR/DSR look high only because expectedMaxSharpe collapses to 0 when there's no
+across-window Sharpe dispersion (≤6 trades) — the **n<20 gate** is what's binding.
+
+**The finding (this is the headline):** **the "ai-data z-score @ eZ2–2.5" deploy
+candidate does NOT survive OOS.** Three independent reasons, each fatal:
+1. **Too few OOS trades.** At 15m × entryZ≥2, reversions are rare — 30 days yields
+   only **3–18** out-of-sample trades per pair. You cannot trust a Sharpe on that.
+2. **The selection haircut bites.** WLD/RENDER's 0.55 pooled Sharpe (PSR 97%!) is
+   exactly the kind of number that looks tradeable until you remember it's the
+   best of **19** scanned pairs — **DSR 0%**. Deflation is the difference between
+   "97% confident" and "indistinguishable from luck."
+3. **Entry #2 was a 10-day artifact.** Over 30 days the top cointegrated ai-data
+   pairs are TAO/THETA, AR/TAO, AR/THETA — **not** the GRT/WLD/RENDER/NEAR set
+   Entry #2 named. The candidate pairs aren't even stable across window length.
+
+**Decision (desk doctrine — conserve equity, don't trade on noise):**
+- **KILL the ai-data z-score deploy candidate.** No book goes live on it. Entry
+  #1/#2's ai-data numbers are superseded — they were in-sample / 10-day / pre-
+  haircut. Nothing on the desk currently clears the OOS gate.
+- **This is a "need more data" outcome, not a "no edge" one.** The binding
+  constraint is OOS *trade count*. To actually judge a 15m reversion you need
+  enough OOS trades → **6–12 months of history** (P0.5 is now the live blocker),
+  and/or **baskets** that pool trades across many pairs, and/or **higher trade
+  frequency** (lower interval / maker fills to beat the fee floor).
+
+**What the P0 frontier proved (P0.1→P0.3+P0.5 working together):** costs + real
+OOS + a multiple-testing haircut + a coverage check turned an apparent +Sharpe
+in-sample edge into an honest, documented **"not validated — insufficient data."**
+That is the whole point of the gate, and it just earned its keep.
+
+**Next actions:**
+1. **More history (P0.5):** backfill **6–12 months** of 15m (the loader paginates;
+   `historicalKlines` already handles it) and re-run the gate — the *only* way to
+   get a trustworthy OOS trade count at this interval.
+2. **Baskets over single pairs:** a vol-targeted basket of the fee-clearing pairs
+   pools OOS trades → enough n to actually deflate honestly (and breadth > size,
+   per doctrine).
+3. **Maker execution / lower interval** to lift trade frequency without paying the
+   ~20 bps taker floor.
+4. (Deferred) **P0.4 borrow/funding** on the short leg.

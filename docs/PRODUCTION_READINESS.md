@@ -35,15 +35,20 @@
    (`walkForward`) is now slice/train-aware so a replay venue prices each window
    correctly. *Still to do: actually run it on the deploy candidates and record
    the numbers (Journal next-action #1).* **No strategy ships on in-sample numbers.**
-3. **Multiple-testing correction.** We scan ~80–90 cointegrated pairs/class and
-   report the top — pure selection bias. Add **deflated Sharpe** + purged k-fold;
-   discount the headline Sharpe accordingly.
+3. ~~**Multiple-testing correction.**~~ ✅ **DONE (Entry #4).** `deflated-sharpe.ts`
+   (PSR + Deflated Sharpe over `trials`) + `purged-kfold.ts` (CV w/ purge+embargo)
+   + `cross-validate.ts`, wired into the gate (`cv`, `trials` params) + UI verdict.
+   **PASS = DSR ≥ 0.95 and ≥ 20 OOS trades.** It immediately killed the ai-data
+   candidate (a 0.55-Sharpe / 97%-PSR pair deflated to DSR 0% over 19 trials).
 4. **Borrow / funding cost on the short leg.** Stat-arb is short one leg; spot
    borrow (or perp funding) is a real carry we currently ignore → optimistic.
    Add a per-bar carrying cost to the backtest.
-5. **More history + point-in-time universe.** 10 days isn't "consistent over
-   days" evidence; backtest months for regime coverage, and avoid survivorship
-   (presets are *today's* listed symbols).
+5. **More history + point-in-time universe.** ⚠️ *Partly addressed (Entry #4).*
+   The gate now **reports regime coverage** (days/bars/splits) + **warns on thin
+   history** + a survivorship caveat (`coverage` block), and the loader paginates
+   so months are fetchable. **Still open:** actually backfilling 6–12 months (the
+   binding constraint on the ai-data verdict was OOS *trade count*) and a real
+   point-in-time universe (presets are *today's* listed symbols → survivorship).
 
 ## P1 — before real capital (canary)
 6. **Sizing/allocation policy enforced on deploy.** A risk-parity allocator
@@ -73,11 +78,10 @@
     broke), regime filters (these are ongoing quant work, not infra).
 
 ## The one-line answer
-Lotting and fees are handled; **slippage/spread/impact (P0.1) and real-history
-walk-forward OOS (P0.2) now ship.** What remains before *trusting* a backtested
-edge: **a multiple-testing haircut (P0.3, deflated Sharpe — we scan ~80–90
-pairs/class) and short-leg borrow/funding (P0.4)** — plus actually *running* the
-OOS gate on the deploy candidates and recording the numbers. Until those land,
-the desk can find candidates and now judge them out-of-sample, but the headline
-Sharpe still owes a selection-bias discount. Everything else (allocator, maker,
+Lotting + fees, **cost-fidelity (P0.1), real-history walk-forward OOS (P0.2), and
+the multiple-testing haircut (P0.3) all ship — and the gate has already earned its
+keep** (it killed the ai-data candidate, Journal #4). The gate is trustworthy; the
+binding gap is now **data, not method**: **more history (P0.5 — months, to get
+enough OOS trades)** and **short-leg borrow/funding (P0.4)**. With those, a PASS
+(DSR ≥ 0.95, ≥ 20 OOS trades) is a real signal. Everything else (allocator, maker,
 real venue) is P1 and gates *real capital*, not *strategy research*.

@@ -83,4 +83,36 @@ describe('MarketDataController — walk-forward on real history (OOS)', () => {
     expect(r.betaFit).toBe('pinned');
     for (const w of r.windows) expect(w.beta).toBe(25);
   });
+
+  it('reports a multiple-testing verdict (PSR + deflated Sharpe) and applies the selection haircut', async () => {
+    const c = controllerWithFeed(800);
+    const r: any = await c.walkForwardReal({ symbolA: 'AAA', symbolB: 'BBB', trainBars: 200, testBars: 100, trials: 50 });
+    expect(typeof r.multipleTesting.psr).toBe('number');
+    expect(typeof r.multipleTesting.deflatedSharpe).toBe('number');
+    expect(r.multipleTesting.trials).toBe(50);
+    expect(r.multipleTesting.expectedMaxSharpe).toBeGreaterThanOrEqual(0);
+    // The selection haircut can only lower (never raise) the probability.
+    expect(r.multipleTesting.deflatedSharpe).toBeLessThanOrEqual(r.multipleTesting.psr + 1e-9);
+    expect(typeof r.multipleTesting.verdict).toBe('string');
+  });
+
+  it('surfaces regime coverage and warns on a thin window', async () => {
+    const c = controllerWithFeed(800); // ~0.55 days of 1-min bars
+    const r: any = await c.walkForwardReal({ symbolA: 'AAA', symbolB: 'BBB', trainBars: 200, testBars: 100 });
+    expect(r.coverage.bars).toBe(800);
+    expect(Array.isArray(r.coverage.warnings)).toBe(true);
+    expect(r.coverage.warnings.length).toBeGreaterThan(0); // thin history → warned
+    expect(r.coverage.survivorshipCaveat).toMatch(/survivorship/i);
+  });
+
+  it('runs the purged-kfold scheme and pools OOS trades across folds', async () => {
+    const c = controllerWithFeed(800);
+    const r: any = await c.walkForwardReal({ symbolA: 'AAA', symbolB: 'BBB', cv: 'purged-kfold', folds: 5, trials: 50 });
+    expect(r.cv).toBe('purged-kfold');
+    expect(r.split.folds).toBe(5);
+    expect(r.folds.length).toBe(5);
+    expect(typeof r.oos.avgTestSharpe).toBe('number');
+    // The verdict pools every fold's OOS trades.
+    expect(r.multipleTesting.oosTrades).toBe(r.oos.totalTestTrades);
+  });
 });

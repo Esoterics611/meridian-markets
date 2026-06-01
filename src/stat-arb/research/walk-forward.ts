@@ -29,7 +29,9 @@ export interface WalkForwardWindowResult {
   testStart: number;
   testEnd: number;
   train: { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number };
-  test:  { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number; calmar: number };
+  test:  { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number; calmar: number;
+           /** Per-trade OOS P&L (USDC units) — pooled across windows for deflated-Sharpe / PSR. */
+           tradePnlUnits: bigint[] };
 }
 
 export interface WalkForwardReport {
@@ -100,6 +102,7 @@ export async function walkForward(cfg: WalkForwardConfig): Promise<WalkForwardRe
         maxDrawdownPct: testResult.metrics.maxDrawdownPct,
         totalTrades: testResult.metrics.totalTrades,
         calmar,
+        tradePnlUnits: testResult.trades.map((t) => t.pnlUnits),
       },
     });
   }
