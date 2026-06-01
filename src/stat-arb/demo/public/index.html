@@ -144,8 +144,8 @@
     <label class="ctl">&nbsp;
       <button id="backfill" class="primary">⤓ Backfill live history</button>
     </label>
-    <label class="ctl">Lots / leg (USDC)
-      <input type="number" id="capital" value="25000" min="1" step="5000" title="per-leg trade notional used by every Trade button" />
+    <label class="ctl">Lots / leg (USDC) <span class="muted" style="font-weight:400;">· sizes every trade</span>
+      <input type="number" id="capital" value="25000" min="1" step="5000" title="Desk-wide per-leg lot — the single sizing master. Sizes EVERY trade button (scan ▶trade, Signal, ⚖ Size, Trade top N, Launch cockpit) and MM book capital. The Launch and MM panels mirror this; edit a panel field to override just that launch." />
     </label>
   </div>
 
@@ -193,8 +193,8 @@
         <label class="ctl">β (hedge ratio)
           <input type="number" id="lx-beta" value="1" step="0.0001" style="width:96px;" />
         </label>
-        <label class="ctl">Lots / leg (USDC)
-          <input type="number" id="lx-capital" value="25000" min="1" step="5000" style="width:120px;" />
+        <label class="ctl">Lots / leg (USDC) <span class="muted" style="font-weight:400;">· follows desk lot</span>
+          <input type="number" id="lx-capital" value="25000" min="1" step="5000" style="width:120px;" title="Defaults to the desk Lots/leg (top strip) and follows it when you change it. Edit to override just this launch." />
         </label>
       </div>
       <div style="margin-top:12px;">
@@ -254,8 +254,8 @@
         <label class="ctl">Quoter
           <select id="mm-strategy"></select>
         </label>
-        <label class="ctl">Capital (USDC)
-          <input type="number" id="mm-capital" value="100000" min="1" step="1000" style="width:120px;" />
+        <label class="ctl">Capital (USDC) <span class="muted" style="font-weight:400;">· follows desk lot</span>
+          <input type="number" id="mm-capital" value="100000" min="1" step="1000" style="width:120px;" title="Defaults to the desk Lots/leg (top strip) and follows it when you change it. Edit to override just this book." />
         </label>
       </div>
       <div style="margin-top:12px;">
@@ -531,7 +531,7 @@
       if (!symbolA || !symbolB || symbolA === symbolB) { $('lx-note').textContent = 'pick two different legs'; return; }
       const btn = $('lx-launch'); btn.disabled = true; btn.textContent = '▶ launching…';
       const params = collectLaunchParams();
-      const lots = Number($('lx-capital').value) || 25000;
+      const lots = Number($('lx-capital').value) || chosenLots();
       const body = {
         symbolA, symbolB,
         beta: Number($('lx-beta').value) || 1,
@@ -588,7 +588,7 @@
       const symbol = $('mm-symbol').value;
       if (!symbol) { $('mm-note').textContent = 'pick an instrument'; return; }
       const btn = $('mm-launch'); btn.disabled = true; btn.textContent = '◆ launching…';
-      const body = { symbol, strategyId: $('mm-strategy').value || undefined, params: collectMmParams(), capitalUsdc: Number($('mm-capital').value) || 100000 };
+      const body = { symbol, strategyId: $('mm-strategy').value || undefined, params: collectMmParams(), capitalUsdc: Number($('mm-capital').value) || chosenLots() };
       let r; try { r = await jpost('/api/market-making/launch', body); } catch { r = { error: 'request failed' }; }
       btn.disabled = false; btn.textContent = '◆ Launch maker book';
       if (r && r.error) { $('mm-note').textContent = '⚠ ' + r.error; return; }
@@ -598,7 +598,7 @@
     async function launchMmPreset() {
       const presetId = $('mm-preset').value;
       const btn = $('mm-launch-preset'); btn.disabled = true; btn.textContent = 'launching…';
-      const body = { presetId, strategyId: $('mm-strategy').value || undefined, capitalUsdcPerBook: Number($('mm-capital').value) || 100000 };
+      const body = { presetId, strategyId: $('mm-strategy').value || undefined, capitalUsdcPerBook: Number($('mm-capital').value) || chosenLots() };
       let r; try { r = await jpost('/api/market-making/launch-preset', body); } catch { r = { error: 'request failed' }; }
       btn.disabled = false; btn.textContent = 'launch whole preset';
       $('mm-note').textContent = r && r.error ? '⚠ ' + r.error : `✓ launched preset ${presetId} (${(r.books || []).length} books)`;
@@ -762,6 +762,14 @@
     // discovered pairs, signal) appends a portfolio station — one mental model.
     // The desk-wide per-leg lot size (top-strip Lots/leg), USDC.
     function chosenLots() { return Number($('capital').value) || 25000; }
+    // The top-strip Lots/leg is the single desk-wide sizing master. The Launch
+    // cockpit + MM panels mirror it so every trade button is sized from one
+    // control; each panel field stays editable to override a single launch.
+    function syncDeskLot() {
+      const v = chosenLots();
+      const lx = $('lx-capital'); if (lx) lx.value = v;
+      const mm = $('mm-capital'); if (mm) mm.value = v;
+    }
     async function launchStationQuick(a, b, beta, strategyId, noteId, source) {
       const lots = chosenLots();
       const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, notionalUsdc: lots, source: source || undefined };
@@ -1226,6 +1234,8 @@
 
     $('backfill').onclick = backfill;
     $('trade-all').onclick = tradeAll;
+    // Master desk lot → mirror into the Launch + MM panels, and once on load.
+    $('capital').addEventListener('input', syncDeskLot); syncDeskLot();
     $('stop-portfolio').onclick = async () => { await jpost('/api/stat-arb/live/portfolio/stop'); refreshPortfolio(); };
     $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; $('lx-preset').value = $('preset').value; fillLaunchLegs(); loadUniverse(); };
     $('lx-preset').onchange = () => { $('preset').value = $('lx-preset').value; fillLaunchLegs(); loadUniverse(); };

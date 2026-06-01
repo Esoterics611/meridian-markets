@@ -475,3 +475,62 @@ Includes a small errors-prelude commit (3584961) that brought the int-spec suite
 2. **MM spread-capture screener** — rank instruments by `realised-spread − adverse(VPIN) − inventory-risk(vol) + rebate`, weighted by depth/fill-rate; a "where to quote" board.
 3. **Reference-data adapters** (TESSERA): OANDA/Pyth FX (`EUR/USD`, `USD/ILS`), DefiLlama peg, Bit2C `USDC/NIS` — unlock the FX-via-stables and ILS basis trades.
 4. **L2 ingest** → promote `SimpleQueueModel` to the honest `LobReplayHarness`.
+
+---
+
+## 11. Session 20 — Research realignment (scan→asset-classes→trade) + reference data sources (2026-05-31 → 2026-06-01)
+
+**Owner-directed.** Rebuild the `/demo` **Research** tab into a single *scan → asset-classes → trade* flow, add a cross-asset opportunity scanner + a "where to quote" MM screener, then wire **TESSERA reference-data adapters** (true FX OHLC, peg, ILS) as a second data source — scannable, and tradeable on a per-source live feed. Commits `770480d` → `c2dd518`.
+
+### Shipped
+
+- **Cross-asset opportunity scanner + MM screener** (`770480d`): `src/stat-arb/discovery/opportunity-scanner.ts` + `net-edge-scorer.ts` sweep every preset and rank each candidate by **net-edge-after-fees per unit time** (per-trade edge over the fee gate × expected trades/day from half-life × signal stability). `GET /api/opportunities`; `POST /api/market-making/screen` ranks instruments by realised-spread − adverse(VPIN) − inventory-risk + rebate. Both surfaced on the UI.
+- **P0 button consistency** (`84c2036`): wired the previously-dead **FLATTEN ALL**, added **per-station ✕ remove** on stat-arb cards, made **Trade-top-N append** (no silent portfolio wipe).
+- **Research = scan→asset-classes→trade** (`c9f7bbd`, plan `b9924df`): **⊹ Scan all source data** sweeps every asset class at once (`/api/opportunities` + `/api/market-making/screen`), results **grouped by asset class** with a cross-class "fits the model" rollup; folded the standalone Scanner tab in; retired the legacy single-book path — every "trade" now launches a portfolio station. Surfaced the robustness tools (walk-forward/sweep/MC) with a synthetic-feed caveat.
+- **FX (EUR stables) stat-arb preset** (`21091a2`).
+- **TESSERA reference-data adapters** (`ab0f28e`, smoke `2d19397`): `src/market-data/reference/` — `PythBenchmarksClient` (true FX OHLC via the TradingView shim — scannable), `DefiLlamaPegClient`, `Bit2CClient`, all one `IReferenceBarSource`, injected HTTP, public/no-key; `ReferenceSourceRegistry` + `makeScannerLoader` route the scanner per source; new `fx-pyth` reference preset; `GET /api/market-data/reference[/sources]` + a UI "data sources wired" readout.
+- **Reference pairs tradeable on the live loop** (`c2dd518`): per-source feed (`ReferenceBarFeed`/`ReferencePriceSource`/`warmupFromReference`, selected by `PortfolioPair.source`); each Live-books card shows its `feedId`.
+
+### Verification
+- `tsc --noEmit` clean; `jest` **714 tests / 111 suites**.
+- Live (DB-free): `scripts/smoke-reference-sources.ts` exercises Pyth/DefiLlama/Bit2C; the scanner sweeps real presets end-to-end.
+
+### Open follow-ups
+1. **Cross-source pairing** (per-symbol source + timestamp resampling) for the USD/ILS (Pyth) × USDC/NIS (Bit2C) basis — the single-source per-source feed is done; cross-source resampling is not.
+2. **Plumb `ReplayEngine` into `/api/stat-arb/research/*`** so walk-forward/sweep/MC run on real scanned history (drop the synthetic caveat).
+3. **L2 ingest** → honest `LobReplayHarness`. Course gaps: Johansen, purged k-fold, deflated-Sharpe (doubly relevant given the scanner's multiple-testing risk).
+
+See [docs/RESEARCH_TAB_REALIGNMENT_PLAN.md](RESEARCH_TAB_REALIGNMENT_PLAN.md).
+
+---
+
+## 12. Session 21 — Quant desk: research harness, sizing truth, sim-fidelity, single desk lot (2026-06-01)
+
+**Owner-directed.** Turn the engine from "it can paper-trade" into "a quant can run the **find → prove → ship → watch** loop, *honestly*." Commits `35afd21`, `80bedbe`, `1c215e3`, `bc84903`, plus this session's desk-lot unification + history backfill.
+
+### Shipped
+
+- **Research harness + role docs** (`35afd21`): `scripts/quant-research.ts` — DB-free, sweeps **asset-class × strategy × entry-z × bar-interval** on live Binance, ranked net-of-fee, + a sizing study; writes `docs/research/*.json`. New `docs/QUANT_ROLE.md` (the operating manual: scan→hypothesize→backtest→validate→ship→monitor→journal, tech-stack map, "how to add a strategy") + `docs/QUANT_JOURNAL.md` (running research log, append-only — read the latest dated entry first).
+- **Strategy catalogue grows** (`35afd21`): `pairs-zscore-selective`, `pairs-zscore-wide`, `pairs-ewma-conviction`, `ou-bertram-throttled` added to `strategy-registry.ts`; the registry spec is now **structural** (asserts clean growth, not a pinned list).
+- **Sizing study in the UI** (`35afd21`): `POST /api/market-data/sizing-study` + a Research panel — 1×/10×/100× **size-invariance** (net edge in bps + Sharpe are size-invariant under flat fees), round-trip fee, and the **impact-optimal N\*** (impact ∝ N²).
+- **Durable desk equity + connection health** (`35afd21`): session equity curve persisted to `localStorage` (survives refresh ~8h, with session age/peak); a heartbeat colours by data age and flips the live badge to "stale Ns" if the poll loop stalls — frozen numbers never read as live.
+- **Production-readiness gate** (`80bedbe`): `docs/PRODUCTION_READINESS.md` — the tiered checklist. **P0** = sim fidelity (gate before trusting a backtest); **P1** = before real capital (canary); **P2** = polish.
+- **P0.1 — sim fidelity in the replay venue** (`1c215e3`): `HistoricalReplayVenue` now worsens every fill by a **half-spread (bps of price) + linear market impact (λ·notional/ADV)**; BUY pays up, SELL receives less. Defaults off (back-compat); the harness board + `/api/market-data/backtest` turn it on (2 bps spread, 10 bps impact/participation). ADV = mean(volume×close) over loaded bars. +4 venue specs.
+- **Lot size actually sizes trades** (`bc84903`): root-cause fix — the portfolio always built strategies with the fixed `app.live.notionalUnits`, so the capital input never changed trade size. `PortfolioPair.notionalUnits` now threads through the portfolio factory into the strategy (survives reconfigure); `/portfolio/launch` takes `notionalUsdc`. Research streamlined to **① Scan → ② ⚖ Size → ③ ▶ Trade**.
+- **One desk lot across the WHOLE desk** (this session): the top-strip **Lots / leg (USDC)** is now the single sizing master for *every* trade button — scan ▶trade, Signal, ⚖ Size, Trade-top-N, **and the previously-independent Launch cockpit + MM book/preset launchers** all mirror it (`syncDeskLot()` on the `#capital` input → `#lx-capital` / `#mm-capital`, also synced once on load) and stay editable to **override a single launch**. UI notes added: top-strip "· sizes every trade", panels "· follows desk lot" + tooltips. This closes the `bc84903` holdouts (cockpit + MM had kept their own inputs).
+
+### Findings (QUANT_JOURNAL)
+- **Entry #1:** position size is a **risk** lever, not an alpha lever — net edge in bps and Sharpe are size-invariant under flat fees; **impact (∝ N²)** is what caps size. **Bar interval is the biggest free profitability lever** — the prior "fee drag dominates" diagnosis was a **1m artifact**; at 15m the board flips positive (edge/trade clears the ~20 bps fee floor). crypto-majors does **not** pair-trade profitably after fees at any interval tested.
+- **Entry #2 (the honest reversal):** adding slippage **flips the ranking** — eth-ecosystem (the Entry-#1 Sharpe-3.16 "consistency winner") collapses to ≈ −$270 because its legs are thin (impact eats it at $25k/leg); **ai-data z-score @ eZ2–2.5 survives at +$4,460** (more liquid). **Liquidity, not just cointegration, decides what's tradeable at size.**
+
+### Verification
+- `tsc --noEmit` clean; `jest` **717 tests / 111 suites** (+3 over S20). HTML/UI is not unit-tested here, and the dev server can't launch in the tool sandbox (exit 144) — verify the single-desk-lot flow manually via `FEED_SOURCE=binance EXECUTION_MODE=paper npm run start:dev` + `/demo`.
+- Live: `scripts/quant-research.ts` + `scripts/quant-session.ts` run end-to-end against real Binance public REST.
+
+### Open follow-ups (the P0 frontier — gate before trusting any backtest)
+1. **OOS / walk-forward on REAL history** — `/api/stat-arb/research/*` still runs on the synthetic feed; plumb `ReplayEngine` in + a train/test split. **No strategy ships on in-sample numbers** (the #1 backlog item; every current Journal candidate is blocked on it).
+2. **Multiple-testing correction** — deflated Sharpe + purged k-fold (we scan ~80–90 pairs/class and report the top → selection bias).
+3. **Borrow/funding cost on the short leg**; **more history + point-in-time universe** (10 days isn't "consistent over days"; presets are *today's* listed symbols → survivorship).
+4. **P1 (real capital):** risk-parity allocator wired into the *live* path, maker/limit execution (reuse `src/market-making/`), real venue adapter + reconciliation, restart-safe live books.
+
+See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md](QUANT_ROLE.md), [docs/QUANT_JOURNAL.md](QUANT_JOURNAL.md).
