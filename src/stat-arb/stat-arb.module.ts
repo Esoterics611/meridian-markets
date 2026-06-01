@@ -197,13 +197,16 @@ async function warmupFromBinance(
         refRegistry: ReferenceSourceRegistry,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>) =>
+        const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>, notionalUnits?: bigint) =>
           strategyRegistry.build(strategyId ?? app.live.strategyId, {
             beta: beta ?? app.live.beta,
-            notionalUnits: app.live.notionalUnits,
+            notionalUnits: notionalUnits ?? app.live.notionalUnits,
             params,
           });
         const makeTrader = (pair: PortfolioPair): LivePaperTrader => {
+          // Per-leg trade notional ("lot size") chosen at launch; falls back to
+          // the config default. Captured per book so reconfigure keeps the size.
+          const bookNotional = pair.notionalUnits ?? app.live.notionalUnits;
           // A reference-source pair (e.g. Pyth FX) trades on a per-source feed +
           // price source so it rides the same live loop as a Binance pair.
           const refSrc = pair.source && pair.source !== 'binance' ? refRegistry.get(pair.source) : undefined;
@@ -232,7 +235,7 @@ async function warmupFromBinance(
               ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
               : undefined;
           return new LivePaperTrader(
-            makeStrategy(pair.beta, pair.strategyId, pair.params),
+            makeStrategy(pair.beta, pair.strategyId, pair.params, bookNotional),
             venue,
             feed,
             {
@@ -246,7 +249,7 @@ async function warmupFromBinance(
             },
             repo,
             undefined,
-            (o) => makeStrategy(o.beta, o.strategyId, o.params),
+            (o) => makeStrategy(o.beta, o.strategyId, o.params, bookNotional),
             warmup,
           );
         };

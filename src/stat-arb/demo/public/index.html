@@ -144,8 +144,8 @@
     <label class="ctl">&nbsp;
       <button id="backfill" class="primary">⤓ Backfill live history</button>
     </label>
-    <label class="ctl">Capital / book (USDC)
-      <input type="number" id="capital" value="100000" min="1" step="1000" />
+    <label class="ctl">Lots / leg (USDC)
+      <input type="number" id="capital" value="25000" min="1" step="5000" title="per-leg trade notional used by every Trade button" />
     </label>
   </div>
 
@@ -193,8 +193,8 @@
         <label class="ctl">β (hedge ratio)
           <input type="number" id="lx-beta" value="1" step="0.0001" style="width:96px;" />
         </label>
-        <label class="ctl">Capital (USDC)
-          <input type="number" id="lx-capital" value="100000" min="1" step="1000" style="width:120px;" />
+        <label class="ctl">Lots / leg (USDC)
+          <input type="number" id="lx-capital" value="25000" min="1" step="5000" style="width:120px;" />
         </label>
       </div>
       <div style="margin-top:12px;">
@@ -277,11 +277,11 @@
     </section>
 
     <section class="panel span-12" data-tab="research">
-      <h2>⊹ Scan the source data — every asset class that fits the model</h2>
-      <div class="desc">Sweep all asset-class market sets at once and rank by expected profit <b>after fees</b>. Results group <b>by asset class</b>: stat-arb pairs by net-edge-per-day (those clearing the fee gate), market-making instruments by spread-capture suitability. Trade or quote straight from a row — each launches an isolated paper book on the Desk. Scans hit live data; a full sweep takes a few seconds.</div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+      <h2>⊹ Research — scan → size → trade</h2>
+      <div class="desc">The end-to-end desk workflow: <b>① Scan</b> every asset class and see which pairs clear the fee gate · <b>② ⚖ Size</b> a pair to see its fees, edge/trade and impact-optimal lots · <b>③ ▶ Trade</b> it. Every Trade button uses the <b>Lots / leg</b> set in the top strip. Scans hit live data (net of fees + slippage); a full sweep takes a few seconds.</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
         <label class="ctl">Universe<select id="scan-preset"></select></label>
-        <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">⊹ Scan all source data</button>
+        <button id="scan-run" class="primary" style="font-size:13px;padding:8px 14px;">① ⊹ Scan all source data</button>
         <span id="scan-note" class="muted" style="font-size:12px;"></span>
       </div>
       <div id="data-sources" style="margin:8px 0;"></div>
@@ -333,11 +333,12 @@
     </section>
 
     <section class="panel span-12" data-tab="research">
-      <h2>⚖ Position sizing &amp; fee economics</h2>
-      <div class="desc">Fees here are <b>5 bps of notional × 4 fills/round-trip (~20 bps)</b> — a fixed <i>percentage</i>, so they scale with size: net edge <b>in bps is the same at 1 lot or 1000 lots</b>. Bigger size only multiplies the dollars (and the risk), not the edge. What kills small thin-edge trades is <b>edge-per-trade &lt; the fee floor</b>, not the size. The real size limit is <b>market impact</b> (∝ N²), which sets an optimal participation N*. Backtest a discovered pair first, then study it here.</div>
+      <h2>② ⚖ Size &amp; ③ ▶ Trade</h2>
+      <div class="desc">Fees are <b>5 bps of notional × 4 fills (~20 bps round-trip)</b> — a fixed <i>percentage</i>, so net edge <b>in bps is the same at any lot size</b>; bigger lots only multiply the dollars (and risk), not the edge. The real cap is <b>market impact</b> (∝ N²) — the <b>impact-optimal lots N*</b> below is the most you can deploy before impact eats half the edge. Load a pair from a scan row (⚖) or a backtest, set <b>Lots/leg</b> above, then <b>Trade these lots</b>.</div>
       <div class="launch-row" style="margin-bottom:8px;">
-        <button id="sz-run" class="primary" style="font-size:13px;padding:8px 14px;">⚖ Study sizing — last backtested pair</button>
-        <span id="sz-note" class="muted" style="font-size:12px;">backtest a pair (Deep-dive or Signal) to load it here</span>
+        <button id="sz-run" class="ghost" style="font-size:12px;">⚖ Re-size last pair</button>
+        <button id="sz-trade" class="primary" style="font-size:13px;padding:8px 14px;">▶ Trade these lots</button>
+        <span id="sz-note" class="muted" style="font-size:12px;">load a pair from a scan row (⚖) or a backtest</span>
       </div>
       <div id="sz-result"></div>
     </section>
@@ -530,18 +531,19 @@
       if (!symbolA || !symbolB || symbolA === symbolB) { $('lx-note').textContent = 'pick two different legs'; return; }
       const btn = $('lx-launch'); btn.disabled = true; btn.textContent = '▶ launching…';
       const params = collectLaunchParams();
+      const lots = Number($('lx-capital').value) || 25000;
       const body = {
         symbolA, symbolB,
         beta: Number($('lx-beta').value) || 1,
         strategyId: $('lx-strategy').value || undefined,
         params,
-        capitalUsdc: Number($('lx-capital').value) || 100000,
+        notionalUsdc: lots,
       };
       let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch (e) { r = { error: 'request failed' }; }
       btn.disabled = false; btn.textContent = '▶ Launch station';
       if (r && r.error) { $('lx-note').textContent = '⚠ ' + r.error; return; }
       const pstr = Object.entries(params).map(([k, v]) => `${k}=${v}`).join(' ');
-      $('lx-note').textContent = `✓ launched ${symbolA}/${symbolB} · ${body.strategyId || 'default'} · β ${num(body.beta,3)} · ${fmtUsdc(body.capitalUsdc * USDC)} USDC${pstr ? ' · ' + pstr : ''}`;
+      $('lx-note').textContent = `✓ launched ${symbolA}/${symbolB} · ${body.strategyId || 'default'} · β ${num(body.beta,3)} · ${fmtUsdc(lots * USDC)} USDC/leg${pstr ? ' · ' + pstr : ''}`;
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
     }
@@ -701,9 +703,10 @@
           // so every clearing pair is launchable; the source tag shows the feed.
           const srcTag = o.source && o.source !== 'binance'
             ? ` <span class="chip" style="border-color:var(--accent-dim);" title="data source">${o.source}</span>` : '';
-          const action = o.clearsFees
-            ? `<button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta},${JSON.stringify(o.source)})'>▶ trade</button>`
-            : '';
+          const sizeBtn = `<button class="ghost" style="padding:2px 6px;font-size:11px;" title="size this pair — fees + impact-optimal lots" onclick='sizeOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta})'>⚖</button>`;
+          const action = sizeBtn + (o.clearsFees
+            ? ` <button class="ghost" style="padding:2px 8px;font-size:11px;" onclick='launchOpp(${JSON.stringify(o.symbolA)},${JSON.stringify(o.symbolB)},${o.beta},${JSON.stringify(o.source)})'>▶ trade</button>`
+            : '');
           return `<tr>
           <td class="mono accent">${o.symbolA}/${o.symbolB}</td><td class="muted">${o.assetClass}${srcTag}</td>
           <td>${num(o.sigmaSpread, 4)}</td><td>${num(o.halfLifeBars, 1)}</td>
@@ -757,12 +760,27 @@
     }
     // Unified "launch a station": every trade button across the desk (scanner,
     // discovered pairs, signal) appends a portfolio station — one mental model.
+    // The desk-wide per-leg lot size (top-strip Lots/leg), USDC.
+    function chosenLots() { return Number($('capital').value) || 25000; }
     async function launchStationQuick(a, b, beta, strategyId, noteId, source) {
-      const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, capitalUsdc: Number($('capital').value) || 100000, source: source || undefined };
+      const lots = chosenLots();
+      const body = { symbolA: a, symbolB: b, beta, strategyId: strategyId || ($('strategy') && $('strategy').value) || undefined, notionalUsdc: lots, source: source || undefined };
       let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch { r = { error: 'request failed' }; }
-      if (noteId && $(noteId)) $(noteId).textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b}${source && source !== 'binance' ? ' (' + source + ')' : ''} — see Desk → Live books`;
+      if (noteId && $(noteId)) $(noteId).textContent = r && r.error ? ('⚠ ' + r.error) : `✓ launched ${a}/${b} @ ${fmtUsdc(lots * USDC)} USDC/leg${source && source !== 'binance' ? ' (' + source + ')' : ''} — see Desk → Live books`;
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
+    }
+    // Scan row ⚖ → load the pair into the Size panel and study it.
+    function sizeOpp(a, b, beta) {
+      window.__lastBacktest = { symbolA: a, symbolB: b, beta, strategyId: ($('strategy') && $('strategy').value) || undefined };
+      const el = $('sz-run'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      runSizing();
+    }
+    // Size panel ▶ → launch the loaded pair at the chosen lots.
+    async function tradeSizedPair() {
+      const lb = window.__lastBacktest;
+      if (!lb) { $('sz-note').textContent = 'load a pair first (scan ⚖ or a backtest)'; return; }
+      await launchStationQuick(lb.symbolA, lb.symbolB, lb.beta, lb.strategyId, 'sz-note');
     }
 
     let chart, candleSeries, chartSymbol = null;
@@ -887,7 +905,7 @@
       const a = $('sig-a').value, b = $('sig-b').value;
       if (!a || !b || a === b) { $('sig-desc').textContent = 'pick two different legs to trade'; return; }
       const btn = $('sig-trade'); btn.disabled = true; btn.textContent = '▶ launching…';
-      const body = { symbolA: a, symbolB: b, beta: betaForPair(a, b), strategyId: $('sig-strategy').value || undefined, capitalUsdc: Number($('lx-capital') && $('lx-capital').value) || 100000 };
+      const body = { symbolA: a, symbolB: b, beta: betaForPair(a, b), strategyId: $('sig-strategy').value || undefined, notionalUsdc: chosenLots() };
       let r; try { r = await jpost('/api/stat-arb/live/portfolio/launch', body); } catch { r = { error: 'request failed' }; }
       btn.disabled = false; btn.textContent = '▶ Trade it';
       if (r && r.error) { $('sig-desc').textContent = '⚠ ' + r.error; return; }
@@ -1004,13 +1022,12 @@
         symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta,
         strategyId: (mix === 'roundrobin' && cat.length) ? cat[i % cat.length].id : selected,
       }));
-      const capitalUsdc = Number($('capital').value) || 100000;
-      const per = Math.max(1, Math.floor(capitalUsdc / n));
+      const lots = chosenLots();
       // Append each pair as its own station (same /portfolio/launch path as every
       // other launch button) so this never silently wipes books you already have.
-      // Capital is split evenly across the N being launched.
+      // Each book trades the chosen Lots/leg.
       for (const p of pairs) {
-        await jpost('/api/stat-arb/live/portfolio/launch', { symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta, strategyId: p.strategyId, capitalUsdc: per });
+        await jpost('/api/stat-arb/live/portfolio/launch', { symbolA: p.symbolA, symbolB: p.symbolB, beta: p.beta, strategyId: p.strategyId, notionalUsdc: lots });
       }
       $('portfolio-panel').style.display = 'block';
       await refreshPortfolio();
@@ -1187,7 +1204,7 @@
       const btn = $('sz-run'); btn.disabled = true; btn.textContent = '⚖ studying…';
       $('sz-note').textContent = `sizing ${lb.symbolA}/${lb.symbolB}…`;
       const lookbackHours = Number($('lookback').value) || 72;
-      let r; try { r = await jpost('/api/market-data/sizing-study', { symbolA: lb.symbolA, symbolB: lb.symbolB, beta: lb.beta, strategyId: lb.strategyId, lookbackHours }); } catch { r = { error: 'request failed' }; }
+      let r; try { r = await jpost('/api/market-data/sizing-study', { symbolA: lb.symbolA, symbolB: lb.symbolB, beta: lb.beta, strategyId: lb.strategyId, lookbackHours, baseNotionalUsdc: chosenLots() }); } catch { r = { error: 'request failed' }; }
       btn.disabled = false; btn.textContent = '⚖ Study sizing — last backtested pair';
       if (!r || r.error) { $('sz-note').textContent = '⚠ ' + ((r && r.error) || 'failed'); $('sz-result').innerHTML = ''; return; }
       $('sz-note').textContent = `${r.pair} · ${r.strategy} · ${r.window.bars} bars · round-trip fee ${r.roundTripFeeBps} bps`;
@@ -1205,6 +1222,7 @@
         <div class="desc"><b>Takeaway:</b> net PnL scales linearly with size (×10, ×100) while <b>edge/trade and Sharpe stay flat</b> — size is a risk/impact lever, not alpha. Profit comes from <b>edge/trade clearing the ${r.roundTripFeeBps}bps floor</b>, not from sizing up.</div>`;
     }
     $('sz-run').onclick = runSizing;
+    $('sz-trade').onclick = tradeSizedPair;
 
     $('backfill').onclick = backfill;
     $('trade-all').onclick = tradeAll;

@@ -24,6 +24,9 @@ export interface PortfolioPair {
   params?: Record<string, number>;
   /** Data source for this book's feed/prices ('binance' default, or 'pyth', …). */
   source?: string;
+  /** Per-leg trade notional in 6-dec USDC units (the "lot size"). Defaults to
+   *  the live config notional when omitted — set it to size trades from the UI. */
+  notionalUnits?: bigint;
 }
 
 export interface PortfolioBookRow {

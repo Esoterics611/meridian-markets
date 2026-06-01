@@ -236,19 +236,30 @@ export class LiveController {
       capitalUsdc?: number;
       startingCapitalUnits?: string;
       source?: string;
+      /** Per-leg trade notional in whole USDC — the "lot size" the desk chooses. */
+      notionalUsdc?: number;
     },
   ) {
     if (!body.symbolA || !body.symbolB) return { error: 'symbolA and symbolB are required to launch a station' };
     if (body.strategyId && !strategyRegistry.has(body.strategyId)) {
       return { error: `unknown strategyId: ${body.strategyId}`, known: strategyRegistry.liveCapable().map((d) => d.id) };
     }
+    // Lot size: per-leg notional in USDC units. When given it sizes the trades,
+    // and the book's capital anchor defaults to the same lot (so the card's
+    // Capital reads as the size you chose) unless an explicit capital is supplied.
+    const notionalUnits =
+      body.notionalUsdc !== undefined && body.notionalUsdc > 0
+        ? BigInt(Math.round(body.notionalUsdc)) * USDC
+        : undefined;
     const capital =
       body.startingCapitalUnits !== undefined
         ? BigInt(body.startingCapitalUnits)
-        : BigInt(Math.round(body.capitalUsdc ?? 100_000)) * USDC;
+        : body.capitalUsdc !== undefined
+          ? BigInt(Math.round(body.capitalUsdc)) * USDC
+          : notionalUnits ?? 100_000n * USDC;
     try {
       this.portfolio.addBook(
-        { symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params, source: body.source },
+        { symbolA: body.symbolA, symbolB: body.symbolB, beta: body.beta, strategyId: body.strategyId, params: body.params, source: body.source, notionalUnits },
         capital,
       );
     } catch (err) {

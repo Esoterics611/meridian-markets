@@ -262,6 +262,8 @@ export class MarketDataController {
       strategyId?: string;
       params?: Record<string, number>;
       impactLambdaBps?: number;
+      /** Centre the 1×/10×/100× table on the desk's chosen lot size (USDC/leg). */
+      baseNotionalUsdc?: number;
     },
   ) {
     const symbolA = body.symbolA ?? 'BTC';
@@ -277,7 +279,10 @@ export class MarketDataController {
     }
 
     const FEE_BPS = 5n;
-    const base = 25_000_000_000n; // $25k/leg — balanced 25% deployment of a $100k book
+    const base =
+      body.baseNotionalUsdc !== undefined && body.baseNotionalUsdc > 0
+        ? BigInt(Math.round(body.baseNotionalUsdc)) * 1_000_000n
+        : 25_000_000_000n; // default $25k/leg
     const hasStrat = !!body.strategyId && strategyRegistry.has(body.strategyId);
     const buildStrategy = (notionalUnits: bigint) =>
       hasStrat
