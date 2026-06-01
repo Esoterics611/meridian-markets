@@ -32,6 +32,13 @@ export interface MarketPreset {
   defaultPair: [string, string];
   /** Quote asset for the Binance market symbol. */
   quote: string;
+  /**
+   * Data source. Omitted/`'binance'` = Binance public spot (the default for
+   * MARKET_PRESETS). `'alpaca'` = US equities via the Alpaca adapter — these
+   * live in EQUITY_PRESETS, NOT MARKET_PRESETS, so the Binance scanner/factory
+   * never try to fetch a ticker like JPM as a Binance market symbol.
+   */
+  source?: 'binance' | 'alpaca';
 }
 
 export const MARKET_PRESETS: readonly MarketPreset[] = [
@@ -120,12 +127,119 @@ export const MARKET_PRESETS: readonly MarketPreset[] = [
   },
 ] as const;
 
+// Equity stat-arb baskets (Alpaca, quote=USD). Curated for GENUINE, structural
+// cointegration — same-sector names share cash-flow drivers, so the spread
+// mean-reverts by construction. This is the property crypto lacked (Journal #5:
+// the "cointegration cliff" — short-window crypto cointegration collapses
+// 30→180d). The thesis test is scripts/cointegration-stability.ts STAB_SOURCE=
+// alpaca: do these HOLD across 90/180d where crypto went to 0?
+//
+// Kept SEPARATE from MARKET_PRESETS on purpose: the Binance scanner + live
+// factory iterate MARKET_PRESETS and would try to fetch 'JPMUSDT' klines. The
+// Alpaca path resolves these explicitly (the stability script + the Alpaca
+// branch of the live factory).
+export const EQUITY_PRESETS: readonly MarketPreset[] = [
+  {
+    id: 'equity-banks',
+    label: 'US Money-Center & Regional Banks',
+    assetClass: 'Financials',
+    description: 'Banks share the rate/credit cycle as a common cash-flow driver — dispersion mean-reverts within the group.',
+    symbols: ['JPM', 'BAC', 'WFC', 'C', 'USB', 'PNC', 'TFC', 'GS', 'MS'],
+    defaultPair: ['JPM', 'BAC'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-energy',
+    label: 'Integrated Oil & Refiners',
+    assetClass: 'Energy',
+    description: 'Crude/crack-spread exposure is the shared factor across majors and refiners — classic intra-sector pairs.',
+    symbols: ['XOM', 'CVX', 'COP', 'EOG', 'SLB', 'PSX', 'VLO', 'MPC'],
+    defaultPair: ['XOM', 'CVX'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-rails',
+    label: 'Class-I Railroads',
+    assetClass: 'Industrials',
+    description: 'A near-duopoly of freight rails on shared volumes/fuel — the textbook structurally-cointegrated group.',
+    symbols: ['UNP', 'CSX', 'NSC', 'CP', 'CNI'],
+    defaultPair: ['UNP', 'CSX'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-megacap-tech',
+    label: 'Mega-Cap Tech',
+    assetClass: 'Technology',
+    description: 'The mega-cap complex co-moves on rates/AI-capex; rich dispersion but less structural than single-sub-industry groups.',
+    symbols: ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA'],
+    defaultPair: ['AAPL', 'MSFT'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-payments',
+    label: 'Card Networks & Payments',
+    assetClass: 'Financials',
+    description: 'Card-network duopoly + processors share consumer-spend volume — V/MA is a canonical tight pair.',
+    symbols: ['V', 'MA', 'AXP', 'PYPL', 'FIS', 'GPN'],
+    defaultPair: ['V', 'MA'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-staples',
+    label: 'Consumer Staples',
+    assetClass: 'Staples',
+    description: 'Defensive staples share input-cost/consumer-demand drivers — KO/PEP is the textbook cointegrated pair.',
+    symbols: ['KO', 'PEP', 'PG', 'CL', 'MDLZ', 'KMB'],
+    defaultPair: ['KO', 'PEP'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-pharma',
+    label: 'Big Pharma',
+    assetClass: 'Healthcare',
+    description: 'Large-cap pharma share regulatory/patent-cycle and defensive-demand factors.',
+    symbols: ['PFE', 'MRK', 'BMY', 'ABBV', 'LLY', 'JNJ'],
+    defaultPair: ['MRK', 'PFE'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+  {
+    id: 'equity-semis',
+    label: 'Semiconductors',
+    assetClass: 'Technology',
+    description: 'Semis ride the same capex/inventory cycle — high shared beta, frequent dispersion (watch idiosyncratic AI-mix).',
+    symbols: ['NVDA', 'AMD', 'INTC', 'AVGO', 'QCOM', 'TXN', 'MU'],
+    defaultPair: ['NVDA', 'AMD'],
+    quote: 'USD',
+    source: 'alpaca',
+  },
+] as const;
+
 export function listPresets(): readonly MarketPreset[] {
   return MARKET_PRESETS;
 }
 
+export function listEquityPresets(): readonly MarketPreset[] {
+  return EQUITY_PRESETS;
+}
+
 export function getPreset(id: string): MarketPreset | undefined {
   return MARKET_PRESETS.find((p) => p.id === id);
+}
+
+/**
+ * Resolve a preset id across BOTH the Binance catalog and the equity catalog.
+ * Used by source-agnostic tools (the cointegration-stability script) that may
+ * be pointed at either universe.
+ */
+export function getAnyPreset(id: string): MarketPreset | undefined {
+  return MARKET_PRESETS.find((p) => p.id === id) ?? EQUITY_PRESETS.find((p) => p.id === id);
 }
 
 /** Resolve a preset id to its symbol set; throws on unknown id (callers validate input). */

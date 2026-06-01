@@ -62,8 +62,8 @@ export interface AppConfig {
   };
   /** Market-data source for the live feed + price source. */
   feed: {
-    /** 'mock' = synthetic generator; 'binance' = real Binance public REST. */
-    source: 'mock' | 'binance';
+    /** 'mock' = synthetic generator; 'binance' = real Binance public REST; 'alpaca' = real Alpaca equities. */
+    source: FeedSource;
     /** Public REST base URL. Override for a regional mirror. No key required. */
     binanceBaseUrl: string;
     /** Quote asset the engine trades against (BTC -> BTCUSDT). */
@@ -76,6 +76,25 @@ export interface AppConfig {
     defillamaBaseUrl: string;
     /** Bit2C base URL (Israeli exchange, ILS reference). Public, no key. */
     bit2cBaseUrl: string;
+  };
+  /**
+   * Alpaca equities adapter (FEED_SOURCE=alpaca). Real US-equity market data
+   * (split/dividend-adjusted bars) + a paper trading venue. Same REST API for
+   * paper and live, so EXECUTION_MODE=paper is honest paper trading on real
+   * prices. Keys are read once here (the `ondo.apiKey` precedent), never via
+   * process.env elsewhere (§6).
+   */
+  alpaca: {
+    /** APCA-API-KEY-ID. Empty until provisioned — the adapter throws if used unkeyed. */
+    keyId: string;
+    /** APCA-API-SECRET-KEY. */
+    secret: string;
+    /** Market-data REST base URL. Default https://data.alpaca.markets. */
+    dataBaseUrl: string;
+    /** Paper-trading REST base URL. Default https://paper-api.alpaca.markets. */
+    tradingBaseUrl: string;
+    /** Data feed: 'iex' (free tier) or 'sip' (paid, full consolidated tape). Default 'iex'. */
+    dataFeed: string;
   };
   /** Live paper-trading loop configuration. */
   live: {
@@ -138,7 +157,7 @@ export interface AppConfig {
   };
 }
 
-export type FeedSource = 'mock' | 'binance';
+export type FeedSource = 'mock' | 'binance' | 'alpaca';
 
 export type ExecutionMode = 'mock' | 'paper' | 'canary' | 'live';
 export const EXECUTION_MODES: readonly ExecutionMode[] = ['mock', 'paper', 'canary', 'live'];

@@ -1,5 +1,14 @@
 # Equities Stat-Arb — Alpaca integration execution spec
 
+> **STATUS (S24, 2026-06-01): Phase 1 SHIPPED.** Adapters built + offline-verified
+> (118 suites / 792 tests): `src/stat-arb/feed/alpaca/` (`AlpacaDataClient` w/
+> `adjustment=all` + pagination, `AlpacaBarFeed`, `AlpacaPriceSource`, `AlpacaPaperVenue`),
+> `FEED_SOURCE=alpaca` config + factory wiring, 8 `EQUITY_PRESETS`, P0.4 short-borrow carry
+> in `HistoricalReplayVenue`, and `cointegration-stability.ts STAB_SOURCE=alpaca`. **The
+> live thesis test + paper-trade need an Alpaca paper key (hand-off)** → persistence verdict
+> lands in QUANT_JOURNAL Entry #7. Phase 2 (OOS gate on Alpaca, scanner/UI routing) + Phase 3
+> (course) are still open.
+
 > Why: Entry #5 proved directional-crypto cointegration is a short-window artifact
 > (the cliff). Equities have **real** structural cointegration (same-sector names
 > share cash-flow drivers), so this is where the desk's OOS-validation wisdom
@@ -74,8 +83,17 @@ Signals (`strategy-registry`), the OOS gate (`walk-forward` + `deflated-sharpe` 
 all asset-agnostic. Only the **feed** and **venue** are new. That is the whole point
 of the swap-seam architecture (CLAUDE.md §7).
 
-## First next-session task
-Write `AlpacaDataClient` + a unit test (canned bars), add `equity-banks` +
-`equity-megacap-tech` presets, run `cointegration-stability.ts STAB_PRESETS=equity-banks,equity-megacap-tech`
-and record the persistence table in a new journal entry. If they hold across
-horizons → the equities thesis is confirmed and the desk has its first real edge.
+## First next-session task — ✅ DONE (S24), thesis run pending
+The adapters, the 8 equity presets, the borrow-cost leg, and the source switch on
+`cointegration-stability.ts` are built + green offline. **What remains is the live run**
+(needs an Alpaca paper key — `ALPACA_KEY_ID`/`ALPACA_SECRET`):
+
+```bash
+STAB_SOURCE=alpaca STAB_INTERVAL=15m STAB_HORIZONS=30,90,180 \
+  STAB_PRESETS=equity-banks,equity-megacap-tech \
+  npx ts-node -r tsconfig-paths/register scripts/cointegration-stability.ts
+```
+
+If the baskets hold cointegration across ≥2 horizons → the equities thesis is confirmed and
+the desk has its first structurally-cointegrated directional universe. Record the
+persistence table in QUANT_JOURNAL Entry #7, then run the OOS gate (Phase 2).

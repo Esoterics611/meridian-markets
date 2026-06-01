@@ -424,3 +424,55 @@ MM_SESSION_HOURS=24 npx ts-node -r tsconfig-paths/register scripts/mm-paper-sess
 # live, for hours, on your own machine:
 MM_SESSION_MODE=live MM_SESSION_HOURS=8 npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
 ```
+
+---
+
+## 2026-06-01 — Entry #7: equities pivot, Phase 1 — Alpaca adapters shipped; thesis test wired (S24)
+
+**Why this, alongside the MM pivot (#6).** #5 found the cliff is *universal* for
+directional crypto — short-window cointegration is a measurement artifact that collapses
+30→180d. MM (#6) is the answer for stablecoins. **Equities are the answer for stat-arb**:
+same-sector names (KO/PEP, the rails near-duopoly, banks) are cointegrated for a
+*structural* reason — shared cash-flow drivers — so the spread should mean-revert by
+construction, not coincidence. That is the exact property crypto lacked. This entry is
+**infrastructure, not a finding** — the build that lets us run the desk's OOS gate on
+equities. The verdict comes next, when the gate runs on real Alpaca history.
+
+**The cost-structure read (why equities *can* clear the bar crypto couldn't).** Crypto
+died on the ~20 bps round-trip taker fee. Equities invert it: **commission ≈ 0** (Alpaca
+commission-free), **large-cap spread ~1–2 bps**, **impact benign** (huge ADV → big N\*).
+The swing cost becomes **short-borrow on the short leg** — ~0.25–0.5%/yr easy-to-borrow,
+10–100%+/yr (and recall risk) for hard-to-borrow names. So borrow is the cost that decides
+equities, and it's name-specific — which is why P0.4 (deferred for crypto) shipped *here*.
+
+**Shipped (offline-verified, 118 suites / 792 tests):**
+- `src/stat-arb/feed/alpaca/` — `AlpacaDataClient` (auth'd Market-Data v2, `adjustment=all`
+  split/div-adjusted, `next_page_token` pagination, interval→Alpaca-timeframe map),
+  `AlpacaBarFeed` + `AlpacaPriceSource` (RTH-aware), `AlpacaPaperVenue` (real Alpaca
+  **paper** order API; whole-share `qty` so the short leg is actually shortable;
+  commission-free ⇒ fees=0). Injected HTTP throughout → unit-tested with canned responses.
+- `FEED_SOURCE=alpaca` config + factory wiring (feed/price/venue/warmup); Binance default.
+- **8 `EQUITY_PRESETS`** (banks, energy, rails, megacap-tech, payments, staples, pharma,
+  semis), kept *separate* from `MARKET_PRESETS` so the Binance scanner never sees a ticker.
+- **P0.4 short-borrow carry** in `HistoricalReplayVenue` — `borrowBpsPerYear` × hold-duration
+  on the short leg, charged on the covering fill into `feesUnits` (default 0 = back-compat).
+- `scripts/cointegration-stability.ts STAB_SOURCE=alpaca` — the **thesis test**, one command.
+
+**The thesis test (hand-off — needs an Alpaca paper key):**
+```bash
+# .env: ALPACA_KEY_ID=…  ALPACA_SECRET=…
+STAB_SOURCE=alpaca STAB_INTERVAL=15m STAB_HORIZONS=30,90,180 \
+  STAB_PRESETS=equity-banks,equity-megacap-tech \
+  npx ts-node -r tsconfig-paths/register scripts/cointegration-stability.ts
+```
+**Decision gate (record results here as the next dated note):** if the equity baskets
+*hold* cointegration across ≥2 horizons (90d **and** 180d) — unlike crypto's collapse to 0
+— the structural thesis is confirmed and the desk has its first genuinely-cointegrated
+directional universe → proceed to the OOS gate (`oos-candidates.ts` pointed at Alpaca),
+net of fee+spread+impact+**borrow**, n≥20 OOS trades, DSR≥0.95. If they collapse too, then
+equities are no different and we say so — the gate's whole point is to reject, not flatter.
+
+**Next:** (1) run the thesis test above and record the persistence table; (2) if it holds,
+backfill 6–12 months and run the OOS gate with the borrow leg on; (3) wire equity presets
+into ⊹ Scan + the OOS buttons in `/demo`; (4) earnings-blackout filter; IBKR for real
+borrow rates (Phase 2/3 of [EQUITIES_STATARB_PLAN.md](EQUITIES_STATARB_PLAN.md)).

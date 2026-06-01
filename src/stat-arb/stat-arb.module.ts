@@ -8,6 +8,10 @@ import { IBarFeed, LIVE_FEED } from './feed/live-feed.interface';
 import { MockBarFeed } from './feed/mock-bar-feed';
 import { BinancePublicBarFeed } from './feed/binance-public-bar-feed';
 import { BinancePublicClient, BINANCE_CLIENT } from './feed/binance-public-client';
+import { AlpacaDataClient, ALPACA_CLIENT } from './feed/alpaca/alpaca-data-client';
+import { AlpacaBarFeed } from './feed/alpaca/alpaca-bar-feed';
+import { AlpacaPriceSource } from './feed/alpaca/alpaca-price-source';
+import { AlpacaPaperVenue } from './feed/alpaca/alpaca-paper-venue';
 import {
   BinancePriceSource,
   IPriceSource,
@@ -73,6 +77,32 @@ async function warmupFromBinance(
   return { a: outA, b: outB };
 }
 
+// Equities warmup — same shape as warmupFromBinance, but from Alpaca's recent
+// (session-only, split/dividend-adjusted) bars. alignMany via the common-
+// timestamp intersection so a cross-leg session-bounded pair lines up.
+async function warmupFromAlpaca(
+  client: AlpacaDataClient,
+  interval: string,
+  symbolA: string,
+  symbolB: string,
+): Promise<{ a: Bar[]; b: Bar[] }> {
+  const [a, b] = await Promise.all([
+    client.recentBars(symbolA, interval, 240),
+    client.recentBars(symbolB, interval, 240),
+  ]);
+  const bByTs = new Map(b.map((bar) => [bar.timestamp.getTime(), bar]));
+  const outA: Bar[] = [];
+  const outB: Bar[] = [];
+  for (const barA of a) {
+    const barB = bByTs.get(barA.timestamp.getTime());
+    if (barB) {
+      outA.push(barA);
+      outB.push(barB);
+    }
+  }
+  return { a: outA, b: outB };
+}
+
 @Module({
   providers: [
     // Shared Binance public REST client (no key, public market data only).
@@ -87,26 +117,43 @@ async function warmupFromBinance(
         });
       },
     },
-    // Market-data feed seam — real Binance public data or the synthetic mock.
+    // Shared Alpaca equities client (FEED_SOURCE=alpaca). Authenticated public
+    // market data + paper venue. Dormant/unkeyed until ALPACA_* secrets exist;
+    // the client throws before any wire call if used unkeyed.
+    {
+      provide: ALPACA_CLIENT,
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService): AlpacaDataClient => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return new AlpacaDataClient({
+          keyId: app.alpaca.keyId,
+          secret: app.alpaca.secret,
+          dataBaseUrl: app.alpaca.dataBaseUrl,
+          feed: app.alpaca.dataFeed,
+        });
+      },
+    },
+    // Market-data feed seam — real Binance public data, real Alpaca equities,
+    // or the synthetic mock.
     {
       provide: LIVE_FEED,
-      inject: [ConfigService, BINANCE_CLIENT],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient): IBarFeed => {
+      inject: [ConfigService, BINANCE_CLIENT, ALPACA_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, alpaca: AlpacaDataClient): IBarFeed => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        return app.feed.source === 'binance'
-          ? new BinancePublicBarFeed(client, app.feed.interval)
-          : new MockBarFeed();
+        if (app.feed.source === 'binance') return new BinancePublicBarFeed(client, app.feed.interval);
+        if (app.feed.source === 'alpaca') return new AlpacaBarFeed(alpaca, app.feed.interval, app.alpaca.dataFeed);
+        return new MockBarFeed();
       },
     },
     // Fill-price source for the paper matching engine.
     {
       provide: PRICE_SOURCE,
-      inject: [ConfigService, BINANCE_CLIENT],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient): IPriceSource => {
+      inject: [ConfigService, BINANCE_CLIENT, ALPACA_CLIENT],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, alpaca: AlpacaDataClient): IPriceSource => {
         const app = cfg.getOrThrow<AppConfig>('app');
-        return app.feed.source === 'binance'
-          ? new BinancePriceSource(client)
-          : StaticPriceSource.fromMap({});
+        if (app.feed.source === 'binance') return new BinancePriceSource(client);
+        if (app.feed.source === 'alpaca') return new AlpacaPriceSource(alpaca);
+        return StaticPriceSource.fromMap({});
       },
     },
     // Execution venue seam, selected by EXECUTION_MODE:
@@ -123,6 +170,17 @@ async function warmupFromBinance(
             return new RealBinanceVenue();
           case 'paper':
           case 'canary':
+            // Equities paper-trade against Alpaca's real paper API (server-side
+            // fills, market-hours/halt validation); crypto uses the local
+            // simulated PaperVenue pegged to the real price source.
+            if (app.feed.source === 'alpaca') {
+              return new AlpacaPaperVenue({
+                keyId: app.alpaca.keyId,
+                secret: app.alpaca.secret,
+                tradingBaseUrl: app.alpaca.tradingBaseUrl,
+                priceMicros: (s) => price.priceMicros(s),
+              });
+            }
             return new PaperVenue({
               pricePoller: (s) => price.priceMicros(s),
               // Model slippage only when an ADV is configured (else frictionless).
@@ -139,13 +197,14 @@ async function warmupFromBinance(
     // The live event loop: pairs strategy + venue + feed + persistence.
     {
       provide: LivePaperTrader,
-      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT],
+      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT, ALPACA_CLIENT],
       useFactory: (
         cfg: ConfigService,
         venue: ITradingVenue,
         feed: IBarFeed,
         repo: StatArbRepository,
         client: BinancePublicClient,
+        alpaca: AlpacaDataClient,
       ): LivePaperTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         // A fresh strategy per pair from the desk registry: switching presaved
@@ -163,7 +222,9 @@ async function warmupFromBinance(
         const warmup: WarmupProvider | undefined =
           app.feed.source === 'binance'
             ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
-            : undefined;
+            : app.feed.source === 'alpaca'
+              ? (a, b) => warmupFromAlpaca(alpaca, app.feed.interval, a, b)
+              : undefined;
         return new LivePaperTrader(
           makeStrategy({}),
           venue,
@@ -188,13 +249,14 @@ async function warmupFromBinance(
     // (own feed cursor + venue + strategy) on the shared live data client.
     {
       provide: LivePortfolioTrader,
-      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry],
+      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry, ALPACA_CLIENT],
       useFactory: (
         cfg: ConfigService,
         client: BinancePublicClient,
         price: IPriceSource,
         repo: StatArbRepository,
         refRegistry: ReferenceSourceRegistry,
+        alpaca: AlpacaDataClient,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>, notionalUnits?: bigint) =>
@@ -209,31 +271,52 @@ async function warmupFromBinance(
           const bookNotional = pair.notionalUnits ?? app.live.notionalUnits;
           // A reference-source pair (e.g. Pyth FX) trades on a per-source feed +
           // price source so it rides the same live loop as a Binance pair.
-          const refSrc = pair.source && pair.source !== 'binance' ? refRegistry.get(pair.source) : undefined;
+          // 'binance'/'alpaca' are NOT reference sources — they ride the global
+          // feed-source path below.
+          const refSrc =
+            pair.source && pair.source !== 'binance' && pair.source !== 'alpaca'
+              ? refRegistry.get(pair.source)
+              : undefined;
+          const isAlpaca = !refSrc && app.feed.source === 'alpaca';
           const feed: IBarFeed = refSrc
             ? new ReferenceBarFeed(refSrc, app.feed.interval)
-            : app.feed.source === 'binance'
-              ? new BinancePublicBarFeed(client, app.feed.interval)
-              : new MockBarFeed();
-          const priceSource: IPriceSource = refSrc ? new ReferencePriceSource(refSrc, app.feed.interval) : price;
+            : isAlpaca
+              ? new AlpacaBarFeed(alpaca, app.feed.interval, app.alpaca.dataFeed)
+              : app.feed.source === 'binance'
+                ? new BinancePublicBarFeed(client, app.feed.interval)
+                : new MockBarFeed();
+          const priceSource: IPriceSource = refSrc
+            ? new ReferencePriceSource(refSrc, app.feed.interval)
+            : isAlpaca
+              ? new AlpacaPriceSource(alpaca)
+              : price;
           const venue: ITradingVenue =
             app.execution.mode === 'mock'
               ? new MockTradingVenue()
-              : new PaperVenue({
-                  pricePoller: (s) => priceSource.priceMicros(s),
-                  slippage:
-                    app.live.advUnits > 0n
-                      ? { advUnits: app.live.advUnits, lambdaBps: app.live.slippageLambdaBps }
-                      : undefined,
-                });
+              : isAlpaca
+                ? new AlpacaPaperVenue({
+                    keyId: app.alpaca.keyId,
+                    secret: app.alpaca.secret,
+                    tradingBaseUrl: app.alpaca.tradingBaseUrl,
+                    priceMicros: (s) => priceSource.priceMicros(s),
+                  })
+                : new PaperVenue({
+                    pricePoller: (s) => priceSource.priceMicros(s),
+                    slippage:
+                      app.live.advUnits > 0n
+                        ? { advUnits: app.live.advUnits, lambdaBps: app.live.slippageLambdaBps }
+                        : undefined,
+                  });
           const riskEngine = new RiskEngine({
             drawdown: new DrawdownGate({ maxDrawdownPct: app.live.maxDrawdownPct }),
           });
           const warmup: WarmupProvider | undefined = refSrc
             ? (a, b) => warmupFromReference(refSrc, app.feed.interval, a, b)
-            : app.feed.source === 'binance'
-              ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
-              : undefined;
+            : isAlpaca
+              ? (a, b) => warmupFromAlpaca(alpaca, app.feed.interval, a, b)
+              : app.feed.source === 'binance'
+                ? (a, b) => warmupFromBinance(client, app.feed.interval, a, b)
+                : undefined;
           return new LivePaperTrader(
             makeStrategy(pair.beta, pair.strategyId, pair.params, bookNotional),
             venue,

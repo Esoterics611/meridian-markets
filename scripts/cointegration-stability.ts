@@ -30,13 +30,21 @@ import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
+import { AlpacaDataClient } from '../src/stat-arb/feed/alpaca/alpaca-data-client';
 import { discoverPairs } from '../src/stat-arb/discovery/pair-discovery';
-import { getPreset } from '../src/stat-arb/markets/market-presets';
+import { getAnyPreset, EQUITY_PRESETS, MarketPreset } from '../src/stat-arb/markets/market-presets';
 
-const ALL_PRESETS = [
+// STAB_SOURCE=binance (default, crypto) | alpaca (US equities — the pivot).
+// The equities thesis test: do same-sector baskets HOLD cointegration across
+// 90/180d where every crypto class collapsed to 0 (Journal #5, the cliff)?
+const SOURCE = (process.env.STAB_SOURCE ?? 'binance').trim().toLowerCase();
+
+const CRYPTO_PRESETS = [
   'crypto-majors', 'ai-data', 'l1-smart-contract', 'eth-ecosystem',
   'gaming-meta', 'defi-bluechip', 'payments-sov', 'fx-stables', 'stablecoin-peg',
 ];
+const EQUITY_PRESET_IDS = EQUITY_PRESETS.map((p) => p.id);
+const ALL_PRESETS = SOURCE === 'alpaca' ? EQUITY_PRESET_IDS : CRYPTO_PRESETS;
 const PRESETS = (process.env.STAB_PRESETS ?? ALL_PRESETS.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
 const HORIZONS = (process.env.STAB_HORIZONS ?? '30,90,180').split(',').map(Number);
 const INTERVAL = process.env.STAB_INTERVAL ?? '15m';
@@ -72,27 +80,46 @@ interface CellResult {
 }
 
 async function main() {
-  const client = new BinancePublicClient({ quote: 'USDT' });
-  const stableClient = new BinancePublicClient({ quote: 'USDT' });
+  const isAlpaca = SOURCE === 'alpaca';
+  const binance = new BinancePublicClient({ quote: 'USDT' });
+  const alpaca = isAlpaca
+    ? new AlpacaDataClient({
+        keyId: process.env.ALPACA_KEY_ID ?? '',
+        secret: process.env.ALPACA_SECRET ?? '',
+        dataBaseUrl: process.env.ALPACA_DATA_BASE_URL ?? 'https://data.alpaca.markets',
+        feed: process.env.ALPACA_DATA_FEED ?? 'iex',
+      })
+    : undefined;
+  if (isAlpaca && (!process.env.ALPACA_KEY_ID || !process.env.ALPACA_SECRET)) {
+    console.error('STAB_SOURCE=alpaca requires ALPACA_KEY_ID and ALPACA_SECRET in the environment.');
+    process.exit(1);
+  }
+
+  // Source-agnostic bar loader: the discovery gate downstream is identical.
+  const load = (preset: MarketPreset, sym: string, fromMs: number, toMs: number): Promise<Bar[]> => {
+    if (isAlpaca) return alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs);
+    const cli = preset.quote && preset.quote !== 'USDT' ? new BinancePublicClient({ quote: preset.quote }) : binance;
+    return cli.historicalKlines(sym, INTERVAL, fromMs, toMs);
+  };
+
   const toMs = Date.now();
   const results: CellResult[] = [];
 
-  console.log(`\n=== Cointegration-stability map · ${INTERVAL} · pCutoff<${P_CUTOFF} · maxHalfLife=${MAX_HALFLIFE} bars ===`);
+  console.log(`\n=== Cointegration-stability map · source=${SOURCE} · ${INTERVAL} · pCutoff<${P_CUTOFF} · maxHalfLife=${MAX_HALFLIFE} bars ===`);
   console.log(`presets: ${PRESETS.join(', ')}`);
   console.log(`horizons (days): ${HORIZONS.join(', ')}\n`);
   console.log('preset'.padEnd(20) + HORIZONS.map((h) => `${h}d`.padEnd(9)).join('') + 'note');
 
   for (const presetId of PRESETS) {
-    const preset = getPreset(presetId);
+    const preset = getAnyPreset(presetId);
     if (!preset) { console.log(presetId.padEnd(20) + 'unknown preset'); continue; }
-    const cli = preset.quote && preset.quote !== 'USDT' ? new BinancePublicClient({ quote: preset.quote }) : client;
     const cells: Record<number, CellResult> = {};
     for (const days of HORIZONS) {
       const fromMs = toMs - days * 86_400_000;
       const bySymbol = new Map<string, Bar[]>();
       for (const sym of preset.symbols) {
         try {
-          const bars = await cli.historicalKlines(sym, INTERVAL, fromMs, toMs);
+          const bars = await load(preset, sym, fromMs, toMs);
           if (bars.length > 0) bySymbol.set(sym, bars);
         } catch { /* skip unlisted/sparse symbol */ }
       }
@@ -116,11 +143,10 @@ async function main() {
     console.log(presetId.padEnd(20) + HORIZONS.map((h) => String(cells[h].pairs).padEnd(9)).join('') + note);
   }
 
-  void stableClient;
   const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
   const outPath = join('docs', 'research', `${ts}-cointegration-stability.json`);
   writeFileSync(outPath, JSON.stringify({
-    generatedAt: new Date().toISOString(), interval: INTERVAL, pValueCutoff: P_CUTOFF,
+    generatedAt: new Date().toISOString(), source: SOURCE, interval: INTERVAL, pValueCutoff: P_CUTOFF,
     maxHalfLifeBars: MAX_HALFLIFE, minBars: MIN_BARS, horizonsDays: HORIZONS, presets: PRESETS, results,
   }, null, 2));
   console.log(`\nThe count is the # of pairs passing cointegration (p<${P_CUTOFF}) on the FULL window of that length.`);
