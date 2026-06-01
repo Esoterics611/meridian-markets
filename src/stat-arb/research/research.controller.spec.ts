@@ -8,7 +8,12 @@ function makeController() {
       statArb: { demoPairA: 'BTC', demoPairB: 'ETH', demoBarCount: 90, mockEnabled: true },
     }),
   } as unknown as ConfigService;
-  return new ResearchController(cfg, new MockTradingVenue());
+  // Freeze the venue clock: MockTradingVenue prices fills off `now()` (a sine of
+  // wall-clock time), so two calls a few ms apart fill at slightly different
+  // prices. That noise is invisible at a $1 lot but not at the desk's $100k lot —
+  // freezing the clock isolates the bootstrap determinism this suite asserts.
+  const frozenNow = () => new Date('2026-03-01T00:00:00Z');
+  return new ResearchController(cfg, new MockTradingVenue(undefined, frozenNow));
 }
 
 describe('ResearchController', () => {

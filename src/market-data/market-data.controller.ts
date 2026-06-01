@@ -6,6 +6,8 @@ import { BacktestRunner } from '../stat-arb/backtest/backtest-runner';
 import { PairsStrategy } from '../stat-arb/backtest/pairs-strategy';
 import { strategyRegistry } from '../stat-arb/strategies/strategy-registry';
 import { HistoricalReplayVenue } from '../stat-arb/historical-replay-venue';
+import { walkForward } from '../stat-arb/research/walk-forward';
+import { cointegrationTest } from '../stat-arb/signal/cointegration';
 import { Bar } from '../stat-arb/backtest/bar';
 import { listPresets, getPreset } from '../stat-arb/markets/market-presets';
 import { runUniverseOnBars, ApiUniverseResponse } from '../stat-arb/discovery/universe.controller';
@@ -58,6 +60,30 @@ function alignPair(a: Bar[], b: Bar[]): { a: Bar[]; b: Bar[] } {
     }
   }
   return { a: outA, b: outB };
+}
+
+/**
+ * Engle-Granger hedge ratio (β) fit on a TRAIN slice only — used per walk-forward
+ * window so the spread the strategy trades OOS was estimated without peeking at
+ * the test data. Deterministic in its inputs, so the factory and the per-window
+ * display recompute the same value. Falls back to 1:1 on a degenerate fit.
+ */
+function fitBetaOnTrain(trainBarsA: Bar[], trainBarsB: Bar[]): number {
+  if (trainBarsA.length < 10 || trainBarsA.length !== trainBarsB.length) return 1;
+  try {
+    const beta = cointegrationTest(
+      trainBarsA.map((x) => Math.log(x.close)),
+      trainBarsB.map((x) => Math.log(x.close)),
+    ).beta;
+    return Number.isFinite(beta) ? beta : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function clampInt(v: number | undefined, fallback: number, min: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min ? Math.floor(n) : fallback;
 }
 
 @Controller('api/market-data')
@@ -193,7 +219,7 @@ export class MarketDataController {
       };
     }
 
-    const notionalUnits = BigInt(body.notionalUnits ?? '1000000000');
+    const notionalUnits = BigInt(body.notionalUnits ?? '100000000000');
     // Strategy-aware: a registry id (e.g. ou-bertram, pairs-ewma) builds with
     // its catalogue tuning; the legacy path keeps the body's z-score knobs.
     const strategyId =
@@ -231,6 +257,151 @@ export class MarketDataController {
       metrics: result.metrics,
       tradeCount: result.trades.length,
       trades: result.trades.slice(0, 25),
+    });
+  }
+
+  /**
+   * Walk-forward on REAL Binance history with a true train/test split — the P0
+   * gate so no strategy ships on in-sample numbers. For each window we:
+   *   1. fit the hedge ratio β on the TRAIN slice only (Engle-Granger),
+   *   2. apply that β + the frozen catalogue tuning on the OOS TEST slice,
+   *   3. price every fill net of fee + half-spread + market impact (same cost
+   *      model as /backtest), per slice.
+   * The headline is the avg TEST Sharpe and the share of positive test windows;
+   * the train→test Sharpe gap (`sharpeDegradation`) is the in-sample optimism we
+   * were flying blind to. β is shown per window so β drift is visible (a sign-
+   * flipping β across windows means the pair isn't a stable spread).
+   *
+   *   POST /api/market-data/walk-forward
+   *     { symbolA, symbolB, venue?, lookbackHours?, strategyId?, params?,
+   *       trainBars?, testBars?, beta?, zLookback?, entryZ?, exitZ?,
+   *       notionalUnits?, halfSpreadBps?, impactLambdaBps? }
+   *   `beta` pins β across windows (skips the per-train refit) — only honest if
+   *   the caller knows it; omit it for the OOS-safe per-window fit (default).
+   */
+  @Post('walk-forward')
+  async walkForwardReal(
+    @Body()
+    body: {
+      symbolA?: string;
+      symbolB?: string;
+      venue?: string;
+      lookbackHours?: number;
+      strategyId?: string;
+      params?: Record<string, number>;
+      trainBars?: number;
+      testBars?: number;
+      beta?: number;
+      zLookback?: number;
+      entryZ?: number;
+      exitZ?: number;
+      notionalUnits?: string;
+      halfSpreadBps?: number;
+      impactLambdaBps?: number;
+    },
+  ) {
+    const symbolA = body.symbolA ?? 'BTC';
+    const symbolB = body.symbolB ?? 'ETH';
+    const venue = body.venue ?? 'binance.spot';
+    const to = new Date();
+    const from = new Date(to.getTime() - (body.lookbackHours ?? 72) * HOUR_MS);
+
+    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+    const aligned = alignPair(a, b);
+
+    const trainBars = clampInt(body.trainBars, 300, 30);
+    const testBars = clampInt(body.testBars, 100, 10);
+    if (aligned.a.length < trainBars + testBars) {
+      return {
+        error: 'not enough overlapping bars for even one train+test window — backfill more history',
+        barsA: a.length,
+        barsB: b.length,
+        overlap: aligned.a.length,
+        need: trainBars + testBars,
+      };
+    }
+
+    const notionalUnits = BigInt(body.notionalUnits ?? '100000000000');
+    const halfSpreadBps = body.halfSpreadBps ?? 2;
+    const impactLambdaBps = body.impactLambdaBps ?? 10;
+    const hasStrat = !!body.strategyId && strategyRegistry.has(body.strategyId);
+    const pinnedBeta = body.beta; // when set, β is held fixed across windows
+
+    const report = await walkForward({
+      barsA: aligned.a,
+      barsB: aligned.b,
+      trainBars,
+      testBars,
+      // β fit on TRAIN only (unless pinned) → applied OOS on TEST. Frozen
+      // catalogue tuning (entryZ/exitZ/zLookback) is not re-fit.
+      strategyFactory: (ctx) => {
+        const beta = pinnedBeta ?? fitBetaOnTrain(ctx.trainBarsA, ctx.trainBarsB);
+        return hasStrat
+          ? strategyRegistry.build(body.strategyId as string, { beta, notionalUnits, params: body.params })
+          : new PairsStrategy({
+              beta,
+              zLookback: body.zLookback ?? 20,
+              entryZ: body.entryZ ?? 2,
+              exitZ: body.exitZ ?? 0.5,
+              notionalUnits,
+            });
+      },
+      // Cost-fidelity per slice: a replay venue must see the slice it prices.
+      venueFactory: (sliceA, sliceB) =>
+        new HistoricalReplayVenue(
+          { [symbolA]: sliceA, [symbolB]: sliceB },
+          { halfSpreadBps, impactLambdaBps },
+        ),
+    });
+
+    const n = report.windows.length;
+    const avgTrainSharpe = n ? report.windows.reduce((s, w) => s + w.train.sharpeRatio, 0) / n : 0;
+    const totalTestPnlUnits = report.windows.reduce((s, w) => s + w.test.totalPnlUnits, 0n);
+    const totalTestTrades = report.windows.reduce((s, w) => s + w.test.totalTrades, 0);
+    const positiveTestPnlShare = n
+      ? report.windows.filter((w) => w.test.totalPnlUnits > 0n).length / n
+      : 0;
+
+    return jsonSafe({
+      pair: `${symbolA}/${symbolB}`,
+      strategy: hasStrat ? body.strategyId : 'pairs-zscore',
+      source: 'real-binance-history',
+      window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
+      split: { trainBars, testBars, windows: n },
+      costs: { feeBps: 5, halfSpreadBps, impactLambdaBps },
+      betaFit: pinnedBeta != null ? 'pinned' : 'refit-per-train-window',
+      // The honest OOS verdict the desk gates on.
+      oos: {
+        avgTestSharpe: report.avgTestSharpe,
+        positiveWindowShare: report.positiveWindowShare,
+        positiveTestPnlShare,
+        avgTrainSharpe,
+        sharpeDegradation: avgTrainSharpe - report.avgTestSharpe,
+        totalTestPnlUnits,
+        totalTestTrades,
+      },
+      windows: report.windows.map((w) => ({
+        windowIndex: w.windowIndex,
+        trainStart: w.trainStart,
+        testStart: w.testStart,
+        testEnd: w.testEnd,
+        beta: pinnedBeta ?? fitBetaOnTrain(
+          aligned.a.slice(w.trainStart, w.testStart),
+          aligned.b.slice(w.trainStart, w.testStart),
+        ),
+        train: {
+          sharpeRatio: w.train.sharpeRatio,
+          totalTrades: w.train.totalTrades,
+          totalPnlUnits: w.train.totalPnlUnits,
+        },
+        test: {
+          sharpeRatio: w.test.sharpeRatio,
+          maxDrawdownPct: w.test.maxDrawdownPct,
+          totalTrades: w.test.totalTrades,
+          totalPnlUnits: w.test.totalPnlUnits,
+          calmar: w.test.calmar,
+        },
+      })),
     });
   }
 

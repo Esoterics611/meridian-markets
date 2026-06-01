@@ -320,10 +320,11 @@
     <section class="panel span-12" data-tab="research">
       <h2>Validate before you trade — robustness tools</h2>
       <div id="notice-research" style="display:block;padding:8px 12px;border-radius:4px;background:var(--warn-dim);color:var(--warn);font-size:11px;margin-bottom:10px;">
-        ⚠ These run on the engine's <b>synthetic feed</b> (deterministic generator), not the scanned real history — they demonstrate the robustness machinery (walk-forward, parameter sweep, Monte-Carlo) and its shape, not numbers for a specific live pair. Real-history plumbing is the next step.
+        ⚠ <b>Parameter sweep</b> and <b>Monte-Carlo</b> still run on the engine's <b>synthetic feed</b> (deterministic generator) — they show the machinery's shape, not numbers for a live pair. <b>Walk-forward (real OOS)</b> is the real one: it runs the <b>active scanned/backtested pair</b> over <b>real Binance history</b> with a true train/test split — β is re-fit on each train window and judged out-of-sample on the next, net of fee + spread + impact. <b>No strategy ships on in-sample numbers.</b>
       </div>
       <div class="launch-row" style="margin-bottom:10px;">
-        <button id="rt-walkforward" class="ghost">↻ Walk-forward</button>
+        <button id="rt-walkforward-real" class="primary" style="font-size:12px;">↻ Walk-forward (real OOS — active pair)</button>
+        <button id="rt-walkforward" class="ghost">↻ Walk-forward (synthetic)</button>
         <button id="rt-sweep" class="ghost">⊞ Parameter sweep</button>
         <button id="rt-montecarlo" class="ghost">⚄ Monte-Carlo (200×)</button>
         <span id="rt-note" class="muted" style="font-size:12px;"></span>
@@ -1177,6 +1178,33 @@
         r.windows.map((w) => `<tr><td>${w.windowIndex}</td><td>${num(w.train.sharpeRatio,2)}</td><td class="${w.test.sharpeRatio>=0?'pos':'neg'}">${num(w.test.sharpeRatio,2)}</td><td class="${Number(w.test.totalPnlUnits)>=0?'pos':'neg'}">${fmtUsdc(w.test.totalPnlUnits)}</td><td>${num(w.test.maxDrawdownPct,1)}%</td><td>${num(w.test.calmar,2)}</td></tr>`).join('') +
         '</tbody></table>';
     }
+    // Walk-forward on REAL Binance history for the ACTIVE pair (window.__lastBacktest,
+    // set by any backtest/Signal/scan). β is re-fit per train window and judged OOS
+    // on the next — net of fee+spread+impact. This is the gate; the others are shape.
+    async function runWalkForwardReal() {
+      const lb = window.__lastBacktest;
+      if (!lb) { $('rt-note').textContent = '⚠ backtest or scan a pair first — it sets the active pair'; return; }
+      $('rt-note').textContent = `walk-forward (real OOS) ${lb.symbolA}/${lb.symbolB}…`;
+      $('rt-stats').innerHTML = '<div class="muted" style="padding:8px;">running on real Binance history…</div>'; $('rt-table').innerHTML = '';
+      const lookbackHours = Number($('lookback') && $('lookback').value) || 72;
+      // Deliberately NOT passing beta → the endpoint re-fits β per train window (OOS-safe).
+      let r; try { r = await jpost('/api/market-data/walk-forward', { symbolA: lb.symbolA, symbolB: lb.symbolB, strategyId: lb.strategyId, lookbackHours, notionalUnits: String(chosenLots() * 1e6) }); } catch { $('rt-note').textContent = '⚠ failed'; return; }
+      if (!r || r.error) {
+        $('rt-note').textContent = '⚠ ' + ((r && r.error) || 'failed') + (r && r.overlap != null ? ` — have ${r.overlap}, need ${r.need} bars (backfill more history)` : '');
+        $('rt-stats').innerHTML = ''; return;
+      }
+      const o = r.oos || {};
+      $('rt-note').textContent = `${r.pair} · ${r.strategy} · ${r.split.windows} OOS windows · β ${r.betaFit} · real history`;
+      $('rt-stats').innerHTML =
+        rtStat('Avg TEST Sharpe', num(o.avgTestSharpe, 2), o.avgTestSharpe >= 0 ? 'pos' : 'neg') +
+        rtStat('Positive test windows', (o.positiveWindowShare * 100).toFixed(0) + '%') +
+        rtStat('Total OOS PnL', fmtUsdc(o.totalTestPnlUnits), Number(o.totalTestPnlUnits) >= 0 ? 'pos' : 'neg') +
+        rtStat('In-sample optimism', num(o.sharpeDegradation, 2) + ' Sharpe', o.sharpeDegradation > 0.5 ? 'neg' : '') +
+        rtStat('Avg train Sharpe', num(o.avgTrainSharpe, 2));
+      $('rt-table').innerHTML = '<table><thead><tr><th>window</th><th>β (train-fit)</th><th>train Sharpe</th><th>TEST Sharpe</th><th>test PnL</th><th>test maxDD</th><th>trades</th></tr></thead><tbody>' +
+        r.windows.map((w) => `<tr><td>${w.windowIndex}</td><td class="mono">${num(w.beta, 3)}</td><td>${num(w.train.sharpeRatio, 2)}</td><td class="${w.test.sharpeRatio >= 0 ? 'pos' : 'neg'}">${num(w.test.sharpeRatio, 2)}</td><td class="${Number(w.test.totalPnlUnits) >= 0 ? 'pos' : 'neg'}">${fmtUsdc(w.test.totalPnlUnits)}</td><td>${num(w.test.maxDrawdownPct, 1)}%</td><td>${w.test.totalTrades}</td></tr>`).join('') +
+        '</tbody></table>';
+    }
     async function runSweep() {
       rtBusy('parameter sweep');
       let r; try { r = await jget('/api/stat-arb/research/sweep'); } catch { $('rt-note').textContent = '⚠ failed'; return; }
@@ -1251,6 +1279,7 @@
     $('mm-stop').onclick = async () => { await jpost('/api/market-making/stop'); refreshMm(); };
     $('mm-flatten').onclick = async () => { await jpost('/api/market-making/flatten'); refreshMm(); };
     $('scan-run').onclick = scanRun;
+    $('rt-walkforward-real').onclick = runWalkForwardReal;
     $('rt-walkforward').onclick = runWalkForward;
     $('rt-sweep').onclick = runSweep;
     $('rt-montecarlo').onclick = runMonteCarlo;

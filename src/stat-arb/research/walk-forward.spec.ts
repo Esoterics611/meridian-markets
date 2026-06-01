@@ -135,4 +135,40 @@ describe('walkForward', () => {
       expect(r.windows[i].trainStart - r.windows[i - 1].trainStart).toBe(50);
     }
   });
+
+  it('hands the strategy factory the window TRAIN slice (so β is fit OOS-safely)', async () => {
+    const { a, b } = feed(300);
+    const trainLens: number[] = [];
+    await walkForward({
+      barsA: a, barsB: b, trainBars: 100, testBars: 50,
+      strategyFactory: (ctx) => {
+        trainLens.push(ctx.trainBarsA.length);
+        expect(ctx.trainBarsA.length).toBe(ctx.trainBarsB.length);
+        return strategy();
+      },
+      venueFactory: () => new MockTradingVenue(),
+    });
+    expect(trainLens.length).toBeGreaterThan(0);
+    for (const len of trainLens) expect(len).toBe(100); // always the train slice, never the test slice
+  });
+
+  it('hands the venue factory the exact slice being run — train (W) then test (H) per window', async () => {
+    const { a, b } = feed(250);
+    const sliceLens: number[] = [];
+    await walkForward({
+      barsA: a, barsB: b, trainBars: 100, testBars: 50,
+      strategyFactory: strategy,
+      venueFactory: (ba, bb) => {
+        expect(ba.length).toBe(bb.length);
+        sliceLens.push(ba.length);
+        return new MockTradingVenue();
+      },
+    });
+    // Two venue builds per window: train slice (100) then test slice (50).
+    expect(sliceLens.length % 2).toBe(0);
+    for (let i = 0; i < sliceLens.length; i += 2) {
+      expect(sliceLens[i]).toBe(100);
+      expect(sliceLens[i + 1]).toBe(50);
+    }
+  });
 });

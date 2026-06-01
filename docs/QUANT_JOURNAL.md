@@ -145,3 +145,50 @@ participation**. Re-ran 15m/$25k/leg: `docs/research/2026-05-31-22-43-*.json`.
 gate — it changed the answer, not just the precision. Next gate: **real-history
 OOS + deflated-Sharpe**, then **maker execution** (which would cut the spread/
 impact this entry just showed is decisive).
+
+---
+
+## 2026-06-01 — Entry #3: walk-forward on REAL history shipped (P0.2)
+
+**Change:** the walk-forward harness now runs on **real Binance history with a
+true train/test split** — `POST /api/market-data/walk-forward` (+ a "Walk-forward
+(real OOS — active pair)" button in Research). Until now the research tools ran on
+the *synthetic* feed (shape, not numbers). Two things make it honest:
+
+1. **β is re-fit on each TRAIN window only** (Engle-Granger on the train slice),
+   then applied **out-of-sample on the next TEST window** — no peeking forward.
+   The catalogue tuning (entryZ/exitZ/zLookback) stays frozen.
+2. Every fill is **net of fee + half-spread + market impact** (the P0.1 cost
+   model), priced **per slice** — the replay venue sees only the slice it fills.
+
+The headline is the **avg TEST Sharpe** + **share of positive test windows**; the
+report also surfaces **`sharpeDegradation` = avg train Sharpe − avg test Sharpe**
+(the in-sample optimism we were flying blind to) and **β per window** so β drift /
+sign-flips (a sign the "spread" isn't stable) are visible at a glance.
+
+**Mechanics that mattered:** the harness's `venueFactory` had to become
+slice-aware — a single replay venue over the full series mis-prices every window
+past the first (it maps each fill's bar index *within the slice* to a price). And
+`strategyFactory` now receives the train slice so β-on-train is structural, not a
+caller convention. Backward compatible: the synthetic endpoint's no-arg factories
+still type-check.
+
+**Status of the deploy candidates:** Entry #2 left **ai-data z-score @ eZ2–2.5**
+as the post-slippage survivor but flagged it "**blocked on OOS**." That gate now
+exists. Next run logs the real walk-forward numbers for that basket here — until
+then, treat its in-sample Sharpe as an upper bound, as before. *Verified this
+session via the controller/harness unit tests (the real `walkForward` +
+`HistoricalReplayVenue` + Engle-Granger run end-to-end; only the bar source is
+faked); the live numbers come from running it against Binance on the desk.*
+
+**Next actions (top of the backlog):**
+1. **Run the real walk-forward on the ai-data eZ2–2.5 basket** and record
+   avg-test-Sharpe / positive-window-share / degradation here. *This is the
+   "is it actually profitable OOS?" answer the whole P0 frontier was gating.*
+2. **Multiple-testing correction (P0.3):** deflated Sharpe + purged k-fold — we
+   scan ~80–90 pairs/class and the walk-forward still judges a *pre-selected*
+   pair, so discount the headline Sharpe for selection.
+3. **Borrow/funding on the short leg (P0.4):** a per-bar carry cost on the short
+   notional — still missing, still optimistic for the short side.
+4. **Maker execution** — the lever that would cut the spread/impact Entry #2
+   showed is decisive (re-opens crypto-majors + 1m).

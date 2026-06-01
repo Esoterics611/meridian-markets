@@ -26,10 +26,15 @@
    backtest edge is optimistic, worst on thin alts (where the real value is).
    Add a `SlippageReplayVenue`: fill at close ± half-spread ± impact(notional/ADV).
    *Until this lands, every "+$X, Sharpe Y" is an upper bound, not a forecast.*
-2. **Out-of-sample / walk-forward on REAL history.** The research tools
-   (`/api/stat-arb/research/*`) run on the **synthetic feed**. Plumb `ReplayEngine`
-   in + add a train/test split to the harness so a strategy is judged OOS, not
-   in-sample. **No strategy ships on in-sample numbers.**
+2. ~~**Out-of-sample / walk-forward on REAL history.**~~ ✅ **DONE (Entry #3).**
+   `POST /api/market-data/walk-forward` (+ Research "Walk-forward (real OOS)"
+   button) runs the active pair over **real Binance history** with a true
+   train/test split: **β re-fit on each train window**, applied **OOS on test**,
+   net of fee+spread+impact. Reports avg-test-Sharpe, positive-window-share, and
+   **`sharpeDegradation`** (train→test gap) + β per window. The harness
+   (`walkForward`) is now slice/train-aware so a replay venue prices each window
+   correctly. *Still to do: actually run it on the deploy candidates and record
+   the numbers (Journal next-action #1).* **No strategy ships on in-sample numbers.**
 3. **Multiple-testing correction.** We scan ~80–90 cointegrated pairs/class and
    report the top — pure selection bias. Add **deflated Sharpe** + purged k-fold;
    discount the headline Sharpe accordingly.
@@ -68,9 +73,11 @@
     broke), regime filters (these are ongoing quant work, not infra).
 
 ## The one-line answer
-Lotting and fees are handled. The **single most important missing piece is
-backtest cost-fidelity (P0.1–P0.4): slippage/spread/borrow + real-history OOS with
-a multiple-testing haircut.** Without it the desk can *find* candidates but can't
-yet *trust* that a backtested edge survives live — which is the precondition for
-working on strategies full-time. Everything else (allocator, maker, real venue) is
-P1 and gates *real capital*, not *strategy research*.
+Lotting and fees are handled; **slippage/spread/impact (P0.1) and real-history
+walk-forward OOS (P0.2) now ship.** What remains before *trusting* a backtested
+edge: **a multiple-testing haircut (P0.3, deflated Sharpe — we scan ~80–90
+pairs/class) and short-leg borrow/funding (P0.4)** — plus actually *running* the
+OOS gate on the deploy candidates and recording the numbers. Until those land,
+the desk can find candidates and now judge them out-of-sample, but the headline
+Sharpe still owes a selection-bias discount. Everything else (allocator, maker,
+real venue) is P1 and gates *real capital*, not *strategy research*.
