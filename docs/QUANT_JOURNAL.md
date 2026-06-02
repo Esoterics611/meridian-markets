@@ -476,3 +476,55 @@ equities are no different and we say so — the gate's whole point is to reject,
 backfill 6–12 months and run the OOS gate with the borrow leg on; (3) wire equity presets
 into ⊹ Scan + the OOS buttons in `/demo`; (4) earnings-blackout filter; IBKR for real
 borrow rates (Phase 2/3 of [EQUITIES_STATARB_PLAN.md](EQUITIES_STATARB_PLAN.md)).
+
+---
+
+## 2026-06-02 — Entry #8: rewrite #1 — funding-rate carry, first real number (the first non-stat-arb edge)
+
+Executing the strategy-library rewrite ([STRATEGY_LIBRARY_REWRITE.md](STRATEGY_LIBRARY_REWRITE.md)) #2
+— **delta-neutral funding-rate carry** (long spot + short perp, harvest funding). Built first
+because Binance USDⓈ-M funding is **public, no new venue**. New self-contained module (doesn't
+touch the parallel S24 stat-arb work): `src/market-data/funding/` — `IFundingRateSource` +
+`BinanceFundingClient` (public `/fapi/v1/fundingRate` + `premiumIndex`, injected HTTP) +
+`funding-carry.ts` (pure P&L: funding − fees ± basis). Harness: `scripts/funding-carry-research.ts`.
+
+### Finding — funding on majors is a real +3–4%/yr carry, fee-bound on short holds
+30d real history, $100k/leg, 30bps round-trip taker (spot 10 + perp 5 per side):
+
+| Perp | carry %/yr | posFrac | breakeven | net if held 1yr | verdict |
+|---|---|---|---|---|---|
+| ETH | **4.00%** | 0.83 | ~27d | +3.70%/yr | **CANDIDATE** |
+| DOGE | 3.51% | 0.73 | ~31d | +3.21%/yr | CANDIDATE |
+| BTC | 3.36% | 0.77 | ~33d | +3.06%/yr | CANDIDATE |
+| BNB | 4.02% | 0.63 | ~27d | +3.72%/yr | WATCH (funding less one-sided) |
+| XRP / SOL | 0.66% / 0.55% | ~0.5 | 166d / 199d | ~0.3%/yr | WATCH (too low) |
+
+### The load-bearing insight (and an honesty correction I made mid-build)
+- **Funding is a continuous stream; the round-trip fee is a ONE-TIME cost.** So carry is a
+  **hold-longer** trade: breakeven ≈ fee ÷ funding-rate (~30d at taker fees); held past it, net
+  → the carry yield. Annualising the one-time fee over a 30d window (my first cut) **overstated**
+  it and falsely flagged everything "no-edge". Fixed: judge on carry yield vs a 1yr-amortised fee.
+- **Basis is the real risk, not the fee.** Delta-neutral, the only price P&L is the perp-spot
+  basis change. This window it ran **−0.5% to −1.2% across the whole basket** (correlated — a
+  broad ~9% selloff where spot fell faster than perp), swamping the +0.27%/30d funding earned. It
+  is **path/entry-timing dependent and mean-reverts over time, but is correlated across symbols in
+  one window** — so it diversifies across *time/entries*, not across symbols. A single static 30d
+  entry is dominated by basis variance; the funding edge only shows through over many cycles.
+- **Same shape as the MM result (Entry #6):** a real but thin edge that the **execution cost
+  decides**. Taker fees ⇒ ~30d breakeven; **maker entry (reuse `src/market-making/`) cuts 30→~10bps
+  and breakeven ~3×**.
+
+### Decisions
+- **DEPLOY CANDIDATE:** ETH/BTC/DOGE funding carry, **as a HELD carry past the ~30d breakeven**, or
+  with maker entry. Not a churn trade. Size ≤ N\* on thinner legs; basket across symbols + roll
+  through cycles to average the basis.
+- **WAIT / forward-test first:** does the funding *persistence* (posFrac) hold out-of-sample? That
+  is the carry's analogue of the cointegration-persistence test — the next gate to build.
+- **NEED-DATA (Researcher):** longer funding history (6–12mo) to forward-test persistence; later
+  Deribit IV for the options/Greeks families (rewrite #4).
+
+### Reproduce
+```bash
+npx ts-node -r tsconfig-paths/register scripts/funding-carry-research.ts
+FC_DAYS=60 FC_SYMBOLS=BTC,ETH,SOL npx ts-node -r tsconfig-paths/register scripts/funding-carry-research.ts
+```
