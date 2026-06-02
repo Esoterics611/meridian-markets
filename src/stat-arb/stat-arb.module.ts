@@ -30,7 +30,7 @@ import { UniverseController } from './discovery/universe.controller';
 import { OpportunityScanner } from './discovery/opportunity-scanner';
 import { OpportunityController } from './discovery/opportunity.controller';
 import { barsPerDayForInterval } from './discovery/net-edge-scorer';
-import { MARKET_PRESETS } from './markets/market-presets';
+import { MARKET_PRESETS, EQUITY_PRESETS } from './markets/market-presets';
 import {
   ReferenceSourceRegistry,
   makeScannerLoader,
@@ -362,27 +362,38 @@ async function warmupFromAlpaca(
     },
     // Cross-asset opportunity scanner: ranks every preset's pairs by expected
     // net-edge-after-fees per day (the "scan wide, trade rarely" board). Sweeps
-    // the Binance MARKET_PRESETS plus the reference-source presets (Pyth FX),
-    // routing each preset's symbols to its data source.
+    // the Binance MARKET_PRESETS, the reference-source presets (Pyth FX), and —
+    // when an Alpaca key is configured — the US-equity EQUITY_PRESETS, routing
+    // each preset's symbols to its data source. The equity presets are key-gated
+    // so a no-key deployment scans exactly as before (no 401 churn). NOTE: the
+    // scanner is intraday-tuned (app.feed.interval, short half-life); it's a
+    // coarse first look for equities — the real structural verdict comes from
+    // scripts/cointegration-stability.ts + scripts/oos-candidates.ts.
     {
       provide: OpportunityScanner,
-      inject: [ConfigService, BINANCE_CLIENT, ReferenceSourceRegistry],
+      inject: [ConfigService, BINANCE_CLIENT, ALPACA_CLIENT, ReferenceSourceRegistry],
       useFactory: (
         cfg: ConfigService,
         client: BinancePublicClient,
+        alpaca: AlpacaDataClient,
         refRegistry: ReferenceSourceRegistry,
       ): OpportunityScanner => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const barsToLoad = 240;
+        const hasAlpacaKey = Boolean(app.alpaca.keyId);
         const presets = [
           ...MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] })),
           ...REFERENCE_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols], source: p.source })),
+          ...(hasAlpacaKey
+            ? EQUITY_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols], source: 'alpaca' }))
+            : []),
         ];
         const loader = makeScannerLoader(
           (sym) => client.klines(sym, app.feed.interval, barsToLoad),
           refRegistry,
           app.feed.interval,
           barsToLoad,
+          hasAlpacaKey ? (sym) => alpaca.recentBars(sym, app.feed.interval, barsToLoad) : undefined,
         );
         return new OpportunityScanner(
           loader,

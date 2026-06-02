@@ -1,32 +1,47 @@
 /**
  * Close-the-flag: run the REAL-history walk-forward OOS gate + deflated Sharpe on
  * the standing deploy candidates (Journal Entry #2 left "ai-data z-score @ eZ2–2.5"
- * blocked on OOS). DB-free — fetches Binance public klines directly, like
- * scripts/quant-research.ts, so it needs no server and no Postgres.
+ * blocked on OOS). DB-free — fetches real bars directly from Binance (crypto) or
+ * Alpaca (US equities), like scripts/quant-research.ts / cointegration-stability.ts,
+ * so it needs no server and no Postgres.
  *
  * What it does, per candidate pair:
  *   1. pull ~N days of real bars (default 30d × 15m for regime coverage, P0.5),
  *   2. walk-forward: re-fit β on each TRAIN slice (Engle-Granger), trade the next
- *      TEST slice OOS, net of fee + half-spread + impact (P0.1),
+ *      TEST slice OOS, net of fee + half-spread + impact (P0.1) + short-borrow
+ *      carry on the short leg (P0.4 — the dominant cost for equities),
  *   3. pool the OOS trades → pooled Sharpe, PSR, and DEFLATED Sharpe over the
  *      number of pairs scanned in the class (selection-bias haircut, P0.3).
+ *
+ * Source switch (mirrors cointegration-stability.ts):
+ *   OOS_SOURCE=binance (default, crypto)  — fee 5bps, half-spread 2bps, no borrow.
+ *   OOS_SOURCE=alpaca  (US equities)      — commission-free (fee 0bps), tight
+ *     half-spread (1bps), and short-borrow carry ON (50bps/yr = easy-to-borrow
+ *     large-cap default; raise OOS_BORROW_BPS_YEAR for hard-to-borrow names).
+ *     Requires ALPACA_KEY_ID + ALPACA_SECRET. NOTE: the free `iex` feed undercounts
+ *     consolidated volume, so the impact ADV is conservative (overstates impact).
  *
  * Run:
  *   npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
  *   OOS_PRESET=ai-data OOS_DAYS=30 OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node ... scripts/oos-candidates.ts
+ *   OOS_SOURCE=alpaca OOS_PRESET=equity-banks OOS_DAYS=120 npx ts-node ... scripts/oos-candidates.ts
  */
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
+import { AlpacaDataClient } from '../src/stat-arb/feed/alpaca/alpaca-data-client';
 import { discoverPairs } from '../src/stat-arb/discovery/pair-discovery';
 import { walkForward } from '../src/stat-arb/research/walk-forward';
 import { HistoricalReplayVenue } from '../src/stat-arb/historical-replay-venue';
 import { strategyRegistry } from '../src/stat-arb/strategies/strategy-registry';
 import { cointegrationTest } from '../src/stat-arb/signal/cointegration';
 import { sharpeStats, deflatedSharpe } from '../src/stat-arb/research/deflated-sharpe';
-import { getPreset } from '../src/stat-arb/markets/market-presets';
+import { getAnyPreset } from '../src/stat-arb/markets/market-presets';
 
 const USDC = 1e6;
-const PRESET = process.env.OOS_PRESET ?? 'ai-data';
+// OOS_SOURCE=binance (crypto, default) | alpaca (US equities — the pivot).
+const SOURCE = (process.env.OOS_SOURCE ?? 'binance').trim().toLowerCase();
+const IS_ALPACA = SOURCE === 'alpaca';
+const PRESET = process.env.OOS_PRESET ?? (IS_ALPACA ? 'equity-banks' : 'ai-data');
 const DAYS = Number(process.env.OOS_DAYS ?? 30);
 const INTERVAL = process.env.OOS_INTERVAL ?? '15m';
 const ENTRY_GRID = (process.env.OOS_ENTRY ?? '2.0,2.5').split(',').map(Number);
@@ -34,8 +49,12 @@ const NOTIONAL = BigInt(Math.round(Number(process.env.OOS_NOTIONAL_USDC ?? 100_0
 const TRAIN = Number(process.env.OOS_TRAIN ?? 300);
 const TEST = Number(process.env.OOS_TEST ?? 100);
 const TOPK = Number(process.env.OOS_TOPK ?? 3);
-const HALF_SPREAD_BPS = Number(process.env.OOS_HALF_SPREAD_BPS ?? 2);
+// Cost model — source-aware defaults (env overrides win). Equities on Alpaca are
+// commission-free with tight large-cap spreads, but pay short-borrow carry.
+const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_ALPACA ? 0 : 5))));
+const HALF_SPREAD_BPS = Number(process.env.OOS_HALF_SPREAD_BPS ?? (IS_ALPACA ? 1 : 2));
 const IMPACT_LAMBDA_BPS = Number(process.env.OOS_IMPACT_LAMBDA_BPS ?? 10);
+const BORROW_BPS_YEAR = Number(process.env.OOS_BORROW_BPS_YEAR ?? (IS_ALPACA ? 50 : 0));
 const r2 = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
 const fmtUsd = (units: bigint) => (Number(units) / USDC).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
@@ -67,18 +86,38 @@ function fitBetaOnTrain(a: Bar[], b: Bar[]): number {
 }
 
 async function main() {
-  const preset = getPreset(PRESET);
+  const preset = getAnyPreset(PRESET);
   if (!preset) throw new Error(`unknown preset ${PRESET}`);
-  const client = new BinancePublicClient({ quote: preset.quote });
+  if (IS_ALPACA && (!process.env.ALPACA_KEY_ID || !process.env.ALPACA_SECRET)) {
+    console.error('OOS_SOURCE=alpaca requires ALPACA_KEY_ID and ALPACA_SECRET in the environment.');
+    process.exit(1);
+  }
   const toMs = Date.now();
   const fromMs = toMs - DAYS * 86_400_000;
+  const barSeconds = intervalMinutes(INTERVAL) * 60;
 
-  console.log(`\n=== OOS gate · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: 5bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact ===`);
-  console.log(`pulling ${preset.symbols.length} symbols from Binance…`);
+  // Source-agnostic bar loader — the discovery gate + walk-forward downstream is identical.
+  const binance = IS_ALPACA ? undefined : new BinancePublicClient({ quote: preset.quote });
+  const alpaca = IS_ALPACA
+    ? new AlpacaDataClient({
+        keyId: process.env.ALPACA_KEY_ID ?? '',
+        secret: process.env.ALPACA_SECRET ?? '',
+        dataBaseUrl: process.env.ALPACA_DATA_BASE_URL ?? 'https://data.alpaca.markets',
+        feed: process.env.ALPACA_DATA_FEED ?? 'iex',
+      })
+    : undefined;
+  const load = (sym: string): Promise<Bar[]> =>
+    IS_ALPACA ? alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs)
+              : binance!.historicalKlines(sym, INTERVAL, fromMs, toMs);
+
+  const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
+    (BORROW_BPS_YEAR ? ` + ${BORROW_BPS_YEAR}bps/yr short-borrow` : '');
+  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} ===`);
+  console.log(`pulling ${preset.symbols.length} symbols from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
   const bySymbol = new Map<string, Bar[]>();
   for (const sym of preset.symbols) {
     try {
-      const bars = await client.historicalKlines(sym, INTERVAL, fromMs, toMs);
+      const bars = await load(sym);
       if (bars.length > 0) bySymbol.set(sym, bars);
       process.stdout.write(`  ${sym}:${bars.length}`);
     } catch {
@@ -115,7 +154,13 @@ async function main() {
         }),
         venueFactory: (sa, sb) => new HistoricalReplayVenue(
           { [symA]: sa, [symB]: sb },
-          { halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS },
+          {
+            takerFeeBps: TAKER_FEE_BPS,
+            halfSpreadBps: HALF_SPREAD_BPS,
+            impactLambdaBps: IMPACT_LAMBDA_BPS,
+            borrowBpsPerYear: BORROW_BPS_YEAR,
+            barSeconds,
+          },
         ),
       });
       const oosTrades = report.windows.flatMap((w) => w.test.tradePnlUnits);

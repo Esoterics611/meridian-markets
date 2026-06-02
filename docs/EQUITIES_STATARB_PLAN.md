@@ -1,13 +1,28 @@
 # Equities Stat-Arb — Alpaca integration execution spec
 
-> **STATUS (S24, 2026-06-01): Phase 1 SHIPPED.** Adapters built + offline-verified
-> (118 suites / 792 tests): `src/stat-arb/feed/alpaca/` (`AlpacaDataClient` w/
+> **STATUS (S25, 2026-06-02): Phase 1 SHIPPED + Phase 2 plumbing WIRED (offline).**
+> S24 built the adapters; S25 wired the two remaining offline seams so the whole
+> equities path is one Alpaca key away from running:
+> - **OOS gate → Alpaca** (`scripts/oos-candidates.ts`): `OOS_SOURCE=alpaca` routes
+>   the real-history walk-forward + deflated-Sharpe gate to Alpaca + `EQUITY_PRESETS`,
+>   with equity-aware cost defaults — **fee 0bps** (commission-free), **1bps half-spread**,
+>   and **short-borrow carry ON** (50bps/yr easy-to-borrow default; `OOS_BORROW_BPS_YEAR`
+>   for hard-to-borrow). Same gate, same verdict logic — only the source switched.
+> - **Scanner → equities** (`opportunity-scanner` wiring): `EQUITY_PRESETS` join the
+>   cross-asset scan board, **key-gated** (only when `ALPACA_KEY_ID` is set, so a no-key
+>   deploy scans exactly as before). `makeScannerLoader` gained an `'alpaca'` branch.
+>   *Caveat: the scanner is intraday-tuned — it's a coarse first look; the structural
+>   verdict is `cointegration-stability.ts` + `oos-candidates.ts`.*
+>
+> Offline-verified: **120 suites / 803 tests**. The live loop (feed/price/venue/warmup)
+> was already wired in S24. **What still needs an Alpaca paper key (hand-off):** the
+> live thesis run + the OOS gate run + paper-trade → persistence verdict in QUANT_JOURNAL
+> Entry #7. Phase 3 (course) is still open.
+>
+> Earlier — **Phase 1 (S24):** `src/stat-arb/feed/alpaca/` (`AlpacaDataClient` w/
 > `adjustment=all` + pagination, `AlpacaBarFeed`, `AlpacaPriceSource`, `AlpacaPaperVenue`),
 > `FEED_SOURCE=alpaca` config + factory wiring, 8 `EQUITY_PRESETS`, P0.4 short-borrow carry
-> in `HistoricalReplayVenue`, and `cointegration-stability.ts STAB_SOURCE=alpaca`. **The
-> live thesis test + paper-trade need an Alpaca paper key (hand-off)** → persistence verdict
-> lands in QUANT_JOURNAL Entry #7. Phase 2 (OOS gate on Alpaca, scanner/UI routing) + Phase 3
-> (course) are still open.
+> in `HistoricalReplayVenue`, and `cointegration-stability.ts STAB_SOURCE=alpaca`.
 
 > Why: Entry #5 proved directional-crypto cointegration is a short-window artifact
 > (the cliff). Equities have **real** structural cointegration (same-sector names
@@ -60,13 +75,18 @@ crypto lacked:
 Run `cointegration-stability.ts` (STAB_PRESETS=equity-*) on these **first** — the
 thesis test is whether these *hold* across 30/90/180d where crypto collapsed.
 
-## Phase 2 — validate (reuse the gate unchanged)
-1. `cointegration-stability.ts` on the baskets → keep classes that persist ≥2 horizons.
-2. `oos-candidates.ts` (point its client at Alpaca) → walk-forward + deflated Sharpe,
-   **net of fee + spread + impact + short-borrow**. n≥20 OOS trades, DSR ≥ 0.95.
+## Phase 2 — validate (reuse the gate unchanged) — ✅ WIRED (S25), needs key to run
+1. `cointegration-stability.ts STAB_SOURCE=alpaca` on the baskets → keep classes that
+   persist ≥2 horizons. *(wired S24)*
+2. ✅ `oos-candidates.ts OOS_SOURCE=alpaca` → walk-forward + deflated Sharpe, **net of
+   fee + spread + impact + short-borrow** (P0.4 carry on the short leg). n≥20 OOS trades,
+   DSR ≥ 0.95. *(wired S25 — equity-aware cost defaults baked in.)*
 3. Survivors → sizing study for N* (impact ∝ N²; equities ADV is large → N* is big).
 4. Forward paper-trade the gated basket on Alpaca 4–8 weeks; reconcile realized fills
    vs backtest weekly. Tracking error within threshold ⇒ "real."
+
+Also wired (S25): the cross-asset **scanner** picks up `EQUITY_PRESETS` whenever an
+Alpaca key is present (key-gated, intraday-tuned coarse look — see status note).
 
 ## Phase 3 — course update (`courses/stat-arb`)
 - New chapter "Stat-arb in equities" — why same-sector cointegration is structural
@@ -83,17 +103,38 @@ Signals (`strategy-registry`), the OOS gate (`walk-forward` + `deflated-sharpe` 
 all asset-agnostic. Only the **feed** and **venue** are new. That is the whole point
 of the swap-seam architecture (CLAUDE.md §7).
 
-## First next-session task — ✅ DONE (S24), thesis run pending
-The adapters, the 8 equity presets, the borrow-cost leg, and the source switch on
-`cointegration-stability.ts` are built + green offline. **What remains is the live run**
-(needs an Alpaca paper key — `ALPACA_KEY_ID`/`ALPACA_SECRET`):
+## Hand-off — the live run (needs an Alpaca paper key)
+Everything offline is built + green (120 suites / 803 tests). The only thing left is to
+run the validation against real Alpaca data. Set the secrets first:
 
 ```bash
-STAB_SOURCE=alpaca STAB_INTERVAL=15m STAB_HORIZONS=30,90,180 \
-  STAB_PRESETS=equity-banks,equity-megacap-tech \
+export ALPACA_KEY_ID=...        # Alpaca paper account key
+export ALPACA_SECRET=...
+```
+
+**Step 1 — the thesis test** (do same-sector baskets HOLD cointegration where crypto's
+collapsed?). Daily bars are the honest horizon for structural equity cointegration:
+
+```bash
+STAB_SOURCE=alpaca STAB_INTERVAL=1d STAB_HORIZONS=30,90,180 \
+  STAB_PRESETS=equity-banks,equity-rails,equity-staples,equity-megacap-tech \
   npx ts-node -r tsconfig-paths/register scripts/cointegration-stability.ts
 ```
 
-If the baskets hold cointegration across ≥2 horizons → the equities thesis is confirmed and
-the desk has its first structurally-cointegrated directional universe. Record the
-persistence table in QUANT_JOURNAL Entry #7, then run the OOS gate (Phase 2).
+If baskets hold cointegration across ≥2 horizons → thesis confirmed; record the
+persistence table in QUANT_JOURNAL Entry #7.
+
+**Step 2 — the OOS gate** on a surviving class (net of fee + spread + impact + borrow):
+
+```bash
+OOS_SOURCE=alpaca OOS_PRESET=equity-banks OOS_DAYS=180 OOS_INTERVAL=1d \
+  OOS_TRAIN=120 OOS_TEST=40 OOS_ENTRY=2.0,2.5 \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```
+
+PASS = DSR ≥ 0.95 with ≥ 20 OOS trades. (Daily bars × 180d ≈ 124 trading bars, so for
+a real OOS trade count you'll likely want OOS_DAYS=365+ or 15m intraday bars — the gate
+will tell you `INSUFFICIENT` if the trade count is too thin, exactly as it killed the
+crypto candidate in Journal #4.)
+
+**Step 3 —** survivors → sizing study (N*) → forward paper-trade on Alpaca (Phase 2.4).

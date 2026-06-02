@@ -50,16 +50,21 @@ export class ReferenceSourceRegistry {
 
 /**
  * Build the scanner BarLoader. `source` of 'binance'/undefined routes to the
- * injected Binance loader; any other source id routes to its reference client.
+ * injected Binance loader; 'alpaca' routes to the (optional) Alpaca equities
+ * loader; any other source id routes to its reference client. The Alpaca loader
+ * is optional so a no-key deployment behaves exactly as before (equity presets,
+ * if present, then yield empty universes and are skipped — no crash).
  */
 export function makeScannerLoader(
   binanceLoader: (symbol: string) => Promise<Bar[]>,
   registry: ReferenceSourceRegistry,
   interval: string,
   barsToLoad: number,
+  alpacaLoader?: (symbol: string) => Promise<Bar[]>,
 ): (symbol: string, source?: string) => Promise<Bar[]> {
   return async (symbol, source) => {
     if (!source || source === 'binance') return binanceLoader(symbol).catch(() => []);
+    if (source === 'alpaca') return alpacaLoader ? alpacaLoader(symbol).catch(() => []) : [];
     return registry.bars(source, symbol, interval, barsToLoad);
   };
 }
