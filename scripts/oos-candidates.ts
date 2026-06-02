@@ -55,6 +55,13 @@ const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? 
 const HALF_SPREAD_BPS = Number(process.env.OOS_HALF_SPREAD_BPS ?? (IS_ALPACA ? 1 : 2));
 const IMPACT_LAMBDA_BPS = Number(process.env.OOS_IMPACT_LAMBDA_BPS ?? 10);
 const BORROW_BPS_YEAR = Number(process.env.OOS_BORROW_BPS_YEAR ?? (IS_ALPACA ? 50 : 0));
+// Entry fee-gate floor for the STRATEGY (signal/fee-gate.ts): the per-fill cost
+// the gate compares expected reversion against. For crypto this is the 5bps taker
+// fee (registry default). For commission-free equities it's the half-spread the
+// venue actually charges per fill — NOT 5bps, or the gate suppresses profitable
+// equity entries and starves the OOS trade count. Borrow is a hold-duration cost,
+// so it stays out of the per-fill entry gate and is judged in realized P&L.
+const STRAT_FEE_BPS = Number(process.env.OOS_STRAT_FEE_BPS ?? (IS_ALPACA ? HALF_SPREAD_BPS : 5));
 const r2 = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
 const fmtUsd = (units: bigint) => (Number(units) / USDC).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
@@ -112,7 +119,7 @@ async function main() {
 
   const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
     (BORROW_BPS_YEAR ? ` + ${BORROW_BPS_YEAR}bps/yr short-borrow` : '');
-  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} ===`);
+  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps ===`);
   console.log(`pulling ${preset.symbols.length} symbols from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
   const bySymbol = new Map<string, Bar[]>();
   for (const sym of preset.symbols) {
@@ -150,7 +157,7 @@ async function main() {
         strategyFactory: (ctx) => strategyRegistry.build('pairs-zscore', {
           beta: fitBetaOnTrain(ctx.trainBarsA, ctx.trainBarsB),
           notionalUnits: NOTIONAL,
-          params: { entryZ, exitZ: 0.5 },
+          params: { entryZ, exitZ: 0.5, feeBps: STRAT_FEE_BPS },
         }),
         venueFactory: (sa, sb) => new HistoricalReplayVenue(
           { [symA]: sa, [symB]: sb },

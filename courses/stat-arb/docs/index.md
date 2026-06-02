@@ -48,6 +48,9 @@ It is **not** a textbook. We don't prove every claim — we cite where the proof
 | 5 | [Risk, sizing, circuit breakers](05-risk.md) | Size a position by fractional Kelly with appropriate shrinkage. Build a drawdown gate and a kill switch. Know which circuit breakers fire automatically and which ones require an operator. |
 | 6 | [Backtesting honestly](06-backtesting.md) | Run a purged k-fold cross-validation, report a deflated Sharpe ratio, calibrate a slippage model against live fills, and recognise the three most common backtest pathologies before they ship. |
 | 7 | [From paper to production](07-production.md) | Take a strategy from shadow mode to minimum-capital live to full allocation along a published ramp, with named acceptance bands at every step. |
+| 8 | [More strategies — baskets & funding carry](08-more-strategies.md) | Generalise from two-leg pairs to N-leg baskets (Johansen weights) and to funding/carry spreads. |
+| 9 | [Testing the lessons in Meridian Markets](09-testing-in-meridian.md) | Run every lesson against the real engine — paper-trade on live data and read the validation harness output. |
+| 10 | [Stat-arb in equities](10-equities-stat-arb.md) | Build a money-making same-sector equity pair: the factor model behind the spread, the signal/sizing hedge-ratio split, the short-borrow/dividend cost stack, and the daily-bar trade-count constraint that decides whether it validates. |
 | A | [Code-shape catalogue](appendix-a-code-shapes.md) | Recognise the ten recurring TypeScript patterns the chapters lean on, with Jest test shapes for each. |
 | B | [Source notebook](appendix-b-sources.md) | Look up any citation in the course; check the Tier-B repo URLs and licenses. |
 | C | [Practitioner lore](appendix-c-practitioner-lore.md) | Read the practitioner threads that informed the chapter body, mapped onto their Tier-A foundations. |

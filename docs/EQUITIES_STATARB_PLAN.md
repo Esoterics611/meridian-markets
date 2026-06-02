@@ -88,14 +88,19 @@ thesis test is whether these *hold* across 30/90/180d where crypto collapsed.
 Also wired (S25): the cross-asset **scanner** picks up `EQUITY_PRESETS` whenever an
 Alpaca key is present (key-gated, intraday-tuned coarse look — see status note).
 
-## Phase 3 — course update (`courses/stat-arb`)
-- New chapter "Stat-arb in equities" — why same-sector cointegration is structural
-  (shared earnings drivers) vs crypto's spurious beta-to-BTC correlation; KO/PEP and
-  the rails duopoly as worked examples.
-- Add the **cointegration cliff** (Entry #5) as the cautionary tale: short-window
-  cointegration is an artifact; show the 30→180d collapse table and the persistence filter.
-- Extend the "testing in Meridian" chapter with the Alpaca paper-trading walkthrough
-  + short-borrow cost.
+## Phase 3 — course update (`courses/stat-arb`) — ✅ chapter 10 SHIPPED (S25)
+- ✅ **New chapter 10 "Stat-arb in equities"** (`docs/10-equities-stat-arb.md`, in nav +
+  index): the structural-cointegration thesis vs crypto's beta-to-BTC artifact (the cliff),
+  the AL10 factor model behind a sector spread, the **signal/sizing hedge-ratio split**
+  (the engine's equal-dollar simplification + when it's safe), the full **equities cost
+  stack** (commission 0, half-spread, impact, **short-borrow carry**, dividends), data
+  correctness (RTH, `adjustment=all`, survivorship, M&A), the **daily-bar trade-count
+  constraint** vs the DSR n≥20 gate, the 3-step gated workflow, KO/PEP worked example,
+  pitfalls, sources (AL10/GGR06/DAV02/KL07/BLdP14). Every formula grounded in the engine;
+  simplifications flagged honestly. Builds clean (mkdocs).
+- Open: extend the §9 "testing in Meridian" chapter with the Alpaca paper-trade walkthrough
+  (chapter 10 §10.7 already covers the commands); fold the 30→180d collapse table once the
+  live stability run produces real numbers (needs key).
 
 ## Reuse map (what does NOT change)
 Signals (`strategy-registry`), the OOS gate (`walk-forward` + `deflated-sharpe` +
