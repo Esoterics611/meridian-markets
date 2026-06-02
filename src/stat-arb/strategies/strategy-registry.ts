@@ -86,9 +86,9 @@ const PAIRS_ZSCORE: StrategyDefinition = {
   courseRef: '§2 Cointegration',
   liveCapable: true,
   defaultRiskProfile: 'balanced',
-  defaultParams: { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5 },
+  defaultParams: { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5, betaWeighted: 0 },
   build: ({ beta, notionalUnits, params }) => {
-    const p = { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5, ...params };
+    const p = { zLookback: 60, entryZ: 2.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 1.5, betaWeighted: 0, ...params };
     return new PairsStrategy({
       beta,
       zLookback: p.zLookback,
@@ -98,6 +98,7 @@ const PAIRS_ZSCORE: StrategyDefinition = {
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
       feeBps: p.feeBps,
       minEdgeMultiple: p.minEdgeMultiple,
+      betaWeightedSizing: p.betaWeighted > 0,
     });
   },
 };
@@ -143,9 +144,9 @@ const PAIRS_ZSCORE_SELECTIVE: StrategyDefinition = {
   courseRef: '§2 Cointegration (selective)',
   liveCapable: true,
   defaultRiskProfile: 'conservative',
-  defaultParams: { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0 },
+  defaultParams: { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0, betaWeighted: 0 },
   build: ({ beta, notionalUnits, params }) => {
-    const p = { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0, ...params };
+    const p = { zLookback: 60, entryZ: 2.5, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.0, betaWeighted: 0, ...params };
     return new PairsStrategy({
       beta,
       zLookback: p.zLookback,
@@ -155,6 +156,7 @@ const PAIRS_ZSCORE_SELECTIVE: StrategyDefinition = {
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
       feeBps: p.feeBps,
       minEdgeMultiple: p.minEdgeMultiple,
+      betaWeightedSizing: p.betaWeighted > 0,
     });
   },
 };
@@ -171,13 +173,14 @@ const PAIRS_ZSCORE_WIDE: StrategyDefinition = {
   courseRef: '§2 Cointegration (wide)',
   liveCapable: true,
   defaultRiskProfile: 'conservative',
-  defaultParams: { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5 },
+  defaultParams: { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5, betaWeighted: 0 },
   build: ({ beta, notionalUnits, params }) => {
-    const p = { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5, ...params };
+    const p = { zLookback: 60, entryZ: 3.0, exitZ: 0.5, feeBps: 5, minEdgeMultiple: 2.5, betaWeighted: 0, ...params };
     return new PairsStrategy({
       beta, zLookback: p.zLookback, entryZ: p.entryZ, exitZ: p.exitZ, notionalUnits,
       betaRefit: { enabled: true, windowBars: 120, everyBars: 30, pValueGate: 0.1 },
       feeBps: p.feeBps, minEdgeMultiple: p.minEdgeMultiple,
+      betaWeightedSizing: p.betaWeighted > 0,
     });
   },
 };

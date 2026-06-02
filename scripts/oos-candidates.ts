@@ -72,6 +72,10 @@ const ZLOOKBACK = Number(process.env.OOS_ZLOOKBACK ?? 60);
 // daily-bar pairs miss. OOS_PRESET may be a comma-list (e.g. equity-banks,equity-energy)
 // to pool ACROSS sectors — different cash-flow factors ⇒ genuinely more independent.
 const BASKET = /^(1|true|yes)$/i.test(process.env.OOS_BASKET ?? '');
+// β-weighted dollar-neutral sizing (course §10.3 / strategy-registry betaWeighted):
+// scale the B leg to |β|·notional so the position tracks dS = r_A − β·r_B instead of
+// equal-dollar (which leaves residual N(β−1)·r_B factor exposure). Default off.
+const BETA_WEIGHTED = /^(1|true|yes)$/i.test(process.env.OOS_BETA_WEIGHTED ?? '');
 // Cost model — source-aware defaults (env overrides win). Equities on Alpaca are
 // commission-free with tight large-cap spreads, but pay short-borrow carry.
 const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_ALPACA ? 0 : 5))));
@@ -145,7 +149,7 @@ async function main() {
 
   const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
     (BORROW_BPS_YEAR ? ` + ${BORROW_BPS_YEAR}bps/yr short-borrow` : '');
-  const mode = BASKET ? 'BASKET (edge-disjoint pooled)' : 'per-pair';
+  const mode = (BASKET ? 'BASKET (edge-disjoint pooled)' : 'per-pair') + (BETA_WEIGHTED ? ' · β-weighted' : ' · equal-$');
   console.log(`\n=== OOS gate [${mode}] · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps · train/test/zLookback=${TRAIN}/${TEST}/${ZLOOKBACK} ===`);
   if (TEST <= ZLOOKBACK) {
     console.log(`  ⚠ WARNING: TEST (${TEST}) ≤ zLookback (${ZLOOKBACK}) — every test window is spent warming up, so you will get ZERO OOS trades. Raise OOS_TEST or lower OOS_ZLOOKBACK.`);
@@ -203,7 +207,7 @@ async function main() {
       strategyFactory: (ctx) => strategyRegistry.build('pairs-zscore', {
         beta: fitBetaOnTrain(ctx.trainBarsA, ctx.trainBarsB),
         notionalUnits: NOTIONAL,
-        params: { entryZ, exitZ: 0.5, feeBps: STRAT_FEE_BPS, zLookback: ZLOOKBACK },
+        params: { entryZ, exitZ: 0.5, feeBps: STRAT_FEE_BPS, zLookback: ZLOOKBACK, betaWeighted: BETA_WEIGHTED ? 1 : 0 },
       }),
       venueFactory: (sa, sb) => new HistoricalReplayVenue(
         { [symA]: sa, [symB]: sb },
@@ -332,7 +336,7 @@ async function main() {
   const tag = `${SOURCE}-${PRESET.replace(/[^a-z0-9]+/gi, '-')}${BASKET ? '-basket' : ''}`;
   const outPath = join('docs', 'research', `${ts}-oos-${tag}.json`);
   writeFileSync(outPath, JSON.stringify({
-    generatedAt: new Date().toISOString(), source: SOURCE, preset: PRESET, basketMode: BASKET, days: DAYS, interval: INTERVAL,
+    generatedAt: new Date().toISOString(), source: SOURCE, preset: PRESET, basketMode: BASKET, betaWeighted: BETA_WEIGHTED, days: DAYS, interval: INTERVAL,
     train: TRAIN, test: TEST, zLookback: ZLOOKBACK, entryGrid: ENTRY_GRID,
     notionalUsdc: Number(NOTIONAL) / USDC,
     costs: { takerFeeBps: Number(TAKER_FEE_BPS), halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS, borrowBpsPerYear: BORROW_BPS_YEAR, entryGateFloorBps: STRAT_FEE_BPS },

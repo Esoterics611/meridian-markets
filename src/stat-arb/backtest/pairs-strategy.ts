@@ -52,6 +52,27 @@ export interface PairsStrategyConfig {
   feeBps?: number;
   /** Margin-of-safety multiple on the fee floor. Default 1. Higher = more selective. */
   minEdgeMultiple?: number;
+  /**
+   * β-weighted dollar-neutral sizing (course §10.3). Default false ⇒ both legs trade
+   * equal notional (h=1) — correct only near β=1, otherwise the executed position is
+   * N(r_A − r_B) and carries a residual N(β−1)·r_B of directional factor exposure.
+   * When true, the B leg is scaled to |β|·notionalUnits so the position tracks the
+   * spread dS = r_A − β·r_B with no residual. The β used at ENTRY is locked for the
+   * matching exit leg, so a mid-trade β refit cannot leave a dangling B position.
+   * |β| is clamped to [BETA_SIZE_MIN, BETA_SIZE_MAX] to guard against a wild fit.
+   */
+  betaWeightedSizing?: boolean;
+}
+
+/** Clamp on the β sizing multiple — a same-sector hedge ratio outside this is suspect. */
+const BETA_SIZE_MIN = 0.25;
+const BETA_SIZE_MAX = 4;
+
+/** B-leg notional for a given β: equal-dollar when off, else clamped |β|·n. */
+function legBUnitsFor(beta: number, n: bigint, betaWeighted: boolean): bigint {
+  if (!betaWeighted || !Number.isFinite(beta)) return n;
+  const k = Math.min(BETA_SIZE_MAX, Math.max(BETA_SIZE_MIN, Math.abs(beta)));
+  return BigInt(Math.round(Number(n) * k));
 }
 
 export type GateEventKind = 'P_VALUE_BLOCK' | 'FEE_GATE';
@@ -69,6 +90,8 @@ export class PairsStrategy implements IStrategy {
   private lastFit: SlidingCointegrationResult | null = null;
   private fitHistory: SlidingCointegrationResult[] = [];
   private gateEvents: GateEvent[] = [];
+  /** B-leg notional locked at entry (for β-weighted sizing), so the exit matches. */
+  private openLegBUnits: bigint = 0n;
 
   constructor(private readonly cfg: PairsStrategyConfig) {}
 
@@ -97,6 +120,7 @@ export class PairsStrategy implements IStrategy {
   /** Restore the strategy to FLAT after the runner rejects an OPEN intent. */
   rollbackEntry(): void {
     this.regime = 'FLAT';
+    this.openLegBUnits = 0n;
   }
 
   /** Wipe all per-pair state so the instance can be reused on a different pair. */
@@ -106,6 +130,7 @@ export class PairsStrategy implements IStrategy {
     this.fitHistory = [];
     this.gateEvents = [];
     this.lastZ = NaN;
+    this.openLegBUnits = 0n;
   }
 
   /** β actually in use right now: cached refit if available, else the constructor value. */
@@ -188,22 +213,29 @@ export class PairsStrategy implements IStrategy {
       }
       if (zNow > this.cfg.entryZ) {
         this.regime = 'SHORT';
+        const legB = legBUnitsFor(beta, n, this.cfg.betaWeightedSizing ?? false);
+        this.openLegBUnits = legB;
         orders.push({ symbol: symA, side: 'SELL', notionalUnits: n, reason: 'OPEN_SHORT' });
-        orders.push({ symbol: symB, side: 'BUY', notionalUnits: n, reason: 'OPEN_SHORT' });
+        orders.push({ symbol: symB, side: 'BUY', notionalUnits: legB, reason: 'OPEN_SHORT' });
       } else if (zNow < -this.cfg.entryZ) {
         this.regime = 'LONG';
+        const legB = legBUnitsFor(beta, n, this.cfg.betaWeightedSizing ?? false);
+        this.openLegBUnits = legB;
         orders.push({ symbol: symA, side: 'BUY', notionalUnits: n, reason: 'OPEN_LONG' });
-        orders.push({ symbol: symB, side: 'SELL', notionalUnits: n, reason: 'OPEN_LONG' });
+        orders.push({ symbol: symB, side: 'SELL', notionalUnits: legB, reason: 'OPEN_LONG' });
       }
     } else if (Math.abs(zNow) < this.cfg.exitZ) {
+      // Close with the SAME B-leg notional locked at entry (β may have refit since).
+      const legB = this.openLegBUnits > 0n ? this.openLegBUnits : n;
       if (this.regime === 'SHORT') {
         orders.push({ symbol: symA, side: 'BUY', notionalUnits: n, reason: 'CLOSE' });
-        orders.push({ symbol: symB, side: 'SELL', notionalUnits: n, reason: 'CLOSE' });
+        orders.push({ symbol: symB, side: 'SELL', notionalUnits: legB, reason: 'CLOSE' });
       } else {
         orders.push({ symbol: symA, side: 'SELL', notionalUnits: n, reason: 'CLOSE' });
-        orders.push({ symbol: symB, side: 'BUY', notionalUnits: n, reason: 'CLOSE' });
+        orders.push({ symbol: symB, side: 'BUY', notionalUnits: legB, reason: 'CLOSE' });
       }
       this.regime = 'FLAT';
+      this.openLegBUnits = 0n;
     }
 
     return orders;

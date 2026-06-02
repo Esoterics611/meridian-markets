@@ -661,6 +661,17 @@ bar either way.
   **more history** (IEX caps ~2016 → SIP/alt vendor; P0.5). Borrow-aware pair selection (drop hard-to-
   borrow names before pooling) is a third.
 
+### Addendum — β-weighted sizing built + A/B'd: correct, but MARGINAL here (negative result)
+Built `betaWeightedSizing` in `PairsStrategy` (scale the B leg to |β|·n, lock the entry β for the exit
+leg, clamp |β|∈[0.25,4]; default off; `OOS_BETA_WEIGHTED=true` / registry `betaWeighted`). A/B on the
+same 5-sector / 15-pair / 507-trade basket: equal-\$ → **Sharpe 0.06, PSR 90%, +\$118.4k**; β-weighted
+→ **Sharpe 0.06, PSR 91%, +\$119.6k**. Essentially unchanged. **Why:** the edge-disjoint same-sector
+pairs already sit near **β≈1**, so |β|·n ≈ n and there was little residual N(β−1)·r_B to remove — exactly
+the regime where course §10.3 says equal-dollar is a good approximation. So β-weighting is the *correct*
+construction but **does not rescue the edge** — it rules out "we were just sizing wrong." The thin 0.06
+is the real edge; the binding lever is **data** (more history), not sizing. β-weighting will matter only
+for a wide-β universe (cross-sub-industry pairs), which we don't trade.
+
 ### Reproduce
 ```bash
 # cross-sector edge-disjoint basket pool
