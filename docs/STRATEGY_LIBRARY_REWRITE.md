@@ -137,7 +137,7 @@ the validation gate.
 | 1 | **Stablecoin-peg MM** | maker spread + rebate − adverse on the peg | `MmBook` / `IQuoter` | none | **LIVE (S23)** — scale it |
 | 2 | **Funding-rate carry** | long spot / short perp earns funding when it's positive (and the reverse) | live loop + new `FundingProvider` | Binance funding history (no key) | **✅ first build + real result** — `src/market-data/funding/` + `scripts/funding-carry-research.ts` (Journal #8): majors carry +3–4%/yr, fee-bound (~30d breakeven) |
 | 3 | **Cross-source / triangular FX-stable basis** | EUR-stable vs USD-stable vs the FX benchmark mispricing | `IReferenceBarSource` (Pyth FX already wired) | none new | **✅ researched** — `scripts/fx-basis-research.ts` (Journal #11): real reversion (σ1.5bps, 7min half-life) but **sub-fee taker → route to the MM book** |
-| 4 | **Delta-hedged short-vol / covered-call** | sell rich implied vol, hedge Δ on the live loop; harvest Θ | `IOptionPricer` + Greeks gate (§3) | Deribit chain + IV (Researcher) | spec |
+| 4 | **Delta-hedged short-vol / covered-call** | sell rich implied vol, hedge Δ on the live loop; harvest Θ | `IOptionPricer` + Greeks gate (§3) | Deribit chain + IV (Researcher) | **✅ Greeks layer + research** — `src/derivatives/` (BS validated vs Deribit) + `scripts/vol-carry-research.ts` (Journal #12): VRP +6pt BTC / +4pt ETH, deploy delta-hedged under a Greeks budget |
 | 5 | **Calendar / term basis & rate carry** | futures/perp term structure & swap-vs-spot basis | `Instrument` (FUTURE/SWAP) + funding | term curve | spec |
 | 6 | **MM on the FX-via-stables book** | the EUR/USD microstructure spread, 24/7 | `MmBook` on `fx-via-stables` preset | none | ready to A/B now |
 

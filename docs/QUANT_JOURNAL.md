@@ -718,3 +718,55 @@ stat-arb and the stablecoin peg (Entry #5/#6).
 npx ts-node -r tsconfig-paths/register scripts/fx-basis-research.ts
 FXB_PAIRS=EUR:EURUSD FXB_ENTRY_Z=2 FXB_EXIT_Z=0.5 npx ts-node -r tsconfig-paths/register scripts/fx-basis-research.ts
 ```
+
+---
+
+## 2026-06-02 — Entry #12: rewrite #4 — the Greeks layer + options vol-selling (VRP is real, and our BS matches Deribit)
+
+Rewrite #4 (STRATEGY_LIBRARY_REWRITE.md §3.3): the **pricing/Greeks layer** + the first options
+strategy. New self-contained `src/derivatives/`:
+- `greeks/option-pricer.interface.ts` — `IOptionPricer` seam (+ `MockOptionPricer` safe default).
+- `greeks/black-scholes.ts` — pure Black-Scholes price + full Δ/Γ/ν/Θ/ρ; unit-tested to the Hull
+  textbook value (call=10.4506 @ S=K=100,T=1,σ=.2,r=.05) + put-call parity.
+- `deribit/deribit-client.ts` — public Deribit v2 chain (mark IV + venue Greeks), no key.
+- `scripts/vol-carry-research.ts` — the VRP harness.
+
+### Finding 1 — the Greeks layer is CORRECT (validated against Deribit on live data)
+Pricing the real ATM call at Deribit's own mark IV, our BS Greeks vs Deribit's:
+
+| | our ν/1% | deribit ν | our Θ/day | deribit Θ | our Δ | deribit Δ |
+|---|---|---|---|---|---|---|
+| BTC-26JUN26-70000-C | 71.7 | **71.7** | −55.2 | **−55.2** | 0.534 | 0.544 |
+| ETH-26JUN26-2000-C | 2.0 | **2.0** | −2.0 | **−2.0** | 0.578 | 0.496 |
+
+**Vega and theta match to the decimal** — the core vol-sensitivity Greeks a vol book runs on are
+right. Delta agrees for BTC; the ETH gap is the **spot-vs-forward moneyness convention** (Deribit
+deltas off the future, we price off spot index) — a known nuance, not a bug; a Black-76/forward
+variant is the refinement (noted). For a delta-hedged book, delta is hedged out anyway; ν/Θ are
+what price the edge.
+
+### Finding 2 — the variance risk premium is positive on both majors (short vol has carry now)
+~24d ATM, real Deribit IV vs Binance trailing RV (1h):
+
+| ccy | IV | RV | **VRP** | IV/RV | short-straddle Θ income |
+|---|---|---|---|---|---|
+| BTC | 37.1% | 31.2% | **+5.9 vol pts** | 1.19 | +$110/day/contract |
+| ETH | 46.5% | 42.8% | **+3.7 vol pts** | 1.09 | +$4/day/contract |
+
+Implied is richer than realised — the classic premium sellers earn for carrying gap/jump risk.
+
+### Decision
+- **CANDIDATE: delta-hedged short ATM straddle on BTC (VRP ~6pts) / ETH (~4pts)** — positive
+  expected carry *right now*. **Deploy ONLY** delta-hedged, **under a Greeks budget** (net vega/gamma
+  caps — the §3.5 gate, next to build), small, never naked: theta is the income, gamma is the risk,
+  one jump can erase weeks of premium. This is a *risk-managed* carry, not free money.
+- **NEED (next):** (1) a **VRP time series** (one snapshot ≠ an edge — is IV>RV persistent? the
+  options analogue of the cointegration-/funding-persistence test); (2) the **Greeks-budget gate**
+  as a real class (`CompositeGreeksGate`, mirrors the MM `CompositeRiskGate`); (3) skew/term, fees,
+  hedge-cost in the P&L.
+
+### Reproduce
+```bash
+npx ts-node -r tsconfig-paths/register scripts/vol-carry-research.ts
+VOL_CCYS=BTC,ETH VOL_TENOR_DAYS=30 npx ts-node -r tsconfig-paths/register scripts/vol-carry-research.ts
+```
