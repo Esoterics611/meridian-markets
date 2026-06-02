@@ -680,3 +680,41 @@ OOS_SOURCE=alpaca OOS_BASKET=true \
   OOS_DAYS=1825 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
   npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
 ```
+
+---
+
+## 2026-06-02 — Entry #11: rewrite #3 — FX-stable basis is real but sub-fee (→ route to the maker book)
+
+Rewrite #3 (STRATEGY_LIBRARY_REWRITE.md): cross-source **FX-stable basis** — the EUR on Binance
+(EUR/USDT, an EUR-stablecoin) vs Pyth's FX benchmark EUR/USD. `basis = ln(EURUSDT) − ln(EURUSD)`
+is the stablecoin's deviation from FX fair value; trade it as a single-leg mean-reversion on
+EUR/USDT. Reuses the **IReferenceBarSource seam** (Pyth, already wired) + the signal libs
+(`logSpread`/`rollingZScore`/`ouFit`). New harness: `scripts/fx-basis-research.ts` (DB-free).
+
+### Finding — the basis reverts fast and reliably, but it's sub-fee for a taker
+1000×1m aligned bars (intersection drops weekend FX gaps), EUR:EURUSD:
+
+| metric | value | read |
+|---|---|---|
+| σ basis | **1.56 bps** | the EUR-stable tracks EUR/USD within ~1.5bps — arbitrage keeps it pegged |
+| half-life | **7 bars (~7 min)** | fast, clean mean reversion |
+| \|z\|>2 | 8.0% of bars | frequent small deviations |
+| reversion backtest (z2/0.5) | 38 trades, **−21.2 bps/trade, 0% win** | **sub-fee** |
+
+The reversion is genuine (σ tiny, half-life short, frequent), but at 1.5bps σ the captured move is
+~2–3 bps and the **20bps taker round trip eats it whole** — the exact fee-floor wall as crypto
+stat-arb and the stablecoin peg (Entry #5/#6).
+
+### Decision
+- **DEPLOY: nothing as a taker basis trade.** Conserve equity.
+- **LEAD: the same as the peg — route it to a MAKER book.** Quoting the EUR-stable turns the basis
+  into a maker spread (capture, don't pay) instead of a 20bps taker round trip. The MM module
+  (`src/market-making/`) already runs the `fx-via-stables` (EUR) preset — A/B the GLFT quoter there.
+- **EXTENSION (need-data):** a true **triangular** arb — Bit2C BTC/ILS vs Binance BTC/USDT × Pyth
+  USD/ILS (3 venues, 3 sources, all wired) — is the version with a wider basis; separate harness.
+
+### Reproduce
+```bash
+npx ts-node -r tsconfig-paths/register scripts/fx-basis-research.ts
+FXB_PAIRS=EUR:EURUSD FXB_ENTRY_Z=2 FXB_EXIT_Z=0.5 npx ts-node -r tsconfig-paths/register scripts/fx-basis-research.ts
+```
