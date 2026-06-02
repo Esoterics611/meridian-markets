@@ -11,11 +11,11 @@ Every session MUST:
 4. Branches are disposable; commits/tags are forever. Before deleting any branch with unique commits, `git tag archive/<name> <branch>` first so nothing is lost.
 5. `.claude/` is git-ignored. Never `git add` it.
 
-**NEVER touch `/home/nexus/code/meridian` (Lira-Bridge) from this repo.** They are deliberately separate filesystems, deliberately separate databases, deliberately separate deploys. The only sanctioned coupling is the `ITreasuryClient` HTTP contract documented in [docs/INTEGRATION_WITH_LIRA_BRIDGE.md](docs/INTEGRATION_WITH_LIRA_BRIDGE.md).
+**This repo is self-contained.** It has no external-service integration and no cross-repo coupling — work only inside `/home/nexus/code/meridian-markets`, never reach into a sibling repo. (The former Lira-Bridge treasury integration has been **retired** — see §5.)
 
 ## 1. Project Overview
 
-Meridian Markets is a **stat-arb trading engine** (with a treasury/yield module alongside). The product is the engine — a market-data spine, a signal/risk library, an execution path, and a live event loop — not the web dashboard, which is a thin read-only view over the engine.
+Meridian Markets is a **stat-arb trading engine** (plus an automated market-making desk; see §8). The product is the engine — a market-data spine, a signal/risk library, an execution path, and a live event loop — not the web dashboard, which is a thin read-only view over the engine.
 
 The engine runs in three execution postures, selected by `EXECUTION_MODE` + `FEED_SOURCE` (no business/legal gate is involved — these are engineering switches):
 
@@ -23,51 +23,46 @@ The engine runs in three execution postures, selected by `EXECUTION_MODE` + `FEE
 - **paper** — **real** market data (Binance public REST, no API key) + `PaperVenue` (simulates fills at real prices). This is real paper trading: `FEED_SOURCE=binance EXECUTION_MODE=paper LIVE_AUTOSTART=true`. See [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md).
 - **canary / live** — routes (some/all) flow to a real venue. Fronted by an *engineering* arm switch (`LIVE_TRADING_ARMED=true`), set only once a real venue adapter is wired and a testnet round-trip passes. Real-money go/no-go is a human decision made outside the code; the code never assumes it.
 
-A separate treasury/yield module earns yield on Lira-Bridge's first-party reserve USDC over the `ITreasuryClient` HTTP contract — see [docs/INTEGRATION_WITH_LIRA_BRIDGE.md](docs/INTEGRATION_WITH_LIRA_BRIDGE.md).
+> **Legacy:** the repo also still contains a treasury/yield module (`src/treasury/`, `src/yield/`, the `treasury_*` tables). It was built to earn yield on an external service's reserve USDC over an HTTP contract; **that integration is retired** and the module is dormant. It is left in place (not deleted) but is not part of the product — ignore it unless explicitly asked. See §5.
 
 ## 2. Tech Stack
 
-- Runtime: Node.js 20, NestJS 10, TypeScript (strict mode, CommonJS) — mirrors Lira-Bridge.
+- Runtime: Node.js 20, NestJS 10, TypeScript (strict mode, CommonJS).
 - Database: PostgreSQL 16 via TypeORM 0.3 (raw SQL migrations; no entity decorators).
 - Config: `@nestjs/config` with typed `AppConfig` interface, reads from `.env`.
 - Secrets: `ISecretProvider` interface — `EnvSecretProvider` in dev; swap a Vault impl in prod without touching other code.
-- Containerisation: Docker Compose (`postgres` on port **5433** — Lira-Bridge owns 5432).
+- Containerisation: Docker Compose (`postgres` on port **5433**).
 
 ## 3. DB Tables
+
+> These tables belong to the **legacy (dormant) treasury module** (§1, §5). The trading engine itself runs paper/live in-memory and does not depend on them. They are documented here because the migration still creates them.
 
 | Table | Key invariants |
 |---|---|
 | `treasury_movements` | Append-only — `meridian_markets_app` role has `SELECT, INSERT` only (no UPDATE/DELETE). `chk_amount_positive` enforces `> 0`. `(provider, idempotency_key)` UNIQUE for replay safety. `(provider, created_at::date) WHERE direction='YIELD_ACCRUAL'` UNIQUE for cron idempotency. |
 | `treasury_positions` | Mutable cache. `(provider)` PK. `SELECT, INSERT, UPDATE` for the app role; no DELETE. Derivable from `treasury_movements` if ever lost. |
 
-USDC has **6 decimals**. `1 USDC = 1_000_000 units`. All `*_units` columns store 6-decimal integer units (BIGINT). Same convention as Lira-Bridge — never store 18-decimal ETH wei here.
+USDC has **6 decimals**. `1 USDC = 1_000_000 units`. All `*_units` columns store 6-decimal integer units (BIGINT) — never store 18-decimal ETH wei here.
 
-## 4. Movement Directions
+## 4. Movement Directions (legacy treasury module)
 
 - `DEPOSIT` — principal flowed into the yield provider.
 - `WITHDRAW` — principal pulled out.
 - `YIELD_ACCRUAL` — provider reports more yield than we've recorded; this row crystallises the delta. Capped at one per provider per day by a unique partial index.
 
-## 5. Cross-Service Contract
+## 5. Cross-Service Contract — RETIRED
 
-The single sanctioned coupling with Lira-Bridge is the HTTP `ITreasuryClient` contract documented in [docs/INTEGRATION_WITH_LIRA_BRIDGE.md](docs/INTEGRATION_WITH_LIRA_BRIDGE.md). Endpoints:
+Meridian Markets used to expose an HTTP treasury contract (`ITreasuryClient`) for an external service (Lira-Bridge) to place reserve USDC into a yield provider. **That integration has been retired — there is no cross-service contract anymore.** This repo is self-contained (§0).
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/treasury/deposit` | Place reserve float into the yield provider |
-| `POST` | `/api/treasury/withdraw` | Pull principal back out for redemption |
-| `GET`  | `/api/treasury/position` | Current principal + accumulated yield |
-| `GET`  | `/api/treasury/yield-earned` | Yield-only convenience read |
-
-All routes are guarded by `x-meridian-client-key` (shared secret, v1). Replace with mTLS or signed JWT before either side handles real money — flagged in the integration doc as a future hardening step.
+The `src/treasury/` code and the `/api/treasury/*` routes still exist as dormant legacy (§1) but are not consumed by anything and are not a supported surface. The historical spec lives in [docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md](docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md) for reference only. If the treasury module is ever fully removed, drop §3/§4 and the `1715000000000-Initial.ts` migration with it.
 
 ## 6. Architecture: modular monolith (binding)
 
-This is a **binding decision**, not a preference. Do not re-litigate it without an explicit, written reason that addresses the rationale below — same posture as Lira-Bridge §10h.
+This is a **binding decision**, not a preference. Do not re-litigate it without an explicit, written reason that addresses the rationale below.
 
 - **NO microservices inside this repo.** The correctness model is append-only tables + Postgres `SERIALIZABLE`. That guarantee only holds against a single DB in a single service.
 - **NO polyrepo. NO database-per-service. NO split migration sequence.** One repo, one DB, one ordered migration history.
-- **Meridian Markets and Lira-Bridge ARE two separate services** — that's the point of this whole repo existing. They talk only over HTTP, only through the `ITreasuryClient` contract. No shared DB. No cross-repo imports. No shared types. If you ever want a shared type, copy it.
+- **Self-contained.** No cross-repo imports, no shared DB, no shared types with any other repo. If you ever want a type from elsewhere, copy it.
 - **`process.env` is read in exactly one place: `src/config/app-config.factory.ts`.** Everything else uses injected `AppConfig` or `ISecretProvider.get()`. (Tests under `src/test-helpers/` are the only other exception, scoped to test setup.)
 
 ## 7. Execution modes & the swap seams (binding)
@@ -77,7 +72,7 @@ Every external integration sits behind an interface with a real and a mock imple
 - **Market data** — `IBarFeed` / `IPriceSource`. `FEED_SOURCE=binance` uses real Binance **public** REST (no API key, no account). `FEED_SOURCE=mock` is the synthetic generator. Default `mock` so tests run offline; flip to `binance` to trade live data.
 - **Trading venue** — `ITradingVenue`, selected by `EXECUTION_MODE`: `mock` (synthetic) → `paper`/`canary` (`PaperVenue`, real prices + simulated fills) → `live` (real venue adapter).
 - **Real-money arming** — `canary`/`live` require `LIVE_TRADING_ARMED=true`, enforced by `ExecutionModeBootGuard` at boot. Arm it once a real venue adapter is wired and a testnet round-trip passes. `paper` requires nothing.
-- **Treasury yield** — `IYieldProvider`: `MockYieldProvider` (default) vs `RealOndoYieldProvider` (throws until `ONDO_*` secrets are populated and `MOCK_YIELD_ENABLED=false`). Same pattern — ship the stub, wire the real adapter when its credentials exist.
+- **Treasury yield** *(legacy, dormant — §5)* — `IYieldProvider`: `MockYieldProvider` (default) vs `RealOndoYieldProvider`. Still present as a swap seam but unused by the product.
 
 When adding any new venue/provider: implement the interface, register it in the module factory, leave the safe default on. **Paper trading is a first-class supported mode — `FEED_SOURCE=binance EXECUTION_MODE=paper` paper-trades live data today** (see [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md)).
 
@@ -113,12 +108,12 @@ src/
   database/
     db.service.ts                      runInSerializableTransaction (retry-once-on-40001)
     database.module.ts                 @Global; connects as meridian_markets_app role
-  yield/
+  yield/                               (legacy, dormant — §5)
     yield-provider.interface.ts        IYieldProvider + types + errors
     mock-yield-provider.ts             deterministic; default
     real-ondo-yield-provider.ts        dormant; KYB-gated
     yield.module.ts                    factory selects mock vs real
-  treasury/
+  treasury/                            (legacy, dormant — §5)
     treasury.service.ts                append-only ledger, idempotency, SERIALIZABLE
     treasury.controller.ts             /api/treasury/* HTTP surface
     treasury-client.guard.ts           x-meridian-client-key guard
