@@ -32,20 +32,24 @@ import { join } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { AlpacaDataClient } from '../src/stat-arb/feed/alpaca/alpaca-data-client';
+import { YahooDailyClient } from '../src/stat-arb/feed/yahoo/yahoo-daily-client';
 import { discoverPairs } from '../src/stat-arb/discovery/pair-discovery';
 import { getAnyPreset, EQUITY_PRESETS, MarketPreset } from '../src/stat-arb/markets/market-presets';
 
-// STAB_SOURCE=binance (default, crypto) | alpaca (US equities — the pivot).
-// The equities thesis test: do same-sector baskets HOLD cointegration across
-// 90/180d where every crypto class collapsed to 0 (Journal #5, the cliff)?
+// STAB_SOURCE=binance (default, crypto) | alpaca (US equities, ~2016+) | yahoo
+// (US equities, decades of split/div-adjusted DAILY history — the cliff test over
+// the longest window). Does a same-sector basket HOLD cointegration across decades
+// where crypto collapsed to 0 in months (Journal #5, the cliff)?
 const SOURCE = (process.env.STAB_SOURCE ?? 'binance').trim().toLowerCase();
+const IS_YAHOO = SOURCE === 'yahoo';
+const IS_EQUITY = SOURCE === 'alpaca' || IS_YAHOO;
 
 const CRYPTO_PRESETS = [
   'crypto-majors', 'ai-data', 'l1-smart-contract', 'eth-ecosystem',
   'gaming-meta', 'defi-bluechip', 'payments-sov', 'fx-stables', 'stablecoin-peg',
 ];
 const EQUITY_PRESET_IDS = EQUITY_PRESETS.map((p) => p.id);
-const ALL_PRESETS = SOURCE === 'alpaca' ? EQUITY_PRESET_IDS : CRYPTO_PRESETS;
+const ALL_PRESETS = IS_EQUITY ? EQUITY_PRESET_IDS : CRYPTO_PRESETS;
 const PRESETS = (process.env.STAB_PRESETS ?? ALL_PRESETS.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
 const HORIZONS = (process.env.STAB_HORIZONS ?? '30,90,180').split(',').map(Number);
 const INTERVAL = process.env.STAB_INTERVAL ?? '15m';
@@ -91,6 +95,7 @@ async function main() {
         feed: process.env.ALPACA_DATA_FEED ?? 'iex',
       })
     : undefined;
+  const yahoo = IS_YAHOO ? new YahooDailyClient() : undefined;
   if (isAlpaca && (!process.env.ALPACA_KEY_ID || !process.env.ALPACA_SECRET)) {
     console.error('STAB_SOURCE=alpaca requires ALPACA_KEY_ID and ALPACA_SECRET in the environment.');
     process.exit(1);
@@ -98,6 +103,7 @@ async function main() {
 
   // Source-agnostic bar loader: the discovery gate downstream is identical.
   const load = (preset: MarketPreset, sym: string, fromMs: number, toMs: number): Promise<Bar[]> => {
+    if (IS_YAHOO) return yahoo!.historicalBars(sym, INTERVAL, fromMs, toMs);
     if (isAlpaca) return alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs);
     const cli = preset.quote && preset.quote !== 'USDT' ? new BinancePublicClient({ quote: preset.quote }) : binance;
     return cli.historicalKlines(sym, INTERVAL, fromMs, toMs);

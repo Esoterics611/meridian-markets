@@ -770,3 +770,52 @@ Implied is richer than realised — the classic premium sellers earn for carryin
 npx ts-node -r tsconfig-paths/register scripts/vol-carry-research.ts
 VOL_CCYS=BTC,ETH VOL_TENOR_DAYS=30 npx ts-node -r tsconfig-paths/register scripts/vol-carry-research.ts
 ```
+
+## 2026-06-02 — Entry #13: the more-history lever — Yahoo daily (decades) flips the gate, but survivorship inflates it
+
+The binding equities blocker (Entry #9/#10) was **data, not method**: Alpaca caps at ~2016 (both
+iex AND sip — paying for sip adds tape, not years), so daily OOS trade counts couldn't clear n≥20 and
+the de-biased basket sat at Sharpe 0.06 / PSR 90%. Built the lever: a free, no-key, **split+dividend-
+adjusted** long-history daily source — `YahooDailyClient` (chart v8, `adjclose`, injected HTTP, daily-
+only). Wired `STAB_SOURCE=yahoo` / `OOS_SOURCE=yahoo` (equity cost model via a new `IS_EQUITY`). JPM
+carries 11,646 daily bars back to 1980.
+
+### Finding — the gate flips to PASS with more history, BUT the Sharpe rises with window length (the tell)
+5-sector edge-disjoint basket (banks+energy+rails+staples+pharma), daily, net of all costs:
+
+| window | source | disjoint pairs | OOS trades | pooled Sharpe | OOS P&L | PSR | gate |
+|---|---|---|---|---|---|---|---|
+| ~5yr | Alpaca IEX | 15 | 507 | 0.06 | +$118k | 90% | INCONCLUSIVE |
+| ~10yr | Yahoo | 13 | 887 | 0.09 | +$336k | 99% | PASS |
+| ~24yr | Yahoo | 12 | 1867 | 0.15 | +$1.16M | 100% | PASS |
+
+- **Trade-count problem: solved.** 887–1867 trades; the edge is now statistically distinguishable
+  from zero (PSR 98–100%). That's a real step up from INCONCLUSIVE — the edge IS positive.
+- **But the per-trade Sharpe RISES monotonically with window length (0.06→0.09→0.15)** — the signature
+  of **survivorship + crisis inflation**, not a stable edge. A 24yr backtest on *today's* banks
+  silently drops the 2008 casualties (Wachovia/Bear/Lehman/Countrywide); the survivors' spreads
+  mean-reverted, the dead ones didn't. The longer the window, the more survivor-only crisis
+  mean-reversion (2008, 2020) it loads. So the long-window result is an **upper bound**, not truth.
+- **PSR "PASS" ≠ deployable.** (a) PSR with n~1000+ flags even a thin 0.09 Sharpe as "significant";
+  (b) it assumes iid trades — a market-wide dislocation correlates the spreads, so effective n ≪ n;
+  (c) survivorship inflates the level. A 0.09–0.15 per-trade Sharpe book has frequent drawdowns — it
+  is NOT a "no-drawdown / always-profit" system, and saying so would be a curve-fit lie.
+
+### Decisions
+- **Equities verdict (updated): a real, positive, but THIN and survivorship-inflated edge.** More
+  history moved it from "can't tell" to "positive but small (~0.09 honest-window Sharpe), not clearly
+  deployable." Not a deploy; not a money printer.
+- **The binding blocker is now SURVIVORSHIP** (point-in-time universe incl. delisted/merged names) —
+  the only way to know if even the 0.09 is real or a survivor artifact. Free delisted-equity history
+  is hard (CRSP is paid); this is the P0.5 frontier and the honest gate to deploy.
+- **Data-quality caveat:** Yahoo ticker reuse (e.g. TFC = Truist post-2019 may carry BB&T history)
+  and survivorship both mean Yahoo long-history is a research/upper-bound source, not a clean gate.
+- β-weighting (Entry #10 addendum) remains marginal here (β≈1 pairs).
+
+### Reproduce
+```bash
+OOS_SOURCE=yahoo OOS_BASKET=true \
+  OOS_PRESET=equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma \
+  OOS_DAYS=9000 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```

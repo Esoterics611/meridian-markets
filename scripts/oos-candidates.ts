@@ -32,6 +32,7 @@ import { join } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { AlpacaDataClient } from '../src/stat-arb/feed/alpaca/alpaca-data-client';
+import { YahooDailyClient } from '../src/stat-arb/feed/yahoo/yahoo-daily-client';
 import { discoverPairs } from '../src/stat-arb/discovery/pair-discovery';
 import { walkForward } from '../src/stat-arb/research/walk-forward';
 import { HistoricalReplayVenue } from '../src/stat-arb/historical-replay-venue';
@@ -41,10 +42,13 @@ import { sharpeStats, deflatedSharpe } from '../src/stat-arb/research/deflated-s
 import { getAnyPreset } from '../src/stat-arb/markets/market-presets';
 
 const USDC = 1e6;
-// OOS_SOURCE=binance (crypto, default) | alpaca (US equities — the pivot).
+// OOS_SOURCE=binance (crypto, default) | alpaca (US equities, ~2016+) | yahoo
+// (US equities, decades of split/div-adjusted DAILY history — the more-history lever).
 const SOURCE = (process.env.OOS_SOURCE ?? 'binance').trim().toLowerCase();
 const IS_ALPACA = SOURCE === 'alpaca';
-const PRESET = process.env.OOS_PRESET ?? (IS_ALPACA ? 'equity-banks' : 'ai-data');
+const IS_YAHOO = SOURCE === 'yahoo';
+const IS_EQUITY = IS_ALPACA || IS_YAHOO; // equity cost model + presets for both
+const PRESET = process.env.OOS_PRESET ?? (IS_EQUITY ? 'equity-banks' : 'ai-data');
 const DAYS = Number(process.env.OOS_DAYS ?? 30);
 const INTERVAL = process.env.OOS_INTERVAL ?? '15m';
 const ENTRY_GRID = (process.env.OOS_ENTRY ?? '2.0,2.5').split(',').map(Number);
@@ -76,19 +80,19 @@ const BASKET = /^(1|true|yes)$/i.test(process.env.OOS_BASKET ?? '');
 // scale the B leg to |β|·notional so the position tracks dS = r_A − β·r_B instead of
 // equal-dollar (which leaves residual N(β−1)·r_B factor exposure). Default off.
 const BETA_WEIGHTED = /^(1|true|yes)$/i.test(process.env.OOS_BETA_WEIGHTED ?? '');
-// Cost model — source-aware defaults (env overrides win). Equities on Alpaca are
-// commission-free with tight large-cap spreads, but pay short-borrow carry.
-const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_ALPACA ? 0 : 5))));
-const HALF_SPREAD_BPS = Number(process.env.OOS_HALF_SPREAD_BPS ?? (IS_ALPACA ? 1 : 2));
+// Cost model — source-aware defaults (env overrides win). Equities (alpaca/yahoo)
+// are commission-free with tight large-cap spreads, but pay short-borrow carry.
+const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_EQUITY ? 0 : 5))));
+const HALF_SPREAD_BPS = Number(process.env.OOS_HALF_SPREAD_BPS ?? (IS_EQUITY ? 1 : 2));
 const IMPACT_LAMBDA_BPS = Number(process.env.OOS_IMPACT_LAMBDA_BPS ?? 10);
-const BORROW_BPS_YEAR = Number(process.env.OOS_BORROW_BPS_YEAR ?? (IS_ALPACA ? 50 : 0));
+const BORROW_BPS_YEAR = Number(process.env.OOS_BORROW_BPS_YEAR ?? (IS_EQUITY ? 50 : 0));
 // Entry fee-gate floor for the STRATEGY (signal/fee-gate.ts): the per-fill cost
 // the gate compares expected reversion against. For crypto this is the 5bps taker
 // fee (registry default). For commission-free equities it's the half-spread the
 // venue actually charges per fill — NOT 5bps, or the gate suppresses profitable
 // equity entries and starves the OOS trade count. Borrow is a hold-duration cost,
 // so it stays out of the per-fill entry gate and is judged in realized P&L.
-const STRAT_FEE_BPS = Number(process.env.OOS_STRAT_FEE_BPS ?? (IS_ALPACA ? HALF_SPREAD_BPS : 5));
+const STRAT_FEE_BPS = Number(process.env.OOS_STRAT_FEE_BPS ?? (IS_EQUITY ? HALF_SPREAD_BPS : 5));
 const r2 = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
 const fmtUsd = (units: bigint) => (Number(units) / USDC).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
@@ -131,7 +135,7 @@ async function main() {
   const barSeconds = intervalMinutes(INTERVAL) * 60;
 
   // Source-agnostic bar loader — discovery + walk-forward downstream is identical.
-  const binanceDefault = IS_ALPACA ? undefined : new BinancePublicClient({ quote: 'USDT' });
+  const binanceDefault = IS_EQUITY ? undefined : new BinancePublicClient({ quote: 'USDT' });
   const alpaca = IS_ALPACA
     ? new AlpacaDataClient({
         keyId: process.env.ALPACA_KEY_ID ?? '',
@@ -140,11 +144,13 @@ async function main() {
         feed: process.env.ALPACA_DATA_FEED ?? 'iex',
       })
     : undefined;
+  const yahoo = IS_YAHOO ? new YahooDailyClient() : undefined;
   const loadFor = (quote: string) => {
-    const cli = IS_ALPACA ? undefined : (quote && quote !== 'USDT' ? new BinancePublicClient({ quote }) : binanceDefault);
+    const cli = IS_EQUITY ? undefined : (quote && quote !== 'USDT' ? new BinancePublicClient({ quote }) : binanceDefault);
     return (sym: string): Promise<Bar[]> =>
-      IS_ALPACA ? alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs)
-                : cli!.historicalKlines(sym, INTERVAL, fromMs, toMs);
+      IS_YAHOO ? yahoo!.historicalBars(sym, INTERVAL, fromMs, toMs)
+        : IS_ALPACA ? alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs)
+          : cli!.historicalKlines(sym, INTERVAL, fromMs, toMs);
   };
 
   const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
@@ -164,7 +170,7 @@ async function main() {
   for (const pid of presetIds) {
     const p = getAnyPreset(pid)!;
     const load = loadFor(p.quote);
-    console.log(`pulling ${p.symbols.length} symbols for ${pid} from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
+    console.log(`pulling ${p.symbols.length} symbols for ${pid} from ${IS_YAHOO ? 'Yahoo' : IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
     const bySymbol = new Map<string, Bar[]>();
     for (const sym of p.symbols) {
       try {
