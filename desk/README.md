@@ -80,5 +80,8 @@ The short version, and why it's deliberately lean:
 
 - [SESSION_NOTES_2026-06-01.md](./SESSION_NOTES_2026-06-01.md) — what shipped in
   the S22 session + step-by-step demo (UI + terminal).
+- [SESSION_NOTES_2026-06-02_market-making.md](./SESSION_NOTES_2026-06-02_market-making.md)
+  — S23 pivot: MM is the live earner (`mm-paper-session` harness) + the
+  strategy-library rewrite brief; terminal + UI test steps.
 - [../PRODUCTION_READINESS.md](../docs/PRODUCTION_READINESS.md) — the P0/P1 gate list.
 - [../QUANT_TERMINAL_SPEC.md](../docs/QUANT_TERMINAL_SPEC.md) — the terminal surface.
