@@ -65,6 +65,13 @@ const SIGMA_SAMPLE = Number(process.env.OOS_SIGMA_SAMPLE ?? 30);
 // default (60) suits crypto intraday (hundreds of bars/window); for daily-bar
 // equities set OOS_ZLOOKBACK≈20 and OOS_TEST≈120.
 const ZLOOKBACK = Number(process.env.OOS_ZLOOKBACK ?? 60);
+// Basket-pooled mode. OOS_BASKET=true pools the OOS trades of an EDGE-DISJOINT set
+// of pairs (each ticker used at most once → the pairs share no leg, so they're far
+// closer to independent than overlapping pairs) into one return stream, then gates
+// the pooled stream. This lifts the OOS trade count past the n≥20 floor that single
+// daily-bar pairs miss. OOS_PRESET may be a comma-list (e.g. equity-banks,equity-energy)
+// to pool ACROSS sectors — different cash-flow factors ⇒ genuinely more independent.
+const BASKET = /^(1|true|yes)$/i.test(process.env.OOS_BASKET ?? '');
 // Cost model — source-aware defaults (env overrides win). Equities on Alpaca are
 // commission-free with tight large-cap spreads, but pay short-borrow carry.
 const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_ALPACA ? 0 : 5))));
@@ -109,8 +116,8 @@ function fitBetaOnTrain(a: Bar[], b: Bar[]): number {
 }
 
 async function main() {
-  const preset = getAnyPreset(PRESET);
-  if (!preset) throw new Error(`unknown preset ${PRESET}`);
+  const presetIds = PRESET.split(',').map((s) => s.trim()).filter(Boolean);
+  for (const pid of presetIds) if (!getAnyPreset(pid)) throw new Error(`unknown preset ${pid}`);
   if (IS_ALPACA && (!process.env.ALPACA_KEY_ID || !process.env.ALPACA_SECRET)) {
     console.error('OOS_SOURCE=alpaca requires ALPACA_KEY_ID and ALPACA_SECRET in the environment.');
     process.exit(1);
@@ -119,8 +126,8 @@ async function main() {
   const fromMs = toMs - DAYS * 86_400_000;
   const barSeconds = intervalMinutes(INTERVAL) * 60;
 
-  // Source-agnostic bar loader — the discovery gate + walk-forward downstream is identical.
-  const binance = IS_ALPACA ? undefined : new BinancePublicClient({ quote: preset.quote });
+  // Source-agnostic bar loader — discovery + walk-forward downstream is identical.
+  const binanceDefault = IS_ALPACA ? undefined : new BinancePublicClient({ quote: 'USDT' });
   const alpaca = IS_ALPACA
     ? new AlpacaDataClient({
         keyId: process.env.ALPACA_KEY_ID ?? '',
@@ -129,41 +136,57 @@ async function main() {
         feed: process.env.ALPACA_DATA_FEED ?? 'iex',
       })
     : undefined;
-  const load = (sym: string): Promise<Bar[]> =>
-    IS_ALPACA ? alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs)
-              : binance!.historicalKlines(sym, INTERVAL, fromMs, toMs);
+  const loadFor = (quote: string) => {
+    const cli = IS_ALPACA ? undefined : (quote && quote !== 'USDT' ? new BinancePublicClient({ quote }) : binanceDefault);
+    return (sym: string): Promise<Bar[]> =>
+      IS_ALPACA ? alpaca!.historicalBars(sym, INTERVAL, fromMs, toMs)
+                : cli!.historicalKlines(sym, INTERVAL, fromMs, toMs);
+  };
 
   const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
     (BORROW_BPS_YEAR ? ` + ${BORROW_BPS_YEAR}bps/yr short-borrow` : '');
-  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps · train/test/zLookback=${TRAIN}/${TEST}/${ZLOOKBACK} ===`);
+  const mode = BASKET ? 'BASKET (edge-disjoint pooled)' : 'per-pair';
+  console.log(`\n=== OOS gate [${mode}] · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps · train/test/zLookback=${TRAIN}/${TEST}/${ZLOOKBACK} ===`);
   if (TEST <= ZLOOKBACK) {
     console.log(`  ⚠ WARNING: TEST (${TEST}) ≤ zLookback (${ZLOOKBACK}) — every test window is spent warming up, so you will get ZERO OOS trades. Raise OOS_TEST or lower OOS_ZLOOKBACK.`);
   }
-  console.log(`pulling ${preset.symbols.length} symbols from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
-  const bySymbol = new Map<string, Bar[]>();
-  for (const sym of preset.symbols) {
-    try {
-      const bars = await load(sym);
-      if (bars.length > 0) bySymbol.set(sym, bars);
-      process.stdout.write(`  ${sym}:${bars.length}`);
-    } catch {
-      process.stdout.write(`  ${sym}:ERR`);
-    }
-  }
-  console.log('');
-  const aligned = alignMany(bySymbol);
-  const lens = [...aligned.values()].map((b) => b.length);
-  const minLen = lens.length ? Math.min(...lens) : 0;
-  const days = minLen >= 2 ? ((minLen - 1) * intervalMinutes(INTERVAL)) / (60 * 24) : 0;
-  console.log(`aligned: ${aligned.size} symbols × ${minLen} common bars (~${r2(days, 1)} days)\n`);
-  if (aligned.size < 2 || minLen < TRAIN + TEST) {
-    console.log(`NOT ENOUGH DATA: need ≥ ${TRAIN + TEST} aligned bars, have ${minLen}. Increase OOS_DAYS.`);
-    return;
-  }
 
-  const candidates = discoverPairs(aligned, { minBars: TRAIN + TEST, pValueCutoff: 0.6, maxHalfLifeBars: 240 });
+  // Load + align + discover PER preset (cross-preset pairs aren't cointegrated, so
+  // discovery stays within a sector); merge bars into one map (symbols are unique
+  // across equity presets) and concatenate the candidate pools.
+  type Cand = ReturnType<typeof discoverPairs>[number] & { preset: string };
+  const aligned = new Map<string, Bar[]>();
+  const candidates: Cand[] = [];
+  for (const pid of presetIds) {
+    const p = getAnyPreset(pid)!;
+    const load = loadFor(p.quote);
+    console.log(`pulling ${p.symbols.length} symbols for ${pid} from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
+    const bySymbol = new Map<string, Bar[]>();
+    for (const sym of p.symbols) {
+      try {
+        const bars = await load(sym);
+        if (bars.length > 0) bySymbol.set(sym, bars);
+        process.stdout.write(`  ${sym}:${bars.length}`);
+      } catch {
+        process.stdout.write(`  ${sym}:ERR`);
+      }
+    }
+    process.stdout.write('\n');
+    const al = alignMany(bySymbol);
+    const lens = [...al.values()].map((b) => b.length);
+    const minLen = lens.length ? Math.min(...lens) : 0;
+    if (al.size < 2 || minLen < TRAIN + TEST) {
+      console.log(`  ${pid}: NOT ENOUGH DATA (${al.size} sym × ${minLen} bars; need ≥ ${TRAIN + TEST}) — skipped`);
+      continue;
+    }
+    for (const [sym, bars] of al) aligned.set(sym, bars);
+    const cands = discoverPairs(al, { minBars: TRAIN + TEST, pValueCutoff: 0.6, maxHalfLifeBars: 240 });
+    for (const c of cands) candidates.push({ ...c, preset: pid });
+    console.log(`  ${pid}: ${al.size} sym × ${minLen} bars → ${cands.length} cointegrated candidates`);
+  }
+  candidates.sort((a, b) => a.pValue - b.pValue); // best cointegration first
   const trials = candidates.length; // selection pool for the deflated-Sharpe haircut
-  console.log(`discovered ${trials} cointegrated candidate pairs (the selection pool / trials).`);
+  console.log(`\ndiscovered ${trials} cointegrated candidate pairs across ${presetIds.length} preset(s) (the selection pool / trials).`);
   if (!candidates.length) { console.log('no cointegrated pairs — nothing to gate.'); return; }
 
   // Walk-forward one (pair, entryZ) → pooled OOS stats. Cached so the σ_SR pass
@@ -215,37 +238,105 @@ async function main() {
   const sigmaSR = std(crossPairSharpes);
   console.log(`σ_SR (cross-pair Sharpe dispersion over ${crossPairSharpes.length} evaluated pairs @ eZ${baseEntry}) = ${r2(sigmaSR)}\n`);
 
+  const verdictOf = (n: number, dsr: number, psr: number) =>
+    n < 20 ? 'INSUFFICIENT' : dsr >= 0.95 ? 'PASS' : psr < 0.9 ? 'NOISE' : 'INCONCLUSIVE';
   const rows: Array<Record<string, string>> = [];
-  for (const cand of candidates.slice(0, TOPK)) {
-    const symA = cand.symbolA, symB = cand.symbolB;
-    for (const entryZ of ENTRY_GRID) {
-      const { report, stats, totalOos, avgTrain } = await evalPair(symA, symB, entryZ);
-      const ds = deflatedSharpe(stats.sharpe, stats.n, stats.skew, stats.kurtosis, trials, sigmaSR);
-      const verdict = stats.n < 20 ? 'INSUFFICIENT' : ds.dsr >= 0.95 ? 'PASS' : ds.psr < 0.9 ? 'NOISE' : 'INCONCLUSIVE';
+  let basketJson: unknown = null;
+
+  if (BASKET) {
+    // Edge-disjoint matching over the ranked candidates: greedily take a pair only
+    // if neither leg is already used, so the basket shares no ticker and its pooled
+    // trades are far closer to independent draws than overlapping pairs would be.
+    const used = new Set<string>();
+    const disjoint: Cand[] = [];
+    for (const c of candidates) {
+      if (used.has(c.symbolA) || used.has(c.symbolB)) continue;
+      disjoint.push(c);
+      used.add(c.symbolA); used.add(c.symbolB);
+    }
+    console.log(`edge-disjoint basket: ${disjoint.length} pairs (no shared leg) — ` +
+      disjoint.map((c) => `${c.symbolA}/${c.symbolB}(${c.preset.replace('equity-', '')})`).join(', '));
+    console.log(`(basket is selection-unbiased → judged on PSR vs 0, NOT the per-pair eMax deflation; the dsr column = PSR for ■BASKET rows)\n`);
+
+    // Per-constituent transparency rows (at the base entryZ).
+    for (const c of disjoint) {
+      const e = await evalPair(c.symbolA, c.symbolB, baseEntry);
       rows.push({
-        pair: `${symA}/${symB}`, eZ: String(entryZ), windows: String(report.windows.length),
-        oosTrades: String(stats.n), oosSharpe: r2(stats.sharpe), avgTestSharpe: r2(report.avgTestSharpe),
-        posWin: `${(report.positiveWindowShare * 100).toFixed(0)}%`, degr: r2(avgTrain - report.avgTestSharpe),
-        oosPnl: `$${fmtUsd(totalOos)}`, psr: `${(ds.psr * 100).toFixed(0)}%`,
+        pair: ` ·${c.symbolA}/${c.symbolB}`, eZ: String(baseEntry), windows: String(e.report.windows.length),
+        oosTrades: String(e.stats.n), oosSharpe: r2(e.stats.sharpe), avgTestSharpe: r2(e.report.avgTestSharpe),
+        posWin: `${(e.report.positiveWindowShare * 100).toFixed(0)}%`, degr: '—',
+        oosPnl: `$${fmtUsd(e.totalOos)}`, psr: '—', eMax: '—', dsr: '—', verdict: '—',
+      });
+    }
+
+    // Pooled basket verdict per entryZ: concatenate every disjoint pair's OOS trades.
+    const perEntry: Array<Record<string, unknown>> = [];
+    for (const entryZ of ENTRY_GRID) {
+      const trades: number[] = [];
+      let pnl = 0n;
+      for (const c of disjoint) {
+        const e = await evalPair(c.symbolA, c.symbolB, entryZ);
+        for (const t of e.report.windows.flatMap((w) => w.test.tradePnlUnits)) trades.push(Number(t));
+        pnl += e.totalOos;
+      }
+      const stats = sharpeStats(trades);
+      const posTradeShare = trades.length ? trades.filter((t) => t > 0).length / trades.length : 0;
+      // The disjoint basket is a PRE-SPECIFIED, selection-unbiased portfolio (ranked
+      // by cointegration, not by realized Sharpe), so the per-pair selection-bias
+      // deflation (eMax over `trials` candidate pairs) does NOT apply — judge it on
+      // PSR against 0 (trials=1 ⇒ eMax=0 ⇒ the dsr column reports PSR). CAVEAT: PSR
+      // assumes iid trades; residual cross-pair correlation (shared market beta) makes
+      // the EFFECTIVE n < the nominal n, so PSR is a mild overstatement.
+      const ds = deflatedSharpe(stats.sharpe, stats.n, stats.skew, stats.kurtosis, 1, sigmaSR);
+      const verdict = verdictOf(stats.n, ds.dsr, ds.psr);
+      rows.push({
+        pair: `■BASKET×${disjoint.length}`, eZ: String(entryZ), windows: '—',
+        oosTrades: String(stats.n), oosSharpe: r2(stats.sharpe), avgTestSharpe: '—',
+        posWin: `${(posTradeShare * 100).toFixed(0)}%`, degr: '—',
+        oosPnl: `$${fmtUsd(pnl)}`, psr: `${(ds.psr * 100).toFixed(0)}%`,
         eMax: r2(ds.expectedMaxSharpe), dsr: `${(ds.dsr * 100).toFixed(0)}%`, verdict,
       });
+      perEntry.push({ entryZ, oosTrades: stats.n, pooledSharpe: stats.sharpe, posTradeShare, pnlUsdc: Number(pnl) / USDC, psr: ds.psr, dsr: ds.dsr, verdict });
+    }
+    basketJson = {
+      disjointPairs: disjoint.map((c) => ({ pair: `${c.symbolA}/${c.symbolB}`, preset: c.preset, pValue: c.pValue, beta: c.beta })),
+      perEntry,
+    };
+  } else {
+    for (const cand of candidates.slice(0, TOPK)) {
+      const symA = cand.symbolA, symB = cand.symbolB;
+      for (const entryZ of ENTRY_GRID) {
+        const { report, stats, totalOos, avgTrain } = await evalPair(symA, symB, entryZ);
+        const ds = deflatedSharpe(stats.sharpe, stats.n, stats.skew, stats.kurtosis, trials, sigmaSR);
+        rows.push({
+          pair: `${symA}/${symB}`, eZ: String(entryZ), windows: String(report.windows.length),
+          oosTrades: String(stats.n), oosSharpe: r2(stats.sharpe), avgTestSharpe: r2(report.avgTestSharpe),
+          posWin: `${(report.positiveWindowShare * 100).toFixed(0)}%`, degr: r2(avgTrain - report.avgTestSharpe),
+          oosPnl: `$${fmtUsd(totalOos)}`, psr: `${(ds.psr * 100).toFixed(0)}%`,
+          eMax: r2(ds.expectedMaxSharpe), dsr: `${(ds.dsr * 100).toFixed(0)}%`, verdict: verdictOf(stats.n, ds.dsr, ds.psr),
+        });
+      }
     }
   }
 
   const cols = ['pair', 'eZ', 'windows', 'oosTrades', 'oosSharpe', 'avgTestSharpe', 'posWin', 'degr', 'oosPnl', 'psr', 'eMax', 'dsr', 'verdict'];
   console.log('\n' + cols.map((c) => c.padEnd(c === 'pair' ? 12 : c === 'verdict' ? 13 : 9)).join(''));
   for (const row of rows) console.log(cols.map((c) => (row[c] ?? '').padEnd(c === 'pair' ? 12 : c === 'verdict' ? 13 : 9)).join(''));
-  console.log(`\nLegend: oosSharpe=pooled per-trade Sharpe across all OOS test windows · degr=avg train Sharpe − avg test Sharpe (in-sample optimism) · psr=P(Sharpe>0) · eMax=expected max Sharpe by luck over ${trials} trials · dsr=Deflated Sharpe (PASS≥95%).`);
+  const legendTail = BASKET
+    ? ' · constituent rows (·PAIR) show each disjoint pair; ■BASKET row is the POOLED verdict (posWin=positive-trade share).'
+    : '';
+  console.log(`\nLegend: oosSharpe=pooled per-trade Sharpe across all OOS test windows · degr=avg train Sharpe − avg test Sharpe (in-sample optimism) · psr=P(Sharpe>0) · eMax=expected max Sharpe by luck over ${trials} trials · dsr=Deflated Sharpe (PASS≥95%).${legendTail}`);
 
   // Persist the run as a research artifact (same convention as the other scripts).
   const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
-  const outPath = join('docs', 'research', `${ts}-oos-${SOURCE}-${PRESET}.json`);
+  const tag = `${SOURCE}-${PRESET.replace(/[^a-z0-9]+/gi, '-')}${BASKET ? '-basket' : ''}`;
+  const outPath = join('docs', 'research', `${ts}-oos-${tag}.json`);
   writeFileSync(outPath, JSON.stringify({
-    generatedAt: new Date().toISOString(), source: SOURCE, preset: PRESET, days: DAYS, interval: INTERVAL,
+    generatedAt: new Date().toISOString(), source: SOURCE, preset: PRESET, basketMode: BASKET, days: DAYS, interval: INTERVAL,
     train: TRAIN, test: TEST, zLookback: ZLOOKBACK, entryGrid: ENTRY_GRID,
     notionalUsdc: Number(NOTIONAL) / USDC,
     costs: { takerFeeBps: Number(TAKER_FEE_BPS), halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS, borrowBpsPerYear: BORROW_BPS_YEAR, entryGateFloorBps: STRAT_FEE_BPS },
-    trials, sigmaSR, rows,
+    trials, sigmaSR, basket: basketJson, rows,
   }, null, 2));
   console.log(`\nwrote ${outPath}`);
 }

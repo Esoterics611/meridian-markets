@@ -619,3 +619,53 @@ OOS_SOURCE=alpaca OOS_PRESET=equity-banks OOS_DAYS=1825 OOS_INTERVAL=1d \
   OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 OOS_ENTRY=2.0,2.5 \
   npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
 ```
+
+## 2026-06-02 — Entry #10: basket-pooled OOS — the de-biased equities verdict (real but ~0.06 Sharpe)
+
+Built the lever Entry #9 flagged: pool the OOS trades of an **edge-disjoint** set of pairs (each
+ticker used ≤ once → no shared leg → far closer to independent) into one stream, gate the pooled
+stream. `OOS_BASKET=true`; `OOS_PRESET` takes a comma-list to pool **across sectors** (different
+cash-flow factors ⇒ genuinely more independent). Two reasons this is the right test: (1) it lifts
+the OOS trade count past the n≥20 floor that killed single daily pairs; (2) the matching ranks by
+**cointegration, not realized Sharpe**, so it is **selection-unbiased** — it *cannot* cherry-pick
+the lucky USB/PNC.
+
+### Finding — the equities sector-pairs edge is REAL but tiny, and does not certify
+| basket | pairs | OOS trades | pooled Sharpe | pos-trade | OOS P&L | PSR | verdict |
+|---|---|---|---|---|---|---|---|
+| banks only | 4 disjoint | 135 | 0.12 | 69% | +$51.1k | 89% | INCONCLUSIVE |
+| **5 sectors** (banks+energy+rails+staples+pharma) | **15 disjoint** | **507** | **0.06** | 61% | **+$118.4k** | **90%** | INCONCLUSIVE |
+
+- **Trade-count problem: solved.** 507 pooled OOS trades — no more `INSUFFICIENT`.
+- **Selection bias: removed — and it mattered.** The single best pair (USB/PNC) showed Sharpe 0.65
+  / DSR 92% (Entry #9); the *de-biased* disjoint basket shows **0.06** pooled. The 0.65 was mostly
+  the max-of-31 selection artifact. The honest sector-pairs edge is ~0.06 Sharpe/trade.
+- **Sign is positive, magnitude is not certifiable.** +$118.4k over 5yr across 15 × $100k/leg books,
+  PSR 90% (the pooled Sharpe is ~90% likely > 0) — but **below the 95% bar**. Real, not deployable.
+
+### The stats subtlety I fixed mid-build (matters for the verdict)
+The disjoint basket is a **pre-specified, selection-unbiased portfolio**, so the per-pair
+selection-bias deflation (E[max] over the 93-pair pool) does **not** apply to it — deflating the
+basket by eMax-over-93 wrongly pinned its DSR at 0. Corrected: the basket is judged on **PSR vs 0**
+(trials=1 ⇒ eMax=0). That lifts the honest read from "DSR 0%" to "PSR 90%." **Caveat:** PSR assumes
+iid trades; residual cross-pair correlation (shared market beta) makes the *effective* n < 507, so
+90% is a mild overstatement — the true significance is somewhat below 90%, i.e. comfortably under the
+bar either way.
+
+### Decisions
+- **Equities verdict (final for now): real edge, not deployable.** A selection-unbiased, 507-trade,
+  cross-sector basket nets +$118k/5yr at PSR ~90% — positive but under the 95% bar at Sharpe 0.06.
+  Categorically better than crypto (Entry #5: edge gone, not just thin), but not a deploy.
+- **The two remaining levers** (could lift 0.06 → certifiable): **β-weighted sizing** (course §10.3 —
+  the engine sizes equal-dollar, leaving residual factor variance that depresses per-trade Sharpe) and
+  **more history** (IEX caps ~2016 → SIP/alt vendor; P0.5). Borrow-aware pair selection (drop hard-to-
+  borrow names before pooling) is a third.
+
+### Reproduce
+```bash
+# cross-sector edge-disjoint basket pool
+OOS_SOURCE=alpaca OOS_BASKET=true \
+  OOS_PRESET=equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma \
+  OOS_DAYS=1825 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```

@@ -187,7 +187,7 @@ $$ \text{trades/year} \approx \frac{252\ \text{trading days}}{2 \times 23} \appr
 This is precisely the lesson the research journal records from crypto: the ai-data z-score candidate was not killed because its per-trade edge was negative — it was killed by **too few OOS trades plus the selection-bias haircut**. Equities inherit the same constraint, and on daily bars it is *more* binding because the reversion is slower. Your options, in order of preference:
 
 1. **More history.** Backfill 3–5 years of daily bars (the open P0.5 item). This is the cleanest fix and the reason "more history" is the binding data-frontier task, not "more method."
-2. **Pool within a basket.** The OOS harness pools the OOS trades of the top-$K$ discovered pairs in a class before computing the pooled Sharpe, so a basket of 5 pairs at 5 trades/year/pair reaches n ≈ 25/year. Pooling is legitimate *if* the pairs are genuinely independent draws of the same edge; it is cheating if they are the same trade in disguise (highly correlated pairs).
+2. **Pool an edge-disjoint basket.** This is the lever the engine actually implements (`OOS_BASKET=true`). Pooling is legitimate *only if* the pairs are genuinely independent draws of the same edge, and **cheating if they are the same trade in disguise** (highly correlated pairs that share a leg, like USB/PNC and BAC/PNC). The harness enforces independence by selecting an **edge-disjoint matching** — greedily take a pair, ranked by cointegration, only if neither ticker is already used — so the basket shares no leg. Pass a comma-list of presets (`OOS_PRESET=equity-banks,equity-energy,…`) to pool **across sectors**, where different cash-flow factors make the pairs more independent still. Two further subtleties the engine gets right: (a) the matching ranks by *cointegration p-value, not realized Sharpe*, so it **cannot cherry-pick the lucky pair** — the basket is selection-unbiased; and therefore (b) the basket is judged on **PSR against 0**, *not* the per-pair `eMax`-over-the-pool deflation (which only applies to a single cherry-picked pair). One honest caveat remains: PSR assumes iid trades, and residual cross-pair correlation (shared market beta) makes the *effective* n smaller than the nominal pooled count.
 3. **Finer bars — with suspicion.** Dropping to hourly or 15-minute bars multiplies the trade count, but intraday "equity cointegration" is often microstructure (lead-lag, ETF-arb, quote noise), not the structural relative-value reversion you actually want. If you go intraday, the burden of proof on the *stability* run (does it persist across horizons?) goes up, not down.
 
 !!! example "Worked half-life example (KO/PEP, illustrative daily numbers)"
@@ -250,6 +250,25 @@ The verdict column is `PASS` only when **DSR ≥ 0.95 and n ≥ 20 OOS trades**;
     exists on a favourable window. The binding fix is more history — but the free IEX feed caps
     at ~2016 (asking for 10 years returned only ~6), so this hits the data wall of §10.5/§10.6,
     not a method wall.
+
+!!! example "The de-biased verdict: edge-disjoint basket pooling (`OOS_BASKET=true`, Journal #10)"
+    The single-pair table above is *selection-biased* — USB/PNC's 0.65 is the max of 31 candidates.
+    The honest test pools an **edge-disjoint** basket (no shared leg, ranked by cointegration not
+    Sharpe → can't cherry-pick) and judges it on **PSR vs 0** (no per-pair `eMax` deflation, because
+    the basket doesn't select the best pair):
+
+    | basket | pairs | OOS trades | pooled Sharpe | pos-trade | OOS P&L | PSR | verdict |
+    |---|---|---|---|---|---|---|---|
+    | banks only | 4 disjoint | 135 | 0.12 | 69% | +\$51.1k | 89% | INCONCLUSIVE |
+    | **5 sectors** (banks+energy+rails+staples+pharma) | **15 disjoint** | **507** | **0.06** | 61% | **+\$118.4k** | **90%** | INCONCLUSIVE |
+
+    This is the definitive read. Pooling **solves the trade-count problem** (507 trades) and
+    **removes the selection bias** — and when you do both, USB/PNC's 0.65 collapses to a pooled
+    **0.06**. The cross-sector equities sector-pairs edge is **real but tiny**: +\$118k over 5 years
+    across 15 × \$100k/leg books, the pooled Sharpe is ~90% likely positive (PSR 90%) — but it does
+    **not** clear the 95% bar, and even that 90% is a mild overstatement (residual cross-pair
+    correlation ⇒ effective n < 507). Verdict: real, not deployable. The levers that might lift 0.06
+    to certifiable are β-weighted sizing (§10.3) and more history than IEX's 2016 floor (§10.5).
 
 **Step 3 — paper-trade the gated basket.** Run the live loop on Alpaca paper and reconcile realized fills against the backtest weekly:
 
