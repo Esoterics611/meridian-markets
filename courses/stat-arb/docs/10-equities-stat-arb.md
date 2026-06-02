@@ -232,6 +232,25 @@ OOS_SOURCE=alpaca OOS_PRESET=equity-staples OOS_DAYS=365 OOS_INTERVAL=1d \
 
 The verdict column is `PASS` only when **DSR ≥ 0.95 and n ≥ 20 OOS trades**; `INSUFFICIENT` means too few trades (go get more history — §10.6); `NOISE`/`INCONCLUSIVE` mean the edge does not survive the haircut. The equity cost defaults (0 bps fee, 1 bp half-spread, 50 bps/yr borrow, entry-gate floor = half-spread) are baked in and overridable via the `OOS_*` env vars documented in the script header.
 
+!!! example "What this actually produced (real Alpaca run, 2026-06-02 — Journal #9)"
+    Run on real split/div-adjusted daily IEX data, $100k/leg, net of all costs:
+
+    | basket / pair | window | OOS trades | pooled Sharpe | pos. windows | OOS P&L | DSR | verdict |
+    |---|---|---|---|---|---|---|---|
+    | banks **USB/PNC** @z2.0 | 5yr (1252 bars) | 41 | 0.65 | **100%** | **+\$66.8k** | **92%** | INCONCLUSIVE (just under 95) |
+    | staples **PG/CL** @z2.5 | 5yr | 17 | 0.88 | 56% | +\$24.1k | **96%** | **INSUFFICIENT** (n<20) |
+    | banks USB/PNC @z2.0 | ~6yr (1466) | 43 | 0.30 | 82% | +\$38.9k | 32% | INCONCLUSIVE |
+
+    Three lessons in one table. (1) **No pair cleanly PASSES** — USB/PNC clears every component
+    except the DSR bar itself; PG/CL clears the DSR but not the n≥20 trade floor. (2) **Equities
+    are categorically better than crypto** — the gate produces *near-passing* candidates here,
+    where on crypto it killed every survivor outright (§10.1, Journal #4/#5). (3) **The edge is
+    regime-sensitive** — extend USB/PNC from 5yr to ~6yr and the Sharpe halves (0.65→0.30, DSR
+    92→32). That collapse is the gate doing its job: it refuses to certify an edge that only
+    exists on a favourable window. The binding fix is more history — but the free IEX feed caps
+    at ~2016 (asking for 10 years returned only ~6), so this hits the data wall of §10.5/§10.6,
+    not a method wall.
+
 **Step 3 — paper-trade the gated basket.** Run the live loop on Alpaca paper and reconcile realized fills against the backtest weekly:
 
 ```bash

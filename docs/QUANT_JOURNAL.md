@@ -528,3 +528,94 @@ touch the parallel S24 stat-arb work): `src/market-data/funding/` — `IFundingR
 npx ts-node -r tsconfig-paths/register scripts/funding-carry-research.ts
 FC_DAYS=60 FC_SYMBOLS=BTC,ETH,SOL npx ts-node -r tsconfig-paths/register scripts/funding-carry-research.ts
 ```
+
+## 2026-06-02 — Entry #9: equities thesis run + OOS gate on real Alpaca history (the S24 hand-off, closed)
+
+The live thesis run promised in Entry #7 — finally run with a real Alpaca paper key (S25 wired
+`STAB_SOURCE=alpaca` / `OOS_SOURCE=alpaca`; this entry is the data). Daily bars, split/div-adjusted
+(`adjustment=all`), free IEX feed.
+
+### Finding 1 — the cointegration cliff does NOT happen in equities
+`cointegration-stability.ts STAB_SOURCE=alpaca STAB_INTERVAL=1d`, horizons 180/365/730 days:
+
+| basket | p<0.6 count @180/365/730d | p<0.05 count @180/365/730d |
+|---|---|---|
+| equity-banks | 34 / 36 / 36 | 1 / 1 / 4 |
+| equity-energy | 28 / 28 / 28 | 1 / 0 / 1 |
+| equity-rails | 10 / 10 / 10 (all pairs) | 1 / 1 / 1 |
+| equity-megacap-tech | 15 / 15 / 14 | 1 / 0 / 1 |
+| equity-staples | 15 / 15 / 15 (all pairs) | 0 / 0 / 1 |
+| equity-semis | 21 / 21 / 19 | 2 / 3 / 0 |
+
+At the loose cutoff the count is **flat across horizons** — the opposite of crypto (Entry #5: 19→4→0
+as the window grew). The thesis holds: same-sector equity cointegration is **structural, not a
+short-window artifact.** *But* at tradeable significance (p<0.05, limited by the coarse ADF p-value
+that only resolves {0.005, 0.025, 0.075, 0.5}) only a handful of pairs are strongly cointegrated, and
+the specific pairs aren't all stable across horizons. Persistence ≠ a deep tradeable universe.
+
+### Finding 2 — the OOS gate finds NEAR-passing candidates, but none cleanly PASS
+`oos-candidates.ts OOS_SOURCE=alpaca`, daily, walk-forward (β re-fit per train window), net of
+0bps fee + 1bps half-spread + impact + 50bps/yr borrow:
+
+| basket / pair | window | OOS trades | pooled Sharpe | posWin | OOS P&L | PSR | DSR | verdict |
+|---|---|---|---|---|---|---|---|---|
+| banks **USB/PNC** @z2.0 | 5yr (1252 bars) | 41 | **0.65** | **100%** | **+$66.8k** | 100% | **92%** | INCONCLUSIVE (just under 95) |
+| staples **PG/CL** @z2.5 | 5yr | 17 | 0.88 | 56% | +$24.1k | 99% | **96%** | **INSUFFICIENT** (n<20) |
+| banks GS/MS @z2.0 | 5yr | 35 | 0.31 | 67% | +$28.0k | 95% | 21% | INCONCLUSIVE |
+| rails CP/CNI @z2.0 | 5yr | 32 | 0.09 | 78% | +$6.3k | 69% | 17% | NOISE |
+| banks USB/PNC @z2.0 | ~6yr (1466 bars) | 43 | **0.30** | 82% | +$38.9k | 98% | 32% | INCONCLUSIVE |
+
+**The headline:** USB/PNC clears every component *except the bar itself* on the 5yr window —
+DSR 92%, 41 trades, 100% positive windows, +$66.8k net. **But extend the window to ~6yr and the
+Sharpe halves (0.65→0.30, DSR 92→32).** The strong result was partly regime-dependent; the gate
+correctly refuses to certify it. PG/CL is the mirror image — DSR 96% (would pass) but only 17 OOS
+trades. **No equity pair clears DSR≥0.95 AND n≥20 on a full multi-year window.**
+
+### Contrast with crypto (the point of the pivot)
+Crypto (Entry #4/#5): the gate **killed every survivor outright** (cointegration evaporated; the few
+candidates went INSUFFICIENT/NOISE). Equities: the gate produces **borderline, near-passing
+candidates** (DSR 92%, DSR-96%-but-n<20). That is a categorically better starting point — the edge
+is *there*, it's just thin and trade-count-starved, not absent. This is the first time the desk has
+had a stat-arb candidate within reach of the gate.
+
+### The binding constraint is data, exactly as predicted (course §10.6)
+Daily-bar reversion (half-life ~15–35 trading days) ⇒ ~5–6 round trips/yr/pair ⇒ **n≥20 needs years
+of history**. And the free **IEX feed caps at ~2016** (asking 3650 days returned only 1466 bars), so
+"more history" hits a vendor wall — pre-2016 daily needs SIP (paid) or another source. The two paths
+to a clean PASS: (a) **basket-pooling** the OOS trades of independent same-sector pairs to lift n;
+(b) **β-weighted sizing** (course §10.3 — the engine sizes equal-dollar today) to cut the residual
+factor variance and raise the per-trade Sharpe.
+
+### Param/harness bugs found + fixed while running this (the "is it professional" pass)
+1. Scripts didn't load `.env` → keys ignored. Added `dotenv/config` preload.
+2. My earlier doc horizons (30/90/180d on **daily** bars) were too few bars for the gate. Corrected
+   to 180/365/730d.
+3. **Zero-trades trap:** the walk-forward test slice runs the strategy fresh, so the first `zLookback`
+   bars warm up and don't trade; with the registry default zLookback=60 and TEST<60 you get **0 OOS
+   trades** (the first banks run). Added `OOS_ZLOOKBACK` (use ~20 on daily) + a `TEST≤zLookback`
+   warning.
+4. **Deflated-Sharpe mis-calibration:** the script fed σ_SR from *one pair's per-window* Sharpe
+   dispersion (very noisy) → eMax 2–5 → every DSR pinned at 0. Fixed to the **cross-pair** Sharpe
+   dispersion (deflated-sharpe.ts's intended input): σ_SR≈0.22, eMax≈0.46 — and USB/PNC's true
+   DSR surfaced at 92%, not 0.
+5. OOS runs now write a `docs/research/*.json` artifact like the other scripts.
+
+### Decisions
+- **No equities deploy.** No pair clears the gate on a full window; USB/PNC's 5yr edge is regime-
+  sensitive. Honest "not yet," not "never."
+- **WATCH-LIST:** USB/PNC and PG/CL — re-gate once trade count is lifted.
+- **NEED-DATA (Researcher, P0.5):** longer daily history beyond the IEX 2016 cap (SIP or alt vendor)
+  + a point-in-time universe (survivorship). This is now the binding item for equities.
+- **BUILD next:** basket-pooled OOS (lift n across independent pairs) and β-weighted sizing
+  (raise per-trade Sharpe) — the two levers that could turn USB/PNC's 92% into a PASS.
+
+### Reproduce
+```bash
+# thesis / cliff test (daily, multi-horizon)
+STAB_SOURCE=alpaca STAB_INTERVAL=1d STAB_HORIZONS=180,365,730 STAB_MIN_BARS=120 \
+  npx ts-node -r tsconfig-paths/register scripts/cointegration-stability.ts
+# OOS gate (daily, warmup-aware params)
+OOS_SOURCE=alpaca OOS_PRESET=equity-banks OOS_DAYS=1825 OOS_INTERVAL=1d \
+  OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 OOS_ENTRY=2.0,2.5 \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```

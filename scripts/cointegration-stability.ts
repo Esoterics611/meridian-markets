@@ -26,6 +26,7 @@
  *
  * Writes the full result to docs/research/<ts>-cointegration-stability.json.
  */
+import 'dotenv/config'; // load .env so ALPACA_*/STAB_* work without manual export
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';

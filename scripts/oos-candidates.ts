@@ -26,6 +26,9 @@
  *   OOS_PRESET=ai-data OOS_DAYS=30 OOS_INTERVAL=15m OOS_ENTRY=2.0,2.5 npx ts-node ... scripts/oos-candidates.ts
  *   OOS_SOURCE=alpaca OOS_PRESET=equity-banks OOS_DAYS=120 npx ts-node ... scripts/oos-candidates.ts
  */
+import 'dotenv/config'; // load .env so ALPACA_*/OOS_* work without manual export
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { AlpacaDataClient } from '../src/stat-arb/feed/alpaca/alpaca-data-client';
@@ -49,6 +52,19 @@ const NOTIONAL = BigInt(Math.round(Number(process.env.OOS_NOTIONAL_USDC ?? 100_0
 const TRAIN = Number(process.env.OOS_TRAIN ?? 300);
 const TEST = Number(process.env.OOS_TEST ?? 100);
 const TOPK = Number(process.env.OOS_TOPK ?? 3);
+// How many discovered candidates to walk-forward (at the base entryZ) to estimate
+// the CROSS-PAIR Sharpe dispersion σ_SR that the Deflated Sharpe deflates by.
+// This is the methodologically-correct selection-bias input (deflated-sharpe.ts:
+// "pass the cross-pair Sharpe std from the scan"), not one pair's per-window
+// dispersion. Capped so a large crypto candidate pool stays fast.
+const SIGMA_SAMPLE = Number(process.env.OOS_SIGMA_SAMPLE ?? 30);
+// Rolling z-score lookback. The TEST slice runs the strategy fresh (no warmup
+// carried from train — see research/walk-forward.ts runSlice), so the first
+// ZLOOKBACK bars of every test window are spent warming up and DO NOT trade.
+// Therefore TEST must be >> ZLOOKBACK or you get zero OOS trades. The registry
+// default (60) suits crypto intraday (hundreds of bars/window); for daily-bar
+// equities set OOS_ZLOOKBACK≈20 and OOS_TEST≈120.
+const ZLOOKBACK = Number(process.env.OOS_ZLOOKBACK ?? 60);
 // Cost model — source-aware defaults (env overrides win). Equities on Alpaca are
 // commission-free with tight large-cap spreads, but pay short-borrow carry.
 const TAKER_FEE_BPS = BigInt(Math.round(Number(process.env.OOS_TAKER_FEE_BPS ?? (IS_ALPACA ? 0 : 5))));
@@ -119,7 +135,10 @@ async function main() {
 
   const costs = `${TAKER_FEE_BPS}bps fee + ${HALF_SPREAD_BPS}bps half-spread + ${IMPACT_LAMBDA_BPS}bps impact` +
     (BORROW_BPS_YEAR ? ` + ${BORROW_BPS_YEAR}bps/yr short-borrow` : '');
-  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps ===`);
+  console.log(`\n=== OOS gate · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps · train/test/zLookback=${TRAIN}/${TEST}/${ZLOOKBACK} ===`);
+  if (TEST <= ZLOOKBACK) {
+    console.log(`  ⚠ WARNING: TEST (${TEST}) ≤ zLookback (${ZLOOKBACK}) — every test window is spent warming up, so you will get ZERO OOS trades. Raise OOS_TEST or lower OOS_ZLOOKBACK.`);
+  }
   console.log(`pulling ${preset.symbols.length} symbols from ${IS_ALPACA ? 'Alpaca' : 'Binance'}…`);
   const bySymbol = new Map<string, Bar[]>();
   for (const sym of preset.symbols) {
@@ -147,36 +166,61 @@ async function main() {
   console.log(`discovered ${trials} cointegrated candidate pairs (the selection pool / trials).`);
   if (!candidates.length) { console.log('no cointegrated pairs — nothing to gate.'); return; }
 
+  // Walk-forward one (pair, entryZ) → pooled OOS stats. Cached so the σ_SR pass
+  // and the reporting pass never re-run the same evaluation.
+  interface PairEval { report: Awaited<ReturnType<typeof walkForward>>; stats: ReturnType<typeof sharpeStats>; totalOos: bigint; avgTrain: number; }
+  const evalCache = new Map<string, PairEval>();
+  const evalPair = async (symA: string, symB: string, entryZ: number): Promise<PairEval> => {
+    const key = `${symA}/${symB}@${entryZ}`;
+    const hit = evalCache.get(key);
+    if (hit) return hit;
+    const barsA = aligned.get(symA)!, barsB = aligned.get(symB)!;
+    const report = await walkForward({
+      barsA, barsB, trainBars: TRAIN, testBars: TEST,
+      strategyFactory: (ctx) => strategyRegistry.build('pairs-zscore', {
+        beta: fitBetaOnTrain(ctx.trainBarsA, ctx.trainBarsB),
+        notionalUnits: NOTIONAL,
+        params: { entryZ, exitZ: 0.5, feeBps: STRAT_FEE_BPS, zLookback: ZLOOKBACK },
+      }),
+      venueFactory: (sa, sb) => new HistoricalReplayVenue(
+        { [symA]: sa, [symB]: sb },
+        {
+          takerFeeBps: TAKER_FEE_BPS,
+          halfSpreadBps: HALF_SPREAD_BPS,
+          impactLambdaBps: IMPACT_LAMBDA_BPS,
+          borrowBpsPerYear: BORROW_BPS_YEAR,
+          barSeconds,
+        },
+      ),
+    });
+    const oosTrades = report.windows.flatMap((w) => w.test.tradePnlUnits);
+    const stats = sharpeStats(oosTrades.map(Number));
+    const totalOos = report.windows.reduce((s, w) => s + w.test.totalPnlUnits, 0n);
+    const avgTrain = report.windows.length ? report.windows.reduce((s, w) => s + w.train.sharpeRatio, 0) / report.windows.length : 0;
+    const out: PairEval = { report, stats, totalOos, avgTrain };
+    evalCache.set(key, out);
+    return out;
+  };
+
+  // σ_SR = the cross-pair dispersion of the pooled OOS Sharpe at the base entryZ,
+  // over up to SIGMA_SAMPLE candidates. THIS is the selection-bias scale the
+  // Deflated Sharpe deflates by (one pair's per-window dispersion is far noisier
+  // and overstates E[max]). Only pairs with ≥2 OOS trades contribute.
+  const baseEntry = ENTRY_GRID[0];
+  const crossPairSharpes: number[] = [];
+  for (const cand of candidates.slice(0, SIGMA_SAMPLE)) {
+    const r = await evalPair(cand.symbolA, cand.symbolB, baseEntry);
+    if (r.stats.n >= 2) crossPairSharpes.push(r.stats.sharpe);
+  }
+  const sigmaSR = std(crossPairSharpes);
+  console.log(`σ_SR (cross-pair Sharpe dispersion over ${crossPairSharpes.length} evaluated pairs @ eZ${baseEntry}) = ${r2(sigmaSR)}\n`);
+
   const rows: Array<Record<string, string>> = [];
   for (const cand of candidates.slice(0, TOPK)) {
     const symA = cand.symbolA, symB = cand.symbolB;
-    const barsA = aligned.get(symA)!, barsB = aligned.get(symB)!;
     for (const entryZ of ENTRY_GRID) {
-      const report = await walkForward({
-        barsA, barsB, trainBars: TRAIN, testBars: TEST,
-        strategyFactory: (ctx) => strategyRegistry.build('pairs-zscore', {
-          beta: fitBetaOnTrain(ctx.trainBarsA, ctx.trainBarsB),
-          notionalUnits: NOTIONAL,
-          params: { entryZ, exitZ: 0.5, feeBps: STRAT_FEE_BPS },
-        }),
-        venueFactory: (sa, sb) => new HistoricalReplayVenue(
-          { [symA]: sa, [symB]: sb },
-          {
-            takerFeeBps: TAKER_FEE_BPS,
-            halfSpreadBps: HALF_SPREAD_BPS,
-            impactLambdaBps: IMPACT_LAMBDA_BPS,
-            borrowBpsPerYear: BORROW_BPS_YEAR,
-            barSeconds,
-          },
-        ),
-      });
-      const oosTrades = report.windows.flatMap((w) => w.test.tradePnlUnits);
-      const splitSharpes = report.windows.map((w) => w.test.sharpeRatio);
-      const sigmaSR = std(splitSharpes);
-      const stats = sharpeStats(oosTrades.map(Number));
+      const { report, stats, totalOos, avgTrain } = await evalPair(symA, symB, entryZ);
       const ds = deflatedSharpe(stats.sharpe, stats.n, stats.skew, stats.kurtosis, trials, sigmaSR);
-      const totalOos = report.windows.reduce((s, w) => s + w.test.totalPnlUnits, 0n);
-      const avgTrain = report.windows.length ? report.windows.reduce((s, w) => s + w.train.sharpeRatio, 0) / report.windows.length : 0;
       const verdict = stats.n < 20 ? 'INSUFFICIENT' : ds.dsr >= 0.95 ? 'PASS' : ds.psr < 0.9 ? 'NOISE' : 'INCONCLUSIVE';
       rows.push({
         pair: `${symA}/${symB}`, eZ: String(entryZ), windows: String(report.windows.length),
@@ -192,6 +236,18 @@ async function main() {
   console.log('\n' + cols.map((c) => c.padEnd(c === 'pair' ? 12 : c === 'verdict' ? 13 : 9)).join(''));
   for (const row of rows) console.log(cols.map((c) => (row[c] ?? '').padEnd(c === 'pair' ? 12 : c === 'verdict' ? 13 : 9)).join(''));
   console.log(`\nLegend: oosSharpe=pooled per-trade Sharpe across all OOS test windows · degr=avg train Sharpe − avg test Sharpe (in-sample optimism) · psr=P(Sharpe>0) · eMax=expected max Sharpe by luck over ${trials} trials · dsr=Deflated Sharpe (PASS≥95%).`);
+
+  // Persist the run as a research artifact (same convention as the other scripts).
+  const ts = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  const outPath = join('docs', 'research', `${ts}-oos-${SOURCE}-${PRESET}.json`);
+  writeFileSync(outPath, JSON.stringify({
+    generatedAt: new Date().toISOString(), source: SOURCE, preset: PRESET, days: DAYS, interval: INTERVAL,
+    train: TRAIN, test: TEST, zLookback: ZLOOKBACK, entryGrid: ENTRY_GRID,
+    notionalUsdc: Number(NOTIONAL) / USDC,
+    costs: { takerFeeBps: Number(TAKER_FEE_BPS), halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS, borrowBpsPerYear: BORROW_BPS_YEAR, entryGateFloorBps: STRAT_FEE_BPS },
+    trials, sigmaSR, rows,
+  }, null, 2));
+  console.log(`\nwrote ${outPath}`);
 }
 
 function intervalMinutes(iv: string): number {

@@ -1,0 +1,961 @@
+{
+  "generatedAt": "2026-06-02T02:46:05.760Z",
+  "source": "alpaca",
+  "interval": "1d",
+  "pValueCutoff": 0.6,
+  "maxHalfLifeBars": 240,
+  "minBars": 120,
+  "horizonsDays": [
+    180,
+    365,
+    730
+  ],
+  "presets": [
+    "equity-banks",
+    "equity-energy",
+    "equity-rails",
+    "equity-megacap-tech",
+    "equity-payments",
+    "equity-staples",
+    "equity-pharma",
+    "equity-semis"
+  ],
+  "results": [
+    {
+      "preset": "equity-banks",
+      "horizonDays": 180,
+      "alignedSymbols": 9,
+      "commonBars": 122,
+      "pairs": 34,
+      "topPairs": [
+        {
+          "pair": "GS/MS",
+          "pValue": 0.025,
+          "halfLifeBars": 4.7,
+          "beta": 0.773
+        },
+        {
+          "pair": "BAC/WFC",
+          "pValue": 0.5,
+          "halfLifeBars": 18.9,
+          "beta": 0.5
+        },
+        {
+          "pair": "BAC/USB",
+          "pValue": 0.5,
+          "halfLifeBars": 18.1,
+          "beta": 0.637
+        },
+        {
+          "pair": "BAC/C",
+          "pValue": 0.5,
+          "halfLifeBars": 24.4,
+          "beta": 0.327
+        },
+        {
+          "pair": "WFC/C",
+          "pValue": 0.5,
+          "halfLifeBars": 20.5,
+          "beta": -0.196
+        }
+      ]
+    },
+    {
+      "preset": "equity-banks",
+      "horizonDays": 365,
+      "alignedSymbols": 9,
+      "commonBars": 251,
+      "pairs": 36,
+      "topPairs": [
+        {
+          "pair": "JPM/BAC",
+          "pValue": 0.005,
+          "halfLifeBars": 4.8,
+          "beta": 0.705
+        },
+        {
+          "pair": "JPM/WFC",
+          "pValue": 0.075,
+          "halfLifeBars": 11,
+          "beta": 0.549
+        },
+        {
+          "pair": "GS/MS",
+          "pValue": 0.075,
+          "halfLifeBars": 10.4,
+          "beta": 1.037
+        },
+        {
+          "pair": "BAC/WFC",
+          "pValue": 0.5,
+          "halfLifeBars": 27.2,
+          "beta": 0.775
+        },
+        {
+          "pair": "BAC/USB",
+          "pValue": 0.5,
+          "halfLifeBars": 23.3,
+          "beta": 0.483
+        }
+      ]
+    },
+    {
+      "preset": "equity-banks",
+      "horizonDays": 730,
+      "alignedSymbols": 9,
+      "commonBars": 500,
+      "pairs": 36,
+      "topPairs": [
+        {
+          "pair": "USB/TFC",
+          "pValue": 0.025,
+          "halfLifeBars": 14.6,
+          "beta": 1.091
+        },
+        {
+          "pair": "USB/PNC",
+          "pValue": 0.025,
+          "halfLifeBars": 12.7,
+          "beta": 1.023
+        },
+        {
+          "pair": "PNC/TFC",
+          "pValue": 0.025,
+          "halfLifeBars": 14.5,
+          "beta": 1.053
+        },
+        {
+          "pair": "C/GS",
+          "pValue": 0.025,
+          "halfLifeBars": 13.1,
+          "beta": 1.057
+        },
+        {
+          "pair": "BAC/C",
+          "pValue": 0.5,
+          "halfLifeBars": 27.1,
+          "beta": 0.444
+        }
+      ]
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 180,
+      "alignedSymbols": 8,
+      "commonBars": 122,
+      "pairs": 28,
+      "topPairs": [
+        {
+          "pair": "XOM/CVX",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 1.081
+        },
+        {
+          "pair": "COP/EOG",
+          "pValue": 0.075,
+          "halfLifeBars": 5.8,
+          "beta": 0.948
+        },
+        {
+          "pair": "EOG/VLO",
+          "pValue": 0.075,
+          "halfLifeBars": 4.5,
+          "beta": 0.776
+        },
+        {
+          "pair": "XOM/SLB",
+          "pValue": 0.5,
+          "halfLifeBars": 14.8,
+          "beta": 0.74
+        },
+        {
+          "pair": "XOM/COP",
+          "pValue": 0.5,
+          "halfLifeBars": 11.8,
+          "beta": 0.901
+        }
+      ]
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 365,
+      "alignedSymbols": 8,
+      "commonBars": 251,
+      "pairs": 28,
+      "topPairs": [
+        {
+          "pair": "PSX/VLO",
+          "pValue": 0.075,
+          "halfLifeBars": 9.2,
+          "beta": 0.649
+        },
+        {
+          "pair": "XOM/SLB",
+          "pValue": 0.5,
+          "halfLifeBars": 12.7,
+          "beta": 0.748
+        },
+        {
+          "pair": "XOM/COP",
+          "pValue": 0.5,
+          "halfLifeBars": 24.4,
+          "beta": 1.085
+        },
+        {
+          "pair": "COP/SLB",
+          "pValue": 0.5,
+          "halfLifeBars": 19.8,
+          "beta": 0.608
+        },
+        {
+          "pair": "XOM/CVX",
+          "pValue": 0.5,
+          "halfLifeBars": 17.4,
+          "beta": 1.272
+        }
+      ]
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 730,
+      "alignedSymbols": 8,
+      "commonBars": 500,
+      "pairs": 28,
+      "topPairs": [
+        {
+          "pair": "COP/SLB",
+          "pValue": 0.025,
+          "halfLifeBars": 15.4,
+          "beta": 0.634
+        },
+        {
+          "pair": "PSX/VLO",
+          "pValue": 0.075,
+          "halfLifeBars": 17.4,
+          "beta": 0.605
+        },
+        {
+          "pair": "EOG/SLB",
+          "pValue": 0.5,
+          "halfLifeBars": 26.2,
+          "beta": 0.355
+        },
+        {
+          "pair": "XOM/VLO",
+          "pValue": 0.5,
+          "halfLifeBars": 24.8,
+          "beta": 0.556
+        },
+        {
+          "pair": "CVX/VLO",
+          "pValue": 0.5,
+          "halfLifeBars": 25.6,
+          "beta": 0.458
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 180,
+      "alignedSymbols": 5,
+      "commonBars": 122,
+      "pairs": 10,
+      "topPairs": [
+        {
+          "pair": "UNP/CP",
+          "pValue": 0.025,
+          "halfLifeBars": 3.2,
+          "beta": 0.829
+        },
+        {
+          "pair": "CSX/CNI",
+          "pValue": 0.075,
+          "halfLifeBars": 4.2,
+          "beta": 1.324
+        },
+        {
+          "pair": "UNP/CSX",
+          "pValue": 0.5,
+          "halfLifeBars": 5.9,
+          "beta": 0.658
+        },
+        {
+          "pair": "CSX/CP",
+          "pValue": 0.5,
+          "halfLifeBars": 7,
+          "beta": 1.151
+        },
+        {
+          "pair": "UNP/CNI",
+          "pValue": 0.5,
+          "halfLifeBars": 5.6,
+          "beta": 0.903
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 365,
+      "alignedSymbols": 5,
+      "commonBars": 251,
+      "pairs": 10,
+      "topPairs": [
+        {
+          "pair": "UNP/CNI",
+          "pValue": 0.025,
+          "halfLifeBars": 8.7,
+          "beta": 0.904
+        },
+        {
+          "pair": "NSC/CP",
+          "pValue": 0.075,
+          "halfLifeBars": 21,
+          "beta": 0.386
+        },
+        {
+          "pair": "NSC/CNI",
+          "pValue": 0.075,
+          "halfLifeBars": 19,
+          "beta": 0.449
+        },
+        {
+          "pair": "UNP/CSX",
+          "pValue": 0.5,
+          "halfLifeBars": 9.9,
+          "beta": 0.6
+        },
+        {
+          "pair": "UNP/CP",
+          "pValue": 0.5,
+          "halfLifeBars": 13.9,
+          "beta": 0.878
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 730,
+      "alignedSymbols": 5,
+      "commonBars": 500,
+      "pairs": 10,
+      "topPairs": [
+        {
+          "pair": "CP/CNI",
+          "pValue": 0.025,
+          "halfLifeBars": 17.7,
+          "beta": 0.611
+        },
+        {
+          "pair": "UNP/CSX",
+          "pValue": 0.075,
+          "halfLifeBars": 18.8,
+          "beta": 0.398
+        },
+        {
+          "pair": "UNP/CP",
+          "pValue": 0.075,
+          "halfLifeBars": 18.8,
+          "beta": 0.725
+        },
+        {
+          "pair": "UNP/CNI",
+          "pValue": 0.5,
+          "halfLifeBars": 25.3,
+          "beta": 0.414
+        },
+        {
+          "pair": "UNP/NSC",
+          "pValue": 0.5,
+          "halfLifeBars": 34.8,
+          "beta": 0.295
+        }
+      ]
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "GOOGL/NVDA",
+          "pValue": 0.025,
+          "halfLifeBars": 3.8,
+          "beta": 1.113
+        },
+        {
+          "pair": "AMZN/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 7.1,
+          "beta": 1.013
+        },
+        {
+          "pair": "AAPL/AMZN",
+          "pValue": 0.5,
+          "halfLifeBars": 17.6,
+          "beta": 0.392
+        },
+        {
+          "pair": "AAPL/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 6.3,
+          "beta": 0.587
+        },
+        {
+          "pair": "AAPL/GOOGL",
+          "pValue": 0.5,
+          "halfLifeBars": 10.2,
+          "beta": 0.467
+        }
+      ]
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "AMZN/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 11.9,
+          "beta": 0.516
+        },
+        {
+          "pair": "AAPL/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 11,
+          "beta": 0.986
+        },
+        {
+          "pair": "AAPL/GOOGL",
+          "pValue": 0.5,
+          "halfLifeBars": 13,
+          "beta": 0.431
+        },
+        {
+          "pair": "GOOGL/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 17,
+          "beta": 2.058
+        },
+        {
+          "pair": "AAPL/META",
+          "pValue": 0.5,
+          "halfLifeBars": 17.7,
+          "beta": -0.76
+        }
+      ]
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 14,
+      "topPairs": [
+        {
+          "pair": "AAPL/GOOGL",
+          "pValue": 0.025,
+          "halfLifeBars": 15.6,
+          "beta": 0.336
+        },
+        {
+          "pair": "AMZN/NVDA",
+          "pValue": 0.075,
+          "halfLifeBars": 18.2,
+          "beta": 0.425
+        },
+        {
+          "pair": "AAPL/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 26,
+          "beta": 0.396
+        },
+        {
+          "pair": "GOOGL/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 24.2,
+          "beta": 1.2
+        },
+        {
+          "pair": "META/NVDA",
+          "pValue": 0.5,
+          "halfLifeBars": 35.2,
+          "beta": 0.379
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "MA/AXP",
+          "pValue": 0.025,
+          "halfLifeBars": 3.6,
+          "beta": 0.553
+        },
+        {
+          "pair": "MA/FIS",
+          "pValue": 0.075,
+          "halfLifeBars": 4.6,
+          "beta": 0.296
+        },
+        {
+          "pair": "V/PYPL",
+          "pValue": 0.5,
+          "halfLifeBars": 7.5,
+          "beta": 0.218
+        },
+        {
+          "pair": "V/FIS",
+          "pValue": 0.5,
+          "halfLifeBars": 7.9,
+          "beta": 0.201
+        },
+        {
+          "pair": "PYPL/FIS",
+          "pValue": 0.5,
+          "halfLifeBars": 10.7,
+          "beta": 0.73
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "V/PYPL",
+          "pValue": 0.025,
+          "halfLifeBars": 6.7,
+          "beta": 0.198
+        },
+        {
+          "pair": "V/FIS",
+          "pValue": 0.025,
+          "halfLifeBars": 6.8,
+          "beta": 0.204
+        },
+        {
+          "pair": "V/GPN",
+          "pValue": 0.025,
+          "halfLifeBars": 8.6,
+          "beta": 0.415
+        },
+        {
+          "pair": "MA/GPN",
+          "pValue": 0.025,
+          "halfLifeBars": 7.6,
+          "beta": 0.565
+        },
+        {
+          "pair": "MA/PYPL",
+          "pValue": 0.075,
+          "halfLifeBars": 9,
+          "beta": 0.233
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "PYPL/FIS",
+          "pValue": 0.5,
+          "halfLifeBars": 22.2,
+          "beta": 0.949
+        },
+        {
+          "pair": "MA/GPN",
+          "pValue": 0.5,
+          "halfLifeBars": 29.8,
+          "beta": -0.128
+        },
+        {
+          "pair": "AXP/GPN",
+          "pValue": 0.5,
+          "halfLifeBars": 28.4,
+          "beta": -0.396
+        },
+        {
+          "pair": "V/GPN",
+          "pValue": 0.5,
+          "halfLifeBars": 30.6,
+          "beta": -0.245
+        },
+        {
+          "pair": "MA/AXP",
+          "pValue": 0.5,
+          "halfLifeBars": 35.7,
+          "beta": 0.422
+        }
+      ]
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "KO/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 6.3,
+          "beta": 0.945
+        },
+        {
+          "pair": "PG/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 21.4,
+          "beta": 0.416
+        },
+        {
+          "pair": "KO/CL",
+          "pValue": 0.5,
+          "halfLifeBars": 17.5,
+          "beta": 0.653
+        },
+        {
+          "pair": "PG/CL",
+          "pValue": 0.5,
+          "halfLifeBars": 12.7,
+          "beta": 0.558
+        },
+        {
+          "pair": "CL/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 11.7,
+          "beta": 1.058
+        }
+      ]
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "PG/CL",
+          "pValue": 0.5,
+          "halfLifeBars": 22.1,
+          "beta": 0.362
+        },
+        {
+          "pair": "PG/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 15.2,
+          "beta": 0.393
+        },
+        {
+          "pair": "PEP/PG",
+          "pValue": 0.5,
+          "halfLifeBars": 24.9,
+          "beta": -0.139
+        },
+        {
+          "pair": "PEP/CL",
+          "pValue": 0.5,
+          "halfLifeBars": 24.5,
+          "beta": 0.333
+        },
+        {
+          "pair": "PEP/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 16.8,
+          "beta": -0.437
+        }
+      ]
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "PG/KMB",
+          "pValue": 0.025,
+          "halfLifeBars": 13.5,
+          "beta": 0.369
+        },
+        {
+          "pair": "KO/PG",
+          "pValue": 0.5,
+          "halfLifeBars": 24.5,
+          "beta": -0.684
+        },
+        {
+          "pair": "PG/MDLZ",
+          "pValue": 0.5,
+          "halfLifeBars": 29.4,
+          "beta": 0.437
+        },
+        {
+          "pair": "KO/KMB",
+          "pValue": 0.5,
+          "halfLifeBars": 25.1,
+          "beta": -0.423
+        },
+        {
+          "pair": "MDLZ/KMB",
+          "pValue": 0.5,
+          "halfLifeBars": 28,
+          "beta": 0.424
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 14,
+      "topPairs": [
+        {
+          "pair": "PFE/LLY",
+          "pValue": 0.025,
+          "halfLifeBars": 4.1,
+          "beta": -0.328
+        },
+        {
+          "pair": "BMY/JNJ",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.757
+        },
+        {
+          "pair": "MRK/BMY",
+          "pValue": 0.025,
+          "halfLifeBars": 3.3,
+          "beta": 1.082
+        },
+        {
+          "pair": "PFE/BMY",
+          "pValue": 0.075,
+          "halfLifeBars": 4.8,
+          "beta": 0.579
+        },
+        {
+          "pair": "PFE/MRK",
+          "pValue": 0.075,
+          "halfLifeBars": 4.3,
+          "beta": 0.469
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "PFE/BMY",
+          "pValue": 0.005,
+          "halfLifeBars": 6.8,
+          "beta": 0.438
+        },
+        {
+          "pair": "PFE/MRK",
+          "pValue": 0.005,
+          "halfLifeBars": 4.8,
+          "beta": 0.338
+        },
+        {
+          "pair": "PFE/JNJ",
+          "pValue": 0.005,
+          "halfLifeBars": 4.5,
+          "beta": 0.356
+        },
+        {
+          "pair": "MRK/BMY",
+          "pValue": 0.025,
+          "halfLifeBars": 9,
+          "beta": 1.28
+        },
+        {
+          "pair": "MRK/JNJ",
+          "pValue": 0.5,
+          "halfLifeBars": 13.5,
+          "beta": 1.028
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 15,
+      "topPairs": [
+        {
+          "pair": "PFE/MRK",
+          "pValue": 0.005,
+          "halfLifeBars": 10.8,
+          "beta": 0.36
+        },
+        {
+          "pair": "ABBV/JNJ",
+          "pValue": 0.075,
+          "halfLifeBars": 20.2,
+          "beta": 0.523
+        },
+        {
+          "pair": "PFE/LLY",
+          "pValue": 0.075,
+          "halfLifeBars": 18.2,
+          "beta": 0.332
+        },
+        {
+          "pair": "PFE/BMY",
+          "pValue": 0.5,
+          "halfLifeBars": 28.5,
+          "beta": 0.16
+        },
+        {
+          "pair": "PFE/JNJ",
+          "pValue": 0.5,
+          "halfLifeBars": 21.1,
+          "beta": 0.195
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 180,
+      "alignedSymbols": 7,
+      "commonBars": 122,
+      "pairs": 21,
+      "topPairs": [
+        {
+          "pair": "NVDA/AMD",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.231
+        },
+        {
+          "pair": "NVDA/TXN",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.345
+        },
+        {
+          "pair": "NVDA/INTC",
+          "pValue": 0.075,
+          "halfLifeBars": 4.2,
+          "beta": 0.168
+        },
+        {
+          "pair": "AMD/INTC",
+          "pValue": 0.5,
+          "halfLifeBars": 11,
+          "beta": 0.716
+        },
+        {
+          "pair": "NVDA/AVGO",
+          "pValue": 0.5,
+          "halfLifeBars": 5.3,
+          "beta": 0.554
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 365,
+      "alignedSymbols": 7,
+      "commonBars": 251,
+      "pairs": 21,
+      "topPairs": [
+        {
+          "pair": "NVDA/AMD",
+          "pValue": 0.005,
+          "halfLifeBars": 6.3,
+          "beta": 0.27
+        },
+        {
+          "pair": "NVDA/INTC",
+          "pValue": 0.025,
+          "halfLifeBars": 8.6,
+          "beta": 0.16
+        },
+        {
+          "pair": "NVDA/AVGO",
+          "pValue": 0.025,
+          "halfLifeBars": 7.5,
+          "beta": 0.598
+        },
+        {
+          "pair": "NVDA/MU",
+          "pValue": 0.075,
+          "halfLifeBars": 11.6,
+          "beta": 0.117
+        },
+        {
+          "pair": "AMD/INTC",
+          "pValue": 0.5,
+          "halfLifeBars": 15,
+          "beta": 0.612
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 730,
+      "alignedSymbols": 7,
+      "commonBars": 500,
+      "pairs": 19,
+      "topPairs": [
+        {
+          "pair": "NVDA/AVGO",
+          "pValue": 0.075,
+          "halfLifeBars": 16.4,
+          "beta": 0.579
+        },
+        {
+          "pair": "INTC/MU",
+          "pValue": 0.075,
+          "halfLifeBars": 18,
+          "beta": 0.661
+        },
+        {
+          "pair": "NVDA/INTC",
+          "pValue": 0.5,
+          "halfLifeBars": 30,
+          "beta": 0.35
+        },
+        {
+          "pair": "NVDA/AMD",
+          "pValue": 0.5,
+          "halfLifeBars": 26.8,
+          "beta": 0.493
+        },
+        {
+          "pair": "AMD/INTC",
+          "pValue": 0.5,
+          "halfLifeBars": 26.9,
+          "beta": 0.718
+        }
+      ]
+    }
+  ]
+}

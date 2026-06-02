@@ -1,7 +1,19 @@
 # Equities Stat-Arb — Alpaca integration execution spec
 
-> **STATUS (S25, 2026-06-02): Phase 1 SHIPPED + Phase 2 plumbing WIRED (offline).**
-> S24 built the adapters; S25 wired the two remaining offline seams so the whole
+> **STATUS (S25, 2026-06-02): Phase 1 SHIPPED · Phase 2 RUN on real Alpaca data · Phase 3 chapter SHIPPED.**
+> The hand-off is closed: with a paper key, the thesis test + OOS gate ran on real daily
+> history. **Verdict (Journal #9):** the cointegration cliff does NOT happen in equities
+> (counts flat across 180/365/730d, vs crypto → 0) — thesis confirmed. The OOS gate found
+> **near-passing** candidates (banks USB/PNC: DSR 92%, 41 trades, 100% positive windows,
+> +$66.8k/5yr; staples PG/CL: DSR 96% but n=17 < 20) but **none cleanly PASS** (DSR≥95% AND
+> n≥20), and USB/PNC's edge is regime-sensitive (5yr→6yr halves the Sharpe). Categorically
+> better than crypto (which the gate killed outright), but **no deploy yet** — binding
+> constraint is data (IEX history caps ~2016 → too few daily OOS trades). Running it also
+> fixed real harness bugs (dotenv load, daily-bar horizons, the zLookback/warmup zero-trades
+> trap, and a deflated-Sharpe σ_SR mis-calibration). Next levers: basket-pooled OOS + β-weighted
+> sizing + longer history (SIP/alt vendor). Below is the original spec; S24/S25 details follow.
+>
+> _(superseded)_ S24 built the adapters; S25 wired the two remaining offline seams so the whole
 > equities path is one Alpaca key away from running:
 > - **OOS gate → Alpaca** (`scripts/oos-candidates.ts`): `OOS_SOURCE=alpaca` routes
 >   the real-history walk-forward + deflated-Sharpe gate to Alpaca + `EQUITY_PRESETS`,
