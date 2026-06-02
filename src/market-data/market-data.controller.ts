@@ -11,9 +11,22 @@ import { purgedKFoldCv } from '../stat-arb/research/cross-validate';
 import { sharpeStats, deflatedSharpe } from '../stat-arb/research/deflated-sharpe';
 import { cointegrationTest } from '../stat-arb/signal/cointegration';
 import { Bar } from '../stat-arb/backtest/bar';
-import { listPresets, getPreset } from '../stat-arb/markets/market-presets';
+import { listPresets, listEquityPresets, getPreset, getAnyPreset, EQUITY_PRESETS } from '../stat-arb/markets/market-presets';
+import { YahooDailyClient } from '../stat-arb/feed/yahoo/yahoo-daily-client';
 import { runUniverseOnBars, ApiUniverseResponse } from '../stat-arb/discovery/universe.controller';
 import { ReferenceSourceRegistry } from './reference/reference-bar-loader';
+
+// Every ticker that belongs to an equity preset — used to auto-route the demo's
+// read endpoints to the keyless Yahoo daily path (the equities-first console).
+const EQUITY_SYMBOLS = new Set<string>(EQUITY_PRESETS.flatMap((p) => p.symbols.map((s) => s.toUpperCase())));
+export function isEquitySymbol(sym: string): boolean {
+  return EQUITY_SYMBOLS.has(sym.trim().toUpperCase());
+}
+/** Days of daily history to pull for an equity request when the UI sends an intraday `hours`. */
+export function equityDays(hoursParam: number): number {
+  const asDays = Math.ceil(hoursParam / 24);
+  return asDays >= 200 ? asDays : 1260; // default ~5y of daily bars for a real OOS window
+}
 
 /** Align many symbol series to the timestamps present in ALL of them (inner join). */
 export function alignMany(bySymbol: Map<string, Bar[]>): Map<string, Bar[]> {
@@ -158,12 +171,27 @@ function regimeCoverage(bars: Bar[], splits: number) {
 
 @Controller('api/market-data')
 export class MarketDataController {
+  // Keyless long-history daily equity source (Yahoo, split/div-adjusted) — the
+  // demo's equities data path. Stateless HTTP wrapper, so no DI wiring needed.
+  private readonly yahoo = new YahooDailyClient();
+
   constructor(
     private readonly backfillSvc: BinanceBackfillService,
     private readonly repo: MarketDataRepository,
     private readonly replay: ReplayEngine,
     private readonly refSources: ReferenceSourceRegistry,
   ) {}
+
+  /** On-the-fly daily equity pair window from Yahoo (keyless), aligned to common days. */
+  private async loadYahooPair(symA: string, symB: string, days: number): Promise<{ a: Bar[]; b: Bar[] }> {
+    const toMs = Date.now();
+    const fromMs = toMs - days * 24 * HOUR_MS;
+    const [a, b] = await Promise.all([
+      this.yahoo.historicalBars(symA, '1d', fromMs, toMs).catch(() => [] as Bar[]),
+      this.yahoo.historicalBars(symB, '1d', fromMs, toMs).catch(() => [] as Bar[]),
+    ]);
+    return alignPair(a, b);
+  }
 
   /**
    * The non-Binance reference data sources wired into the engine (TESSERA):
@@ -278,13 +306,22 @@ export class MarketDataController {
     const to = new Date();
     const from = new Date(to.getTime() - (body.lookbackHours ?? 24) * HOUR_MS);
 
-    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
-    const aligned = alignPair(a, b);
+    // Equities (both legs in an equity preset) auto-route to keyless Yahoo daily
+    // history; crypto keeps the DB-backed Binance replay path. The cost model and
+    // source label follow the asset class.
+    const isEq = isEquitySymbol(symbolA) && isEquitySymbol(symbolB);
+    let aligned: { a: Bar[]; b: Bar[] };
+    if (isEq) {
+      aligned = await this.loadYahooPair(symbolA, symbolB, equityDays(body.lookbackHours ?? 0));
+    } else {
+      const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+      aligned = alignPair(a, b);
+    }
     if (aligned.a.length < (body.zLookback ?? 20) + 2) {
       return {
-        error: 'not enough overlapping bars — run POST /api/market-data/backfill first',
-        barsA: a.length,
-        barsB: b.length,
+        error: isEq
+          ? `not enough overlapping Yahoo history for ${symbolA}/${symbolB}`
+          : 'not enough overlapping bars — run POST /api/market-data/backfill first',
         overlap: aligned.a.length,
       };
     }
@@ -304,12 +341,15 @@ export class MarketDataController {
           notionalUnits,
         });
     // Cost-fidelity (P0.1): fills cross the spread + move the market, so the
-    // backtest P&L is net of realistic costs, not frictionless-at-close.
-    const halfSpreadBps = body.halfSpreadBps ?? 2;
+    // backtest P&L is net of realistic costs, not frictionless-at-close. Equities
+    // are commission-free with tight spreads but pay short-borrow carry (P0.4).
+    const halfSpreadBps = body.halfSpreadBps ?? (isEq ? 1 : 2);
     const impactLambdaBps = body.impactLambdaBps ?? 10;
     const replayVenue = new HistoricalReplayVenue(
       { [symbolA]: aligned.a, [symbolB]: aligned.b },
-      { halfSpreadBps, impactLambdaBps },
+      isEq
+        ? { takerFeeBps: 0n, halfSpreadBps, impactLambdaBps, borrowBpsPerYear: 50, barSeconds: 86_400 }
+        : { halfSpreadBps, impactLambdaBps },
     );
     const result = await new BacktestRunner().run({
       barsA: aligned.a,
@@ -322,8 +362,10 @@ export class MarketDataController {
       window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
       pair: `${symbolA}/${symbolB}`,
       strategy: strategyId ?? 'pairs-zscore',
-      source: 'real-binance-history',
-      costs: { feeBps: 5, halfSpreadBps, impactLambdaBps },
+      source: isEq ? 'real-yahoo-daily' : 'real-binance-history',
+      costs: isEq
+        ? { feeBps: 0, halfSpreadBps, impactLambdaBps, borrowBpsPerYear: 50 }
+        : { feeBps: 5, halfSpreadBps, impactLambdaBps },
       metrics: result.metrics,
       tradeCount: result.trades.length,
       trades: result.trades.slice(0, 25),
@@ -652,9 +694,13 @@ export class MarketDataController {
 
   /** The presaved market sets the demo can switch between. */
   @Get('presets')
-  presets() {
+  presets(@Query('class') cls = 'equity') {
+    // Equities-first console: default to the equity baskets; ?class=crypto for the
+    // legacy Binance presets. (Engine is the same; only the universe differs.)
+    const list = cls === 'crypto' ? listPresets() : listEquityPresets();
     return {
-      presets: listPresets().map((p) => ({
+      class: cls === 'crypto' ? 'crypto' : 'equity',
+      presets: list.map((p) => ({
         id: p.id,
         label: p.label,
         assetClass: p.assetClass,
@@ -662,6 +708,7 @@ export class MarketDataController {
         symbols: p.symbols,
         defaultPair: p.defaultPair,
         quote: p.quote,
+        source: p.source ?? 'binance',
       })),
     };
   }
@@ -708,8 +755,31 @@ export class MarketDataController {
     | ApiUniverseResponse
     | { error: string; needsBackfill: boolean; perSymbol: Record<string, number>; dropped?: string[] }
   > {
-    const preset = getPreset(presetId);
+    const preset = getAnyPreset(presetId);
     if (!preset) return { error: `unknown preset: ${presetId}`, needsBackfill: false, perSymbol: {} };
+
+    // Equity preset → discover over keyless Yahoo daily history (no DB backfill).
+    if (preset.source === 'alpaca') {
+      const days = equityDays(Number(hours));
+      const toMs = Date.now();
+      const fromMs = toMs - days * 24 * HOUR_MS;
+      const eqBars = new Map<string, Bar[]>();
+      for (const sym of preset.symbols) {
+        const bars = await this.yahoo.historicalBars(sym, '1d', fromMs, toMs).catch(() => [] as Bar[]);
+        if (bars.length >= 120) eqBars.set(sym, bars);
+      }
+      const eqAligned = alignMany(eqBars);
+      const eqLens = [...eqAligned.values()].map((b) => b.length);
+      if (eqAligned.size < 2 || (eqLens.length ? Math.min(...eqLens) : 0) < 120) {
+        const perSymbol: Record<string, number> = {};
+        for (const [sym, b] of eqBars) perSymbol[sym] = b.length;
+        return { error: 'not enough Yahoo daily history to discover pairs', needsBackfill: false, perSymbol };
+      }
+      return jsonSafe(
+        runUniverseOnBars(eqAligned, { source: 'real-yahoo-daily', pValueCutoff: 0.6, maxHalfLifeBars: 240 }),
+      );
+    }
+
     const to = new Date();
     const from = new Date(to.getTime() - Number(hours) * HOUR_MS);
 
@@ -749,6 +819,22 @@ export class MarketDataController {
     @Query('venue') venue = 'binance.spot',
     @Query('hours') hours = '24',
   ) {
+    // Equity symbol → keyless Yahoo daily candles (no DB backfill needed).
+    if (isEquitySymbol(symbol)) {
+      const days = equityDays(Number(hours));
+      const toMs = Date.now();
+      const fromMs = toMs - days * 24 * HOUR_MS;
+      const bars = await this.yahoo.historicalBars(symbol, '1d', fromMs, toMs).catch(() => [] as Bar[]);
+      return {
+        symbol,
+        venue: 'yahoo.daily',
+        candles: bars.map((b) => ({
+          time: Math.floor(b.timestamp.getTime() / 1000),
+          open: b.open, high: b.high, low: b.low, close: b.close,
+        })),
+      };
+    }
+
     const to = new Date();
     const from = new Date(to.getTime() - Number(hours) * HOUR_MS);
     const rows: MarketBarRow[] = await this.repo.barsBetween(venue, symbol, from, to);

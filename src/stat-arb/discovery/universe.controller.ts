@@ -45,8 +45,8 @@ interface ApiClusterSummary {
 }
 
 export interface ApiUniverseResponse {
-  /** Where the bars came from — 'synthetic' fixture or 'real-binance-history'. */
-  source: 'synthetic' | 'real-binance-history';
+  /** Where the bars came from — synthetic fixture, real Binance, or real Yahoo daily (equities). */
+  source: 'synthetic' | 'real-binance-history' | 'real-yahoo-daily';
   symbols: string[];
   groundTruthClusters: { clusterId: number; symbols: string[] }[];
   noiseSymbols: string[];

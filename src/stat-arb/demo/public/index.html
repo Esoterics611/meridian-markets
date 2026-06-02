@@ -132,6 +132,12 @@
   </header>
 
   <div class="controls">
+    <label class="ctl">Asset class
+      <select id="asset-class" title="Equities discover/backtest on free Yahoo daily history (no key, no backfill — research path); Crypto uses live Binance bars.">
+        <option value="equity">Equities · Yahoo daily</option>
+        <option value="crypto">Crypto · Binance</option>
+      </select>
+    </label>
     <label class="ctl">Market set
       <select id="preset"></select>
     </label>
@@ -941,11 +947,19 @@
     }
 
     async function loadPresets() {
-      const { presets } = await jget('/api/market-data/presets');
+      const cls = ($('asset-class') && $('asset-class').value) || 'equity';
+      const { presets } = await jget(`/api/market-data/presets?class=${encodeURIComponent(cls)}`);
       const optsHtml = presets.map((p) => `<option value="${p.id}">${p.label} — ${p.assetClass}</option>`).join('');
       $('preset').innerHTML = optsHtml;
       $('lx-preset').innerHTML = optsHtml;
       window.__presets = presets;
+      // Equities discover straight from Yahoo daily history — no Binance backfill
+      // step. Hide the (Binance-only) Backfill button for the equity class.
+      const isEquity = cls === 'equity';
+      $('backfill').style.display = isEquity ? 'none' : '';
+      $('lookback').title = isEquity
+        ? 'Equities use daily history — the lookback is ignored; ~5y of daily bars are pulled for a real OOS window.'
+        : '';
     }
 
     async function loadStrategies() {
@@ -1284,8 +1298,12 @@
     // Master desk lot → mirror into the Launch + MM panels, and once on load.
     $('capital').addEventListener('input', syncDeskLot); syncDeskLot();
     $('stop-portfolio').onclick = async () => { await jpost('/api/stat-arb/live/portfolio/stop'); refreshPortfolio(); };
-    $('preset').onchange = () => { $('pairs').innerHTML = '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'; $('lx-preset').value = $('preset').value; fillLaunchLegs(); loadUniverse(); };
+    const pairsPlaceholder = () => ($('asset-class') && $('asset-class').value === 'crypto')
+      ? '<tr><td colspan="7" class="muted">backfill this market set to discover pairs</td></tr>'
+      : '<tr><td colspan="7" class="muted">discovering pairs on Yahoo daily history…</td></tr>';
+    $('preset').onchange = () => { $('pairs').innerHTML = pairsPlaceholder(); $('lx-preset').value = $('preset').value; fillLaunchLegs(); loadUniverse(); };
     $('lx-preset').onchange = () => { $('preset').value = $('lx-preset').value; fillLaunchLegs(); loadUniverse(); };
+    $('asset-class').onchange = async () => { $('pairs').innerHTML = pairsPlaceholder(); await loadPresets(); fillLaunchLegs(); loadUniverse(); };
     $('lx-a').onchange = autofillBeta;
     $('lx-b').onchange = autofillBeta;
     $('lx-strategy').onchange = renderLaunchParams;

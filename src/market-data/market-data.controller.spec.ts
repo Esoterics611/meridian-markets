@@ -1,6 +1,7 @@
-import { alignMany, MarketDataController } from './market-data.controller';
+import { alignMany, equityDays, isEquitySymbol, MarketDataController } from './market-data.controller';
 import { Bar } from '../stat-arb/backtest/bar';
 import { generateSyntheticFeed } from '../stat-arb/backtest/synthetic-feed';
+import { EQUITY_PRESETS } from '../stat-arb/markets/market-presets';
 import { ReplayEngine } from './replay/replay-engine';
 
 function bar(t: number, close: number): Bar {
@@ -48,6 +49,39 @@ describe('alignMany', () => {
 
   it('handles the empty map', () => {
     expect(alignMany(new Map()).size).toBe(0);
+  });
+});
+
+describe('equities-first routing — isEquitySymbol', () => {
+  const aSample = EQUITY_PRESETS[0].symbols[0]; // a real equity-preset ticker
+
+  it('recognises a symbol that belongs to an equity preset', () => {
+    expect(isEquitySymbol(aSample)).toBe(true);
+  });
+
+  it('is case- and whitespace-insensitive', () => {
+    expect(isEquitySymbol(`  ${aSample.toLowerCase()} `)).toBe(true);
+  });
+
+  it('returns false for a crypto symbol (routes to the Binance replay path)', () => {
+    expect(isEquitySymbol('BTC')).toBe(false);
+    expect(isEquitySymbol('ETH')).toBe(false);
+  });
+});
+
+describe('equities-first routing — equityDays', () => {
+  it('defaults a small intraday lookback to ~5y of daily bars (a real OOS window)', () => {
+    expect(equityDays(72)).toBe(1260); // 72h → 3d is too short for daily cointegration
+    expect(equityDays(0)).toBe(1260);
+  });
+
+  it('passes through a genuinely long request (≥200 days)', () => {
+    expect(equityDays(9000 * 24)).toBe(9000); // ~24y request honoured as-is
+  });
+
+  it('switches from default to passthrough at the 200-day boundary', () => {
+    expect(equityDays(199 * 24)).toBe(1260);
+    expect(equityDays(200 * 24)).toBe(200);
   });
 });
 
