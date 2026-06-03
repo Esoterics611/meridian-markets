@@ -43,6 +43,47 @@ export interface IReferenceBarSource {
   klines(symbol: string, interval: string, limit: number): Promise<Bar[]>;
 }
 
+// L2 order-book capability — a SECOND, optional seam on top of the OHLCV one.
+// Most reference sources expose only candles (an upper bound on fills under the
+// fill-on-touch bar model). A source that also publishes a depth-of-book lets the
+// MM backtest become queue-aware (FIFO position → honest fills, course A.10):
+// Hyperliquid's public `l2Book` POST gives a no-key 20×20 book. The snapshot type
+// is deliberately a STRUCTURAL COPY of market-making's OrderBook (priceMicros /
+// sizeUnits / orderCount) rather than an import — keeping market-data free of any
+// market-making dependency (CLAUDE.md §6: copy the type, don't couple the module).
+// A one-line adapter on the consumer side bridges the two.
+
+/** One price level of a depth snapshot. Mirrors microstructure/OrderBookLevel. */
+export interface L2Level {
+  /** Price in micros (1.0 quote-unit = 1_000_000). */
+  readonly priceMicros: bigint;
+  /** Resting size in 6-decimal asset units (1.0 asset = 1_000_000). */
+  readonly sizeUnits: bigint;
+  /** Number of distinct orders resting at the level (HL's `n`). */
+  readonly orderCount: number;
+}
+
+/** A depth-of-book snapshot: bids descending by price, asks ascending. */
+export interface L2Snapshot {
+  readonly symbol: string;
+  readonly ts: Date;
+  readonly bids: readonly L2Level[];
+  readonly asks: readonly L2Level[];
+}
+
+/** A source that can return a current L2 depth snapshot (queue-aware fills). */
+export interface IL2BookSource {
+  /** Current depth-of-book for an internal symbol (a single snapshot — poll for a tape). */
+  l2Snapshot(symbol: string): Promise<L2Snapshot>;
+}
+
+/** Parse a decimal price/size string to 6-decimal integer units (micros). */
+export function decimalToMicros(s: string | number): bigint {
+  const n = typeof s === 'number' ? s : Number(s);
+  if (!Number.isFinite(n)) return 0n;
+  return BigInt(Math.round(n * 1_000_000));
+}
+
 /** A timestamped scalar rate → a flat OHLC bar (open=high=low=close=rate). */
 export function ratePointToBar(symbol: string, tsMs: number, rate: number, volume = 0): Bar {
   return { symbol, timestamp: new Date(tsMs), open: rate, high: rate, low: rate, close: rate, volume };

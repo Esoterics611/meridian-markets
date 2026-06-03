@@ -1102,3 +1102,55 @@ per-pool γ/κ tuning + the maker-rebate fee model. **Caveat for the live contro
 launched via `/api/market-making/launch` still uses the fixed `MM_QUOTE_SIZE_UNITS` (raw units), which
 over-sizes a $67k-priced perp — the control-plane needs the same notional sizing the session harness has
 (`MM_SESSION_QUOTE_USD`). Tracked.
+
+## 2026-06-03 — Entry #20: HL L2 ingest → queue-aware fills (step 3) — fills stop being fill-on-touch
+
+**Shipped (step 3 of the recommended order — the single biggest backtest-fidelity upgrade).** Fills in
+the MM backtest are no longer assumed-on-touch; they are computed FIFO against a **real Hyperliquid L2
+depth tape**. Three pieces, all behind the existing swap seams:
+
+1. **L2 ingest.** `HyperliquidClient.l2Snapshot(coin)` + `parseHyperliquidL2` — HL's no-key `l2Book` POST
+   (`{coin,time,levels:[bids desc, asks asc]}`, 20×20, `{px,sz,n}` strings → micros/units). Behind a new
+   `IL2BookSource` capability on the reference interface, with a neutral `L2Snapshot`/`L2Level` type kept
+   a **structural copy** of microstructure's `OrderBook` so market-data never imports market-making
+   (CLAUDE.md §6). Live-verified the payload shape against the real endpoint before parsing.
+2. **`LobReplayHarness`** (`src/market-making/backtest/lob-replay.ts`) — the driver the `SimpleQueueModel`
+   was always waiting for (course A.10). Walks an L2 tape, drives the **unchanged** `IQuoter` registry,
+   maintains FIFO **price-time-priority** queue position (everything resting at our price *and better* is
+   ahead of us — cumulative, `l2-tape.ts`), fills only once that queue is consumed by aggressive flow,
+   and attributes every fill through the **unchanged** `PnlAttributor` into the `InventoryBook`. It reports
+   the headline number: **`queueFills` vs `touchFills`** — how much fill-on-touch overstated.
+3. **`scripts/mm-l2-session.ts`** — polls the live HL `l2Book` to build a real tape (REAL time-varying
+   depth + the touch gate read off the candle's REAL traded high/low; the one estimate is per-interval
+   aggressive *volume*, from the 1m candle pro-rated + split by the mid tick — stated honestly), runs the
+   harness, and prints queue-aware fills + the structural/rebate/cost fee sweep + drawdown.
+
+**The result (live-verified, both regimes reproduce on real HL data):** the fill-vs-touch gap is entirely
+about **where you quote relative to real depth** — exactly what fill-on-touch ignores:
+
+| Quote placement | touchFills | queueFills | ratio | read |
+|---|---|---|---|---|
+| Tight (inside the spread, ahead≈0) | 18 | 18 | 1.00 | top-of-book turns over fast → fill ≈ touch; the cost is **adverse selection**, not phantom fills |
+| Wide (5bps into real depth) | 21 | **0** | **0.00** | the cumulative book above us never clears in the interval → fill-on-touch overstated **∞×** |
+
+**Honest finding:** at our data granularity (1m OHLCV + depth) a *top-of-book* maker quote fills about as
+often as fill-on-touch said — so the bar-model fill counts in #16/#19 were **not** badly overstated there,
+and the book's loss really is **adverse selection** (spread < adverse on trending perps), not missed-fill
+fantasy. The overstatement is dramatic the moment you quote into the stack (the sweep has to consume every
+better level first). The unit tests pin both ends deterministically (front-of-queue ratio 1.0; below-best
+with depth above → 0 until the cumulative queue clears). The truth for a real book sits between, and the
+harness now *computes* it instead of assuming it.
+
+**Verdict on the maker-rebate CLOB:** still not a clean "nets positive" — but for the first time the
+structural net is judged on fills we could actually have gotten, against the −0.2bps HL rebate. A real read
+needs a long session: `MM_L2_POLL_S=60 MM_L2_DURATION_MIN=120 MM_L2_COINS=BTC,ETH,SOL npx ts-node -r
+tsconfig-paths/register scripts/mm-l2-session.ts` (hand-off — the dev box can't run a 2h foreground loop).
+
+**129 suites / 869 tests** (+10: 3 HL L2 parser specs, 2 l2-tape/adapter specs, 5 harness specs), tsc clean.
+HL L2 → ingested in [DATA_SOURCES.md](./DATA_SOURCES.md).
+
+**Next:** (4) per-pool γ/κ tuning + the maker-rebate fee model on the HL/DEX books, now that fills are
+honest; and **notional sizing in the live control plane** (`/api/market-making/launch` still uses fixed
+`MM_QUOTE_SIZE_UNITS`, over-sizing high-priced perps — the session harness already sizes by $ notional).
+Still-open fidelity: sub-minute flow (HL `trades`/WS) would replace the candle-volume estimate with real
+per-trade aggressor data; funding-rate ingest for the carry leg.
