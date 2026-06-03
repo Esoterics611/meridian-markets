@@ -586,10 +586,31 @@ See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md
 - Live-verified end-to-end against the real API (24 ascending hourly bars/pool: ETH/USD ≈ $1855, BTC/USD
   ≈ $66.5k). Details + reproduce in [QUANT_JOURNAL.md](QUANT_JOURNAL.md) Entry #15.
 
+## 15. Session 29 — Discovery frontier, step 2: MM books quote DEX pools live (2026-06-03)
+
+### Shipped
+- **DEX pool → first-class live paper MM book.** `MmBook` was already feed-agnostic (injected
+  `nextBar`/`warmupCloses`), so the change is the book factory: **`MmBookSpec.source` +
+  `MmMarketPreset.source`** (the MM twin of `PortfolioPair.source`, S20); `market-making.module.ts`
+  builds a `ReferenceSourceRegistry` and routes a `source` book through a **`ReferenceBarFeed`** (+
+  source-backed warmup) instead of the Binance feed. **`MmScreener` is now source-aware**
+  (`MmBarLoader(symbol, source?)`, preset carries `source`) so DEX pools rank without 404-ing Binance;
+  `MmController` threads `source` through `launch`/`launch-preset`. New MM preset **`dex-eth-bluechip`**
+  (`source:'geckoterminal'`).
+- **Honest scope:** the path works + P&L is honestly attributed; the first live reads are net-negative —
+  that's the lesson, not a wiring failure (needs a ≤0bps maker venue + per-pool tuning + queue-aware fills,
+  Journal #23). Fill-on-touch is an upper bound.
+
+### Verification
+- `tsc --noEmit` clean; `jest` **126 suites / 853 tests** (+4 = preset/screener/controller routing).
+- Live-verified end-to-end (real GeckoTerminal → `ReferenceBarFeed` → `MmBook` → fills → 4-component P&L,
+  ~200 hourly bars): WETH/USDC symmetric-8bps 129 fills, +$20.6k spread − $24.2k adverse → net −$45k;
+  USDC/USDT GLFT peg near-flat, maxDD 0.01% at $1M. Details in [QUANT_JOURNAL.md](QUANT_JOURNAL.md) Entry #16.
+
 ### Next (the paper-demo frontier)
-- **Market discovery** — the GeckoTerminal **data adapter is wired (S28)**; the remaining half is the
-  **MM-on-DEX-feed live path** (mirror S20's `ReferenceBarFeed` for the MM side so a `dex-*` preset
-  launches a live paper `MmBook`; register pools as `mm-market-presets`), then widen pools/chains.
+- **Market discovery** — DEX **data + live MM books are wired (S28/S29)**; remaining: **per-pool tuning +
+  the maker-rebate fee model** on the low-vol DEX **stable** pools (the only regime with a structural shot
+  at positive), a `source` knob on `scripts/mm-paper-session.ts`, then wider long-tail pools/chains.
 - **Forward paper track records** — run the MM book + the survivor-safe equities basket live for
   hours/days; show steady, low-drawdown equity curves (the demo itself).
 - **P1 (real capital) is parked** (allocator-on-live, maker/limit exec, real-venue adapter — out of scope).

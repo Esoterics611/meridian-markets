@@ -941,3 +941,62 @@ npx jest src/market-data/reference/geckoterminal-client.spec.ts
 # the registry/config wiring is exercised by reference-bar-loader.spec.ts; with a GeckoTerminal-reachable
 # network the dex-eth-bluechip preset is live in the scanner universe + the /api/market-data/reference readout.
 ```
+
+## 2026-06-03 — Entry #16: the discovery frontier, step 2 — MM books quote DEX pools on the live paper loop
+
+**The point of the frontier, delivered.** Entry #15 wired the DEX *data* (GeckoTerminal behind
+`IReferenceBarSource`). This entry makes a DEX pool a **first-class live paper market-making book** — the
+actual frontier (CLAUDE.md §1, MARKET_MAKING.md): the MM engine can now post bid/ask on an under-watched
+on-chain venue, the same way it quotes a Binance pair.
+
+**The seam (no new architecture — `MmBook` was already feed-agnostic):** `MmBook` takes an injected
+`nextBar`/`warmupCloses`, so the only thing that decides *where the prints come from* is the book factory.
+- **`MmBookSpec.source` + `MmMarketPreset.source`** (optional) — the MM twin of the stat-arb
+  `PortfolioPair.source` (S20).
+- **`market-making.module.ts`** builds a `ReferenceSourceRegistry` (`buildReferenceSources`, incl.
+  GeckoTerminal) and, in `makeBook`, **routes a `source` book through a `ReferenceBarFeed`** (+ a
+  source-backed `warmupCloses`) instead of `BinancePublicBarFeed`. A no-`source` book is unchanged.
+- **`MmScreener` is now source-aware** (`MmBarLoader(symbol, source?)`, preset carries `source`): a
+  reference-source preset routes to the registry, Binance presets to the public client — so the "where
+  should we quote" board can rank DEX pools without firing 404s at Binance.
+- **`MmController`** threads `source` through `launch` (body) and `launch-preset` (`preset.source`).
+- New MM preset **`dex-eth-bluechip`** (`source:'geckoterminal'`): WETH/USDC, WETH/USDT, WBTC/WETH, USDC/USDT.
+
+**Live-verified end-to-end** (real GeckoTerminal API → `ReferenceBarFeed` → `MmBook` → fills → 4-component
+P&L), replaying ~200 real hourly DEX bars at $100/quote on a $1M book, **fee = 0 bps**:
+| Book | fills (b/a) | spread captured | adverse selection | net | maxDD |
+|---|---|---|---|---|---|
+| WETH/USDC, symmetric 8 bps | 129 (65/64) | +$20,636 | **−$24,204** | **−$45,206** | 5.19% |
+| USDC/USDT, GLFT (DEX peg) | 84 (42/42) | −$98 | +$101 | **−$101** | 0.01% |
+
+**Honest read — what the numbers say (and don't):**
+- The path *works*: real DEX prints → resting quotes → balanced passive fills → honest 4-component
+  attribution. That is the deliverable. **Net P&L is honestly negative**, and that's the lesson, not a
+  failure of wiring:
+- WETH/USDC: a naive **fixed-spread** quoter on a **volatile, trending** asset gets **adversely selected**
+  (it buys before drops / sells before rises) — −$24k adverse > +$21k spread. Inventory-aware quoting +
+  a vol-suited instrument is the fix, not a wider fixed spread. (GLFT on WETH stood at its 200 bps cap and
+  took **0 fills** — correctly refusing to quote tight into that vol.)
+- USDC/USDT (the low-vol **stable peg** — the natural MM home): near-flat, maxDD **0.01%** at $1M, but
+  still slightly negative at **fill-on-touch with no rebate**. This is exactly Journal #23's structural
+  finding: the book needs a **≤0 bps maker venue** (a DEX where LP fees accrue to the maker is the
+  candidate) and queue-aware fills to net positive. Fill-on-touch is an **upper bound**, so the true net
+  is *worse* than shown here, not better.
+
+**Next actions:**
+1. **Per-pool param tuning + the rebate** — run the GLFT/AS book on the DEX **stable** pools with the
+   maker-rebate fee model and per-pool `gamma/kappa`, the only regime with a structural shot at positive.
+2. **A DEX MM paper session** — extend `scripts/mm-paper-session.ts` with a `source` knob so the hours-long
+   equity-curve + fee-sweep harness runs a `dex-*` preset (today it's Binance-only).
+3. **Wider, longer-tail pools** — the under-watched = wider-spread thesis only pays where the spread
+   exceeds adverse selection; screen for it (the source-aware `MmScreener` now can).
+
+### Reproduce
+```bash
+npx jest src/market-making                 # the MM suite incl. the source-routing tests
+# live (needs a running engine + GeckoTerminal reachable): launch the DEX preset as one book per pool
+curl -XPOST localhost:3100/api/market-making/launch-preset \
+  -H 'content-type: application/json' \
+  -d '{"presetId":"dex-eth-bluechip","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
+curl localhost:3100/api/market-making/snapshot   # quotes / inventory / spread / adverse / net per book
+```

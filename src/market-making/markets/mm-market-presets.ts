@@ -24,8 +24,14 @@ export interface MmMarketPreset {
   symbols: string[];
   /** The instrument the MM screen loads first. */
   defaultSymbol: string;
-  /** Quote asset for the Binance market symbol. */
+  /** Quote asset for the Binance market symbol (unused when `source` is set). */
   quote: string;
+  /**
+   * Reference data source id (e.g. 'geckoterminal'); omit for the default Binance
+   * feed. When set, each symbol is a reference-source key (a GeckoTerminal pool),
+   * the book is fed by a `ReferenceBarFeed`, and `quote` is cosmetic.
+   */
+  source?: string;
 }
 
 export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
@@ -58,6 +64,17 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     symbols: ['BTC', 'ETH', 'SOL', 'BNB'],
     defaultSymbol: 'SOL',
     quote: 'USDT',
+  },
+  {
+    id: 'dex-eth-bluechip',
+    label: 'DEX Bluechip (GeckoTerminal)',
+    assetClass: 'DEX',
+    description:
+      'On-chain Uniswap-v3 pools priced in USD (GeckoTerminal feed) — the discovery frontier: under-watched venues with structurally wider spreads and a ≤0bps maker (LP fees accrue to the maker), the regime the MM book needs (Journal #6/#23). WETH/USDC + WETH/USDT (ETH/USD across fee tiers), WBTC/WETH (BTC/USD), USDC/USDT (peg). Honest caveat: DEX prints are noisier (MEV/thin pools), so the wider spread is hazard-compensation, not free money.',
+    symbols: ['WETHUSDC', 'WETHUSDT', 'WBTCWETH', 'USDCUSDT'],
+    defaultSymbol: 'WETHUSDC',
+    quote: 'USD',
+    source: 'geckoterminal',
   },
 ];
 

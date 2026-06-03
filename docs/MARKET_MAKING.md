@@ -97,20 +97,30 @@ Why decentralized markets are the right frontier *for this engine specifically*:
 
 How it plugs in (no new architecture — the seams already exist, CLAUDE.md §7):
 
-- **Data:** add a decentralized price/print source behind `IReferenceBarSource`
-  (**GeckoTerminal first** — free, broad DEX coverage; then on-chain AMM pools / CLOB DEX
-  feeds). This is the **Market Data Researcher** role ([desk/ROLE_market_data_researcher.md](../desk/ROLE_market_data_researcher.md)).
-- **Markets:** register the discovered pools as `mm-market-presets` so the MM screen and the
-  scanner pick them up.
-- **Execution (paper):** `PaperVenue` simulates fills at the real DEX prices today — no
-  on-chain execution adapter needed for the paper demo, which is the whole scope. (A real
-  on-chain venue adapter would be the `live`-posture seam, and that is parked.)
+- **Data — SHIPPED (S28):** `GeckoTerminalClient` behind `IReferenceBarSource` — free, no-key
+  DEX OHLCV across 100+ chains, registered in `buildReferenceSources` + the scanner. This is the
+  **Market Data Researcher** role ([desk/ROLE_market_data_researcher.md](../desk/ROLE_market_data_researcher.md)).
+- **Markets — SHIPPED (S29):** the `dex-eth-bluechip` preset (`source:'geckoterminal'`) is a
+  `mm-market-preset`; `MmMarketPreset.source` / `MmBookSpec.source` carry the routing, and the
+  `MmScreener` is source-aware so DEX pools rank on the "where should we quote" board.
+- **Execution (paper) — SHIPPED (S29):** a `source` book is fed by a `ReferenceBarFeed` and filled
+  by the same paper fill-model at real DEX prices — no on-chain execution adapter needed for the
+  paper demo, which is the whole scope. Launch it:
+  ```bash
+  curl -XPOST localhost:3100/api/market-making/launch-preset \
+    -H 'content-type: application/json' \
+    -d '{"presetId":"dex-eth-bluechip","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
+  ```
+  (A real on-chain venue adapter would be the `live`-posture seam, and that is parked.)
 
 **Honesty caveat:** DEX prints are noisier (MEV, thin pools, sandwiching, gas), so the
 adverse-selection term (and the queue/fill model) is *less* favourable than a clean CEX
 tape — the survivorship/cost discipline applies here too. Wider spread is not free money;
-it is compensation for exactly these hazards. The paper demo will surface whether the net
-is still steady and low-drawdown.
+it is compensation for exactly these hazards. **First live-replay reads (Journal #16) bear
+this out:** a naive fixed-spread book on volatile WETH/USDC was net-negative (adverse > spread),
+and the low-vol USDC/USDT peg was near-flat (maxDD 0.01% at $1M) but not yet positive at
+fill-on-touch without a maker rebate — the book still needs a **≤0 bps maker venue** + per-pool
+tuning + queue-aware fills to net positive (§1.5 / Journal #23).
 
 ---
 

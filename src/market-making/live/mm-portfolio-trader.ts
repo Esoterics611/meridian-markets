@@ -15,6 +15,13 @@ export interface MmBookSpec {
   strategyId?: string;
   /** Per-launch overrides of the quoter's frozen params (e.g. { gamma, kappa }). */
   params?: Record<string, number>;
+  /**
+   * Reference data source id (e.g. 'geckoterminal') for a DEX / decentralized
+   * book; omit for the default Binance feed. The book factory resolves this to a
+   * `ReferenceBarFeed` so a DEX pool quotes on the SAME live loop as a Binance
+   * instrument — the MM twin of `PortfolioPair.source` (S20).
+   */
+  source?: string;
 }
 
 export type MmBookFactory = (spec: MmBookSpec) => MmBook;

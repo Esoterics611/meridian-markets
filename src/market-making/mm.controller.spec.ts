@@ -29,6 +29,12 @@ describe('MarketMakingModule — the endpoints the /demo MM tab calls', () => {
     expect(peg!.symbols).toContain(peg!.defaultSymbol);
   });
 
+  it('GET /markets exposes the DEX preset wired to the geckoterminal source', () => {
+    const dex = controller.markets().presets.find((p) => p.id === 'dex-eth-bluechip');
+    expect(dex).toBeDefined();
+    expect(dex!.source).toBe('geckoterminal');
+  });
+
   it('GET /snapshot is an empty desk before any launch', () => {
     const s = controller.snapshot();
     expect(s.bookCount).toBe(0);
