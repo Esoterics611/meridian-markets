@@ -3,6 +3,7 @@ import { IReferenceBarSource } from './reference-source.interface';
 import { PythBenchmarksClient } from './pyth-benchmarks-client';
 import { DefiLlamaPegClient } from './defillama-peg-client';
 import { Bit2CClient } from './bit2c-client';
+import { GeckoTerminalClient } from './geckoterminal-client';
 
 // Build the standard set of reference sources from config base URLs. Called from
 // both MarketDataModule (reference read endpoint) and StatArbModule (scanner) —
@@ -12,11 +13,13 @@ export function buildReferenceSources(opts: {
   pythBaseUrl?: string;
   defillamaBaseUrl?: string;
   bit2cBaseUrl?: string;
+  geckoTerminalBaseUrl?: string;
 }): IReferenceBarSource[] {
   return [
     new PythBenchmarksClient({ baseUrl: opts.pythBaseUrl }),
     new DefiLlamaPegClient({ baseUrl: opts.defillamaBaseUrl }),
     new Bit2CClient({ baseUrl: opts.bit2cBaseUrl }),
+    new GeckoTerminalClient({ baseUrl: opts.geckoTerminalBaseUrl }),
   ];
 }
 

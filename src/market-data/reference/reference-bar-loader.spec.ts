@@ -31,9 +31,9 @@ describe('ReferenceSourceRegistry', () => {
     expect(await reg.bars('boom', 'X', '1m', 10)).toEqual([]); // swallowed
   });
 
-  it('buildReferenceSources wires pyth + defillama + bit2c', () => {
+  it('buildReferenceSources wires pyth + defillama + bit2c + geckoterminal', () => {
     const ids = buildReferenceSources({}).map((s) => s.sourceId).sort();
-    expect(ids).toEqual(['bit2c', 'defillama', 'pyth']);
+    expect(ids).toEqual(['bit2c', 'defillama', 'geckoterminal', 'pyth']);
   });
 });
 

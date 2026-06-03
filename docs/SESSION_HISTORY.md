@@ -566,10 +566,30 @@ See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md
 - The survivor-safe vs. capped OOS runs are hand-off (need network/Alpaca key); reproduce commands in
   [QUANT_JOURNAL.md](QUANT_JOURNAL.md) Entry #14.
 
+## 14. Session 28 — Discovery frontier, step 1: a GeckoTerminal DEX source (2026-06-03)
+
+### Shipped
+- **`GeckoTerminalClient` behind `IReferenceBarSource`** (`src/market-data/reference/geckoterminal-client.ts`,
+  8 unit tests) — free, no-key DEX OHLCV across 100+ chains. Maps a kline interval to GeckoTerminal's
+  `{minute|hour|day, aggregate}`, fetches `/networks/{net}/pools/{pool}/ohlcv/…?currency=usd`, and parses
+  the newest-first `ohlcv_list` into ascending `Bar[]`. Injected `httpGet` (offline tests) + a `poolMap`
+  of live-verified Uniswap-v3 addresses (raw `'net/0x…'` passthrough).
+- **Registered** in `buildReferenceSources` (→ `ReferenceSourceRegistry`, the `/api/market-data/reference`
+  readout, `makeScannerLoader` routing) + config (`GECKOTERMINAL_BASE_URL`, `app.feed.geckoTerminalBaseUrl`).
+  New scanner preset **`dex-eth-bluechip`** (WETH/USDC, WETH/USDT, WBTC/WETH, USDC/USDT — eth + base chains).
+- **Scope (honest):** data adapter + scan-universe only — the growth-lever *half* of the S27 frontier. NOT
+  yet a live MM book on a DEX feed (needs the S20 `ReferenceBarFeed` analogue for the MM side — the next
+  step). DEX prints are noisier (MEV/thin pools) → the wider spread is hazard-compensation, not free money.
+
+### Verification
+- `tsc --noEmit` clean; `jest` **126 suites / 849 tests** (+1 suite / +8 = the GeckoTerminal spec).
+- Live-verified end-to-end against the real API (24 ascending hourly bars/pool: ETH/USD ≈ $1855, BTC/USD
+  ≈ $66.5k). Details + reproduce in [QUANT_JOURNAL.md](QUANT_JOURNAL.md) Entry #15.
+
 ### Next (the paper-demo frontier)
-- **Market discovery** — wire DEX/decentralized sources (GeckoTerminal first) behind `IReferenceBarSource`,
-  register as `mm-market-presets`, paper-quote them (under-watched venues = wider spreads + the ≤0bps
-  maker structure the MM book needs).
+- **Market discovery** — the GeckoTerminal **data adapter is wired (S28)**; the remaining half is the
+  **MM-on-DEX-feed live path** (mirror S20's `ReferenceBarFeed` for the MM side so a `dex-*` preset
+  launches a live paper `MmBook`; register pools as `mm-market-presets`), then widen pools/chains.
 - **Forward paper track records** — run the MM book + the survivor-safe equities basket live for
   hours/days; show steady, low-drawdown equity curves (the demo itself).
 - **P1 (real capital) is parked** (allocator-on-live, maker/limit exec, real-venue adapter — out of scope).

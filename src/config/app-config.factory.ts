@@ -67,6 +67,8 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     pythBaseUrl: process.env['PYTH_BENCHMARKS_BASE_URL'] ?? 'https://benchmarks.pyth.network',
     defillamaBaseUrl: process.env['DEFILLAMA_STABLECOINS_BASE_URL'] ?? 'https://stablecoins.llama.fi',
     bit2cBaseUrl: process.env['BIT2C_BASE_URL'] ?? 'https://bit2c.co.il',
+    geckoTerminalBaseUrl:
+      process.env['GECKOTERMINAL_BASE_URL'] ?? 'https://api.geckoterminal.com/api/v2',
   },
   alpaca: {
     keyId: process.env['ALPACA_KEY_ID'] ?? '',

@@ -887,3 +887,57 @@ OOS_SOURCE=yahoo OOS_BASKET=true OOS_DAYS=9000 OOS_INTERVAL=1d OOS_TRAIN=120 OOS
   OOS_PRESET=equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma \
   npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
 ```
+
+## 2026-06-03 — Entry #15: the discovery frontier, step 1 — a GeckoTerminal DEX source behind `IReferenceBarSource`
+
+**Why this, now.** Entry #14 set the mission: a paper-trading demo whose *growth* lever is **discovery of
+new markets to make markets in — especially DEX / decentralized venues** (CLAUDE.md §1, MARKET_MAKING.md
+"Frontier — DEX/decentralized"). The MM book's binding deploy condition is a **≤0 bps maker venue** (Entry
+#6/#23 — at +1 bps retail maker cost it loses); DEX fee/reward structures (LP fees accrue *to* the maker)
+are exactly that regime, and under-watched pools carry structurally wider spreads. So the highest-leverage
+move isn't tuning a quoter — it's **widening the universe**. This entry is the first source.
+
+**What shipped (pure swap-seam addition — no architecture change, CLAUDE.md §7):**
+- `src/market-data/reference/geckoterminal-client.ts` — `GeckoTerminalClient implements IReferenceBarSource`
+  (free, no-key DEX OHLCV across 100+ chains). `klines()` → `GET /networks/{net}/pools/{pool}/ohlcv/
+  {timeframe}?aggregate&limit&currency=usd`; `geckoTimeframe()` maps a kline interval to GT's
+  `{minute|hour|day, aggregate∈allowed}`; `parseGeckoTerminalOhlcv()` turns the newest-first `ohlcv_list`
+  into **chronological ascending** `Bar[]`. Injected `httpGet` (offline tests) + a `poolMap` of **real,
+  live-verified** Uniswap-v3 addresses (a raw `'net/0x…'` symbol passes through unmapped, mirroring Pyth's
+  raw-shim acceptance). 8 unit tests.
+- Registered in `buildReferenceSources` (→ the `ReferenceSourceRegistry`, the `/api/market-data/reference`
+  readout, and `makeScannerLoader`'s per-source routing) + config (`GECKOTERMINAL_BASE_URL`,
+  `app.feed.geckoTerminalBaseUrl`, both module callers). New scanner preset **`dex-eth-bluechip`**
+  (`source:'geckoterminal'`, assetClass `DEX`): WETH/USDC + WETH/USDT (≈ ETH/USD across fee tiers —
+  cross-pool microstructure), WBTC/WETH (≈ BTC/USD with `currency=usd`), USDC/USDT (DEX stable peg).
+
+**Live-verified end-to-end** (real API, default pool map, 1h × 24): WETHUSDC 24 bars ascending, lastClose
+≈ $1854.94; WBTCWETH ≈ $66,507 (BTC/USD); USDCUSDT ≈ 0.984; Base cbBTC/USDC ≈ $66,523 — two chains
+(eth + base) in the universe already. **126 suites / 849 tests** (+1 suite / +8), tsc clean.
+
+**Honest scope — what this is and is NOT:**
+- It IS the **data adapter + scan-universe registration**. "Discovery compounds": every source wired
+  through `IReferenceBarSource` is now permanently scannable and (once fed) tradeable.
+- It is **NOT yet a live MM book quoting a DEX pool.** `MmBook`/`MmPortfolioTrader` are Binance-fed;
+  pointing one at a reference feed means mirroring S20's `ReferenceBarFeed`/`ReferencePriceSource` for the
+  MM side and registering pools as `mm-market-presets`. **That is the next step** (MARKET_MAKING.md Frontier).
+- **DEX prints are noisier** (MEV, sandwiching, thin pools, gas) → adverse selection and the fill model are
+  *less* favourable than a clean CEX tape. Wider spread is **compensation for those hazards, not free
+  money**; the survivorship/cost/honest-number discipline applies here too. The bar-fill is still
+  fill-on-touch (an upper bound). The paper demo will show whether the net is steady and low-drawdown.
+
+**Next actions:**
+1. **MM-on-DEX-feed** — the `ReferenceBarFeed` analogue for the MM side so a `dex-*` preset launches a live
+   paper `MmBook` quoting real DEX prints. The actual point of the frontier.
+2. **Run the scanner across `dex-eth-bluechip`** and journal what cointegrates (expect WETH/USDC vs
+   WETH/USDT cross-tier; BTC/USD vs ETH/USD as a crypto pair) — net of the wider DEX spread.
+3. **Widen pools/chains** — add long-tail / lower-cap pools (the under-watched = wider-spread thesis) and
+   more chains (Arbitrum, Solana via GT) once the live MM-DEX path proves out.
+
+### Reproduce
+```bash
+# offline unit tests for the new source:
+npx jest src/market-data/reference/geckoterminal-client.spec.ts
+# the registry/config wiring is exercised by reference-bar-loader.spec.ts; with a GeckoTerminal-reachable
+# network the dex-eth-bluechip preset is live in the scanner universe + the /api/market-data/reference readout.
+```

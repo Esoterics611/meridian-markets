@@ -76,6 +76,8 @@ export interface AppConfig {
     defillamaBaseUrl: string;
     /** Bit2C base URL (Israeli exchange, ILS reference). Public, no key. */
     bit2cBaseUrl: string;
+    /** GeckoTerminal base URL (DEX OHLCV discovery). Public, no key. */
+    geckoTerminalBaseUrl: string;
   };
   /**
    * Alpaca equities adapter (FEED_SOURCE=alpaca). Real US-equity market data

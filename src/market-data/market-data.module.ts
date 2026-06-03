@@ -53,6 +53,7 @@ import { ReferenceSourceRegistry, buildReferenceSources } from './reference/refe
             pythBaseUrl: app.feed.pythBaseUrl,
             defillamaBaseUrl: app.feed.defillamaBaseUrl,
             bit2cBaseUrl: app.feed.bit2cBaseUrl,
+            geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
           }),
         );
       },
