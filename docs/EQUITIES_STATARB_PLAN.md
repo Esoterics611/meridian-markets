@@ -13,6 +13,13 @@
 > trap, and a deflated-Sharpe σ_SR mis-calibration). Next levers: basket-pooled OOS + β-weighted
 > sizing + longer history (SIP/alt vendor). Below is the original spec; S24/S25 details follow.
 >
+> **UPDATE (Journal #10/#13):** basket-pooling + β-weighting were built — edge is **real but thin
+> (~0.06–0.09 Sharpe)**, and more history (Yahoo) flips the gate to "PASS" *but the Sharpe rises
+> monotonically with window length = survivorship inflation*. **The binding blocker is now
+> survivorship (point-in-time, delisted-inclusive universe), not trade count.** Scoped data options +
+> a paste-ready cheapest-first Phase-1 experiment (Sharadar SEP, hand-curated dead-name lists per
+> sector, decision rule): **[SURVIVORSHIP_DATA_OPTIONS.md](./SURVIVORSHIP_DATA_OPTIONS.md)**.
+>
 > _(superseded)_ S24 built the adapters; S25 wired the two remaining offline seams so the whole
 > equities path is one Alpaca key away from running:
 > - **OOS gate → Alpaca** (`scripts/oos-candidates.ts`): `OOS_SOURCE=alpaca` routes

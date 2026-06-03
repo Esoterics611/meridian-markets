@@ -49,6 +49,10 @@
    so months are fetchable. **Still open:** actually backfilling 6–12 months (the
    binding constraint on the ai-data verdict was OOS *trade count*) and a real
    point-in-time universe (presets are *today's* listed symbols → survivorship).
+   For equities this is now **the** binding blocker (Journal #13: more history flips
+   the gate to PASS but the Sharpe rises with window length = survivorship inflation).
+   Scoped options + a paste-ready Phase-1 experiment (Sharadar SEP, cheapest-first):
+   [SURVIVORSHIP_DATA_OPTIONS.md](./SURVIVORSHIP_DATA_OPTIONS.md).
 
 ## P1 — before real capital (canary)
 6. **Sizing/allocation policy enforced on deploy.** A risk-parity allocator
