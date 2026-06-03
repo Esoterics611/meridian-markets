@@ -77,5 +77,6 @@ nav:
   - 5. Risk, inventory, kill switches: 05-risk.md
   - 6. Backtesting & LOB replay: 06-backtesting.md
   - 7. From paper to production: 07-production.md
+  - 8. The Meridian desk stack — Hyperliquid, queue-aware fills, tuning: 08-the-meridian-desk-stack.md
   - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
   - Appendix B — Source notebook: appendix-b-sources.md
