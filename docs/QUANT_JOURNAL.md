@@ -1198,3 +1198,26 @@ is proven; the *answer* is one long capture away.
 **Next:** run the long capture + sweep to get the per-pool γ/κ winners (and whether HL's −0.2bps rebate
 makes any calibration net positive on queue-aware fills); HL `trades`/WS to replace the candle-volume
 estimate with real aggressor data; funding ingest for the carry leg; then the forward paper track record.
+
+## 2026-06-03 — Entry #22: Hyperliquid is now the desk's default MM venue (+ per-book real venue fees)
+
+**Decision (S35).** HL is the best MM *venue* — the only WIRED maker-**rebate** CLOB (−0.2bps), with L2 +
+funding + 230 perps, no-key — so it's now the desk's **default MM venue**: `marketMaking.defaultSource` /
+`MM_SOURCE` = 'hyperliquid', `MM_SYMBOL` = BTC, `MM_STRATEGY_ID` = mm-glft. A bare `/api/market-making/
+launch` (no `source`) quotes HL. **Not the global feed:** `FEED_SOURCE` stays Binance — HL is perps-only,
+a per-book reference source, not the engine spine (stat-arb needs Binance/Alpaca).
+
+**The honest wiring that came with it:** every MM book is now priced at its OWN venue's real maker fee via
+`venueFeeFor(srcId)` (S34) — HL −0.2bps rebate, Binance **+1bps base-tier**, DEX LP-fee — instead of a
+desk-wide −1bps assumption. So the live P&L is honest per venue. (Side effect: the Binance stablecoin demo
+now uses the +1bps base-tier maker *cost*, not the optimistic −1bps VIP rebate — more honest, changes its
+result.) The 3 Binance MM presets pin `source:'binance'` so the HL default doesn't capture them.
+
+**Still unproven:** whether HL's −0.2bps rebate makes any calibration net positive on queue-aware fills —
+that's the long-capture + γ/κ-sweep verdict (next session). Venue decisions are managed in
+`app-config.factory.ts` + `mm-market-presets.ts`; the analysis ledger is [DATA_SOURCES.md](./DATA_SOURCES.md).
+133 suites / 883 tests, tsc clean.
+
+**Next:** (1) long capture + sweep for the rebate-net verdict; (2) **HL funding ingest** (hourly funding;
+`IFundingRateSource` on `HyperliquidClient` + period-aware `staticCarry` + `FC_SOURCE=hyperliquid`) — harvest
+carry on the venue we already make markets on; (3) HL `trades`/WS for real aggressor data; (4) forward paper track.
