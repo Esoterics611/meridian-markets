@@ -78,6 +78,8 @@ export interface AppConfig {
     bit2cBaseUrl: string;
     /** GeckoTerminal base URL (DEX OHLCV discovery). Public, no key. */
     geckoTerminalBaseUrl: string;
+    /** Hyperliquid base URL (perp CLOB OHLCV/L2/funding). Public, no key. */
+    hyperliquidBaseUrl: string;
   };
   /**
    * Alpaca equities adapter (FEED_SOURCE=alpaca). Real US-equity market data

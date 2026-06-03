@@ -53,6 +53,10 @@ entire lift. Keep `process.env` out of it (CLAUDE.md §6) — config flows from
 
 ## Where to hunt (the discovery backlog — DEX first)
 
+> Every vendor you evaluate goes in the **[Data Sources & Venue Evaluation Ledger](../docs/DATA_SOURCES.md)**
+> (wired / evaluated / candidate / rejected, with the eval rubric). That ledger is how we
+> document evals; this section is the working backlog.
+
 Prioritise public, keyless, OHLC-or-rate HTTP endpoints. Candidates, roughly in
 order of edge-per-effort:
 

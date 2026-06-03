@@ -15,14 +15,19 @@ import { QuoteContext, QuotePair, buildQuotePair } from './quote-pair';
 // piece (γσ²(T−t), the inventory-risk premium) and an arrival piece
 // ((2/γ)ln(1+γ/κ), the order-processing premium).
 //
-// Units / risk-unit choice. σ is a per-bar fraction of price, so the price
-// stdev is σ_price = σ·s in micros. Inventory enters as *lots* — q = inventory
-// ÷ quote size — not raw asset count, so a one-sided fill is q=1 regardless of
-// how big a quote is; the skew is "how many quote-sizes am I imbalanced," the
-// natural risk unit. q is clamped to ±maxInventoryLots and the half-spread is
-// railed to [min,max] micros, so even a volatile tape can't produce an absurd
-// quote. γ, κ are free per-pair tuning (course §3.7 sweep-then-pick), surfaced
-// in the registry; we unit-test direction, not magnitude, as AS08 itself does.
+// Units / scale-invariance (the load-bearing fix — Journal #17). σ is a per-bar
+// RETURN FRACTION (ctx.volatility). The skew and half-spread are computed as
+// **fractions of mid** off a fixed $1 reference scale (REF_MICROS) and then
+// applied to the live mid — so a 4 bps/bar asset quotes the same *bps* spread at
+// $1 or at $1,900. The earlier code multiplied σ by the live mid and squared it,
+// so the inventory term scaled as price²: on a high-priced asset the skew blew the
+// reservation to a nonsense price. At mid=$1 this formulation is numerically
+// identical to the old one (the reference scale IS $1), so every spec is preserved.
+// Inventory enters as *lots* (q = inventory ÷ quote size), clamped to
+// ±maxInventoryLots; the skew fraction is further clamped to ±MAX_SKEW_FRAC so a
+// high-vol asset can never push the quote negative, and the half-spread is railed
+// to [min,max] bps of mid. γ, κ are free per-pair tuning (course §3.7); we
+// unit-test direction + scale-invariance, not magnitude, as AS08 itself does.
 
 export interface AvellanedaStoikovParams {
   gamma: number;
@@ -38,17 +43,29 @@ export interface AvellanedaStoikovParams {
   maxInventoryLots: number;
 }
 
-/** AS08 reservation-price shift, in micros. qLots is signed inventory in lots. */
-export function asReservationMicros(midMicros: number, qLots: number, gamma: number, sigmaPriceMicros: number, horizonBars: number): number {
-  const skew = qLots * gamma * sigmaPriceMicros * sigmaPriceMicros * horizonBars;
-  return midMicros - skew;
+// Fixed reference scale ($1 in micros): σ is squared at this scale, not the live
+// mid, so skew/spread are price-scale-invariant fractions of mid. At mid=$1 the
+// math is identical to the prior absolute formulation.
+const REF_MICROS = 1_000_000;
+/** Reservation skew is bounded to ±this fraction of mid, so a high-vol asset can
+ *  never push the quote to a negative / nonsense price (γ tuning refines magnitude). */
+export const MAX_SKEW_FRAC = 0.5;
+
+/** AS08 reservation-price shift, in micros. σ is a per-bar RETURN FRACTION; the
+ *  skew is a (clamped) fraction of mid → price-scale-invariant. */
+export function asReservationMicros(midMicros: number, qLots: number, gamma: number, sigmaRel: number, horizonBars: number): number {
+  const s = Math.max(sigmaRel, 0);
+  const skewFrac = clamp(qLots * gamma * s * s * REF_MICROS * horizonBars, -MAX_SKEW_FRAC, MAX_SKEW_FRAC);
+  return midMicros * (1 - skewFrac);
 }
 
-/** AS08 half-spread, in micros (one side). */
-export function asHalfSpreadMicros(gamma: number, kappa: number, sigmaPriceMicros: number, horizonBars: number): number {
-  const inventoryRisk = gamma * sigmaPriceMicros * sigmaPriceMicros * horizonBars;
-  const arrival = (2 / gamma) * Math.log(1 + gamma / kappa);
-  return (inventoryRisk + arrival) / 2;
+/** AS08 half-spread, in micros (one side). σ is a per-bar RETURN FRACTION; both the
+ *  inventory-risk and arrival terms are fractions of mid → price-scale-invariant. */
+export function asHalfSpreadMicros(midMicros: number, gamma: number, kappa: number, sigmaRel: number, horizonBars: number): number {
+  const s = Math.max(sigmaRel, 0);
+  const inventoryRiskFrac = gamma * s * s * REF_MICROS * horizonBars;
+  const arrivalFrac = ((2 / gamma) * Math.log(1 + gamma / kappa)) / REF_MICROS;
+  return (midMicros * (inventoryRiskFrac + arrivalFrac)) / 2;
 }
 
 export class AvellanedaStoikovQuoter implements IQuoter {
@@ -65,12 +82,12 @@ export class AvellanedaStoikovQuoter implements IQuoter {
 
   quote(ctx: QuoteContext, symbol: string): QuotePair {
     const s = Number(ctx.midMicros);
-    const sigmaPrice = Math.max(ctx.volatility, 0) * s;
+    const sigmaRel = Math.max(ctx.volatility, 0);
     const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
     const T = Math.max(ctx.horizonBars, 0);
 
-    const reservation = asReservationMicros(s, qLots, this.p.gamma, sigmaPrice, T);
-    const halfRaw = asHalfSpreadMicros(this.p.gamma, this.p.kappa, sigmaPrice, T);
+    const reservation = asReservationMicros(s, qLots, this.p.gamma, sigmaRel, T);
+    const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
     const halfSpreadMicros = railHalfSpread(halfRaw, minMicros, maxMicros);

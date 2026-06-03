@@ -60,6 +60,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             defillamaBaseUrl: app.feed.defillamaBaseUrl,
             bit2cBaseUrl: app.feed.bit2cBaseUrl,
             geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+            hyperliquidBaseUrl: app.feed.hyperliquidBaseUrl,
           }),
         );
 
@@ -138,6 +139,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             defillamaBaseUrl: app.feed.defillamaBaseUrl,
             bit2cBaseUrl: app.feed.bit2cBaseUrl,
             geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+            hyperliquidBaseUrl: app.feed.hyperliquidBaseUrl,
           }),
         );
         const presets = MM_MARKET_PRESETS.map((p) => ({

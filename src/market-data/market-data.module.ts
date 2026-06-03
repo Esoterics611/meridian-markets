@@ -54,6 +54,7 @@ import { ReferenceSourceRegistry, buildReferenceSources } from './reference/refe
             defillamaBaseUrl: app.feed.defillamaBaseUrl,
             bit2cBaseUrl: app.feed.bit2cBaseUrl,
             geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+            hyperliquidBaseUrl: app.feed.hyperliquidBaseUrl,
           }),
         );
       },

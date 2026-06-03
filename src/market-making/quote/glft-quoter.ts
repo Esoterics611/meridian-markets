@@ -1,6 +1,6 @@
 import { IQuoter } from './quoter.interface';
 import { QuoteContext, QuotePair, buildQuotePair } from './quote-pair';
-import { clamp, railHalfSpread } from './avellaneda-stoikov';
+import { clamp, railHalfSpread, asReservationMicros, asHalfSpreadMicros } from './avellaneda-stoikov';
 
 // GlftQuoter — the Guéant-Lehalle-Fernández-Tapia steady-state variant of
 // Avellaneda-Stoikov (course §3.5). AS08 is a finite-horizon model: the
@@ -46,17 +46,16 @@ export class GlftQuoter implements IQuoter {
 
   quote(ctx: QuoteContext, symbol: string): QuotePair {
     const s = Number(ctx.midMicros);
-    const sigmaPrice = Math.max(ctx.volatility, 0) * s;
+    const sigmaRel = Math.max(ctx.volatility, 0);
     const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
     const T = this.p.steadyHorizonBars; // steady-state: NOT ctx.horizonBars
 
-    const skew = qLots * this.p.gamma * sigmaPrice * sigmaPrice * T;
-    const reservation = s - skew;
-    const inventoryRisk = this.p.gamma * sigmaPrice * sigmaPrice * T;
-    const arrival = (2 / this.p.gamma) * Math.log(1 + this.p.gamma / this.p.kappa);
+    // Same price-scale-invariant skew/spread as AS, with the steady-state horizon.
+    const reservation = asReservationMicros(s, qLots, this.p.gamma, sigmaRel, T);
+    const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
-    const halfSpreadMicros = railHalfSpread((inventoryRisk + arrival) / 2, minMicros, maxMicros);
+    const halfSpreadMicros = railHalfSpread(halfRaw, minMicros, maxMicros);
 
     return buildQuotePair({
       symbol,

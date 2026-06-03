@@ -1000,3 +1000,105 @@ curl -XPOST localhost:3100/api/market-making/launch-preset \
   -d '{"presetId":"dex-eth-bluechip","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
 curl localhost:3100/api/market-making/snapshot   # quotes / inventory / spread / adverse / net per book
 ```
+
+## 2026-06-03 — Entry #17: DEX MM paper session (the `MM_SESSION_SOURCE` knob) + two sizing/calibration bugs it surfaced
+
+**Shipped:** `scripts/mm-paper-session.ts` — the hours-long equity-curve + fee-sweep harness — gained a
+**`MM_SESSION_SOURCE`** knob (Entry #16 next-action #2). Set `MM_SESSION_SOURCE=geckoterminal
+MM_SESSION_INTERVAL=1h` and the SAME `MmBook` + registry run on a DEX preset off a `ReferenceBarFeed`
+(replay or live), interval-aware reporting, with the structural / −1bps-rebate / +1bps-cost fee sweep
+unchanged. Binance remains the default (no behaviour change). tsc clean; suite unchanged (853 — script-only).
+
+**Running it for real surfaced two genuine bugs — the honest part of the entry:**
+
+1. **Lot sizing was in raw asset *units*, not notional.** `QUOTE_UNITS = 50,000` ≈ $50k *only because
+   stablecoins are ≈$1*. On WETH (~$1,900) that's a **$95M** lot; on the WBTC pool (~$77k) it's $3.8B —
+   the first run printed **−$18 *trillion***. Fixed: **`MM_SESSION_QUOTE_USD`** (default $50k for a source)
+   sizes each book by **dollar notional ÷ the asset's first price**; the inventory cap scales with it.
+   This was a latent bug for *any* non-$1 asset (incl. the Binance `crypto-majors-mm` preset), now correct.
+2. **The QUOTER itself is calibrated for ~$1 assets** (deeper, NOT yet fixed). Even with correct notional,
+   WETH/WBTC still blow up while the USDC/USDT peg is sane. The tell: fill-rate **0.526 (peg) vs 0.003
+   (WETH)** + huge *negative* spread-captured. GLFT's half-spread/skew use σ in **absolute price units**,
+   so σ² on a $1,900 asset is ~10⁶× the $1 case and the quote math mis-scales. The series are **clean**
+   (no outliers: WETH $1855–2416, WBTC $66k–82k), so this is calibration, not data. **Next step:
+   normalize σ to a return fraction in the quoters** (`src/market-making/quote/*`) so γ/σ are price-scale-
+   invariant — then high-priced pools become quotable.
+
+**The one valid DEX read today — the stable peg (USDC/USDT, GeckoTerminal, 720h hourly, $50k notional,
+GLFT):** 72 fills, spread −$34.5k / adverse +$36.2k → **structural −$36.2k, maxDD 3.7%** on $1M. Net-
+NEGATIVE even with the −1bps rebate. Honest reading: the **on-chain** USDC/USDT pool wobbles ~$0.98–1.01
+(±1.6%) — far wider than a CEX stablecoin — so the book is adversely selected at fill-on-touch. The
+under-watched-venue *spread* is real, but here adverse > spread. Consistent with Entry #16/#23: needs
+queue-aware fills + a true ≤0bps maker structure + per-pool tuning before it's a positive book.
+
+**Net:** the DEX path is now exercisable end-to-end in the long-horizon harness; the demo's honest DEX
+verdict is *not yet a positive book*, and the two bugs above (one fixed, one scoped) are why.
+
+**Next actions:** (1) σ-normalization in the quoters (unblocks high-priced pools); (2) per-pool γ/κ tuning
+on the DEX stable pools + the maker-rebate fee model; (3) queue-aware fills (the `SimpleQueueModel` exists,
+needs an L2 tape); (4) screen long-tail pools for spread > adverse (the source-aware `MmScreener` can now).
+
+## 2026-06-03 — Entry #18: σ-normalization — the quoters are now price-scale-invariant (Entry #17 bug #2 fixed)
+
+**The fix (step 1 of the Hyperliquid recommended order).** The AS/GLFT quoters computed
+`sigmaPrice = ctx.volatility · mid` (micros) and then `γ · sigmaPrice² · T` for both the inventory
+skew and the half-spread — so those terms scaled as **price²**. On a $1,900 asset the skew sent the
+reservation to a nonsense price (the −$18T DEX run, Entry #17). Root cause: squaring a *micros* price.
+
+`src/market-making/quote/avellaneda-stoikov.ts` (`asReservationMicros` / `asHalfSpreadMicros`, now shared
+by **both** AS and GLFT — GLFT no longer inlines its own copy) is rewritten to compute skew + spread as
+**fractions of mid** off a fixed **$1 reference scale** (`REF_MICROS`), with σ kept as a **return
+fraction**, then applied to the live mid. Consequences:
+- **Price-scale-invariant:** a given (γ, κ, σ_rel, q-lots) yields the *same bps* spread + skew at $1 or
+  $1,900 (new unit tests assert this on both quoters).
+- **Identical at mid=$1** by construction (the reference scale IS $1) → all 11 prior quote specs pass
+  unchanged; the documented stablecoin MM results (Entry #23) are unaffected.
+- **Skew bounded** to ±`MAX_SKEW_FRAC` (0.5) so a high-vol asset can never push the quote negative.
+
+**Validated end-to-end** — the DEX paper session (720h hourly, GLFT, $50k notional) that printed −$18T
+now prints sane, conserved numbers:
+
+| book | fills | fillRate | structural | maxDD |
+|---|---|---|---|---|
+| USDC/USDT | 72 | 0.53 | −$36.8k | 3.76% |
+| WETH/USDC | 24 | **0.033** (was 0.003 — quoter no longer stands absurdly wide) | −$7.0k | 0.77% |
+| WBTC/WETH | 58 | **0.081** | −$2.6k | 0.31% |
+| **Desk ($3M)** | 154 | — | **−$46.4k (−1.55%)** | **1.56% → drawdown PASS** |
+
+**Honest read:** the blow-up is gone and **drawdown is conserved (1.56% < 2%)**, but the book is **still
+net-negative** at fill-on-touch without per-pool tuning or a real rebate — exactly the remaining work.
+**855 tests** (+2 scale-invariance specs), tsc clean.
+
+**Next (the recommended order continues):** (2) `HyperliquidClient` behind `IReferenceBarSource` (candles)
++ an `hl-perps` MM preset — HL is the maker-rebate **CLOB** the book actually needs ([DATA_SOURCES.md](./DATA_SOURCES.md));
+(3) L2 ingest from HL `l2Book` → `SimpleQueueModel`/`LobReplayHarness` → queue-aware (honest) fills;
+(4) per-pool γ/κ tuning + the maker-rebate fee model on the low-vol stable pools.
+
+## 2026-06-03 — Entry #19: Hyperliquid wired (step 2) — the maker-rebate perp CLOB is now scannable + quotable
+
+**Shipped (step 2 of the recommended order).** `HyperliquidClient` (`src/market-data/reference/
+hyperliquid-client.ts`, unit-tested) behind `IReferenceBarSource` — HL's public `info` endpoint is a
+**POST** (`candleSnapshot`), so `RefHttpPost`/`defaultRefHttpPost` were added to the reference interface
+(injected, offline-testable; reusable for dYdX next). `parseHyperliquidCandles` turns the string-OHLCV /
+ms-timestamp payload into ascending `Bar[]`; `hyperliquidInterval` maps kline strings to HL's set.
+Registered in `buildReferenceSources` (→ registry/readout/scanner-routing) + config
+(`HYPERLIQUID_BASE_URL`, all callers, `.env.example`). New **`hl-perps`** scanner preset
+(BTC/ETH/SOL/BNB/ARB/OP/AVAX/LTC — cross-sectional perps) **and** MM preset (BTC/ETH/SOL).
+
+**Why HL over the AMM-DEX path (the eval, DATA_SOURCES.md):** it's a real maker-**rebate CLOB**
+(−0.2bps) — the ≤0bps-maker order-book venue the AS/GLFT book was built for and needs to net positive —
+plus an L2 tape (next step) that fixes the fill-on-touch upper bound. AMM pools gave discovery breadth
+but no post-limit-earn-spread primitive.
+
+**Validated end-to-end** (real HL API → `ReferenceBarFeed` → `MmBook`, 240h hourly, GLFT, $50k notional):
+real prints BTC $67,181 / ETH $1,875 / SOL $75; all three perp books quote + fill sanely (σ-normalization
+holds at these price levels) → desk **structural −$17.9k (−0.60%), maxDD 0.63% → drawdown PASS**. Still
+net-negative (SOL the worst, −$14k: GLFT fill-on-touch is adversely selected on a volatile perp) — the
+honest remaining work is per-pool γ/κ tuning + the L2 queue model. **859 tests** (+4 HL specs). HL → WIRED.
+
+**Next:** (3) **L2 ingest** from HL `l2Book` (20×20, no-key) → feed `SimpleQueueModel`/`LobReplayHarness`
+so fills are queue-aware, not fill-on-touch — the single biggest backtest-honesty upgrade; then (4)
+per-pool γ/κ tuning + the maker-rebate fee model. **Caveat for the live control plane:** an HL book
+launched via `/api/market-making/launch` still uses the fixed `MM_QUOTE_SIZE_UNITS` (raw units), which
+over-sizes a $67k-priced perp — the control-plane needs the same notional sizing the session harness has
+(`MM_SESSION_QUOTE_USD`). Tracked.

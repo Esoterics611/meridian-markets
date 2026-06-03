@@ -69,6 +69,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     bit2cBaseUrl: process.env['BIT2C_BASE_URL'] ?? 'https://bit2c.co.il',
     geckoTerminalBaseUrl:
       process.env['GECKOTERMINAL_BASE_URL'] ?? 'https://api.geckoterminal.com/api/v2',
+    hyperliquidBaseUrl: process.env['HYPERLIQUID_BASE_URL'] ?? 'https://api.hyperliquid.xyz',
   },
   alpaca: {
     keyId: process.env['ALPACA_KEY_ID'] ?? '',
