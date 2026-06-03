@@ -1000,3 +1000,40 @@ curl -XPOST localhost:3100/api/market-making/launch-preset \
   -d '{"presetId":"dex-eth-bluechip","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
 curl localhost:3100/api/market-making/snapshot   # quotes / inventory / spread / adverse / net per book
 ```
+
+## 2026-06-03 — Entry #17: DEX MM paper session (the `MM_SESSION_SOURCE` knob) + two sizing/calibration bugs it surfaced
+
+**Shipped:** `scripts/mm-paper-session.ts` — the hours-long equity-curve + fee-sweep harness — gained a
+**`MM_SESSION_SOURCE`** knob (Entry #16 next-action #2). Set `MM_SESSION_SOURCE=geckoterminal
+MM_SESSION_INTERVAL=1h` and the SAME `MmBook` + registry run on a DEX preset off a `ReferenceBarFeed`
+(replay or live), interval-aware reporting, with the structural / −1bps-rebate / +1bps-cost fee sweep
+unchanged. Binance remains the default (no behaviour change). tsc clean; suite unchanged (853 — script-only).
+
+**Running it for real surfaced two genuine bugs — the honest part of the entry:**
+
+1. **Lot sizing was in raw asset *units*, not notional.** `QUOTE_UNITS = 50,000` ≈ $50k *only because
+   stablecoins are ≈$1*. On WETH (~$1,900) that's a **$95M** lot; on the WBTC pool (~$77k) it's $3.8B —
+   the first run printed **−$18 *trillion***. Fixed: **`MM_SESSION_QUOTE_USD`** (default $50k for a source)
+   sizes each book by **dollar notional ÷ the asset's first price**; the inventory cap scales with it.
+   This was a latent bug for *any* non-$1 asset (incl. the Binance `crypto-majors-mm` preset), now correct.
+2. **The QUOTER itself is calibrated for ~$1 assets** (deeper, NOT yet fixed). Even with correct notional,
+   WETH/WBTC still blow up while the USDC/USDT peg is sane. The tell: fill-rate **0.526 (peg) vs 0.003
+   (WETH)** + huge *negative* spread-captured. GLFT's half-spread/skew use σ in **absolute price units**,
+   so σ² on a $1,900 asset is ~10⁶× the $1 case and the quote math mis-scales. The series are **clean**
+   (no outliers: WETH $1855–2416, WBTC $66k–82k), so this is calibration, not data. **Next step:
+   normalize σ to a return fraction in the quoters** (`src/market-making/quote/*`) so γ/σ are price-scale-
+   invariant — then high-priced pools become quotable.
+
+**The one valid DEX read today — the stable peg (USDC/USDT, GeckoTerminal, 720h hourly, $50k notional,
+GLFT):** 72 fills, spread −$34.5k / adverse +$36.2k → **structural −$36.2k, maxDD 3.7%** on $1M. Net-
+NEGATIVE even with the −1bps rebate. Honest reading: the **on-chain** USDC/USDT pool wobbles ~$0.98–1.01
+(±1.6%) — far wider than a CEX stablecoin — so the book is adversely selected at fill-on-touch. The
+under-watched-venue *spread* is real, but here adverse > spread. Consistent with Entry #16/#23: needs
+queue-aware fills + a true ≤0bps maker structure + per-pool tuning before it's a positive book.
+
+**Net:** the DEX path is now exercisable end-to-end in the long-horizon harness; the demo's honest DEX
+verdict is *not yet a positive book*, and the two bugs above (one fixed, one scoped) are why.
+
+**Next actions:** (1) σ-normalization in the quoters (unblocks high-priced pools); (2) per-pool γ/κ tuning
+on the DEX stable pools + the maker-rebate fee model; (3) queue-aware fills (the `SimpleQueueModel` exists,
+needs an L2 tape); (4) screen long-tail pools for spread > adverse (the source-aware `MmScreener` can now).

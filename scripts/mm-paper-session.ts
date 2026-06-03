@@ -22,10 +22,25 @@
  *    see what is structural vs what is a fee-tier subsidy. Conservation is judged
  *    on the STRUCTURAL equity curve, never on the rebate.
  *
+ * Feed (MM_SESSION_SOURCE): unset = Binance public (default). Set to a reference
+ * source id ('geckoterminal') to run the SAME books on a DEX preset — the
+ * discovery frontier (Journal #16). A DEX session should use a coarser bar
+ * (MM_SESSION_INTERVAL=1h) since on-chain pools are thin at 1m, and is sized by
+ * DOLLAR notional (MM_SESSION_QUOTE_USD, default $50k for a source) ÷ price — raw
+ * unit sizing only ≈ dollars for $1 stablecoins.
+ *
  * Run:
  *   npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
  *   MM_SESSION_HOURS=6 MM_SESSION_STRATEGY=mm-glft \
  *     npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+ *   # DEX session — quote an on-chain Uniswap-v3 STABLE pool (GeckoTerminal), hourly:
+ *   MM_SESSION_SOURCE=geckoterminal MM_SESSION_INTERVAL=1h \
+ *     MM_SESSION_SYMBOLS=USDCUSDT MM_SESSION_HOURS=720 \
+ *     npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+ *   # NOTE: the stable peg is the valid case today. High-priced pools (WETH/WBTC)
+ *   # expose that the QUOTER's σ/γ are calibrated for ~$1 assets (σ in absolute
+ *   # price units) — they mis-scale until the quoter normalizes σ as a return
+ *   # fraction. Notional sizing (above) is fixed; σ-normalization is a next step.
  *   # live, for hours, on your own machine:
  *   MM_SESSION_MODE=live MM_SESSION_HOURS=8 \
  *     npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
@@ -33,15 +48,36 @@
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { BinancePublicBarFeed } from '../src/stat-arb/feed/binance-public-bar-feed';
+import { IBarFeed } from '../src/stat-arb/feed/live-feed.interface';
 import { mmStrategyRegistry } from '../src/market-making/registry/mm-strategy-registry';
 import { MmBook } from '../src/market-making/live/mm-book';
 import { CompositeRiskGate } from '../src/market-making/risk/risk-gate';
+import {
+  ReferenceSourceRegistry,
+  buildReferenceSources,
+} from '../src/market-data/reference/reference-bar-loader';
+import { ReferenceBarFeed } from '../src/market-data/reference/reference-bar-feed';
+import {
+  IReferenceBarSource,
+  intervalToSeconds,
+} from '../src/market-data/reference/reference-source.interface';
 
 // ---- config -----------------------------------------------------------------
 const MODE = (process.env.MM_SESSION_MODE ?? 'replay').toLowerCase();
 const SYMBOLS = (process.env.MM_SESSION_SYMBOLS ?? 'FDUSD,USDC,TUSD').split(',').map((s) => s.trim()).filter(Boolean);
 const STRATEGY = process.env.MM_SESSION_STRATEGY ?? 'mm-glft';
-const QUOTE_UNITS = BigInt(process.env.MM_SESSION_QUOTE_UNITS ?? '50000000000'); // $50k/quote
+// Reference data source id (e.g. 'geckoterminal' for a DEX session); empty =
+// the default Binance public feed. INTERVAL is the bar granularity; DEX pools
+// are thin at 1m, so a DEX session should use a coarser bar (e.g. 1h).
+const SOURCE = (process.env.MM_SESSION_SOURCE ?? '').trim().toLowerCase();
+const INTERVAL = process.env.MM_SESSION_INTERVAL ?? (SOURCE ? '1h' : '1m');
+const BARS_PER_HOUR = Math.max(1, Math.round(3600 / intervalToSeconds(INTERVAL)));
+const QUOTE_UNITS = BigInt(process.env.MM_SESSION_QUOTE_UNITS ?? '50000000000'); // $50k/quote (raw asset units; ≈$ only for $1 assets)
+// If >0, size each book by DOLLAR notional ÷ the asset's price — the correct lever
+// for non-$1 assets (WETH, WBTC, crypto majors). Raw QUOTE_UNITS assumes price≈$1
+// (stablecoins), so it over-sizes a $1,860 WETH lot ~1860×. Defaults on for a
+// reference/DEX source, where pools are rarely pegged to $1.
+const QUOTE_USD = Number(process.env.MM_SESSION_QUOTE_USD ?? (SOURCE ? 50_000 : 0));
 const CAPITAL_UNITS = BigInt(process.env.MM_SESSION_CAPITAL_UNITS ?? '1000000000000'); // $1M/book
 const MAX_LOTS = Number(process.env.MM_SESSION_MAX_LOTS ?? 8);
 const MIN_BPS = Number(process.env.MM_SESSION_MIN_BPS ?? 1);
@@ -53,7 +89,7 @@ const POLL_MS = Number(process.env.MM_SESSION_POLL_MS ?? 60_000);
 const GAMMA = Number(process.env.MM_SESSION_GAMMA ?? 0.0025);
 const KAPPA = Number(process.env.MM_SESSION_KAPPA ?? 2);
 const VOL_WINDOW = Number(process.env.MM_SESSION_VOL_WINDOW ?? 30);
-const REPORT_EVERY = Number(process.env.MM_SESSION_REPORT_EVERY ?? 60); // bars per "hour" line
+const REPORT_EVERY = Number(process.env.MM_SESSION_REPORT_EVERY ?? BARS_PER_HOUR); // bars per sim-"hour" line
 const DD_LIMIT_PCT = Number(process.env.MM_SESSION_DD_LIMIT_PCT ?? 2);
 
 const MICROS = 1_000_000n;
@@ -67,9 +103,28 @@ interface ReplayCursor {
   idx: number;
 }
 
-function makeBook(symbol: string, nextBar: (s: string) => Promise<Bar | null>, warmupCloses?: (s: string) => Promise<number[]>): MmBook {
+/** Resolve the configured reference data source (e.g. GeckoTerminal DEX), or undefined for Binance. */
+function resolveRefSource(): IReferenceBarSource | undefined {
+  if (!SOURCE) return undefined;
+  const src = new ReferenceSourceRegistry(buildReferenceSources({})).get(SOURCE);
+  if (!src) {
+    throw new Error(
+      `unknown MM_SESSION_SOURCE '${SOURCE}' — try 'geckoterminal' | 'pyth' | 'defillama' | 'bit2c' (or unset for Binance)`,
+    );
+  }
+  return src;
+}
+
+/** Per-book quote size in 6-decimal asset units: a $ notional ÷ price when
+ *  QUOTE_USD is set (correct for any asset), else the raw QUOTE_UNITS. */
+function sizeForPrice(firstClose: number): bigint {
+  if (QUOTE_USD > 0 && firstClose > 0) return BigInt(Math.max(1, Math.round((QUOTE_USD / firstClose) * 1e6)));
+  return QUOTE_UNITS;
+}
+
+function makeBook(symbol: string, quoteUnits: bigint, nextBar: (s: string) => Promise<Bar | null>, warmupCloses?: (s: string) => Promise<number[]>): MmBook {
   const quoter = mmStrategyRegistry.build(STRATEGY, {
-    quoteSizeUnits: QUOTE_UNITS,
+    quoteSizeUnits: quoteUnits,
     minHalfSpreadBps: MIN_BPS,
     maxHalfSpreadBps: MAX_BPS,
     maxInventoryLots: MAX_LOTS,
@@ -78,7 +133,7 @@ function makeBook(symbol: string, nextBar: (s: string) => Promise<Bar | null>, w
     symbol,
     strategyId: STRATEGY,
     quoter,
-    quoteSizeUnits: QUOTE_UNITS,
+    quoteSizeUnits: quoteUnits,
     gamma: GAMMA,
     kappa: KAPPA,
     horizonBars: 1,
@@ -89,7 +144,7 @@ function makeBook(symbol: string, nextBar: (s: string) => Promise<Bar | null>, w
     nextBar,
     warmupCloses,
     riskGate: new CompositeRiskGate({
-      maxInventoryUnits: QUOTE_UNITS * BigInt(MAX_LOTS), // the real conservation lever: cap the position
+      maxInventoryUnits: quoteUnits * BigInt(MAX_LOTS), // the real conservation lever: cap the position
       minNavRatio: MIN_NAV, // protective drawdown stop
       vpinPauseThreshold: 2,
       vpinPauseMs: 30_000,
@@ -159,9 +214,12 @@ interface CurvePoint {
 
 function header(): void {
   console.log(`\n=== Meridian MM paper session — ${MODE.toUpperCase()} ===`);
+  console.log(`  feed: ${SOURCE ? `${SOURCE} (DEX/reference)` : 'Binance public'} | bar: ${INTERVAL}`);
+  const lotLabel = QUOTE_USD > 0 ? `$${QUOTE_USD.toLocaleString()} notional/quote` : `$${usd(QUOTE_UNITS)}`;
+  const maxInvLabel = QUOTE_USD > 0 ? `${MAX_LOTS} lots ($${(MAX_LOTS * QUOTE_USD).toLocaleString()}/book)` : `${MAX_LOTS} lots ($${usd(QUOTE_UNITS * BigInt(MAX_LOTS))})`;
   console.log(
-    `  books: ${SYMBOLS.join(',')} | quoter: ${STRATEGY} | lot: $${usd(QUOTE_UNITS)} | cap/book: $${usd(CAPITAL_UNITS)} | ` +
-      `maxInv: ${MAX_LOTS} lots ($${usd(QUOTE_UNITS * BigInt(MAX_LOTS))}) | driving maker: ${MAKER_BPS}bps`,
+    `  books: ${SYMBOLS.join(',')} | quoter: ${STRATEGY} | lot: ${lotLabel} | cap/book: $${usd(CAPITAL_UNITS)} | ` +
+      `maxInv: ${maxInvLabel} | driving maker: ${MAKER_BPS}bps`,
   );
   console.log(`  horizon: ${HOURS}h | desk capital: $${usd(CAPITAL_UNITS * BigInt(SYMBOLS.length))}`);
 }
@@ -218,19 +276,25 @@ function finalReport(books: MmBook[], curve: CurvePoint[], deskMaxDDpct: number)
 
 // ---- modes ------------------------------------------------------------------
 async function runReplay(): Promise<void> {
-  const client = new BinancePublicClient({ quote: 'USDT' });
+  const refSource = resolveRefSource();
+  const client = refSource ? null : new BinancePublicClient({ quote: 'USDT' });
   const endMs = Date.now();
   const startMs = endMs - Math.round(HOURS * 60 * 60 * 1000);
+  // A reference source has no (start,end) history call — request the last N bars.
+  const refLimit = Math.min(1000, Math.max(VOL_WINDOW + 10, Math.ceil(HOURS * BARS_PER_HOUR)));
 
-  console.log(`\n=== backfill ${HOURS}h of real 1m history (${new Date(startMs).toISOString()} → now) ===`);
+  console.log(`\n=== backfill ${HOURS}h of real ${INTERVAL} history via ${refSource ? refSource.label : 'Binance public'} ===`);
   const cursors = new Map<string, ReplayCursor>();
   let maxLen = 0;
   for (const sym of SYMBOLS) {
-    const bars = await client.historicalKlines(sym, '1m', startMs, endMs);
+    const bars = refSource
+      ? await refSource.klines(sym, INTERVAL, refLimit).catch(() => [] as Bar[])
+      : await client!.historicalKlines(sym, INTERVAL, startMs, endMs);
     cursors.set(sym, { bars, idx: 0 });
     maxLen = Math.max(maxLen, bars.length);
     const last = bars[bars.length - 1];
-    console.log(`  ${sym}USDT: ${bars.length} bars${last ? `, last close ${last.close} @ ${last.timestamp.toISOString()}` : ' (none)'}`);
+    const mkt = refSource ? sym : `${sym}USDT`;
+    console.log(`  ${mkt}: ${bars.length} bars${last ? `, last close ${last.close} @ ${last.timestamp.toISOString()}` : ' (none)'}`);
   }
 
   const nextBar = async (s: string): Promise<Bar | null> => {
@@ -238,10 +302,15 @@ async function runReplay(): Promise<void> {
     if (!c || c.idx >= c.bars.length) return null;
     return c.bars[c.idx++];
   };
-  const books = SYMBOLS.map((s) => makeBook(s, nextBar)); // no warmupCloses: first VOL_WINDOW bars warm σ
+  // Size each book by $ notional ÷ its first close (no warmupCloses: first VOL_WINDOW bars warm σ).
+  const books = SYMBOLS.map((s) => {
+    const c = cursors.get(s);
+    const firstClose = c && c.bars.length ? c.bars[0].close : 1;
+    return makeBook(s, sizeForPrice(firstClose), nextBar);
+  });
 
   header();
-  console.log(`\n=== replaying ${maxLen} bars (${(maxLen / 60).toFixed(1)} sim-hours) — one line per ${REPORT_EVERY} bars ===`);
+  console.log(`\n=== replaying ${maxLen} bars (${(maxLen / BARS_PER_HOUR).toFixed(1)} sim-hours) — one line per ${REPORT_EVERY} bars ===`);
 
   let deskPeakStructural = CAPITAL_UNITS * BigInt(SYMBOLS.length);
   let deskMaxDDpct = 0;
@@ -255,8 +324,8 @@ async function runReplay(): Promise<void> {
     if (ddPct > deskMaxDDpct) deskMaxDDpct = ddPct;
 
     if ((i + 1) % REPORT_EVERY === 0 || i === maxLen - 1) {
-      const simH = Math.floor((i + 1) / 60);
-      const simM = (i + 1) % 60;
+      const simH = Math.floor((i + 1) / BARS_PER_HOUR);
+      const simM = Math.round(((i + 1) % BARS_PER_HOUR) * (60 / BARS_PER_HOUR));
       const label = `t+${pad(simH, 2)}h${pad(simM, 2)}m`;
       reportLine(label, agg, deskMaxDDpct);
       curve.push({ label, agg, ddPct: deskMaxDDpct });
@@ -268,11 +337,23 @@ async function runReplay(): Promise<void> {
 }
 
 async function runLive(): Promise<void> {
-  const client = new BinancePublicClient({ quote: 'USDT' });
-  const feed = new BinancePublicBarFeed(client, '1m');
+  const refSource = resolveRefSource();
+  const client = refSource ? null : new BinancePublicClient({ quote: 'USDT' });
+  const feed: IBarFeed = refSource ? new ReferenceBarFeed(refSource, INTERVAL) : new BinancePublicBarFeed(client!, INTERVAL);
   const nextBar = (s: string): Promise<Bar | null> => feed.nextBar(s);
-  const warmupCloses = async (s: string): Promise<number[]> => (await client.klines(s, '1m', VOL_WINDOW + 90)).map((b) => b.close);
-  const books = SYMBOLS.map((s) => makeBook(s, nextBar, warmupCloses));
+  const warmupCloses = refSource
+    ? async (s: string): Promise<number[]> => (await refSource.klines(s, INTERVAL, VOL_WINDOW + 90).catch(() => [] as Bar[])).map((b) => b.close)
+    : async (s: string): Promise<number[]> => (await client!.klines(s, INTERVAL, VOL_WINDOW + 90)).map((b) => b.close);
+  // Notional sizing needs a current price per symbol; probe one (only when QUOTE_USD is on).
+  const books: MmBook[] = [];
+  for (const s of SYMBOLS) {
+    let quoteUnits = QUOTE_UNITS;
+    if (QUOTE_USD > 0) {
+      const probe = refSource ? await refSource.klines(s, INTERVAL, 1).catch(() => [] as Bar[]) : await client!.klines(s, INTERVAL, 1);
+      quoteUnits = sizeForPrice(probe[probe.length - 1]?.close ?? 1);
+    }
+    books.push(makeBook(s, quoteUnits, nextBar, warmupCloses));
+  }
   for (const b of books) await b.warmup();
 
   header();
