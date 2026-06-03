@@ -15,6 +15,7 @@ import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
+import { venueFeeFor } from './backtest/venue-fees';
 import { MmScreener } from './screen/mm-screener';
 import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
@@ -74,10 +75,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
 
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
-          // A `source` book (e.g. DEX via GeckoTerminal) is fed by a
-          // ReferenceBarFeed off that source; otherwise the Binance public feed
-          // (or the mock feed when the engine isn't on Binance).
-          const refSource = spec.source ? refRegistry.get(spec.source) : undefined;
+          // Resolve the venue: an explicit spec.source, else the desk's default MM
+          // venue (mm.defaultSource = Hyperliquid). 'binance'/'mock' use the native
+          // feed; a reference id ('hyperliquid'/'geckoterminal'/…) a ReferenceBarFeed.
+          const srcId = spec.source ?? mm.defaultSource;
+          const refSource = srcId && srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
 
           // Notional sizing: when a $ quote is requested, probe the live price and
           // size quoteSizeUnits = notional ÷ price, so a $66k perp isn't over-sized
@@ -130,7 +132,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,
             volWindowBars: mm.volWindowBars,
             volFloor: mm.volFloor,
-            makerFeeBps: mm.makerFeeBps,
+            // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
+            // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics,
+            // not a desk-wide assumption. (mm.makerFeeBps is now only the screener's.)
+            makerFeeBps: venueFeeFor(srcId).makerBps,
             capitalUnits: mm.capitalUnits,
             nextBar: (s) => feed.nextBar(s),
             warmupCloses,

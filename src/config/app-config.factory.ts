@@ -95,8 +95,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     slippageLambdaBps: parseFloat(process.env['LIVE_SLIPPAGE_LAMBDA_BPS'] ?? '100'),
   },
   marketMaking: {
-    defaultStrategyId: process.env['MM_STRATEGY_ID'] ?? 'mm-avellaneda-stoikov',
-    defaultSymbol: process.env['MM_SYMBOL'] ?? 'FDUSD',
+    // Default MM venue = Hyperliquid (the maker-rebate perp CLOB, DATA_SOURCES.md).
+    // GLFT is the continuous-book quoter; BTC is a liquid HL perp. The global feed
+    // (FEED_SOURCE) stays Binance — HL is perps-only, a per-book source not the spine.
+    defaultStrategyId: process.env['MM_STRATEGY_ID'] ?? 'mm-glft',
+    defaultSymbol: process.env['MM_SYMBOL'] ?? 'BTC',
+    defaultSource: process.env['MM_SOURCE'] ?? 'hyperliquid',
     quoteSizeUnits: BigInt(process.env['MM_QUOTE_SIZE_UNITS'] ?? '1000000000'), // 1000 asset units
     capitalUnits: BigInt(process.env['MM_CAPITAL_UNITS'] ?? '100000000000'), // 100k USDC
     pollIntervalMs: parseInt(process.env['MM_POLL_INTERVAL_MS'] ?? '15000', 10),
@@ -108,7 +112,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     minHalfSpreadBps: parseFloat(process.env['MM_MIN_HALF_SPREAD_BPS'] ?? '1'),
     maxHalfSpreadBps: parseFloat(process.env['MM_MAX_HALF_SPREAD_BPS'] ?? '200'),
     maxInventoryLots: parseFloat(process.env['MM_MAX_INVENTORY_LOTS'] ?? '8'),
-    makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-1'), // Binance maker rebate ≈ −1 bps
+    // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
+    // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
+    makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
     maxDrawdownPct: parseFloat(process.env['MM_MAX_DRAWDOWN_PCT'] ?? '10'),
   },
 }));
