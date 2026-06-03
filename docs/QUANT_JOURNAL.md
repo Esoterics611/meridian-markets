@@ -1073,3 +1073,32 @@ net-negative** at fill-on-touch without per-pool tuning or a real rebate — exa
 + an `hl-perps` MM preset — HL is the maker-rebate **CLOB** the book actually needs ([DATA_SOURCES.md](./DATA_SOURCES.md));
 (3) L2 ingest from HL `l2Book` → `SimpleQueueModel`/`LobReplayHarness` → queue-aware (honest) fills;
 (4) per-pool γ/κ tuning + the maker-rebate fee model on the low-vol stable pools.
+
+## 2026-06-03 — Entry #19: Hyperliquid wired (step 2) — the maker-rebate perp CLOB is now scannable + quotable
+
+**Shipped (step 2 of the recommended order).** `HyperliquidClient` (`src/market-data/reference/
+hyperliquid-client.ts`, unit-tested) behind `IReferenceBarSource` — HL's public `info` endpoint is a
+**POST** (`candleSnapshot`), so `RefHttpPost`/`defaultRefHttpPost` were added to the reference interface
+(injected, offline-testable; reusable for dYdX next). `parseHyperliquidCandles` turns the string-OHLCV /
+ms-timestamp payload into ascending `Bar[]`; `hyperliquidInterval` maps kline strings to HL's set.
+Registered in `buildReferenceSources` (→ registry/readout/scanner-routing) + config
+(`HYPERLIQUID_BASE_URL`, all callers, `.env.example`). New **`hl-perps`** scanner preset
+(BTC/ETH/SOL/BNB/ARB/OP/AVAX/LTC — cross-sectional perps) **and** MM preset (BTC/ETH/SOL).
+
+**Why HL over the AMM-DEX path (the eval, DATA_SOURCES.md):** it's a real maker-**rebate CLOB**
+(−0.2bps) — the ≤0bps-maker order-book venue the AS/GLFT book was built for and needs to net positive —
+plus an L2 tape (next step) that fixes the fill-on-touch upper bound. AMM pools gave discovery breadth
+but no post-limit-earn-spread primitive.
+
+**Validated end-to-end** (real HL API → `ReferenceBarFeed` → `MmBook`, 240h hourly, GLFT, $50k notional):
+real prints BTC $67,181 / ETH $1,875 / SOL $75; all three perp books quote + fill sanely (σ-normalization
+holds at these price levels) → desk **structural −$17.9k (−0.60%), maxDD 0.63% → drawdown PASS**. Still
+net-negative (SOL the worst, −$14k: GLFT fill-on-touch is adversely selected on a volatile perp) — the
+honest remaining work is per-pool γ/κ tuning + the L2 queue model. **859 tests** (+4 HL specs). HL → WIRED.
+
+**Next:** (3) **L2 ingest** from HL `l2Book` (20×20, no-key) → feed `SimpleQueueModel`/`LobReplayHarness`
+so fills are queue-aware, not fill-on-touch — the single biggest backtest-honesty upgrade; then (4)
+per-pool γ/κ tuning + the maker-rebate fee model. **Caveat for the live control plane:** an HL book
+launched via `/api/market-making/launch` still uses the fixed `MM_QUOTE_SIZE_UNITS` (raw units), which
+over-sizes a $67k-priced perp — the control-plane needs the same notional sizing the session harness has
+(`MM_SESSION_QUOTE_USD`). Tracked.

@@ -76,6 +76,17 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     quote: 'USD',
     source: 'geckoterminal',
   },
+  {
+    id: 'hl-perps',
+    label: 'Hyperliquid Perps (CLOB)',
+    assetClass: 'Perp DEX',
+    description:
+      'On-chain perp central limit order book (Hyperliquid) — the maker-REBATE order-book venue the MM engine was built for (−0.2bps maker; Journal #6/#23). Quote BTC/ETH/SOL perps; σ-normalization (S31) makes these high-priced coins quotable. Size by notional (MM_SESSION_QUOTE_USD); the honest book still needs L2 queue-aware fills (next).',
+    symbols: ['BTC', 'ETH', 'SOL'],
+    defaultSymbol: 'ETH',
+    quote: 'USD',
+    source: 'hyperliquid',
+  },
 ];
 
 export function listMmPresets(): readonly MmMarketPreset[] {

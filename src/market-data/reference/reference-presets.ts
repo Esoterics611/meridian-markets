@@ -34,6 +34,17 @@ export const REFERENCE_PRESETS: readonly (ScannerPreset & { source: string })[] 
     // (MARKET_MAKING.md Frontier).
     symbols: ['WETHUSDC', 'WETHUSDT', 'WBTCWETH', 'USDCUSDT'],
   },
+  {
+    id: 'hl-perps',
+    label: 'Hyperliquid Perps',
+    assetClass: 'Perp DEX',
+    source: 'hyperliquid',
+    // The largest on-chain perp CLOB (USD-margined). A cross-sectional perp
+    // universe for cointegration scanning + the maker-rebate venue the MM book
+    // needs (DATA_SOURCES.md). σ-normalization (S31) makes these high-priced
+    // coins quotable.
+    symbols: ['BTC', 'ETH', 'SOL', 'BNB', 'ARB', 'OP', 'AVAX', 'LTC'],
+  },
 ];
 
 export function listReferencePresets(): readonly (ScannerPreset & { source: string })[] {

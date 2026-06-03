@@ -18,6 +18,21 @@ export const defaultRefHttpGet: RefHttpGet = async (url: string) => {
   return res.json();
 };
 
+// Some public sources (Hyperliquid, dYdX) expose market data only via a POST with
+// a JSON body, not a GET. Injected the same way as RefHttpGet so those clients
+// stay offline-testable against canned responses.
+export type RefHttpPost = (url: string, body: unknown) => Promise<unknown>;
+
+export const defaultRefHttpPost: RefHttpPost = async (url: string, body: unknown) => {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`reference POST ${url} -> HTTP ${res.status}`);
+  return res.json();
+};
+
 export interface IReferenceBarSource {
   /** Stable source id: 'pyth' | 'defillama' | 'bit2c'. */
   readonly sourceId: string;

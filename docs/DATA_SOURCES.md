@@ -45,14 +45,15 @@ is judged against two engines and one discipline:
 | **DefiLlama** | Reference (peg) | no-key | peg level (1 bar) | — | reference readout | `IReferenceBarSource` | flat series, not scanned |
 | **Bit2C** | Reference (ILS) | no-key | last + 24h (1 bar) | — | stat-arb (ILS basis, pending) | `IReferenceBarSource` | needs cross-source pairing |
 | **GeckoTerminal** | DEX (AMM, 100+ chains) | no-key | OHLCV | LP-fee→maker (pool-dependent) | MM + discovery | `IReferenceBarSource` (+ MM `source`) | S28/S29; `dex-eth-bluechip` |
+| **Hyperliquid** | Perp-DEX (CLOB) | no-key (market data) | OHLCV (L2/funding not ingested yet) | **rebate −0.2 bps** | MM (top) + funding-carry + basis | `IReferenceBarSource` (+ MM `source`) | **S32** — `HyperliquidClient` (candleSnapshot via POST), `hl-perps` scanner + MM presets. The maker-rebate CLOB the book needs; quotable since σ-normalization (S31). **L2 (20×20) + funding ingest is the next step** (queue-aware fills). Majors are tight (BTC TOB 0.15bps) → wide-spread edge is long-tail. |
 
 ---
 
-## EVALUATED
+## EVALUATED (not yet wired)
 
 | Source | Kind | Posture | Data | Maker | Fit | Status | Notes |
 |---|---|---|---|---|---|---|---|
-| **Hyperliquid** | Perp-DEX (CLOB) | no-key (market data) | OHLCV + **L2 (20×20)** + funding | **rebate −0.2 bps** | MM (top) + funding-carry + basis | EVALUATED 2026-06-03 | 230 perp markets, live-verified. The maker-rebate CLOB + L2 tape we need. **Wire after σ-normalization** (Journal #17). Majors are tight (BTC TOB 0.15bps) → wide-spread edge is long-tail only. Real orders need wallet-signed actions (parked `live` seam); paper needs only public data. |
+| _(none open — Hyperliquid promoted to WIRED in S32)_ | | | | | | | The candidate backlog below is the standing eval queue. |
 
 ---
 
