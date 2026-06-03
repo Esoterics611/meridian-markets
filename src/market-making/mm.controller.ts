@@ -71,6 +71,8 @@ export class MmController {
       capitalUsdc?: number;
       startingCapitalUnits?: string;
       source?: string;
+      /** Quote size in $ notional (sized ÷ price); omit to use the fixed config size. */
+      quoteNotionalUsd?: number;
     },
   ) {
     if (!body.symbol) return { error: 'symbol is required to launch a market-making book' };
@@ -83,7 +85,7 @@ export class MmController {
         : BigInt(Math.round(body.capitalUsdc ?? 100_000)) * USDC;
     try {
       await this.portfolio.addBook(
-        { symbol: body.symbol, strategyId: body.strategyId, params: body.params, source: body.source },
+        { symbol: body.symbol, strategyId: body.strategyId, params: body.params, source: body.source, quoteNotionalUsd: body.quoteNotionalUsd },
         capital,
       );
     } catch (err) {
@@ -98,7 +100,7 @@ export class MmController {
    *   { presetId, strategyId?, capitalUsdcPerBook? }
    */
   @Post('launch-preset')
-  async launchPreset(@Body() body: { presetId?: string; strategyId?: string; capitalUsdcPerBook?: number }) {
+  async launchPreset(@Body() body: { presetId?: string; strategyId?: string; capitalUsdcPerBook?: number; quoteNotionalUsd?: number }) {
     if (!body.presetId) return { error: 'presetId is required' };
     const preset = getMmPreset(body.presetId);
     if (!preset) return { error: `unknown presetId: ${body.presetId}`, known: listMmPresets().map((p) => p.id) };
@@ -106,9 +108,11 @@ export class MmController {
       return { error: `unknown strategyId: ${body.strategyId}`, known: mmStrategyRegistry.liveCapable().map((d) => d.id) };
     }
     const capital = BigInt(Math.round(body.capitalUsdcPerBook ?? 100_000)) * USDC;
+    // Notional sizing matters most here: hl-perps / DEX presets span a $66k perp and
+    // a $1 stable, which a single fixed unit count cannot size sanely.
     for (const symbol of preset.symbols) {
       await this.portfolio
-        .addBook({ symbol, strategyId: body.strategyId, source: preset.source }, capital)
+        .addBook({ symbol, strategyId: body.strategyId, source: preset.source, quoteNotionalUsd: body.quoteNotionalUsd }, capital)
         .catch(() => undefined);
     }
     this.portfolio.start();

@@ -15,3 +15,6 @@ dist/
 
 # Claude harness
 .claude/
+
+# Captured L2 tapes (large, throwaway; mm-l2-session MM_L2_SAVE_TAPE / mm-l2-tune)
+docs/research/l2-tapes/

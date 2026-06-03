@@ -1154,3 +1154,47 @@ honest; and **notional sizing in the live control plane** (`/api/market-making/l
 `MM_QUOTE_SIZE_UNITS`, over-sizing high-priced perps — the session harness already sizes by $ notional).
 Still-open fidelity: sub-minute flow (HL `trades`/WS) would replace the candle-volume estimate with real
 per-trade aggressor data; funding-rate ingest for the carry leg.
+
+## 2026-06-03 — Entry #21: per-pool γ/κ tuning on queue-aware fills + the venue maker-rebate fee model (step 4)
+
+**Shipped (step 4 of the recommended order — unblocked by S33's honest fills).** You can only tune a
+quoter honestly once you stop assuming every touched quote fills, so γ/κ tuning had to wait for the L2
+queue model. Five pieces:
+
+1. **Venue fee model** (`backtest/venue-fees.ts`) — `venueFeeFor(sourceId)` is the single source of truth
+   for each venue's maker/taker bps: HL **maker −0.2bps rebate** / taker 2.5; Binance 1/5; GeckoTerminal
+   **AMM LP-fee** (pool-dependent 1/5/30/100bps, a *cost*, no rebate); unknown → 0bps structural-only.
+   Running an HL book at Binance's fee (or vice-versa) quietly flips the verdict — now it can't.
+2. **γ/κ sweep** (`backtest/gamma-kappa-sweep.ts`) — `sweepGammaKappa` runs the **queue-aware
+   LobReplayHarness** over a fixed tape for every (γ × κ × half-spread-floor) combo and ranks them
+   drawdown-compliant-first, then by maker-net P&L at the venue's real fee. Crucially it **rebuilds the
+   quoter per combo**: GlftQuoter/AS bake γ,κ from build params and ignore `ctx`, so varying the harness
+   context would be inert — the sweep injects a registry-backed `buildQuoter`.
+3. **L2 tape persistence** (`backtest/l2-tape-io.ts`) — `serializeTape`/`parseTape` (exact bigint↔string
+   round-trip, versioned) so a live capture (the expensive part) becomes a reusable fixture: capture once,
+   sweep many over the SAME flow — an apples-to-apples A/B, not noise between live windows.
+4. **`scripts/mm-l2-tune.ts`** — loads saved tapes, sweeps γ/κ per coin at the venue fee, prints a ranked
+   table + the winning calibration per coin. `mm-l2-session.ts` gained `MM_L2_SAVE_TAPE` to produce them.
+5. **Notional sizing in the live control plane** — `/api/market-making/launch[-preset]` now accept
+   `quoteNotionalUsd`; the (now async) book factory probes the live price and sizes `quoteSizeUnits =
+   notional ÷ price` (`live/notional-sizing.ts`), so a $66k perp is no longer over-sized ~66,000× by the
+   fixed unit default — the same lever the session/tuning harnesses already had. Default preserves the old
+   fixed-unit behaviour.
+
+**Verified.** Unit tests pin the logic deterministically: the sweep **differentiates + ranks** (a wider
+floor that captures more spread wins; a DD-breaching combo is demoted below compliant ones), the fee model,
+the tape round-trip, and the notional math ($50k of a $66k perp → 0.76 units, not 50,000). The full
+**capture→save→load→sweep→rank→winner** path ran end-to-end on **real HL data** (10-step BTC/ETH tapes).
+
+**Honest read from the live smoke:** at 5s-pro-rated volume on BTC/ETH top-of-book, *every* combo filled
+**0** — the cumulative price-time-priority queue (S33) plus thin per-interval flow means a maker quote
+below the sub-bps market spread never clears. That's the genuine microstructure, not a bug: a real per-pool
+tuning verdict needs a **60s-poll, multi-hour capture** (`MM_L2_POLL_S=60 MM_L2_DURATION_MIN=120
+MM_L2_SAVE_TAPE=… scripts/mm-l2-session.ts`, then `mm-l2-tune.ts`) — the hand-off. The tuning *machinery*
+is proven; the *answer* is one long capture away.
+
+**133 suites / 882 tests** (+13: venue-fees, gamma-kappa-sweep, l2-tape-io, notional-sizing), tsc clean.
+
+**Next:** run the long capture + sweep to get the per-pool γ/κ winners (and whether HL's −0.2bps rebate
+makes any calibration net positive on queue-aware fills); HL `trades`/WS to replace the candle-volume
+estimate with real aggressor data; funding ingest for the carry leg; then the forward paper track record.

@@ -14,6 +14,7 @@ import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
+import { quoteUnitsForNotional } from './live/notional-sizing';
 import { MmScreener } from './screen/mm-screener';
 import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
@@ -71,19 +72,34 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const effMinHalfSpreadBps = Math.max(mm.minHalfSpreadBps, feeFloorBps);
         const warmupBars = Math.max(mm.volWindowBars * 3, 90);
 
-        const makeBook = (spec: MmBookSpec): MmBook => {
+        const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
+          // A `source` book (e.g. DEX via GeckoTerminal) is fed by a
+          // ReferenceBarFeed off that source; otherwise the Binance public feed
+          // (or the mock feed when the engine isn't on Binance).
+          const refSource = spec.source ? refRegistry.get(spec.source) : undefined;
+
+          // Notional sizing: when a $ quote is requested, probe the live price and
+          // size quoteSizeUnits = notional ÷ price, so a $66k perp isn't over-sized
+          // by the fixed unit default (notional-sizing.ts). Else keep the config size.
+          let quoteSizeUnits = mm.quoteSizeUnits;
+          if (spec.quoteNotionalUsd && spec.quoteNotionalUsd > 0) {
+            const probe = refSource
+              ? await refSource.klines(spec.symbol, app.feed.interval, 1).catch(() => [])
+              : onBinance
+                ? await client.klines(spec.symbol, app.feed.interval, 1).catch(() => [])
+                : [];
+            const price = probe[probe.length - 1]?.close ?? 0;
+            quoteSizeUnits = quoteUnitsForNotional(spec.quoteNotionalUsd, price, mm.quoteSizeUnits);
+          }
+
           const quoter = mmStrategyRegistry.build(strategyId, {
-            quoteSizeUnits: mm.quoteSizeUnits,
+            quoteSizeUnits,
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
             params: spec.params,
           });
-          // A `source` book (e.g. DEX via GeckoTerminal) is fed by a
-          // ReferenceBarFeed off that source; otherwise the Binance public feed
-          // (or the mock feed when the engine isn't on Binance).
-          const refSource = spec.source ? refRegistry.get(spec.source) : undefined;
           const feed: IBarFeed = refSource
             ? new ReferenceBarFeed(refSource, app.feed.interval)
             : onBinance
@@ -97,7 +113,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                   (await client.klines(s, app.feed.interval, warmupBars)).map((b) => b.close)
               : undefined;
           const riskGate = new CompositeRiskGate({
-            maxInventoryUnits: mm.quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
+            maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
             minNavRatio: 1 - mm.maxDrawdownPct / 100,
             vpinPauseThreshold: 2, // bar mode has no live VPIN; effectively off until the tick tape lands
             vpinPauseMs: 30_000,
@@ -108,7 +124,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             symbol: spec.symbol,
             strategyId,
             quoter,
-            quoteSizeUnits: mm.quoteSizeUnits,
+            quoteSizeUnits,
             gamma: spec.params?.['gamma'] ?? mm.gamma,
             kappa: spec.params?.['kappa'] ?? mm.kappa,
             horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,

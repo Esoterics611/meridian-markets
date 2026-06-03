@@ -20,7 +20,7 @@ inventory skew), the **GLFT** steady-state variant, and a **Symmetric** baseline
 | Quoters | `src/market-making/quote/` | `SymmetricQuoter`, `AvellanedaStoikovQuoter`, `GlftQuoter` — all `IQuoter`, the MM analogue of stat-arb's `IStrategy`. |
 | Inventory | `src/market-making/inventory/inventory-book.ts` | Average-cost inventory + realised/unrealised/fees accounting (shared by backtest + live). |
 | Risk | `src/market-making/risk/` | `CompositeRiskGate` (Allow/Deny/**Pause**) + `VpinEstimator` (toxic-flow signal). |
-| Backtest | `src/market-making/backtest/` | `MmBacktestRunner` (bar-driven, OHLCV-only) + `PnlAttributor` (4-component) + `SimpleQueueModel` + **`LobReplayHarness`** (queue-aware fills off a real L2 tape — S33). |
+| Backtest | `src/market-making/backtest/` | `MmBacktestRunner` (bar-driven, OHLCV-only) + `PnlAttributor` (4-component) + `SimpleQueueModel` + **`LobReplayHarness`** (queue-aware fills off a real L2 tape — S33) + **`sweepGammaKappa`** (per-pool tuning) + **`venueFeeFor`** (per-venue maker/taker fees — S34). |
 | Registry | `src/market-making/registry/mm-strategy-registry.ts` | Catalogue of deployable quoters — mirrors `StrategyRegistry`. |
 | Markets | `src/market-making/markets/mm-market-presets.ts` | Stablecoin / FX / crypto-major instrument sets. |
 | Live | `src/market-making/live/` | `MmBook` (one instrument) + `MmPortfolioTrader` (N books, one control plane). |
@@ -183,6 +183,30 @@ monotone across every 2h bucket, desk max drawdown ~0.001%** at $400k max invent
 loses**, so the deploy condition is a **≤0 bps maker venue**; and fills are
 fill-on-touch (an upper bound — see the honesty note above). Env knobs:
 `MM_SESSION_{MODE,SYMBOLS,STRATEGY,QUOTE_UNITS,CAPITAL_UNITS,MAX_LOTS,HOURS,MAKER_BPS,POLL_MS}`.
+
+### 1.6 Queue-aware session + per-pool γ/κ tuning (`scripts/mm-l2-session.ts`, `scripts/mm-l2-tune.ts`)
+
+The **honest-fills** path (S33/S34). `mm-l2-session.ts` polls Hyperliquid's live
+`l2Book` to build a real L2 tape and runs the queue-aware `LobReplayHarness` (FIFO
+price-time-priority fills, not fill-on-touch), reporting `queueFills` vs `touchFills`
+and the structural/rebate/cost sweep at the **venue's real maker fee** (HL −0.2 bps;
+`venue-fees.ts`). With `MM_L2_SAVE_TAPE` it persists the tape so `mm-l2-tune.ts` can
+**sweep γ × κ × half-spread-floor** over the SAME flow (capture-once, sweep-many) and
+print the per-pool winning calibration — drawdown-compliant, ranked by maker-net.
+
+```bash
+# 1) capture + save a real HL tape (run for a while on your own box):
+MM_L2_POLL_S=60 MM_L2_DURATION_MIN=120 MM_L2_COINS=BTC,ETH,SOL \
+  MM_L2_SAVE_TAPE=docs/research/l2-tapes/run1 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
+# 2) sweep γ/κ over the saved tapes (fast, deterministic, offline):
+MM_TUNE_TAPE_PREFIX=docs/research/l2-tapes/run1 MM_TUNE_COINS=BTC,ETH,SOL \
+  npx ts-node -r tsconfig-paths/register scripts/mm-l2-tune.ts
+```
+
+Honest note: a top-of-book maker quote on a sub-bps perp sits *below* best in the
+queue, so a meaningful tune needs a **60s-poll, multi-hour** capture (thin/short flow
+fills nothing — that's the microstructure, not a bug).
 
 ### 2. Run the tests
 ```bash
