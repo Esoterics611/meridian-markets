@@ -1,11 +1,21 @@
-# Production Readiness — stat-arb desk
+# Readiness — paper-trading demonstration desk
 
-> "What else before we trust the numbers and run strategies full-time?" This is
-> the gating checklist. The desk is a **paper** stat-arb engine on real data; the
-> gap that matters most is **sim fidelity** — backtest P&L must translate to live,
-> or every strategy decision is built on sand. Tiers: **P0** = before trusting a
-> backtest / going full-time on strategies; **P1** = before real capital (canary);
-> **P2** = polish. Companion: [QUANT_ROLE.md](./QUANT_ROLE.md), [QUANT_JOURNAL.md](./QUANT_JOURNAL.md).
+> **⚠ Reframed 2026-06-03 — this is no longer a "ship real capital" checklist.**
+> Per the mission (CLAUDE.md §1), Meridian is a **paper-trading demonstration** and
+> is **paper-only for the foreseeable future**. So the only readiness that matters is
+> **demo honesty**: the paper P&L we show must be *truthful and low-drawdown*, not a
+> curve-fit upper bound. That makes **P0 (sim fidelity + the OOS/survivorship/cost
+> gates) the live work** — its whole job is to keep the demonstrated numbers honest.
+> **P1 ("before real capital") is PARKED** — kept for reference, but real-venue
+> adapters, reconciliation, and arming are **not on the roadmap**; do not pursue them.
+> The active frontier instead is **market discovery — new DEX / decentralized markets**
+> for the MM side (see the Market Data Researcher role).
+>
+> _Original framing:_ "What else before we trust the numbers and run strategies
+> full-time?" — still the right question, just answered for a paper demo, not a
+> deploy. **P0** = before trusting a backtest / showing it in the demo; ~~**P1** =
+> before real capital (canary)~~ *(parked)*; **P2** = polish. Companion:
+> [QUANT_ROLE.md](./QUANT_ROLE.md), [QUANT_JOURNAL.md](./QUANT_JOURNAL.md).
 
 ## ✅ Already in place
 - **Fees in the loop** — 5 bps/leg taker in backtest + a **fee gate in the entry
@@ -26,21 +36,35 @@
    backtest edge is optimistic, worst on thin alts (where the real value is).
    Add a `SlippageReplayVenue`: fill at close ± half-spread ± impact(notional/ADV).
    *Until this lands, every "+$X, Sharpe Y" is an upper bound, not a forecast.*
-2. **Out-of-sample / walk-forward on REAL history.** The research tools
-   (`/api/stat-arb/research/*`) run on the **synthetic feed**. Plumb `ReplayEngine`
-   in + add a train/test split to the harness so a strategy is judged OOS, not
-   in-sample. **No strategy ships on in-sample numbers.**
-3. **Multiple-testing correction.** We scan ~80–90 cointegrated pairs/class and
-   report the top — pure selection bias. Add **deflated Sharpe** + purged k-fold;
-   discount the headline Sharpe accordingly.
+2. ~~**Out-of-sample / walk-forward on REAL history.**~~ ✅ **DONE (Entry #3).**
+   `POST /api/market-data/walk-forward` (+ Research "Walk-forward (real OOS)"
+   button) runs the active pair over **real Binance history** with a true
+   train/test split: **β re-fit on each train window**, applied **OOS on test**,
+   net of fee+spread+impact. Reports avg-test-Sharpe, positive-window-share, and
+   **`sharpeDegradation`** (train→test gap) + β per window. The harness
+   (`walkForward`) is now slice/train-aware so a replay venue prices each window
+   correctly. *Still to do: actually run it on the deploy candidates and record
+   the numbers (Journal next-action #1).* **No strategy ships on in-sample numbers.**
+3. ~~**Multiple-testing correction.**~~ ✅ **DONE (Entry #4).** `deflated-sharpe.ts`
+   (PSR + Deflated Sharpe over `trials`) + `purged-kfold.ts` (CV w/ purge+embargo)
+   + `cross-validate.ts`, wired into the gate (`cv`, `trials` params) + UI verdict.
+   **PASS = DSR ≥ 0.95 and ≥ 20 OOS trades.** It immediately killed the ai-data
+   candidate (a 0.55-Sharpe / 97%-PSR pair deflated to DSR 0% over 19 trials).
 4. **Borrow / funding cost on the short leg.** Stat-arb is short one leg; spot
    borrow (or perp funding) is a real carry we currently ignore → optimistic.
    Add a per-bar carrying cost to the backtest.
-5. **More history + point-in-time universe.** 10 days isn't "consistent over
-   days" evidence; backtest months for regime coverage, and avoid survivorship
-   (presets are *today's* listed symbols).
+5. **More history + point-in-time universe.** ⚠️ *Partly addressed (Entry #4).*
+   The gate now **reports regime coverage** (days/bars/splits) + **warns on thin
+   history** + a survivorship caveat (`coverage` block), and the loader paginates
+   so months are fetchable. **Still open:** actually backfilling 6–12 months (the
+   binding constraint on the ai-data verdict was OOS *trade count*) and a real
+   point-in-time universe (presets are *today's* listed symbols → survivorship).
+   For equities this is now **the** binding blocker (Journal #13: more history flips
+   the gate to PASS but the Sharpe rises with window length = survivorship inflation).
+   Scoped options + a paste-ready Phase-1 experiment (Sharadar SEP, cheapest-first):
+   [SURVIVORSHIP_DATA_OPTIONS.md](./SURVIVORSHIP_DATA_OPTIONS.md).
 
-## P1 — before real capital (canary)
+## P1 — before real capital (canary) — ⏸ PARKED (out of scope; paper-only mission)
 6. **Sizing/allocation policy enforced on deploy.** A risk-parity allocator
    (size ∝ 1/σ_spread) + per-pair impact cap + **desk-level** gross/net limits and
    correlation cap wired into the live path (not just the backtest).
@@ -68,9 +92,10 @@
     broke), regime filters (these are ongoing quant work, not infra).
 
 ## The one-line answer
-Lotting and fees are handled. The **single most important missing piece is
-backtest cost-fidelity (P0.1–P0.4): slippage/spread/borrow + real-history OOS with
-a multiple-testing haircut.** Without it the desk can *find* candidates but can't
-yet *trust* that a backtested edge survives live — which is the precondition for
-working on strategies full-time. Everything else (allocator, maker, real venue) is
-P1 and gates *real capital*, not *strategy research*.
+Lotting + fees, **cost-fidelity (P0.1), real-history walk-forward OOS (P0.2), and
+the multiple-testing haircut (P0.3) all ship — and the gate has already earned its
+keep** (it killed the ai-data candidate, Journal #4). The gate is trustworthy; the
+binding gap is now **data, not method**: **more history (P0.5 — months, to get
+enough OOS trades)** and **short-leg borrow/funding (P0.4)**. With those, a PASS
+(DSR ≥ 0.95, ≥ 20 OOS trades) is a real signal. Everything else (allocator, maker,
+real venue) is P1 and gates *real capital*, not *strategy research*.

@@ -31,9 +31,9 @@ describe('ReferenceSourceRegistry', () => {
     expect(await reg.bars('boom', 'X', '1m', 10)).toEqual([]); // swallowed
   });
 
-  it('buildReferenceSources wires pyth + defillama + bit2c', () => {
+  it('buildReferenceSources wires pyth + defillama + bit2c + geckoterminal', () => {
     const ids = buildReferenceSources({}).map((s) => s.sourceId).sort();
-    expect(ids).toEqual(['bit2c', 'defillama', 'pyth']);
+    expect(ids).toEqual(['bit2c', 'defillama', 'geckoterminal', 'pyth']);
   });
 });
 
@@ -49,5 +49,23 @@ describe('makeScannerLoader', () => {
     expect((await load('BTC', 'binance'))[0].close).toBe(100);
     expect((await load('EURUSD', 'pyth'))[0].close).toBe(1.08); // routed to reference
     expect(await load('EURUSD', 'unknown')).toEqual([]);
+  });
+
+  it('routes alpaca to the alpaca loader when provided, and swallows its errors', async () => {
+    const reg = new ReferenceSourceRegistry([]);
+    const binance = async (): Promise<Bar[]> => [];
+    const alpaca = async (sym: string): Promise<Bar[]> => {
+      if (sym === 'BOOM') throw new Error('401');
+      return [{ symbol: sym, timestamp: new Date(0), open: 250, high: 250, low: 250, close: 250, volume: 0 }];
+    };
+    const load = makeScannerLoader(binance, reg, '15m', 240, alpaca);
+
+    expect((await load('JPM', 'alpaca'))[0].close).toBe(250);
+    expect(await load('BOOM', 'alpaca')).toEqual([]); // error swallowed, not thrown
+  });
+
+  it('returns [] for alpaca when no alpaca loader is wired (no-key deployment)', async () => {
+    const load = makeScannerLoader(async () => [], new ReferenceSourceRegistry([]), '15m', 240);
+    expect(await load('JPM', 'alpaca')).toEqual([]);
   });
 });

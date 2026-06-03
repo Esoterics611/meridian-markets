@@ -11,8 +11,18 @@ import { BacktestRunner } from '../backtest/backtest-runner';
 
 // /api/stat-arb/research/* — three endpoints feeding the dashboard's
 // Research desk. They run against the same synthetic feed as the Trader
-// demo so the numbers are comparable. A future iteration could plumb in
-// ReplayEngine (Session 11) so research runs against real history.
+// demo so the numbers are comparable — i.e. they show the SHAPE of the
+// robustness machinery, not numbers for a live pair.
+//
+// For walk-forward on REAL Binance history with a true train/test split
+// (β fit on train, evaluated OOS on test, net of slippage), use
+// POST /api/market-data/walk-forward — it reuses the same walkForward()
+// harness over real stored bars (see MarketDataController).
+
+// Desk lot for the (synthetic) research demos. The desk trades BIG — single-
+// dollar toy moves are useless to read — so even the shape-demos size at a real
+// $100k/leg, not $1. (The REAL walk-forward takes the live desk lot from the UI.)
+const RESEARCH_NOTIONAL_UNITS = 100_000_000_000n; // $100k/leg
 
 @Controller('api/stat-arb/research')
 export class ResearchController {
@@ -47,7 +57,7 @@ export class ResearchController {
     });
     const r = await walkForward({
       barsA: a, barsB: b, trainBars, testBars,
-      strategyFactory: () => new PairsStrategy({ beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: 1_000_000n }),
+      strategyFactory: () => new PairsStrategy({ beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: RESEARCH_NOTIONAL_UNITS }),
       venueFactory: () => this.venue,
     });
     return serialiseWalkForward(r);
@@ -68,7 +78,7 @@ export class ResearchController {
         { name: 'entryZ', values: [1.0, 1.2, 1.5, 2.0] },
         { name: 'exitZ',  values: [0.0, 0.3, 0.5] },
       ],
-      baseConfig: { beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: 1_000_000n },
+      baseConfig: { beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: RESEARCH_NOTIONAL_UNITS },
       venueFactory: () => this.venue,
     });
     return { cells: rankBySharpe(cells).map(serialiseCell) };
@@ -94,7 +104,7 @@ export class ResearchController {
     });
     const baseResult = await new BacktestRunner().run({
       barsA: a, barsB: b,
-      strategy: new PairsStrategy({ beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: 1_000_000n }),
+      strategy: new PairsStrategy({ beta: 1, zLookback: 20, entryZ: 1.2, exitZ: 0.3, notionalUnits: RESEARCH_NOTIONAL_UNITS }),
       venue: this.venue,
     });
     return monteCarlo({ trades: baseResult.trades, replications, seed: seedNum });

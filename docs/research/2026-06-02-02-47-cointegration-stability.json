@@ -1,0 +1,427 @@
+{
+  "generatedAt": "2026-06-02T02:47:04.345Z",
+  "source": "alpaca",
+  "interval": "1d",
+  "pValueCutoff": 0.05,
+  "maxHalfLifeBars": 240,
+  "minBars": 120,
+  "horizonsDays": [
+    180,
+    365,
+    730
+  ],
+  "presets": [
+    "equity-banks",
+    "equity-energy",
+    "equity-rails",
+    "equity-megacap-tech",
+    "equity-payments",
+    "equity-staples",
+    "equity-pharma",
+    "equity-semis"
+  ],
+  "results": [
+    {
+      "preset": "equity-banks",
+      "horizonDays": 180,
+      "alignedSymbols": 9,
+      "commonBars": 122,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "GS/MS",
+          "pValue": 0.025,
+          "halfLifeBars": 4.7,
+          "beta": 0.773
+        }
+      ]
+    },
+    {
+      "preset": "equity-banks",
+      "horizonDays": 365,
+      "alignedSymbols": 9,
+      "commonBars": 251,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "JPM/BAC",
+          "pValue": 0.005,
+          "halfLifeBars": 4.8,
+          "beta": 0.705
+        }
+      ]
+    },
+    {
+      "preset": "equity-banks",
+      "horizonDays": 730,
+      "alignedSymbols": 9,
+      "commonBars": 500,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "USB/TFC",
+          "pValue": 0.025,
+          "halfLifeBars": 14.6,
+          "beta": 1.091
+        },
+        {
+          "pair": "USB/PNC",
+          "pValue": 0.025,
+          "halfLifeBars": 12.7,
+          "beta": 1.023
+        },
+        {
+          "pair": "PNC/TFC",
+          "pValue": 0.025,
+          "halfLifeBars": 14.5,
+          "beta": 1.053
+        },
+        {
+          "pair": "C/GS",
+          "pValue": 0.025,
+          "halfLifeBars": 13.1,
+          "beta": 1.057
+        }
+      ]
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 180,
+      "alignedSymbols": 8,
+      "commonBars": 122,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "XOM/CVX",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 1.081
+        }
+      ]
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 365,
+      "alignedSymbols": 8,
+      "commonBars": 251,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "equity-energy",
+      "horizonDays": 730,
+      "alignedSymbols": 8,
+      "commonBars": 500,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "COP/SLB",
+          "pValue": 0.025,
+          "halfLifeBars": 15.4,
+          "beta": 0.634
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 180,
+      "alignedSymbols": 5,
+      "commonBars": 122,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "UNP/CP",
+          "pValue": 0.025,
+          "halfLifeBars": 3.2,
+          "beta": 0.829
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 365,
+      "alignedSymbols": 5,
+      "commonBars": 251,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "UNP/CNI",
+          "pValue": 0.025,
+          "halfLifeBars": 8.7,
+          "beta": 0.904
+        }
+      ]
+    },
+    {
+      "preset": "equity-rails",
+      "horizonDays": 730,
+      "alignedSymbols": 5,
+      "commonBars": 500,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "CP/CNI",
+          "pValue": 0.025,
+          "halfLifeBars": 17.7,
+          "beta": 0.611
+        }
+      ]
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "GOOGL/NVDA",
+          "pValue": 0.025,
+          "halfLifeBars": 3.8,
+          "beta": 1.113
+        }
+      ]
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "equity-megacap-tech",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "AAPL/GOOGL",
+          "pValue": 0.025,
+          "halfLifeBars": 15.6,
+          "beta": 0.336
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "MA/AXP",
+          "pValue": 0.025,
+          "halfLifeBars": 3.6,
+          "beta": 0.553
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "V/PYPL",
+          "pValue": 0.025,
+          "halfLifeBars": 6.7,
+          "beta": 0.198
+        },
+        {
+          "pair": "V/FIS",
+          "pValue": 0.025,
+          "halfLifeBars": 6.8,
+          "beta": 0.204
+        },
+        {
+          "pair": "V/GPN",
+          "pValue": 0.025,
+          "halfLifeBars": 8.6,
+          "beta": 0.415
+        },
+        {
+          "pair": "MA/GPN",
+          "pValue": 0.025,
+          "halfLifeBars": 7.6,
+          "beta": 0.565
+        }
+      ]
+    },
+    {
+      "preset": "equity-payments",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 0,
+      "topPairs": []
+    },
+    {
+      "preset": "equity-staples",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "PG/KMB",
+          "pValue": 0.025,
+          "halfLifeBars": 13.5,
+          "beta": 0.369
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 180,
+      "alignedSymbols": 6,
+      "commonBars": 122,
+      "pairs": 3,
+      "topPairs": [
+        {
+          "pair": "PFE/LLY",
+          "pValue": 0.025,
+          "halfLifeBars": 4.1,
+          "beta": -0.328
+        },
+        {
+          "pair": "BMY/JNJ",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.757
+        },
+        {
+          "pair": "MRK/BMY",
+          "pValue": 0.025,
+          "halfLifeBars": 3.3,
+          "beta": 1.082
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 365,
+      "alignedSymbols": 6,
+      "commonBars": 251,
+      "pairs": 4,
+      "topPairs": [
+        {
+          "pair": "PFE/BMY",
+          "pValue": 0.005,
+          "halfLifeBars": 6.8,
+          "beta": 0.438
+        },
+        {
+          "pair": "PFE/MRK",
+          "pValue": 0.005,
+          "halfLifeBars": 4.8,
+          "beta": 0.338
+        },
+        {
+          "pair": "PFE/JNJ",
+          "pValue": 0.005,
+          "halfLifeBars": 4.5,
+          "beta": 0.356
+        },
+        {
+          "pair": "MRK/BMY",
+          "pValue": 0.025,
+          "halfLifeBars": 9,
+          "beta": 1.28
+        }
+      ]
+    },
+    {
+      "preset": "equity-pharma",
+      "horizonDays": 730,
+      "alignedSymbols": 6,
+      "commonBars": 500,
+      "pairs": 1,
+      "topPairs": [
+        {
+          "pair": "PFE/MRK",
+          "pValue": 0.005,
+          "halfLifeBars": 10.8,
+          "beta": 0.36
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 180,
+      "alignedSymbols": 7,
+      "commonBars": 122,
+      "pairs": 2,
+      "topPairs": [
+        {
+          "pair": "NVDA/AMD",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.231
+        },
+        {
+          "pair": "NVDA/TXN",
+          "pValue": 0.025,
+          "halfLifeBars": 3.7,
+          "beta": 0.345
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 365,
+      "alignedSymbols": 7,
+      "commonBars": 251,
+      "pairs": 3,
+      "topPairs": [
+        {
+          "pair": "NVDA/AMD",
+          "pValue": 0.005,
+          "halfLifeBars": 6.3,
+          "beta": 0.27
+        },
+        {
+          "pair": "NVDA/INTC",
+          "pValue": 0.025,
+          "halfLifeBars": 8.6,
+          "beta": 0.16
+        },
+        {
+          "pair": "NVDA/AVGO",
+          "pValue": 0.025,
+          "halfLifeBars": 7.5,
+          "beta": 0.598
+        }
+      ]
+    },
+    {
+      "preset": "equity-semis",
+      "horizonDays": 730,
+      "alignedSymbols": 7,
+      "commonBars": 500,
+      "pairs": 0,
+      "topPairs": []
+    }
+  ]
+}

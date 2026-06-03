@@ -73,6 +73,57 @@ the engine doesn't ingest yet. Read every bar-backtest fill rate as a ceiling.
 
 ---
 
+## Frontier — discovery: DEX / decentralized markets (the MM growth direction)
+
+> **This is where the mission says the edge actually grows** (CLAUDE.md §1): the magic
+> is in **discovering new markets to make markets in — especially DEX / decentralized /
+> anonymous venues.** The market-making engine is venue-agnostic by design (the quoter,
+> inventory book, and risk gate don't care where the prints come from), so widening the
+> *universe* is the highest-leverage move, not tuning the quoter.
+
+Why decentralized markets are the right frontier *for this engine specifically*:
+
+- **The binding deploy condition is a ≤0 bps maker venue** (§1.5 / Journal #6, #23): on
+  centralized retail fees (+1 bps maker) the structural edge is eaten. DEXes have a
+  *different* fee/reward structure — LP fees accrue **to** the maker, and many chains/AMMs
+  or CLOB DEXes offer maker rebates or zero maker fees — which is exactly the regime where
+  the book's structural P&L (spread − adverse selection) survives.
+- **Under-watched = wider spreads.** Decentralized and long-tail venues are less
+  arbitraged, so the spread the quoter earns is structurally wider — more edge per fill,
+  the opposite of the over-crowded major CEX pairs.
+- **Discovery compounds.** Every new source wired through the `IReferenceBarSource` seam is
+  permanently in the scan universe and tradeable on the live loop (desk/README "Discovery
+  compounds"). The universe grows monotonically with no new services.
+
+How it plugs in (no new architecture — the seams already exist, CLAUDE.md §7):
+
+- **Data — SHIPPED (S28):** `GeckoTerminalClient` behind `IReferenceBarSource` — free, no-key
+  DEX OHLCV across 100+ chains, registered in `buildReferenceSources` + the scanner. This is the
+  **Market Data Researcher** role ([desk/ROLE_market_data_researcher.md](../desk/ROLE_market_data_researcher.md)).
+- **Markets — SHIPPED (S29):** the `dex-eth-bluechip` preset (`source:'geckoterminal'`) is a
+  `mm-market-preset`; `MmMarketPreset.source` / `MmBookSpec.source` carry the routing, and the
+  `MmScreener` is source-aware so DEX pools rank on the "where should we quote" board.
+- **Execution (paper) — SHIPPED (S29):** a `source` book is fed by a `ReferenceBarFeed` and filled
+  by the same paper fill-model at real DEX prices — no on-chain execution adapter needed for the
+  paper demo, which is the whole scope. Launch it:
+  ```bash
+  curl -XPOST localhost:3100/api/market-making/launch-preset \
+    -H 'content-type: application/json' \
+    -d '{"presetId":"dex-eth-bluechip","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
+  ```
+  (A real on-chain venue adapter would be the `live`-posture seam, and that is parked.)
+
+**Honesty caveat:** DEX prints are noisier (MEV, thin pools, sandwiching, gas), so the
+adverse-selection term (and the queue/fill model) is *less* favourable than a clean CEX
+tape — the survivorship/cost discipline applies here too. Wider spread is not free money;
+it is compensation for exactly these hazards. **First live-replay reads (Journal #16) bear
+this out:** a naive fixed-spread book on volatile WETH/USDC was net-negative (adverse > spread),
+and the low-vol USDC/USDT peg was near-flat (maxDD 0.01% at $1M) but not yet positive at
+fill-on-touch without a maker rebate — the book still needs a **≤0 bps maker venue** + per-pool
+tuning + queue-aware fills to net positive (§1.5 / Journal #23).
+
+---
+
 ## How to run it — step by step
 
 ### 0. Prerequisites
@@ -92,6 +143,33 @@ SMOKE_MM_SYMBOLS=FDUSD,USDC,TUSD SMOKE_MM_BARS=400 \
 
 You'll see a per-quoter table (fills, fill-rate, spread, fees, adverse selection,
 net P&L) and a live book line (`mid / bid / ask / inventory / equity`).
+
+### 1.5 The long-running session — MM for hours (`scripts/mm-paper-session.ts`)
+
+The "show me MM running for hours, stable profit, large lots, equity conserved"
+harness. It drives the **same live `MmBook`** and registry the control plane runs
+— no server, no DB — at **desk scale** ($50k/quote, $1M/book, 8-lot inventory cap)
+and reports an **hourly equity curve** plus a **fee sweep**: net at −1 bps (VIP
+maker rebate), **0 bps (structural = spread − adverse)**, and +1 bps (retail maker
+cost). Conservation is judged on the **structural** curve, never on the rebate.
+
+```bash
+# replay 24h of REAL Binance 1m history bar-by-bar (deterministic, runs anywhere):
+npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+MM_SESSION_HOURS=6 MM_SESSION_STRATEGY=mm-glft \
+  npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+
+# the literal "running for hours" — live poll on your own machine:
+MM_SESSION_MODE=live MM_SESSION_HOURS=8 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-paper-session.ts
+```
+
+A representative 24h replay (GLFT, FDUSD/USDC/TUSD): **structural net positive and
+monotone across every 2h bucket, desk max drawdown ~0.001%** at $400k max inventory
+— large lots, equity conserved. **But at a +1 bps retail maker cost the book
+loses**, so the deploy condition is a **≤0 bps maker venue**; and fills are
+fill-on-touch (an upper bound — see the honesty note above). Env knobs:
+`MM_SESSION_{MODE,SYMBOLS,STRATEGY,QUOTE_UNITS,CAPITAL_UNITS,MAX_LOTS,HOURS,MAKER_BPS,POLL_MS}`.
 
 ### 2. Run the tests
 ```bash

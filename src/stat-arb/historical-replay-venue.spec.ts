@@ -75,3 +75,43 @@ describe('HistoricalReplayVenue', () => {
     expect(fill.priceMicros).toBe(100_000_000n);
   });
 });
+
+describe('HistoricalReplayVenue — short-borrow carry (P0.4)', () => {
+  // 366 flat bars so a short can be opened at bar 0 and covered at bar 365.
+  const flat = (n: number) => Array.from({ length: n }, (_, i) => ({ symbol: 'X', timestamp: new Date(i * 86_400_000), open: 100, high: 100, low: 100, close: 100, volume: 1 } as Bar));
+  // borrow 10%/yr, daily bars: a short held exactly 365 bars = 1.0 year of carry.
+  const opts = { takerFeeBps: 0n, borrowBpsPerYear: 1000, barSeconds: 86_400 };
+  const N = 100_000_000_000n; // $100k
+
+  it('charges carry on the covering fill, prorated by hold duration; the open SELL pays none', async () => {
+    const v = new HistoricalReplayVenue({ X: flat(366) }, opts);
+    const open = await v.placeOrder({ symbol: 'X', side: 'SELL', notionalUnits: N, idempotencyKey: 'backtest-0-X-OPEN_SHORT' });
+    expect(open.feesUnits).toBe(0n); // opening the short accrues no carry yet
+    const cover = await v.placeOrder({ symbol: 'X', side: 'BUY', notionalUnits: N, idempotencyKey: 'backtest-365-X-CLOSE' });
+    // $100k × 10%/yr × 1.0yr = $10k = 10_000_000_000 units
+    expect(cover.feesUnits).toBe(10_000_000_000n);
+  });
+
+  it('a long round-trip pays no borrow', async () => {
+    const v = new HistoricalReplayVenue({ X: flat(366) }, opts);
+    const open = await v.placeOrder({ symbol: 'X', side: 'BUY', notionalUnits: N, idempotencyKey: 'backtest-0-X-OPEN_LONG' });
+    const close = await v.placeOrder({ symbol: 'X', side: 'SELL', notionalUnits: N, idempotencyKey: 'backtest-365-X-CLOSE' });
+    expect(open.feesUnits).toBe(0n);
+    expect(close.feesUnits).toBe(0n);
+  });
+
+  it('carry stacks on top of the taker fee', async () => {
+    const v = new HistoricalReplayVenue({ X: flat(366) }, { ...opts, takerFeeBps: 5n });
+    await v.placeOrder({ symbol: 'X', side: 'SELL', notionalUnits: N, idempotencyKey: 'backtest-0-X-OPEN_SHORT' });
+    const cover = await v.placeOrder({ symbol: 'X', side: 'BUY', notionalUnits: N, idempotencyKey: 'backtest-365-X-CLOSE' });
+    // taker 5bps on $100k = $50 → 50_000_000 units, plus $10k carry
+    expect(cover.feesUnits).toBe(50_000_000n + 10_000_000_000n);
+  });
+
+  it('borrow off (default) = no carry — back-compatible', async () => {
+    const v = new HistoricalReplayVenue({ X: flat(366) }, { takerFeeBps: 0n });
+    await v.placeOrder({ symbol: 'X', side: 'SELL', notionalUnits: N, idempotencyKey: 'backtest-0-X-OPEN_SHORT' });
+    const cover = await v.placeOrder({ symbol: 'X', side: 'BUY', notionalUnits: N, idempotencyKey: 'backtest-365-X-CLOSE' });
+    expect(cover.feesUnits).toBe(0n);
+  });
+});

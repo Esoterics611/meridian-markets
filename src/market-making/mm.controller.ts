@@ -70,6 +70,7 @@ export class MmController {
       params?: Record<string, number>;
       capitalUsdc?: number;
       startingCapitalUnits?: string;
+      source?: string;
     },
   ) {
     if (!body.symbol) return { error: 'symbol is required to launch a market-making book' };
@@ -81,7 +82,10 @@ export class MmController {
         ? BigInt(body.startingCapitalUnits)
         : BigInt(Math.round(body.capitalUsdc ?? 100_000)) * USDC;
     try {
-      await this.portfolio.addBook({ symbol: body.symbol, strategyId: body.strategyId, params: body.params }, capital);
+      await this.portfolio.addBook(
+        { symbol: body.symbol, strategyId: body.strategyId, params: body.params, source: body.source },
+        capital,
+      );
     } catch (err) {
       return { error: (err as Error).message };
     }
@@ -103,7 +107,9 @@ export class MmController {
     }
     const capital = BigInt(Math.round(body.capitalUsdcPerBook ?? 100_000)) * USDC;
     for (const symbol of preset.symbols) {
-      await this.portfolio.addBook({ symbol, strategyId: body.strategyId }, capital).catch(() => undefined);
+      await this.portfolio
+        .addBook({ symbol, strategyId: body.strategyId, source: preset.source }, capital)
+        .catch(() => undefined);
     }
     this.portfolio.start();
     return this.portfolio.snapshot();

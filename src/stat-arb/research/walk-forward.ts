@@ -1,6 +1,6 @@
 import { Bar } from '../backtest/bar';
 import { BacktestRunner, BacktestResult } from '../backtest/backtest-runner';
-import { PairsStrategy, PairsStrategyConfig } from '../backtest/pairs-strategy';
+import { ManagedStrategy } from '../backtest/strategy.interface';
 import { ITradingVenue } from '../trading-venue.interface';
 import { summarize } from '../backtest/pnl-attribution';
 
@@ -12,9 +12,16 @@ import { summarize } from '../backtest/pnl-attribution';
 //   window 0: train [0,    W),         test [W,     W+H)
 //   window 1: train [W,    W+H),       test [W+H,   W+2H)
 //   ... etc, step by H ...
-// The train window is informational only here (cointegration is re-fit by
-// the strategy via betaRefit). We still emit train.metrics for the user to
-// inspect train-vs-test degradation, which is the actual research signal.
+// Each window's `strategyFactory` is handed the TRAIN slice so the caller can
+// fit parameters (e.g. the cointegration β) on train only and apply them OOS on
+// test — a true walk-forward with no peeking forward. The train run reuses the
+// same train-fitted strategy, so train.metrics are in-sample by construction;
+// the train-vs-test gap (degradation) is the actual research signal.
+//
+// `venueFactory` is handed the slice being run because a HistoricalReplayVenue
+// maps each fill's bar index (encoded in the idempotencyKey) to a price WITHIN
+// the slice — a single venue over the full series would mis-price every window
+// past the first. A mock venue can ignore both args.
 
 export interface WalkForwardWindowResult {
   windowIndex: number;
@@ -22,7 +29,9 @@ export interface WalkForwardWindowResult {
   testStart: number;
   testEnd: number;
   train: { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number };
-  test:  { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number; calmar: number };
+  test:  { totalPnlUnits: bigint; sharpeRatio: number; maxDrawdownPct: number; totalTrades: number; calmar: number;
+           /** Per-trade OOS P&L (USDC units) — pooled across windows for deflated-Sharpe / PSR. */
+           tradePnlUnits: bigint[] };
 }
 
 export interface WalkForwardReport {
@@ -33,14 +42,25 @@ export interface WalkForwardReport {
   positiveWindowShare: number;
 }
 
+/** The train slice for a window — handed to the strategy factory so params (β) are fit OOS-safely. */
+export interface WalkForwardTrainContext {
+  trainBarsA: Bar[];
+  trainBarsB: Bar[];
+}
+
 export interface WalkForwardConfig {
   barsA: Bar[];
   barsB: Bar[];
   trainBars: number;
   testBars: number;
-  /** Strategy factory — called fresh per window so state never bleeds. */
-  strategyFactory: () => PairsStrategy;
-  venueFactory: () => ITradingVenue;
+  /**
+   * Strategy factory — called fresh per slice so state never bleeds, and handed
+   * the window's TRAIN slice so the caller can fit β (or other params) on train
+   * and apply them OOS on test. A caller with frozen params can ignore the arg.
+   */
+  strategyFactory: (ctx: WalkForwardTrainContext) => ManagedStrategy;
+  /** Venue factory — handed the exact slice being run (needed by replay venues). */
+  venueFactory: (barsA: Bar[], barsB: Bar[]) => ITradingVenue;
 }
 
 export async function walkForward(cfg: WalkForwardConfig): Promise<WalkForwardReport> {
@@ -56,8 +76,14 @@ export async function walkForward(cfg: WalkForwardConfig): Promise<WalkForwardRe
   for (let trainStart = 0; trainStart + cfg.trainBars + cfg.testBars <= N; trainStart += cfg.testBars) {
     const testStart = trainStart + cfg.trainBars;
     const testEnd = testStart + cfg.testBars;
-    const trainResult = await runSlice(cfg, trainStart, testStart);
-    const testResult  = await runSlice(cfg, testStart, testEnd);
+    // Fit params on the train slice only; reuse that fit for both the in-sample
+    // train run and the out-of-sample test run.
+    const trainCtx: WalkForwardTrainContext = {
+      trainBarsA: cfg.barsA.slice(trainStart, testStart),
+      trainBarsB: cfg.barsB.slice(trainStart, testStart),
+    };
+    const trainResult = await runSlice(cfg, trainStart, testStart, trainCtx);
+    const testResult  = await runSlice(cfg, testStart, testEnd, trainCtx);
     const calmar = testResult.metrics.maxDrawdownPct > 0
       ? (Number(testResult.metrics.totalPnlUnits) / 1_000_000) / testResult.metrics.maxDrawdownPct
       : 0;
@@ -76,6 +102,7 @@ export async function walkForward(cfg: WalkForwardConfig): Promise<WalkForwardRe
         maxDrawdownPct: testResult.metrics.maxDrawdownPct,
         totalTrades: testResult.metrics.totalTrades,
         calmar,
+        tradePnlUnits: testResult.trades.map((t) => t.pnlUnits),
       },
     });
   }
@@ -88,12 +115,19 @@ export async function walkForward(cfg: WalkForwardConfig): Promise<WalkForwardRe
   return { windows, avgTestSharpe, positiveWindowShare };
 }
 
-async function runSlice(cfg: WalkForwardConfig, start: number, end: number): Promise<BacktestResult> {
+async function runSlice(
+  cfg: WalkForwardConfig,
+  start: number,
+  end: number,
+  trainCtx: WalkForwardTrainContext,
+): Promise<BacktestResult> {
+  const barsA = cfg.barsA.slice(start, end);
+  const barsB = cfg.barsB.slice(start, end);
   return new BacktestRunner().run({
-    barsA: cfg.barsA.slice(start, end),
-    barsB: cfg.barsB.slice(start, end),
-    strategy: cfg.strategyFactory(),
-    venue: cfg.venueFactory(),
+    barsA,
+    barsB,
+    strategy: cfg.strategyFactory(trainCtx),
+    venue: cfg.venueFactory(barsA, barsB),
   });
 }
 

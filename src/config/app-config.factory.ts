@@ -1,11 +1,19 @@
 import { registerAs } from '@nestjs/config';
-import { AppConfig, EXECUTION_MODES, ExecutionMode } from './app-config.interface';
+import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
   if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
     return raw as ExecutionMode;
   }
   return 'mock';
+}
+
+const FEED_SOURCES: readonly FeedSource[] = ['mock', 'binance', 'alpaca'];
+
+function parseFeedSource(raw: string | undefined): FeedSource {
+  return raw !== undefined && (FEED_SOURCES as readonly string[]).includes(raw)
+    ? (raw as FeedSource)
+    : 'mock';
 }
 
 // Sole sanctioned reader of process.env. All other modules consume the typed
@@ -52,13 +60,22 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     liveTradingArmed: process.env['LIVE_TRADING_ARMED'] === 'true',
   },
   feed: {
-    source: process.env['FEED_SOURCE'] === 'binance' ? 'binance' : 'mock',
+    source: parseFeedSource(process.env['FEED_SOURCE']),
     binanceBaseUrl: process.env['BINANCE_PUBLIC_BASE_URL'] ?? 'https://api.binance.com',
     quote: process.env['FEED_QUOTE'] ?? 'USDT',
     interval: process.env['FEED_INTERVAL'] ?? '1m',
     pythBaseUrl: process.env['PYTH_BENCHMARKS_BASE_URL'] ?? 'https://benchmarks.pyth.network',
     defillamaBaseUrl: process.env['DEFILLAMA_STABLECOINS_BASE_URL'] ?? 'https://stablecoins.llama.fi',
     bit2cBaseUrl: process.env['BIT2C_BASE_URL'] ?? 'https://bit2c.co.il',
+    geckoTerminalBaseUrl:
+      process.env['GECKOTERMINAL_BASE_URL'] ?? 'https://api.geckoterminal.com/api/v2',
+  },
+  alpaca: {
+    keyId: process.env['ALPACA_KEY_ID'] ?? '',
+    secret: process.env['ALPACA_SECRET'] ?? '',
+    dataBaseUrl: process.env['ALPACA_DATA_BASE_URL'] ?? 'https://data.alpaca.markets',
+    tradingBaseUrl: process.env['ALPACA_TRADING_BASE_URL'] ?? 'https://paper-api.alpaca.markets',
+    dataFeed: process.env['ALPACA_DATA_FEED'] ?? 'iex',
   },
   live: {
     autoStart: process.env['LIVE_AUTOSTART'] === 'true',

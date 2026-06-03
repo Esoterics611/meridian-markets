@@ -6,10 +6,27 @@ import { BacktestRunner } from '../stat-arb/backtest/backtest-runner';
 import { PairsStrategy } from '../stat-arb/backtest/pairs-strategy';
 import { strategyRegistry } from '../stat-arb/strategies/strategy-registry';
 import { HistoricalReplayVenue } from '../stat-arb/historical-replay-venue';
+import { walkForward } from '../stat-arb/research/walk-forward';
+import { purgedKFoldCv } from '../stat-arb/research/cross-validate';
+import { sharpeStats, deflatedSharpe } from '../stat-arb/research/deflated-sharpe';
+import { cointegrationTest } from '../stat-arb/signal/cointegration';
 import { Bar } from '../stat-arb/backtest/bar';
-import { listPresets, getPreset } from '../stat-arb/markets/market-presets';
+import { listPresets, listEquityPresets, getPreset, getAnyPreset, EQUITY_PRESETS } from '../stat-arb/markets/market-presets';
+import { YahooDailyClient } from '../stat-arb/feed/yahoo/yahoo-daily-client';
 import { runUniverseOnBars, ApiUniverseResponse } from '../stat-arb/discovery/universe.controller';
 import { ReferenceSourceRegistry } from './reference/reference-bar-loader';
+
+// Every ticker that belongs to an equity preset — used to auto-route the demo's
+// read endpoints to the keyless Yahoo daily path (the equities-first console).
+const EQUITY_SYMBOLS = new Set<string>(EQUITY_PRESETS.flatMap((p) => p.symbols.map((s) => s.toUpperCase())));
+export function isEquitySymbol(sym: string): boolean {
+  return EQUITY_SYMBOLS.has(sym.trim().toUpperCase());
+}
+/** Days of daily history to pull for an equity request when the UI sends an intraday `hours`. */
+export function equityDays(hoursParam: number): number {
+  const asDays = Math.ceil(hoursParam / 24);
+  return asDays >= 200 ? asDays : 1260; // default ~5y of daily bars for a real OOS window
+}
 
 /** Align many symbol series to the timestamps present in ALL of them (inner join). */
 export function alignMany(bySymbol: Map<string, Bar[]>): Map<string, Bar[]> {
@@ -60,14 +77,121 @@ function alignPair(a: Bar[], b: Bar[]): { a: Bar[]; b: Bar[] } {
   return { a: outA, b: outB };
 }
 
+/**
+ * Engle-Granger hedge ratio (β) fit on a TRAIN slice only — used per walk-forward
+ * window so the spread the strategy trades OOS was estimated without peeking at
+ * the test data. Deterministic in its inputs, so the factory and the per-window
+ * display recompute the same value. Falls back to 1:1 on a degenerate fit.
+ */
+function fitBetaOnTrain(trainBarsA: Bar[], trainBarsB: Bar[]): number {
+  if (trainBarsA.length < 10 || trainBarsA.length !== trainBarsB.length) return 1;
+  try {
+    const beta = cointegrationTest(
+      trainBarsA.map((x) => Math.log(x.close)),
+      trainBarsB.map((x) => Math.log(x.close)),
+    ).beta;
+    return Number.isFinite(beta) ? beta : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function clampInt(v: number | undefined, fallback: number, min: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min ? Math.floor(n) : fallback;
+}
+
+function stdOf(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+  let v = 0;
+  for (const x of xs) v += (x - mean) ** 2;
+  return Math.sqrt(v / (xs.length - 1));
+}
+
+/**
+ * The multiple-testing verdict (P0.3). Pools the OOS trade P&Ls, computes the
+ * pooled per-trade Sharpe + its PSR (is it even positive on this sample?), and
+ * the DEFLATED Sharpe — discounting for having reported the best of `trials`
+ * scanned pairs. σ_SR is the dispersion of Sharpes across the trials; pass it
+ * from the scan when known, else estimate it from the CV splits (labelled).
+ */
+function oosVerdict(
+  oosTradePnlUnits: bigint[],
+  splitSharpes: number[],
+  trials: number,
+  sigmaOverride?: number,
+) {
+  const stats = sharpeStats(oosTradePnlUnits.map(Number));
+  const sigmaSource = sigmaOverride != null && sigmaOverride > 0 ? 'scan' : 'cv-folds';
+  const sigmaTrialSharpe = sigmaSource === 'scan' ? (sigmaOverride as number) : stdOf(splitSharpes);
+  const ds = deflatedSharpe(stats.sharpe, stats.n, stats.skew, stats.kurtosis, trials, sigmaTrialSharpe);
+  const verdict =
+    stats.n < 20 ? 'INSUFFICIENT (need ≥20 OOS trades)'
+    : ds.dsr >= 0.95 ? 'PASS — survives selection bias (DSR ≥ 0.95)'
+    : ds.psr < 0.9 ? 'NOISE — Sharpe not reliably positive (PSR < 0.9)'
+    : 'INCONCLUSIVE — positive but does not clear the multiple-testing bar';
+  return {
+    oosSharpe: stats.sharpe,
+    oosTrades: stats.n,
+    skew: stats.skew,
+    kurtosis: stats.kurtosis,
+    trials,
+    sigmaTrialSharpe,
+    sigmaSource,
+    psr: ds.psr,
+    expectedMaxSharpe: ds.expectedMaxSharpe,
+    deflatedSharpe: ds.dsr,
+    verdict,
+  };
+}
+
+/**
+ * Regime-coverage readout (P0.5). Real history of a few days is not evidence a
+ * strategy is "consistent over days/regimes", and presets are TODAY's listed
+ * tickers (survivorship). Surface both honestly so a thin window can't be
+ * mistaken for a verdict.
+ */
+function regimeCoverage(bars: Bar[], splits: number) {
+  const days = bars.length >= 2
+    ? (bars[bars.length - 1].timestamp.getTime() - bars[0].timestamp.getTime()) / 86_400_000
+    : 0;
+  const warnings: string[] = [];
+  if (days < 30) warnings.push(`only ${days.toFixed(1)} days of history — not regime coverage (target ≥30–90d before trusting "consistent over days")`);
+  if (splits < 3) warnings.push(`only ${splits} OOS splits — too few to judge stability; widen the window or reduce train/test`);
+  return {
+    days: Number(days.toFixed(2)),
+    bars: bars.length,
+    splits,
+    survivorshipCaveat:
+      "preset symbols are TODAY's listed tickers — delisted/renamed names are excluded (survivorship bias); a point-in-time universe is the unmet P0.5 item",
+    warnings,
+  };
+}
+
 @Controller('api/market-data')
 export class MarketDataController {
+  // Keyless long-history daily equity source (Yahoo, split/div-adjusted) — the
+  // demo's equities data path. Stateless HTTP wrapper, so no DI wiring needed.
+  private readonly yahoo = new YahooDailyClient();
+
   constructor(
     private readonly backfillSvc: BinanceBackfillService,
     private readonly repo: MarketDataRepository,
     private readonly replay: ReplayEngine,
     private readonly refSources: ReferenceSourceRegistry,
   ) {}
+
+  /** On-the-fly daily equity pair window from Yahoo (keyless), aligned to common days. */
+  private async loadYahooPair(symA: string, symB: string, days: number): Promise<{ a: Bar[]; b: Bar[] }> {
+    const toMs = Date.now();
+    const fromMs = toMs - days * 24 * HOUR_MS;
+    const [a, b] = await Promise.all([
+      this.yahoo.historicalBars(symA, '1d', fromMs, toMs).catch(() => [] as Bar[]),
+      this.yahoo.historicalBars(symB, '1d', fromMs, toMs).catch(() => [] as Bar[]),
+    ]);
+    return alignPair(a, b);
+  }
 
   /**
    * The non-Binance reference data sources wired into the engine (TESSERA):
@@ -182,18 +306,27 @@ export class MarketDataController {
     const to = new Date();
     const from = new Date(to.getTime() - (body.lookbackHours ?? 24) * HOUR_MS);
 
-    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
-    const aligned = alignPair(a, b);
+    // Equities (both legs in an equity preset) auto-route to keyless Yahoo daily
+    // history; crypto keeps the DB-backed Binance replay path. The cost model and
+    // source label follow the asset class.
+    const isEq = isEquitySymbol(symbolA) && isEquitySymbol(symbolB);
+    let aligned: { a: Bar[]; b: Bar[] };
+    if (isEq) {
+      aligned = await this.loadYahooPair(symbolA, symbolB, equityDays(body.lookbackHours ?? 0));
+    } else {
+      const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+      aligned = alignPair(a, b);
+    }
     if (aligned.a.length < (body.zLookback ?? 20) + 2) {
       return {
-        error: 'not enough overlapping bars — run POST /api/market-data/backfill first',
-        barsA: a.length,
-        barsB: b.length,
+        error: isEq
+          ? `not enough overlapping Yahoo history for ${symbolA}/${symbolB}`
+          : 'not enough overlapping bars — run POST /api/market-data/backfill first',
         overlap: aligned.a.length,
       };
     }
 
-    const notionalUnits = BigInt(body.notionalUnits ?? '1000000000');
+    const notionalUnits = BigInt(body.notionalUnits ?? '100000000000');
     // Strategy-aware: a registry id (e.g. ou-bertram, pairs-ewma) builds with
     // its catalogue tuning; the legacy path keeps the body's z-score knobs.
     const strategyId =
@@ -208,12 +341,15 @@ export class MarketDataController {
           notionalUnits,
         });
     // Cost-fidelity (P0.1): fills cross the spread + move the market, so the
-    // backtest P&L is net of realistic costs, not frictionless-at-close.
-    const halfSpreadBps = body.halfSpreadBps ?? 2;
+    // backtest P&L is net of realistic costs, not frictionless-at-close. Equities
+    // are commission-free with tight spreads but pay short-borrow carry (P0.4).
+    const halfSpreadBps = body.halfSpreadBps ?? (isEq ? 1 : 2);
     const impactLambdaBps = body.impactLambdaBps ?? 10;
     const replayVenue = new HistoricalReplayVenue(
       { [symbolA]: aligned.a, [symbolB]: aligned.b },
-      { halfSpreadBps, impactLambdaBps },
+      isEq
+        ? { takerFeeBps: 0n, halfSpreadBps, impactLambdaBps, borrowBpsPerYear: 50, barSeconds: 86_400 }
+        : { halfSpreadBps, impactLambdaBps },
     );
     const result = await new BacktestRunner().run({
       barsA: aligned.a,
@@ -226,11 +362,219 @@ export class MarketDataController {
       window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
       pair: `${symbolA}/${symbolB}`,
       strategy: strategyId ?? 'pairs-zscore',
-      source: 'real-binance-history',
-      costs: { feeBps: 5, halfSpreadBps, impactLambdaBps },
+      source: isEq ? 'real-yahoo-daily' : 'real-binance-history',
+      costs: isEq
+        ? { feeBps: 0, halfSpreadBps, impactLambdaBps, borrowBpsPerYear: 50 }
+        : { feeBps: 5, halfSpreadBps, impactLambdaBps },
       metrics: result.metrics,
       tradeCount: result.trades.length,
       trades: result.trades.slice(0, 25),
+    });
+  }
+
+  /**
+   * Walk-forward on REAL Binance history with a true train/test split — the P0
+   * gate so no strategy ships on in-sample numbers. For each window we:
+   *   1. fit the hedge ratio β on the TRAIN slice only (Engle-Granger),
+   *   2. apply that β + the frozen catalogue tuning on the OOS TEST slice,
+   *   3. price every fill net of fee + half-spread + market impact (same cost
+   *      model as /backtest), per slice.
+   * The headline is the avg TEST Sharpe and the share of positive test windows;
+   * the train→test Sharpe gap (`sharpeDegradation`) is the in-sample optimism we
+   * were flying blind to. β is shown per window so β drift is visible (a sign-
+   * flipping β across windows means the pair isn't a stable spread).
+   *
+   *   POST /api/market-data/walk-forward
+   *     { symbolA, symbolB, venue?, lookbackHours?, strategyId?, params?,
+   *       trainBars?, testBars?, beta?, zLookback?, entryZ?, exitZ?,
+   *       notionalUnits?, halfSpreadBps?, impactLambdaBps? }
+   *   `beta` pins β across windows (skips the per-train refit) — only honest if
+   *   the caller knows it; omit it for the OOS-safe per-window fit (default).
+   */
+  @Post('walk-forward')
+  async walkForwardReal(
+    @Body()
+    body: {
+      symbolA?: string;
+      symbolB?: string;
+      venue?: string;
+      lookbackHours?: number;
+      strategyId?: string;
+      params?: Record<string, number>;
+      trainBars?: number;
+      testBars?: number;
+      beta?: number;
+      zLookback?: number;
+      entryZ?: number;
+      exitZ?: number;
+      notionalUnits?: string;
+      halfSpreadBps?: number;
+      impactLambdaBps?: number;
+      /** 'walk-forward' (sequential, default) or 'purged-kfold' (interior folds, purge+embargo). */
+      cv?: 'walk-forward' | 'purged-kfold';
+      folds?: number;
+      embargoFrac?: number;
+      /** Multiple-testing: how many pairs were scanned to pick this one (selection bias). Default 1 (no haircut). */
+      trials?: number;
+      /** Optional σ of trial Sharpes from the scan (cross-pair). If omitted, estimated from the CV splits. */
+      sigmaTrialSharpe?: number;
+    },
+  ) {
+    const symbolA = body.symbolA ?? 'BTC';
+    const symbolB = body.symbolB ?? 'ETH';
+    const venue = body.venue ?? 'binance.spot';
+    const to = new Date();
+    const from = new Date(to.getTime() - (body.lookbackHours ?? 72) * HOUR_MS);
+
+    const { a, b } = await this.replay.loadPairWindow({ venue, symbolA, symbolB, from, to });
+    const aligned = alignPair(a, b);
+
+    const cv = body.cv === 'purged-kfold' ? 'purged-kfold' : 'walk-forward';
+    const trainBars = clampInt(body.trainBars, 300, 30);
+    const testBars = clampInt(body.testBars, 100, 10);
+    const folds = clampInt(body.folds, 5, 2);
+    const minBars = cv === 'purged-kfold' ? folds * 30 : trainBars + testBars;
+    if (aligned.a.length < minBars) {
+      return {
+        error: `not enough overlapping bars for ${cv} — backfill more history`,
+        barsA: a.length,
+        barsB: b.length,
+        overlap: aligned.a.length,
+        need: minBars,
+      };
+    }
+
+    const notionalUnits = BigInt(body.notionalUnits ?? '100000000000');
+    const halfSpreadBps = body.halfSpreadBps ?? 2;
+    const impactLambdaBps = body.impactLambdaBps ?? 10;
+    const hasStrat = !!body.strategyId && strategyRegistry.has(body.strategyId);
+    const pinnedBeta = body.beta; // when set, β is held fixed across splits
+    const trials = clampInt(body.trials, 1, 1);
+
+    // β fit on TRAIN only (unless pinned), applied OOS; frozen catalogue tuning
+    // (entryZ/exitZ/zLookback) is not re-fit. Shared by both CV schemes.
+    const makeStrategy = (trainA: Bar[], trainB: Bar[]) => {
+      const beta = pinnedBeta ?? fitBetaOnTrain(trainA, trainB);
+      return hasStrat
+        ? strategyRegistry.build(body.strategyId as string, { beta, notionalUnits, params: body.params })
+        : new PairsStrategy({
+            beta,
+            zLookback: body.zLookback ?? 20,
+            entryZ: body.entryZ ?? 2,
+            exitZ: body.exitZ ?? 0.5,
+            notionalUnits,
+          });
+    };
+    // Cost-fidelity per slice: a replay venue must see the slice it prices.
+    const makeVenue = (sliceA: Bar[], sliceB: Bar[]) =>
+      new HistoricalReplayVenue({ [symbolA]: sliceA, [symbolB]: sliceB }, { halfSpreadBps, impactLambdaBps });
+
+    const common = {
+      pair: `${symbolA}/${symbolB}`,
+      strategy: hasStrat ? body.strategyId : 'pairs-zscore',
+      source: 'real-binance-history',
+      cv,
+      window: { from: from.toISOString(), to: to.toISOString(), bars: aligned.a.length },
+      costs: { feeBps: 5, halfSpreadBps, impactLambdaBps },
+      betaFit: pinnedBeta != null ? 'pinned' : 'refit-per-train-window',
+    };
+
+    if (cv === 'purged-kfold') {
+      const report = await purgedKFoldCv({
+        barsA: aligned.a,
+        barsB: aligned.b,
+        folds,
+        embargoFrac: body.embargoFrac ?? 0.01,
+        strategyFactory: makeStrategy,
+        venueFactory: makeVenue,
+      });
+      const splitSharpes = report.folds.map((f) => f.test.sharpeRatio);
+      const totalTestPnlUnits = report.folds.reduce((s, f) => s + f.test.totalPnlUnits, 0n);
+      return jsonSafe({
+        ...common,
+        split: { folds, embargoFrac: body.embargoFrac ?? 0.01 },
+        oos: {
+          avgTestSharpe: report.avgTestSharpe,
+          positiveWindowShare: report.positiveFoldShare,
+          totalTestPnlUnits,
+          totalTestTrades: report.oosTradePnlUnits.length,
+        },
+        multipleTesting: oosVerdict(report.oosTradePnlUnits, splitSharpes, trials, body.sigmaTrialSharpe),
+        coverage: regimeCoverage(aligned.a, report.folds.length),
+        folds: report.folds.map((f) => ({
+          foldIndex: f.foldIndex,
+          trainSize: f.trainSize,
+          testStart: f.testStart,
+          testEnd: f.testEnd,
+          test: {
+            sharpeRatio: f.test.sharpeRatio,
+            maxDrawdownPct: f.test.maxDrawdownPct,
+            totalTrades: f.test.totalTrades,
+            totalPnlUnits: f.test.totalPnlUnits,
+          },
+        })),
+      });
+    }
+
+    // Sequential walk-forward (default).
+    const report = await walkForward({
+      barsA: aligned.a,
+      barsB: aligned.b,
+      trainBars,
+      testBars,
+      strategyFactory: (ctx) => makeStrategy(ctx.trainBarsA, ctx.trainBarsB),
+      venueFactory: makeVenue,
+    });
+
+    const n = report.windows.length;
+    const avgTrainSharpe = n ? report.windows.reduce((s, w) => s + w.train.sharpeRatio, 0) / n : 0;
+    const totalTestPnlUnits = report.windows.reduce((s, w) => s + w.test.totalPnlUnits, 0n);
+    const totalTestTrades = report.windows.reduce((s, w) => s + w.test.totalTrades, 0);
+    const positiveTestPnlShare = n
+      ? report.windows.filter((w) => w.test.totalPnlUnits > 0n).length / n
+      : 0;
+    const oosTradePnlUnits = report.windows.flatMap((w) => w.test.tradePnlUnits);
+    const splitSharpes = report.windows.map((w) => w.test.sharpeRatio);
+
+    return jsonSafe({
+      ...common,
+      split: { trainBars, testBars, windows: n },
+      // The honest OOS verdict the desk gates on.
+      oos: {
+        avgTestSharpe: report.avgTestSharpe,
+        positiveWindowShare: report.positiveWindowShare,
+        positiveTestPnlShare,
+        avgTrainSharpe,
+        sharpeDegradation: avgTrainSharpe - report.avgTestSharpe,
+        totalTestPnlUnits,
+        totalTestTrades,
+      },
+      // P0.3 — discount the headline for short samples + selection bias.
+      multipleTesting: oosVerdict(oosTradePnlUnits, splitSharpes, trials, body.sigmaTrialSharpe),
+      // P0.5 — is this even enough history / enough regimes to trust?
+      coverage: regimeCoverage(aligned.a, n),
+      windows: report.windows.map((w) => ({
+        windowIndex: w.windowIndex,
+        trainStart: w.trainStart,
+        testStart: w.testStart,
+        testEnd: w.testEnd,
+        beta: pinnedBeta ?? fitBetaOnTrain(
+          aligned.a.slice(w.trainStart, w.testStart),
+          aligned.b.slice(w.trainStart, w.testStart),
+        ),
+        train: {
+          sharpeRatio: w.train.sharpeRatio,
+          totalTrades: w.train.totalTrades,
+          totalPnlUnits: w.train.totalPnlUnits,
+        },
+        test: {
+          sharpeRatio: w.test.sharpeRatio,
+          maxDrawdownPct: w.test.maxDrawdownPct,
+          totalTrades: w.test.totalTrades,
+          totalPnlUnits: w.test.totalPnlUnits,
+          calmar: w.test.calmar,
+        },
+      })),
     });
   }
 
@@ -350,9 +694,13 @@ export class MarketDataController {
 
   /** The presaved market sets the demo can switch between. */
   @Get('presets')
-  presets() {
+  presets(@Query('class') cls = 'equity') {
+    // Equities-first console: default to the equity baskets; ?class=crypto for the
+    // legacy Binance presets. (Engine is the same; only the universe differs.)
+    const list = cls === 'crypto' ? listPresets() : listEquityPresets();
     return {
-      presets: listPresets().map((p) => ({
+      class: cls === 'crypto' ? 'crypto' : 'equity',
+      presets: list.map((p) => ({
         id: p.id,
         label: p.label,
         assetClass: p.assetClass,
@@ -360,6 +708,7 @@ export class MarketDataController {
         symbols: p.symbols,
         defaultPair: p.defaultPair,
         quote: p.quote,
+        source: p.source ?? 'binance',
       })),
     };
   }
@@ -406,8 +755,31 @@ export class MarketDataController {
     | ApiUniverseResponse
     | { error: string; needsBackfill: boolean; perSymbol: Record<string, number>; dropped?: string[] }
   > {
-    const preset = getPreset(presetId);
+    const preset = getAnyPreset(presetId);
     if (!preset) return { error: `unknown preset: ${presetId}`, needsBackfill: false, perSymbol: {} };
+
+    // Equity preset → discover over keyless Yahoo daily history (no DB backfill).
+    if (preset.source === 'alpaca') {
+      const days = equityDays(Number(hours));
+      const toMs = Date.now();
+      const fromMs = toMs - days * 24 * HOUR_MS;
+      const eqBars = new Map<string, Bar[]>();
+      for (const sym of preset.symbols) {
+        const bars = await this.yahoo.historicalBars(sym, '1d', fromMs, toMs).catch(() => [] as Bar[]);
+        if (bars.length >= 120) eqBars.set(sym, bars);
+      }
+      const eqAligned = alignMany(eqBars);
+      const eqLens = [...eqAligned.values()].map((b) => b.length);
+      if (eqAligned.size < 2 || (eqLens.length ? Math.min(...eqLens) : 0) < 120) {
+        const perSymbol: Record<string, number> = {};
+        for (const [sym, b] of eqBars) perSymbol[sym] = b.length;
+        return { error: 'not enough Yahoo daily history to discover pairs', needsBackfill: false, perSymbol };
+      }
+      return jsonSafe(
+        runUniverseOnBars(eqAligned, { source: 'real-yahoo-daily', pValueCutoff: 0.6, maxHalfLifeBars: 240 }),
+      );
+    }
+
     const to = new Date();
     const from = new Date(to.getTime() - Number(hours) * HOUR_MS);
 
@@ -447,6 +819,22 @@ export class MarketDataController {
     @Query('venue') venue = 'binance.spot',
     @Query('hours') hours = '24',
   ) {
+    // Equity symbol → keyless Yahoo daily candles (no DB backfill needed).
+    if (isEquitySymbol(symbol)) {
+      const days = equityDays(Number(hours));
+      const toMs = Date.now();
+      const fromMs = toMs - days * 24 * HOUR_MS;
+      const bars = await this.yahoo.historicalBars(symbol, '1d', fromMs, toMs).catch(() => [] as Bar[]);
+      return {
+        symbol,
+        venue: 'yahoo.daily',
+        candles: bars.map((b) => ({
+          time: Math.floor(b.timestamp.getTime() / 1000),
+          open: b.open, high: b.high, low: b.low, close: b.close,
+        })),
+      };
+    }
+
     const to = new Date();
     const from = new Date(to.getTime() - Number(hours) * HOUR_MS);
     const rows: MarketBarRow[] = await this.repo.barsBetween(venue, symbol, from, to);

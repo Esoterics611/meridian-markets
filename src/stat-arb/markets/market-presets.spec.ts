@@ -1,4 +1,12 @@
-import { MARKET_PRESETS, listPresets, getPreset, presetSymbols } from './market-presets';
+import {
+  MARKET_PRESETS,
+  EQUITY_PRESETS,
+  listPresets,
+  listEquityPresets,
+  getPreset,
+  getAnyPreset,
+  presetSymbols,
+} from './market-presets';
 import { toBinanceSymbol } from '../feed/binance-symbol';
 
 describe('market-presets', () => {
@@ -41,5 +49,38 @@ describe('market-presets', () => {
 
   it('listPresets returns the catalog', () => {
     expect(listPresets()).toBe(MARKET_PRESETS);
+  });
+});
+
+describe('equity-presets', () => {
+  it('exposes equity baskets with unique ids, all tagged source=alpaca / quote=USD', () => {
+    const ids = EQUITY_PRESETS.map((p) => p.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const p of EQUITY_PRESETS) {
+      expect(p.source).toBe('alpaca');
+      expect(p.quote).toBe('USD');
+      expect(p.symbols.length).toBeGreaterThanOrEqual(2);
+      expect(p.symbols).toContain(p.defaultPair[0]);
+      expect(p.symbols).toContain(p.defaultPair[1]);
+      expect(p.defaultPair[0]).not.toBe(p.defaultPair[1]);
+      expect(new Set(p.symbols).size).toBe(p.symbols.length);
+    }
+    expect(listEquityPresets()).toBe(EQUITY_PRESETS);
+  });
+
+  it('equity ids do NOT leak into the Binance path (getPreset), only getAnyPreset resolves them', () => {
+    for (const p of EQUITY_PRESETS) {
+      expect(getPreset(p.id)).toBeUndefined(); // Binance scanner/factory never see equities
+      expect(getAnyPreset(p.id)?.id).toBe(p.id);
+    }
+    // getAnyPreset still resolves Binance presets.
+    expect(getAnyPreset(MARKET_PRESETS[0].id)?.id).toBe(MARKET_PRESETS[0].id);
+    expect(getAnyPreset('nope')).toBeUndefined();
+  });
+
+  it('has no id collision between the two catalogs', () => {
+    const binanceIds = new Set(MARKET_PRESETS.map((p) => p.id));
+    for (const p of EQUITY_PRESETS) expect(binanceIds.has(p.id)).toBe(false);
   });
 });

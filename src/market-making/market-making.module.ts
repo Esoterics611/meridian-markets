@@ -1,10 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
+import { Bar } from '../stat-arb/backtest/bar';
 import { BinancePublicClient, BINANCE_CLIENT } from '../stat-arb/feed/binance-public-client';
 import { BinancePublicBarFeed } from '../stat-arb/feed/binance-public-bar-feed';
 import { MockBarFeed } from '../stat-arb/feed/mock-bar-feed';
 import { IBarFeed } from '../stat-arb/feed/live-feed.interface';
+import {
+  ReferenceSourceRegistry,
+  buildReferenceSources,
+} from '../market-data/reference/reference-bar-loader';
+import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -44,11 +50,25 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
 
+        // Reference-source registry (Pyth / DefiLlama / Bit2C / GeckoTerminal),
+        // so a DEX / decentralized book quotes on the SAME live loop as a Binance
+        // book — selected per-book by `spec.source` (the MM twin of the stat-arb
+        // per-source feed, S20). GeckoTerminal is the discovery frontier (S28).
+        const refRegistry = new ReferenceSourceRegistry(
+          buildReferenceSources({
+            pythBaseUrl: app.feed.pythBaseUrl,
+            defillamaBaseUrl: app.feed.defillamaBaseUrl,
+            bit2cBaseUrl: app.feed.bit2cBaseUrl,
+            geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+          }),
+        );
+
         // Fee-aware spread floor: never quote below the maker round-trip
         // break-even. A maker rebate (makerFeeBps < 0) needs no floor; a maker
         // *cost* must be covered on both legs before the book can profit.
         const feeFloorBps = mm.makerFeeBps > 0 ? 2 * mm.makerFeeBps : 0;
         const effMinHalfSpreadBps = Math.max(mm.minHalfSpreadBps, feeFloorBps);
+        const warmupBars = Math.max(mm.volWindowBars * 3, 90);
 
         const makeBook = (spec: MmBookSpec): MmBook => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
@@ -59,7 +79,22 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             maxInventoryLots: mm.maxInventoryLots,
             params: spec.params,
           });
-          const feed: IBarFeed = onBinance ? new BinancePublicBarFeed(client, app.feed.interval) : new MockBarFeed();
+          // A `source` book (e.g. DEX via GeckoTerminal) is fed by a
+          // ReferenceBarFeed off that source; otherwise the Binance public feed
+          // (or the mock feed when the engine isn't on Binance).
+          const refSource = spec.source ? refRegistry.get(spec.source) : undefined;
+          const feed: IBarFeed = refSource
+            ? new ReferenceBarFeed(refSource, app.feed.interval)
+            : onBinance
+              ? new BinancePublicBarFeed(client, app.feed.interval)
+              : new MockBarFeed();
+          const warmupCloses = refSource
+            ? async (s: string): Promise<number[]> =>
+                (await refSource.klines(s, app.feed.interval, warmupBars).catch(() => [])).map((b) => b.close)
+            : onBinance
+              ? async (s: string): Promise<number[]> =>
+                  (await client.klines(s, app.feed.interval, warmupBars)).map((b) => b.close)
+              : undefined;
           const riskGate = new CompositeRiskGate({
             maxInventoryUnits: mm.quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
             minNavRatio: 1 - mm.maxDrawdownPct / 100,
@@ -81,9 +116,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             makerFeeBps: mm.makerFeeBps,
             capitalUnits: mm.capitalUnits,
             nextBar: (s) => feed.nextBar(s),
-            warmupCloses: onBinance
-              ? async (s) => (await client.klines(s, app.feed.interval, Math.max(mm.volWindowBars * 3, 90))).map((b) => b.close)
-              : undefined,
+            warmupCloses,
             riskGate,
           });
         };
@@ -99,9 +132,30 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const barsToLoad = Math.max(mm.volWindowBars * 3, 120);
-        const presets = MM_MARKET_PRESETS.map((p) => ({ id: p.id, label: p.label, assetClass: p.assetClass, symbols: [...p.symbols] }));
+        const refRegistry = new ReferenceSourceRegistry(
+          buildReferenceSources({
+            pythBaseUrl: app.feed.pythBaseUrl,
+            defillamaBaseUrl: app.feed.defillamaBaseUrl,
+            bit2cBaseUrl: app.feed.bit2cBaseUrl,
+            geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+          }),
+        );
+        const presets = MM_MARKET_PRESETS.map((p) => ({
+          id: p.id,
+          label: p.label,
+          assetClass: p.assetClass,
+          symbols: [...p.symbols],
+          source: p.source,
+        }));
+        // Source-aware loader (mirrors makeScannerLoader): a reference-source
+        // preset (e.g. DEX via GeckoTerminal) routes to the registry, Binance
+        // presets to the public client. Errors collapse to [] in the screener.
+        const loadBars = (sym: string, source?: string): Promise<Bar[]> =>
+          source && source !== 'binance'
+            ? refRegistry.bars(source, sym, app.feed.interval, barsToLoad)
+            : client.klines(sym, app.feed.interval, barsToLoad);
         return new MmScreener(
-          (sym) => client.klines(sym, app.feed.interval, barsToLoad),
+          loadBars,
           presets,
           {
             quoteHalfSpreadBps: mm.minHalfSpreadBps,

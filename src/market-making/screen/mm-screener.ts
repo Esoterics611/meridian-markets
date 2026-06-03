@@ -12,13 +12,15 @@ import { scoreMmSuitability, MmSuitabilityScore } from './mm-suitability-scorer'
 // rank a calm stablecoin with a rebate above a volatile major, not a fill
 // forecast. Symbols are deduped across presets (suitability is instrument-level).
 
-export type MmBarLoader = (symbol: string) => Promise<Bar[]>;
+export type MmBarLoader = (symbol: string, source?: string) => Promise<Bar[]>;
 
 export interface MmScreenPreset {
   id: string;
   label: string;
   assetClass: string;
   symbols: string[];
+  /** Reference data source id (e.g. 'geckoterminal'); omit for the Binance feed. */
+  source?: string;
 }
 
 export interface MmScreenerConfig {
@@ -61,10 +63,10 @@ export class MmScreener {
         ? this.presets.filter((p) => filterPresetIds.includes(p.id))
         : this.presets;
     // Dedup symbols across presets, remembering the first preset that named one.
-    const origin = new Map<string, { presetId: string; assetClass: string }>();
+    const origin = new Map<string, { presetId: string; assetClass: string; source?: string }>();
     for (const p of presets) {
       for (const s of p.symbols) {
-        if (!origin.has(s)) origin.set(s, { presetId: p.id, assetClass: p.assetClass });
+        if (!origin.has(s)) origin.set(s, { presetId: p.id, assetClass: p.assetClass, source: p.source });
       }
     }
 
@@ -72,7 +74,7 @@ export class MmScreener {
     const instruments: ScoredInstrument[] = [];
 
     for (const [symbol, where] of origin) {
-      const bars = await this.loadBars(symbol).catch(() => [] as Bar[]);
+      const bars = await this.loadBars(symbol, where.source).catch(() => [] as Bar[]);
       if (bars.length < this.cfg.volWindowBars + 1) continue;
 
       const vol = new RollingVolatility(this.cfg.volWindowBars);

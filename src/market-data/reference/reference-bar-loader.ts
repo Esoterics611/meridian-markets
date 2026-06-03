@@ -3,6 +3,7 @@ import { IReferenceBarSource } from './reference-source.interface';
 import { PythBenchmarksClient } from './pyth-benchmarks-client';
 import { DefiLlamaPegClient } from './defillama-peg-client';
 import { Bit2CClient } from './bit2c-client';
+import { GeckoTerminalClient } from './geckoterminal-client';
 
 // Build the standard set of reference sources from config base URLs. Called from
 // both MarketDataModule (reference read endpoint) and StatArbModule (scanner) —
@@ -12,11 +13,13 @@ export function buildReferenceSources(opts: {
   pythBaseUrl?: string;
   defillamaBaseUrl?: string;
   bit2cBaseUrl?: string;
+  geckoTerminalBaseUrl?: string;
 }): IReferenceBarSource[] {
   return [
     new PythBenchmarksClient({ baseUrl: opts.pythBaseUrl }),
     new DefiLlamaPegClient({ baseUrl: opts.defillamaBaseUrl }),
     new Bit2CClient({ baseUrl: opts.bit2cBaseUrl }),
+    new GeckoTerminalClient({ baseUrl: opts.geckoTerminalBaseUrl }),
   ];
 }
 
@@ -50,16 +53,21 @@ export class ReferenceSourceRegistry {
 
 /**
  * Build the scanner BarLoader. `source` of 'binance'/undefined routes to the
- * injected Binance loader; any other source id routes to its reference client.
+ * injected Binance loader; 'alpaca' routes to the (optional) Alpaca equities
+ * loader; any other source id routes to its reference client. The Alpaca loader
+ * is optional so a no-key deployment behaves exactly as before (equity presets,
+ * if present, then yield empty universes and are skipped — no crash).
  */
 export function makeScannerLoader(
   binanceLoader: (symbol: string) => Promise<Bar[]>,
   registry: ReferenceSourceRegistry,
   interval: string,
   barsToLoad: number,
+  alpacaLoader?: (symbol: string) => Promise<Bar[]>,
 ): (symbol: string, source?: string) => Promise<Bar[]> {
   return async (symbol, source) => {
     if (!source || source === 'binance') return binanceLoader(symbol).catch(() => []);
+    if (source === 'alpaca') return alpacaLoader ? alpacaLoader(symbol).catch(() => []) : [];
     return registry.bars(source, symbol, interval, barsToLoad);
   };
 }

@@ -1,0 +1,336 @@
+{
+  "generatedAt": "2026-06-02T08:05:19.256Z",
+  "source": "yahoo",
+  "preset": "equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma",
+  "basketMode": true,
+  "betaWeighted": false,
+  "days": 9000,
+  "interval": "1d",
+  "train": 120,
+  "test": 120,
+  "zLookback": 20,
+  "entryGrid": [
+    2,
+    2.5
+  ],
+  "notionalUsdc": 100000,
+  "costs": {
+    "takerFeeBps": 0,
+    "halfSpreadBps": 1,
+    "impactLambdaBps": 10,
+    "borrowBpsPerYear": 50,
+    "entryGateFloorBps": 1
+  },
+  "trials": 40,
+  "sigmaSR": 0.1014724814919859,
+  "basket": {
+    "disjointPairs": [
+      {
+        "pair": "PNC/TFC",
+        "preset": "equity-banks",
+        "pValue": 0.005,
+        "beta": 1.5717612534610967
+      },
+      {
+        "pair": "PSX/VLO",
+        "preset": "equity-energy",
+        "pValue": 0.005,
+        "beta": 0.6474564828347195
+      },
+      {
+        "pair": "CSX/NSC",
+        "preset": "equity-rails",
+        "pValue": 0.005,
+        "beta": 1.1555058612062599
+      },
+      {
+        "pair": "PEP/PG",
+        "preset": "equity-staples",
+        "pValue": 0.005,
+        "beta": 1.0308230471794673
+      },
+      {
+        "pair": "CVX/MPC",
+        "preset": "equity-energy",
+        "pValue": 0.025,
+        "beta": 0.4553427146126846
+      },
+      {
+        "pair": "UNP/CP",
+        "preset": "equity-rails",
+        "pValue": 0.025,
+        "beta": 1.0514599024090245
+      },
+      {
+        "pair": "MDLZ/KMB",
+        "preset": "equity-staples",
+        "pValue": 0.025,
+        "beta": 1.0250084975471832
+      },
+      {
+        "pair": "BMY/JNJ",
+        "preset": "equity-pharma",
+        "pValue": 0.025,
+        "beta": 0.4636482841812235
+      },
+      {
+        "pair": "WFC/USB",
+        "preset": "equity-banks",
+        "pValue": 0.075,
+        "beta": 0.9745686878416454
+      },
+      {
+        "pair": "KO/CL",
+        "preset": "equity-staples",
+        "pValue": 0.075,
+        "beta": 0.9853483637737316
+      },
+      {
+        "pair": "ABBV/LLY",
+        "preset": "equity-pharma",
+        "pValue": 0.075,
+        "beta": 0.5993094226224951
+      },
+      {
+        "pair": "XOM/EOG",
+        "preset": "equity-energy",
+        "pValue": 0.5,
+        "beta": 0.8551421714448667
+      }
+    ],
+    "perEntry": [
+      {
+        "entryZ": 2,
+        "oosTrades": 1867,
+        "pooledSharpe": 0.15052505353327664,
+        "posTradeShare": 0.6770219603642207,
+        "pnlUsdc": 1163891.726202,
+        "psr": 0.9999999995063041,
+        "dsr": 0.9999999995063041,
+        "verdict": "PASS"
+      },
+      {
+        "entryZ": 2.5,
+        "oosTrades": 949,
+        "pooledSharpe": 0.16681489256189397,
+        "posTradeShare": 0.6775553213909379,
+        "pnlUsdc": 756207.534921,
+        "psr": 0.9999995309113465,
+        "dsr": 0.9999995309113465,
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "rows": [
+    {
+      "pair": " ·PNC/TFC",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "189",
+      "oosSharpe": "0.13",
+      "avgTestSharpe": "0.41",
+      "posWin": "60%",
+      "degr": "—",
+      "oosPnl": "$123,345",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·PSX/VLO",
+      "eZ": "2",
+      "windows": "28",
+      "oosTrades": "100",
+      "oosSharpe": "0.18",
+      "avgTestSharpe": "0.51",
+      "posWin": "61%",
+      "degr": "—",
+      "oosPnl": "$61,812",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·CSX/NSC",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "184",
+      "oosSharpe": "0.27",
+      "avgTestSharpe": "0.37",
+      "posWin": "72%",
+      "degr": "—",
+      "oosPnl": "$157,030",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·PEP/PG",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "192",
+      "oosSharpe": "0.15",
+      "avgTestSharpe": "-0.60",
+      "posWin": "64%",
+      "degr": "—",
+      "oosPnl": "$70,942",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·CVX/MPC",
+      "eZ": "2",
+      "windows": "28",
+      "oosTrades": "102",
+      "oosSharpe": "0.07",
+      "avgTestSharpe": "0.07",
+      "posWin": "43%",
+      "degr": "—",
+      "oosPnl": "$51,330",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·UNP/CP",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "200",
+      "oosSharpe": "0.25",
+      "avgTestSharpe": "-0.16",
+      "posWin": "74%",
+      "degr": "—",
+      "oosPnl": "$190,955",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·MDLZ/KMB",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "212",
+      "oosSharpe": "0.19",
+      "avgTestSharpe": "0.50",
+      "posWin": "64%",
+      "degr": "—",
+      "oosPnl": "$125,382",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·BMY/JNJ",
+      "eZ": "2",
+      "windows": "27",
+      "oosTrades": "95",
+      "oosSharpe": "0.09",
+      "avgTestSharpe": "0.71",
+      "posWin": "52%",
+      "degr": "—",
+      "oosPnl": "$38,204",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·WFC/USB",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "197",
+      "oosSharpe": "0.25",
+      "avgTestSharpe": "0.67",
+      "posWin": "70%",
+      "degr": "—",
+      "oosPnl": "$167,767",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·KO/CL",
+      "eZ": "2",
+      "windows": "50",
+      "oosTrades": "196",
+      "oosSharpe": "0.22",
+      "avgTestSharpe": "0.49",
+      "posWin": "66%",
+      "degr": "—",
+      "oosPnl": "$127,558",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·ABBV/LLY",
+      "eZ": "2",
+      "windows": "27",
+      "oosTrades": "94",
+      "oosSharpe": "-0.04",
+      "avgTestSharpe": "0.29",
+      "posWin": "63%",
+      "degr": "—",
+      "oosPnl": "$-28,752",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": " ·XOM/EOG",
+      "eZ": "2",
+      "windows": "28",
+      "oosTrades": "106",
+      "oosSharpe": "0.16",
+      "avgTestSharpe": "0.50",
+      "posWin": "61%",
+      "degr": "—",
+      "oosPnl": "$78,317",
+      "psr": "—",
+      "eMax": "—",
+      "dsr": "—",
+      "verdict": "—"
+    },
+    {
+      "pair": "■BASKET×12",
+      "eZ": "2",
+      "windows": "—",
+      "oosTrades": "1867",
+      "oosSharpe": "0.15",
+      "avgTestSharpe": "—",
+      "posWin": "68%",
+      "degr": "—",
+      "oosPnl": "$1,163,892",
+      "psr": "100%",
+      "eMax": "0.00",
+      "dsr": "100%",
+      "verdict": "PASS"
+    },
+    {
+      "pair": "■BASKET×12",
+      "eZ": "2.5",
+      "windows": "—",
+      "oosTrades": "949",
+      "oosSharpe": "0.17",
+      "avgTestSharpe": "—",
+      "posWin": "68%",
+      "degr": "—",
+      "oosPnl": "$756,208",
+      "psr": "100%",
+      "eMax": "0.00",
+      "dsr": "100%",
+      "verdict": "PASS"
+    }
+  ]
+}

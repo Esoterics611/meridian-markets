@@ -1,7 +1,12 @@
 # Agentic Hedge Fund — a minimal working design
 
-Status: **proposed** (2026-05-31). Deliberately lean — "something working," not a
-framework. Companion: [UI_REWRITE_SPEC.md](./UI_REWRITE_SPEC.md),
+Status: **this IS the mission** (reaffirmed 2026-06-03 — CLAUDE.md §1). Deliberately
+lean — "something working," not a framework. The deliverable is a **paper-trading
+demonstration**: several strategies, each manned by a quant agent, run concurrently and
+aim to **minimize drawdown and show steady, conserved returns over hours and days**.
+Paper-only for the foreseeable future (no real-capital deploy). The growth frontier is
+**market discovery — DEX / decentralized markets** (the Market Data Researcher role).
+Companion: [UI_REWRITE_SPEC.md](./UI_REWRITE_SPEC.md),
 [QUANT_TERMINAL_SPEC.md](./QUANT_TERMINAL_SPEC.md).
 
 ## 0. The shape of the thing

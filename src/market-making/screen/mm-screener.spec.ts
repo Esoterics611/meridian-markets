@@ -31,6 +31,25 @@ describe('MmScreener', () => {
     expect(board.attractive).toBe(1);
   });
 
+  it('passes each preset’s source to the loader (DEX routes off-Binance)', async () => {
+    const seen: Array<[string, string | undefined]> = [];
+    const srcLoader = async (s: string, source?: string): Promise<Bar[]> => {
+      seen.push([s, source]);
+      return data[s] ?? calm(s);
+    };
+    const srcPresets: MmScreenPreset[] = [
+      { id: 'dex', label: 'DEX', assetClass: 'DEX', symbols: ['WETHUSDC'], source: 'geckoterminal' },
+      { id: 'cex', label: 'CEX', assetClass: 'Stable', symbols: ['STABLE'] },
+    ];
+    await new MmScreener(srcLoader, srcPresets, cfg).screen();
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        ['WETHUSDC', 'geckoterminal'],
+        ['STABLE', undefined],
+      ]),
+    );
+  });
+
   it('dedups symbols across presets', async () => {
     const dup: MmScreenPreset[] = [
       { id: 'a', label: 'A', assetClass: 'X', symbols: ['STABLE'] },

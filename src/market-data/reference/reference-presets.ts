@@ -20,6 +20,20 @@ export const REFERENCE_PRESETS: readonly (ScannerPreset & { source: string })[] 
     // USD/JPY,/CHF,/ILS legs give a real cointegration universe off live FX OHLC.
     symbols: ['EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'USDILS'],
   },
+  {
+    id: 'dex-eth-bluechip',
+    label: 'DEX Bluechip (GeckoTerminal)',
+    assetClass: 'DEX',
+    source: 'geckoterminal',
+    // On-chain Uniswap-v3 pools (real addresses in the GeckoTerminal client's
+    // default pool map). Priced in USD (currency=usd), so the discovery universe
+    // is: WETH/USDC and WETH/USDT both ≈ ETH/USD across fee tiers (cross-pool
+    // microstructure), WBTC/WETH ≈ BTC/USD (the BTC–ETH cross), USDC/USDT the DEX
+    // stable peg — under-watched venues with structurally wider spreads (CLAUDE.md
+    // §1). Scan-only today; the MM-on-DEX-feed live path is the next step
+    // (MARKET_MAKING.md Frontier).
+    symbols: ['WETHUSDC', 'WETHUSDT', 'WBTCWETH', 'USDCUSDT'],
+  },
 ];
 
 export function listReferencePresets(): readonly (ScannerPreset & { source: string })[] {

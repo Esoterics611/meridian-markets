@@ -20,4 +20,17 @@ describe('MM market presets', () => {
   it('returns undefined for an unknown id', () => {
     expect(getMmPreset('nope')).toBeUndefined();
   });
+
+  it('ships a DEX preset routed to the geckoterminal reference source', () => {
+    const dex = getMmPreset('dex-eth-bluechip');
+    expect(dex).toBeDefined();
+    expect(dex!.source).toBe('geckoterminal');
+    expect(dex!.symbols).toEqual(expect.arrayContaining(['WETHUSDC', 'WBTCWETH']));
+    expect(dex!.symbols).toContain(dex!.defaultSymbol);
+  });
+
+  it('leaves the Binance presets without a source (default feed)', () => {
+    expect(getMmPreset('stablecoin-peg')!.source).toBeUndefined();
+    expect(getMmPreset('crypto-majors-mm')!.source).toBeUndefined();
+  });
 });
