@@ -73,6 +73,47 @@ the engine doesn't ingest yet. Read every bar-backtest fill rate as a ceiling.
 
 ---
 
+## Frontier — discovery: DEX / decentralized markets (the MM growth direction)
+
+> **This is where the mission says the edge actually grows** (CLAUDE.md §1): the magic
+> is in **discovering new markets to make markets in — especially DEX / decentralized /
+> anonymous venues.** The market-making engine is venue-agnostic by design (the quoter,
+> inventory book, and risk gate don't care where the prints come from), so widening the
+> *universe* is the highest-leverage move, not tuning the quoter.
+
+Why decentralized markets are the right frontier *for this engine specifically*:
+
+- **The binding deploy condition is a ≤0 bps maker venue** (§1.5 / Journal #6, #23): on
+  centralized retail fees (+1 bps maker) the structural edge is eaten. DEXes have a
+  *different* fee/reward structure — LP fees accrue **to** the maker, and many chains/AMMs
+  or CLOB DEXes offer maker rebates or zero maker fees — which is exactly the regime where
+  the book's structural P&L (spread − adverse selection) survives.
+- **Under-watched = wider spreads.** Decentralized and long-tail venues are less
+  arbitraged, so the spread the quoter earns is structurally wider — more edge per fill,
+  the opposite of the over-crowded major CEX pairs.
+- **Discovery compounds.** Every new source wired through the `IReferenceBarSource` seam is
+  permanently in the scan universe and tradeable on the live loop (desk/README "Discovery
+  compounds"). The universe grows monotonically with no new services.
+
+How it plugs in (no new architecture — the seams already exist, CLAUDE.md §7):
+
+- **Data:** add a decentralized price/print source behind `IReferenceBarSource`
+  (**GeckoTerminal first** — free, broad DEX coverage; then on-chain AMM pools / CLOB DEX
+  feeds). This is the **Market Data Researcher** role ([desk/ROLE_market_data_researcher.md](../desk/ROLE_market_data_researcher.md)).
+- **Markets:** register the discovered pools as `mm-market-presets` so the MM screen and the
+  scanner pick them up.
+- **Execution (paper):** `PaperVenue` simulates fills at the real DEX prices today — no
+  on-chain execution adapter needed for the paper demo, which is the whole scope. (A real
+  on-chain venue adapter would be the `live`-posture seam, and that is parked.)
+
+**Honesty caveat:** DEX prints are noisier (MEV, thin pools, sandwiching, gas), so the
+adverse-selection term (and the queue/fill model) is *less* favourable than a clean CEX
+tape — the survivorship/cost discipline applies here too. Wider spread is not free money;
+it is compensation for exactly these hazards. The paper demo will surface whether the net
+is still steady and low-drawdown.
+
+---
+
 ## How to run it — step by step
 
 ### 0. Prerequisites

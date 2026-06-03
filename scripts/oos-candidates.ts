@@ -39,6 +39,7 @@ import { HistoricalReplayVenue } from '../src/stat-arb/historical-replay-venue';
 import { strategyRegistry } from '../src/stat-arb/strategies/strategy-registry';
 import { cointegrationTest } from '../src/stat-arb/signal/cointegration';
 import { sharpeStats, deflatedSharpe } from '../src/stat-arb/research/deflated-sharpe';
+import { assessSurvivorship, applySurvivorshipGate, DEFAULT_SURVIVOR_SAFE_DAYS } from '../src/stat-arb/research/survivorship-gate';
 import { getAnyPreset } from '../src/stat-arb/markets/market-presets';
 
 const USDC = 1e6;
@@ -93,6 +94,12 @@ const BORROW_BPS_YEAR = Number(process.env.OOS_BORROW_BPS_YEAR ?? (IS_EQUITY ? 5
 // equity entries and starves the OOS trade count. Borrow is a hold-duration cost,
 // so it stays out of the per-fill entry gate and is judged in realized P&L.
 const STRAT_FEE_BPS = Number(process.env.OOS_STRAT_FEE_BPS ?? (IS_EQUITY ? HALF_SPREAD_BPS : 5));
+// Survivorship-robust window horizon (P0.5, the free no-data path — Journal #14).
+// EQUITY_PRESETS are TODAY's survivors, so a long window silently drops the in-window
+// casualties and inflates the Sharpe (Journal #13: 0.06→0.09→0.15 as 5yr→24yr). Trust
+// only a window short enough that survivor≈live; any longer EQUITY window's verdict is
+// capped to UPPER-BOUND. Crypto is exempt (its binding issue is cointegration decay).
+const SURVIVOR_SAFE_DAYS = Number(process.env.OOS_SURVIVOR_SAFE_DAYS ?? DEFAULT_SURVIVOR_SAFE_DAYS);
 const r2 = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
 const fmtUsd = (units: bigint) => (Number(units) / USDC).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
@@ -159,6 +166,16 @@ async function main() {
   console.log(`\n=== OOS gate [${mode}] · source=${SOURCE} · preset=${PRESET} · ${DAYS}d × ${INTERVAL} · $${fmtUsd(NOTIONAL)}/leg · costs: ${costs} · entry-gate floor ${STRAT_FEE_BPS}bps · train/test/zLookback=${TRAIN}/${TEST}/${ZLOOKBACK} ===`);
   if (TEST <= ZLOOKBACK) {
     console.log(`  ⚠ WARNING: TEST (${TEST}) ≤ zLookback (${ZLOOKBACK}) — every test window is spent warming up, so you will get ZERO OOS trades. Raise OOS_TEST or lower OOS_ZLOOKBACK.`);
+  }
+  // Equities run on TODAY's survivor list → a long window is survivorship-inflated.
+  // Assess it and (below) cap a strong-but-inflated verdict to UPPER-BOUND.
+  const surv = IS_EQUITY ? assessSurvivorship(DAYS, SURVIVOR_SAFE_DAYS) : null;
+  if (surv) {
+    console.log(`  ${surv.survivorSafe ? '✓' : '⚠'} survivorship: ${surv.note}`);
+    if (!surv.survivorSafe) {
+      console.log(`     → a PASS/INCONCLUSIVE on this window is reported as UPPER-BOUND (not a paper-deploy verdict);` +
+        ` re-run with OOS_DAYS≤${SURVIVOR_SAFE_DAYS} for the survivor-safe read, then let forward paper-trading be the real verdict.`);
+    }
   }
 
   // Load + align + discover PER preset (cross-preset pairs aren't cointegrated, so
@@ -248,8 +265,12 @@ async function main() {
   const sigmaSR = std(crossPairSharpes);
   console.log(`σ_SR (cross-pair Sharpe dispersion over ${crossPairSharpes.length} evaluated pairs @ eZ${baseEntry}) = ${r2(sigmaSR)}\n`);
 
-  const verdictOf = (n: number, dsr: number, psr: number) =>
+  const baseVerdictOf = (n: number, dsr: number, psr: number): 'PASS' | 'INSUFFICIENT' | 'NOISE' | 'INCONCLUSIVE' =>
     n < 20 ? 'INSUFFICIENT' : dsr >= 0.95 ? 'PASS' : psr < 0.9 ? 'NOISE' : 'INCONCLUSIVE';
+  // Fold in survivorship: a strong read on a survivor-only long EQUITY window is only an
+  // UPPER BOUND (Journal #14). Crypto (surv=null ⇒ survivorSafe=true) passes through.
+  const verdictOf = (n: number, dsr: number, psr: number) =>
+    applySurvivorshipGate(baseVerdictOf(n, dsr, psr), surv?.survivorSafe ?? true);
   const rows: Array<Record<string, string>> = [];
   let basketJson: unknown = null;
 
@@ -346,6 +367,7 @@ async function main() {
     train: TRAIN, test: TEST, zLookback: ZLOOKBACK, entryGrid: ENTRY_GRID,
     notionalUsdc: Number(NOTIONAL) / USDC,
     costs: { takerFeeBps: Number(TAKER_FEE_BPS), halfSpreadBps: HALF_SPREAD_BPS, impactLambdaBps: IMPACT_LAMBDA_BPS, borrowBpsPerYear: BORROW_BPS_YEAR, entryGateFloorBps: STRAT_FEE_BPS },
+    survivorSafeDays: SURVIVOR_SAFE_DAYS, survivorship: surv,
     trials, sigmaSR, basket: basketJson, rows,
   }, null, 2));
   console.log(`\nwrote ${outPath}`);

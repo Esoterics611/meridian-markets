@@ -1,5 +1,13 @@
 # Equities Stat-Arb — Alpaca integration execution spec
 
+> **Mission reframe (2026-06-03):** under the paper-only demonstration mission (CLAUDE.md §1),
+> the bar for equities stat-arb is **not "is it deployable with real capital"** — it's **"does it
+> earn a place in the paper demo as a steady, low-drawdown, *uncorrelated* diversifier next to the
+> crypto MM book?"** That reframes the survivorship verdict below: we don't need a clean real-capital
+> PASS, we need an honest paper read on a survivorship-safe window (so the demo isn't inflated) plus a
+> forward paper-trading track record. Everywhere this doc says "deploy," read "promote into the paper
+> demo." Real-money deployment is out of scope.
+
 > **STATUS (S25, 2026-06-02): Phase 1 SHIPPED · Phase 2 RUN on real Alpaca data · Phase 3 chapter SHIPPED.**
 > The hand-off is closed: with a paper key, the thesis test + OOS gate ran on real daily
 > history. **Verdict (Journal #9):** the cointegration cliff does NOT happen in equities

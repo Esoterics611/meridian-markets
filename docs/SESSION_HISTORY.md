@@ -534,3 +534,42 @@ See [docs/RESEARCH_TAB_REALIGNMENT_PLAN.md](RESEARCH_TAB_REALIGNMENT_PLAN.md).
 4. **P1 (real capital):** risk-parity allocator wired into the *live* path, maker/limit execution (reuse `src/market-making/`), real venue adapter + reconciliation, restart-safe live books.
 
 See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md](QUANT_ROLE.md), [docs/QUANT_JOURNAL.md](QUANT_JOURNAL.md).
+
+## 13. Session 27 — Mission reframe to a paper-trading demo + the survivorship gate (2026-06-03)
+
+> This file paused at Session 21; the detailed per-session log for **Sessions 22–26** lives in
+> [CLAUDE.md](../CLAUDE.md) §8 (the maintained running log) and [QUANT_JOURNAL.md](QUANT_JOURNAL.md)
+> Entries #6–#13 (MM-as-earner pivot, the strategy-library rewrites, the equities Alpaca/Yahoo arc).
+> This entry resumes the high-level history.
+
+### What changed
+- **Mission reframe (binding — CLAUDE.md §1):** the deliverable is a **paper-trading demonstration of
+  an AI-agent-run quant desk** — several strategies, each manned by a quant agent, that **minimize
+  drawdown and show steady, conserved returns over hours and days** of live paper trading on real data.
+  **Paper-only for the foreseeable future; no real-capital/production deploy on the roadmap.** Crypto
+  MM is the steady earner; equities stat-arb is a thin uncorrelated diversifier; **the growth frontier
+  is market *discovery* — DEX / decentralized / anonymous markets on the MM side.** Honest numbers are
+  the whole point. Reframed across CLAUDE.md §1, README, PRODUCTION_READINESS (P1 "real capital" → ⏸
+  PARKED), EQUITIES_STATARB_PLAN, MARKET_MAKING (new **Frontier — DEX/decentralized** section),
+  SURVIVORSHIP_DATA_OPTIONS, AGENTIC_HEDGE_FUND_DESIGN, QUANT_ROLE.
+- **Survivorship gate (P0.5, the free no-data path — Journal #14):** `src/stat-arb/research/survivorship-gate.ts`
+  (`assessSurvivorship` + `applySurvivorshipGate`, 11 unit tests) encodes the Journal #13 lesson —
+  a window on TODAY's survivor-only `EQUITY_PRESETS` is survivorship-inflated (Sharpe rises with
+  window length). It judges survivor ≈ live (~5yr default) and **downgrades a strong read on a
+  survivor-unsafe equity window to `UPPER-BOUND`**. Wired into `scripts/oos-candidates.ts` (banner +
+  verdict cap via `OOS_SURVIVOR_SAFE_DAYS` + `survivorship` artifact block; crypto exempt). The real
+  equities verdict is now **forward paper-trading**, not the long-window backtest. Chose the free path
+  over paid Sharadar/CRSP precisely because the mission is a paper demo, not a real-capital deploy.
+
+### Verification
+- `tsc --noEmit` clean; `jest` **125 suites / 841 tests** (+1 suite / +11 = the survivorship-gate spec).
+- The survivor-safe vs. capped OOS runs are hand-off (need network/Alpaca key); reproduce commands in
+  [QUANT_JOURNAL.md](QUANT_JOURNAL.md) Entry #14.
+
+### Next (the paper-demo frontier)
+- **Market discovery** — wire DEX/decentralized sources (GeckoTerminal first) behind `IReferenceBarSource`,
+  register as `mm-market-presets`, paper-quote them (under-watched venues = wider spreads + the ≤0bps
+  maker structure the MM book needs).
+- **Forward paper track records** — run the MM book + the survivor-safe equities basket live for
+  hours/days; show steady, low-drawdown equity curves (the demo itself).
+- **P1 (real capital) is parked** (allocator-on-live, maker/limit exec, real-venue adapter — out of scope).

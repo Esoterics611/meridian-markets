@@ -1,12 +1,14 @@
 # Meridian Markets
 
-A self-contained **stat-arb trading engine** with an automated **market-making desk** — a market-data spine, a signal/risk library, an execution path, and a live event loop. The product is the engine; the `/demo` dashboard is a thin read-only view over it.
+A **paper-trading demonstration of an AI-agent-run quant desk** — several strategies running concurrently, each manned by a quant agent, aiming to **minimize drawdown and show steady, conserved returns over hours and days** of live paper trading on real market data. Underneath is a self-contained **stat-arb engine** plus an automated **market-making desk** (market-data spine, signal/risk library, execution path, live event loop); the `/demo` dashboard is a thin read-only view over it.
+
+> **Scope: paper-only, for the foreseeable future.** This is a *demonstration*, not a path to managing real capital — there is **no production / real-money deployment on the roadmap**. Two engines drive it: **crypto market-making** (the steady, low-drawdown earner) and **equities stat-arb** (a thin, uncorrelated diversifier). The frontier where the edge grows is **discovering new markets — especially DEX / decentralized / anonymous markets** to make markets in. Because it's a demo, **truthful numbers are the whole point**: the OOS / survivorship / cost gates exist to keep the paper P&L honest, not to clear a deploy.
 
 It runs in three postures — engineering switches, no business gate (`EXECUTION_MODE` + `FEED_SOURCE`):
 
 - **mock** — synthetic feed + synthetic venue; offline, deterministic (unit tests + demo).
-- **paper** — **real** market data (Binance public REST / Alpaca equities) + `PaperVenue` (simulated fills at real prices). Real paper trading; no API key for crypto, no real money.
-- **canary / live** — routes flow to a real venue, behind the `LIVE_TRADING_ARMED=true` arm switch.
+- **paper** — **real** market data (Binance public REST / Alpaca equities) + `PaperVenue` (simulated fills at real prices). **This is the mode we run** — the demo lives here. No API key for crypto, no real money.
+- **canary / live** — routes flow to a real venue, behind the `LIVE_TRADING_ARMED=true` arm switch. **Out of scope for now** — the seam is kept honest but wiring a real venue is not a current goal.
 
 Read [`CLAUDE.md`](CLAUDE.md) first — the authoritative architecture + session log.
 
@@ -34,8 +36,10 @@ at the real ticker, taker fee modelled). Closed round-trips persist to
 `stat_arb_trades`. No API key, no account, no real money — paper predicts live
 because only the injected venue changes.
 
-A **human** drives it from the `/demo` cockpit (this is not AI — *you* launch the
-strategies) or the terminal control plane. Deeper design:
+An operator drives it from the `/demo` cockpit or the terminal control plane. In the
+**agentic** design (the mission, [docs/AGENTIC_HEDGE_FUND_DESIGN.md](docs/AGENTIC_HEDGE_FUND_DESIGN.md))
+each book is *manned by a quant agent* (a Claude session) that fits, launches, and
+babysits its strategy; a human supervises the one screen. Deeper design:
 [docs/PAPER_TRADING.md](docs/PAPER_TRADING.md) ·
 [docs/UI_REWRITE_SPEC.md](docs/UI_REWRITE_SPEC.md) ·
 [docs/QUANT_TERMINAL_SPEC.md](docs/QUANT_TERMINAL_SPEC.md) ·
@@ -112,9 +116,9 @@ curl -sX POST localhost:3100/api/stat-arb/live/portfolio/launch \
 ### Execution modes
 `EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +
 simulated fills) · `live` (real venue, requires `LIVE_TRADING_ARMED=true`).
-`FEED_SOURCE`: `binance` (real public REST, no key) · `mock`. Real money is an
-engineering arm switch taken by a human — there is **no** business/KYB gate in the
-trading engine.
+`FEED_SOURCE`: `binance` (real public REST, no key) · `mock`. The `live` posture is an
+engineering seam only — **real-money deployment is out of scope for the foreseeable
+future** (the mission is paper-only); there is no business/KYB gate either way.
 
 ## Test
 

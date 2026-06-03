@@ -1,11 +1,21 @@
-# Production Readiness — stat-arb desk
+# Readiness — paper-trading demonstration desk
 
-> "What else before we trust the numbers and run strategies full-time?" This is
-> the gating checklist. The desk is a **paper** stat-arb engine on real data; the
-> gap that matters most is **sim fidelity** — backtest P&L must translate to live,
-> or every strategy decision is built on sand. Tiers: **P0** = before trusting a
-> backtest / going full-time on strategies; **P1** = before real capital (canary);
-> **P2** = polish. Companion: [QUANT_ROLE.md](./QUANT_ROLE.md), [QUANT_JOURNAL.md](./QUANT_JOURNAL.md).
+> **⚠ Reframed 2026-06-03 — this is no longer a "ship real capital" checklist.**
+> Per the mission (CLAUDE.md §1), Meridian is a **paper-trading demonstration** and
+> is **paper-only for the foreseeable future**. So the only readiness that matters is
+> **demo honesty**: the paper P&L we show must be *truthful and low-drawdown*, not a
+> curve-fit upper bound. That makes **P0 (sim fidelity + the OOS/survivorship/cost
+> gates) the live work** — its whole job is to keep the demonstrated numbers honest.
+> **P1 ("before real capital") is PARKED** — kept for reference, but real-venue
+> adapters, reconciliation, and arming are **not on the roadmap**; do not pursue them.
+> The active frontier instead is **market discovery — new DEX / decentralized markets**
+> for the MM side (see the Market Data Researcher role).
+>
+> _Original framing:_ "What else before we trust the numbers and run strategies
+> full-time?" — still the right question, just answered for a paper demo, not a
+> deploy. **P0** = before trusting a backtest / showing it in the demo; ~~**P1** =
+> before real capital (canary)~~ *(parked)*; **P2** = polish. Companion:
+> [QUANT_ROLE.md](./QUANT_ROLE.md), [QUANT_JOURNAL.md](./QUANT_JOURNAL.md).
 
 ## ✅ Already in place
 - **Fees in the loop** — 5 bps/leg taker in backtest + a **fee gate in the entry
@@ -54,7 +64,7 @@
    Scoped options + a paste-ready Phase-1 experiment (Sharadar SEP, cheapest-first):
    [SURVIVORSHIP_DATA_OPTIONS.md](./SURVIVORSHIP_DATA_OPTIONS.md).
 
-## P1 — before real capital (canary)
+## P1 — before real capital (canary) — ⏸ PARKED (out of scope; paper-only mission)
 6. **Sizing/allocation policy enforced on deploy.** A risk-parity allocator
    (size ∝ 1/σ_spread) + per-pair impact cap + **desk-level** gross/net limits and
    correlation cap wired into the live path (not just the backtest).

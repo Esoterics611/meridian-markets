@@ -819,3 +819,71 @@ OOS_SOURCE=yahoo OOS_BASKET=true \
   OOS_DAYS=9000 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
   npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
 ```
+
+## 2026-06-03 — Entry #14: the survivorship decision (free no-data path) + the mission reframe to a paper-trading demo
+
+Two decisions this session, one a direct consequence of the other.
+
+### Decision 1 — chose the FREE, no-data path for survivorship (over paid Sharadar/CRSP)
+Entry #13 left the binding equities blocker as **survivorship**: more history flips the OOS gate to
+PASS, but the pooled Sharpe rises monotonically with window length (0.06 → 0.09 → 0.15 over 5 → 24yr)
+— the tell of a survivor-only universe silently dropping the 2008/2020 casualties whose spreads never
+mean-reverted. The scoped fix ([SURVIVORSHIP_DATA_OPTIONS.md](./SURVIVORSHIP_DATA_OPTIONS.md)) offered
+a paid Phase-1 (Sharadar SEP, ~$30/mo, entity-keyed, delisted-inclusive) vs a free non-data path.
+**Picked the free path** — and the *reason* is decision 2: we don't need to prove the historical edge
+to the dollar, we need to (a) not *show* an inflated number and (b) let forward paper-trading be the
+real verdict.
+
+**Encoded the lesson into tooling** (so the long-window number can't be quietly re-trusted):
+- `src/stat-arb/research/survivorship-gate.ts` — `assessSurvivorship(windowDays, safeDays=1825)`
+  judges whether a window is short enough that **survivor set ≈ live set** (~5yr: long enough for a
+  real OOS trade count, short enough to exclude the crisis bankruptcies that do the bulk of the
+  inflating; the few recent exits like PXD/MRO '24 were acquisitions that settled near a price, not
+  spread-blowing failures). `applySurvivorshipGate` **downgrades a PASS/INCONCLUSIVE on a
+  survivor-UNSAFE equity window to `UPPER-BOUND`** — no PSR/DSR, however high, certifies a
+  paper-promote when the level is survivorship-inflated. A "no" (NOISE/INSUFFICIENT) is left as-is
+  (survivorship only ever flatters). Unit-tested (11 cases).
+- `scripts/oos-candidates.ts` wires it in: equity runs print a `✓/⚠ survivorship` banner, cap the
+  verdict past `OOS_SURVIVOR_SAFE_DAYS`, and record a `survivorship` block in the JSON artifact.
+  Crypto is exempt (its binding issue is cointegration decay, Entry #5, not equity survivorship).
+- **The real equities verdict is now forward paper-trading** — run the survivor-safe survivors on the
+  live Alpaca paper loop and accrue a zero-survivorship, zero-look-ahead forward track record. If the
+  forward Sharpe holds the survivor-safe read (~0.06+) it earns its diversifier slot in the demo; if
+  it decays to 0 it was an artifact. (Hand-off: needs an Alpaca key — Yahoo is daily-only, no live feed.)
+
+### Decision 2 — mission reframe: this is a PAPER-TRADING DEMONSTRATION, not a road to real capital
+Ronnie set the scope explicitly: **paper-trading only for the foreseeable future.** The deliverable is
+a **demonstration of multiple strategies, each manned by a quant AI agent, that minimize drawdown and
+show steady, conserved returns over hours and days** of live paper trading. Both engines serve it —
+**crypto MM (the steady, low-drawdown earner)** and **equities stat-arb (a thin, uncorrelated
+diversifier)** — and **the magic is in discovery of new markets: DEX / decentralized / anonymous
+venues on the market-making side.** This is not a pivot in the code; it's a pivot in the *bar*:
+
+- **The bar is no longer "deployable with real capital" — it's "honest, steady, low-drawdown paper
+  equity over hours/days."** That's why the survivorship gate matters even though we'll never deploy:
+  a demo that shows an inflated 0.15 Sharpe is worthless; an honest 0.06 that holds forward is the
+  product. The OOS/survivorship/cost gates are now *demo-honesty* discipline, not deploy gates.
+- **DEX is the right frontier for *this* engine specifically:** the MM book's binding condition is a
+  **≤0 bps maker venue** (Entry #6/#23 — at +1bps retail maker cost it loses); DEX fee/reward
+  structures (LP fees to the maker, maker rebates) are exactly that regime, and under-watched venues
+  carry structurally wider spreads. Discovery compounds through the `IReferenceBarSource` seam with no
+  new services (GeckoTerminal first → on-chain AMM/CLOB).
+- **P1 ("before real capital") is PARKED** — real-venue adapter, reconciliation, arming: out of scope.
+
+Reframed across CLAUDE.md §1 (binding mission), README, PRODUCTION_READINESS (P1 ⏸ PARKED),
+EQUITIES_STATARB_PLAN, MARKET_MAKING (new Frontier — DEX/decentralized section), SURVIVORSHIP_DATA_OPTIONS,
+AGENTIC_HEDGE_FUND_DESIGN, QUANT_ROLE. Tests: 125 suites / 841 tests (+1 suite / +11 = the gate spec).
+
+### Reproduce
+```bash
+# the gate now caps a survivor-unsafe long window to UPPER-BOUND, and reports the survivor-safe read:
+npx jest src/stat-arb/research/survivorship-gate.spec.ts
+# survivor-safe (≤5yr) equity OOS read — the honest paper number (verdict NOT capped):
+OOS_SOURCE=yahoo OOS_BASKET=true OOS_DAYS=1825 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
+  OOS_PRESET=equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+# the 24yr run still computes, but its PASS is now reported as UPPER-BOUND (survivor-inflated):
+OOS_SOURCE=yahoo OOS_BASKET=true OOS_DAYS=9000 OOS_INTERVAL=1d OOS_TRAIN=120 OOS_TEST=120 OOS_ZLOOKBACK=20 \
+  OOS_PRESET=equity-banks,equity-energy,equity-rails,equity-staples,equity-pharma \
+  npx ts-node -r tsconfig-paths/register scripts/oos-candidates.ts
+```

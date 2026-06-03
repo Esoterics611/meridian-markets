@@ -1,8 +1,17 @@
 # Survivorship data options — equities stat-arb (P0.5)
 
-> **Status:** scoping + a paste-ready Phase-1 experiment spec. No code shipped yet.
+> **DECISION (2026-06-03, Journal #14): chose the free, no-data path (§4 "Non-data
+> alternative").** No paid Sharadar/CRSP subscription. Rationale: the mission is now a
+> **paper-trading demonstration** (CLAUDE.md §1), not a real-capital deploy — so we don't
+> need to *prove the historical edge was real to the dollar*, we need to (a) **not show an
+> inflated number** in the demo and (b) let **forward paper-trading be the real verdict**.
+> Operationalized in code: `src/stat-arb/research/survivorship-gate.ts` + the
+> `OOS_SURVIVOR_SAFE_DAYS` window cap in `scripts/oos-candidates.ts` — a strong read on a
+> survivor-only long window is reported as **UPPER-BOUND**, never a paper-promote verdict.
+> The Sharadar Phase-1 spec (§5) is **kept for reference** in case the decision is revisited.
+>
 > Companion: [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) §P0.5,
-> [EQUITIES_STATARB_PLAN.md](./EQUITIES_STATARB_PLAN.md), QUANT_JOURNAL Entry #13.
+> [EQUITIES_STATARB_PLAN.md](./EQUITIES_STATARB_PLAN.md), QUANT_JOURNAL Entry #13 + #14.
 
 ## 1. Why this is now the binding blocker
 
@@ -86,9 +95,23 @@ subscription.
 better (PERMNO, delisting returns done right, back to 1925) and effectively free; point Phase 1
 there instead of Sharadar.
 
-**Non-data alternative (free, slow):** stop treating the long-window Yahoo number as truth —
-gate on a survivorship-robust recent window (survivor set ≈ live set) and lean on forward
-paper-trading for the real verdict. Never tells you whether the *historical* edge was real.
+**Non-data alternative (free, slow) — ✅ CHOSEN (Journal #14):** stop treating the long-window
+Yahoo number as truth — gate on a survivorship-robust recent window (survivor set ≈ live set) and
+lean on forward paper-trading for the real verdict. Never tells you whether the *historical* edge
+was real — but under the paper-demo mission that's acceptable: the forward paper track record is the
+verdict we actually show. **Implemented:**
+- `src/stat-arb/research/survivorship-gate.ts` (`assessSurvivorship` + `applySurvivorshipGate`,
+  unit-tested) — judges whether a window is short enough that survivor ≈ live (~5yr default), and
+  downgrades a statistically-strong read on a survivor-unsafe equity window to **UPPER-BOUND**.
+- `scripts/oos-candidates.ts` wires it in: every equity OOS run prints a survivorship banner and
+  (past `OOS_SURVIVOR_SAFE_DAYS`, default 1825) caps the verdict + records a `survivorship` block in
+  the JSON artifact. Crypto is exempt.
+- **Forward paper-trading is the real verdict:** run the survivor-safe survivors on the live Alpaca
+  paper loop (`FEED_SOURCE=alpaca EXECUTION_MODE=paper`) and accrue a forward, zero-survivorship,
+  zero-look-ahead track record. Decision rule: if the forward Sharpe over the accrual window holds the
+  survivor-safe read (~0.06+), the edge is real-but-thin and earns its diversifier slot in the demo;
+  if it decays toward 0, it was a backtest artifact. (Needs an Alpaca key — Yahoo is daily-only, no
+  live feed — so this is a hand-off run.)
 
 ---
 
