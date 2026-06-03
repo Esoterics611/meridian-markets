@@ -22,9 +22,17 @@ export interface MmBookSpec {
    * instrument — the MM twin of `PortfolioPair.source` (S20).
    */
   source?: string;
+  /**
+   * Quote size in DOLLAR notional. The factory sizes `quoteSizeUnits = notional ÷
+   * price` so a high-priced perp ($66k) isn't over-sized by the fixed unit default
+   * (notional-sizing.ts). Omit to keep the config's fixed `quoteSizeUnits`.
+   */
+  quoteNotionalUsd?: number;
 }
 
-export type MmBookFactory = (spec: MmBookSpec) => MmBook;
+// The factory may probe the live price to size by notional, so it can be async.
+// A sync factory (the unit tests) still satisfies the union — addBook awaits either.
+export type MmBookFactory = (spec: MmBookSpec) => MmBook | Promise<MmBook>;
 
 export interface MmPortfolioSnapshot {
   running: boolean;
@@ -61,7 +69,7 @@ export class MmPortfolioTrader {
    */
   async addBook(spec: MmBookSpec, capitalUnits: bigint): Promise<void> {
     if (capitalUnits <= 0n) throw new Error('launch capital must be positive');
-    const book = this.makeBook(spec);
+    const book = await this.makeBook(spec);
     book.setCapital(capitalUnits);
     await book.warmup();
     book.setRunning(this.isRunning());

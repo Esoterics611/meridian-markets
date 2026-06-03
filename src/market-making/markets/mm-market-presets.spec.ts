@@ -29,8 +29,15 @@ describe('MM market presets', () => {
     expect(dex!.symbols).toContain(dex!.defaultSymbol);
   });
 
-  it('leaves the Binance presets without a source (default feed)', () => {
-    expect(getMmPreset('stablecoin-peg')!.source).toBeUndefined();
-    expect(getMmPreset('crypto-majors-mm')!.source).toBeUndefined();
+  it('marks the Binance presets with an explicit binance source (HL is the default venue)', () => {
+    // Since marketMaking.defaultSource = 'hyperliquid', a preset that omits `source`
+    // would fall back to HL — so the Binance presets pin it explicitly to stay on Binance.
+    expect(getMmPreset('stablecoin-peg')!.source).toBe('binance');
+    expect(getMmPreset('crypto-majors-mm')!.source).toBe('binance');
+    expect(getMmPreset('fx-via-stables')!.source).toBe('binance');
+  });
+
+  it('routes the perp preset to Hyperliquid (the default MM venue)', () => {
+    expect(getMmPreset('hl-perps')!.source).toBe('hyperliquid');
   });
 });

@@ -132,6 +132,15 @@ export interface AppConfig {
     defaultStrategyId: string;
     /** Default instrument the MM screen loads. */
     defaultSymbol: string;
+    /**
+     * Default MM venue/source for a bare launch with no `source` (the desk's
+     * primary market-making venue). 'hyperliquid' = the maker-rebate perp CLOB
+     * (DATA_SOURCES.md). NOT the global feed (`feed.source`): HL is perps-only, so
+     * it's a per-book reference source, not the engine spine. 'binance' | 'mock'
+     * route to the native feed; a reference id ('hyperliquid'/'geckoterminal'/…) to
+     * a ReferenceBarFeed. Each book is priced at its venue's real maker fee.
+     */
+    defaultSource: string;
     /** Asset units quoted per side (6-dec; 1.0 asset = 1_000_000). */
     quoteSizeUnits: bigint;
     /** Per-book capital anchor (6-dec USDC units). */

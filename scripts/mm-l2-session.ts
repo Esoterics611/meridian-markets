@@ -29,12 +29,15 @@
  *     npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
  */
 import 'dotenv/config';
+import { writeFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-client';
 import { mmStrategyRegistry } from '../src/market-making/registry/mm-strategy-registry';
 import { CompositeRiskGate } from '../src/market-making/risk/risk-gate';
 import { LobReplayHarness, LobReplayConfig, LobReplayMetrics } from '../src/market-making/backtest/lob-replay';
 import { L2TapeStep, l2SnapshotToOrderBook } from '../src/market-making/backtest/l2-tape';
+import { serializeTape } from '../src/market-making/backtest/l2-tape-io';
 import { midMicros } from '../src/market-making/microstructure/order-book';
 import { IQuoter } from '../src/market-making/quote/quoter.interface';
 
@@ -267,6 +270,19 @@ async function main(): Promise<void> {
     console.log(`  poll ${pad(polls, 3)} @ ${new Date(now).toISOString().slice(11, 19)}  ${mids.join('  ')}`);
     if (Date.now() >= endAt) break;
     await new Promise((r) => setTimeout(r, POLL_S * 1000));
+  }
+
+  // Persist the captured tape(s) so scripts/mm-l2-tune.ts can sweep γ/κ over the
+  // SAME real flow (capture-once, sweep-many). One file per coin: `${path}-${coin}.json`.
+  const savePath = (process.env.MM_L2_SAVE_TAPE ?? '').trim();
+  if (savePath) {
+    mkdirSync(dirname(`${savePath}-x`), { recursive: true });
+    for (const s of states) {
+      if (s.tape.length === 0) continue;
+      const file = `${savePath}-${s.coin}.json`;
+      writeFileSync(file, serializeTape(s.tape, s.coin));
+      console.log(`  saved ${s.tape.length}-step tape → ${file}`);
+    }
   }
 
   console.log(`\n=== captured ${polls} polls; running the LobReplayHarness ===`);

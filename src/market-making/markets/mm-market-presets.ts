@@ -27,9 +27,11 @@ export interface MmMarketPreset {
   /** Quote asset for the Binance market symbol (unused when `source` is set). */
   quote: string;
   /**
-   * Reference data source id (e.g. 'geckoterminal'); omit for the default Binance
-   * feed. When set, each symbol is a reference-source key (a GeckoTerminal pool),
-   * the book is fed by a `ReferenceBarFeed`, and `quote` is cosmetic.
+   * Venue/source id for every book in the preset. 'binance' = the native Binance
+   * feed; a reference id ('hyperliquid'/'geckoterminal'/…) = a `ReferenceBarFeed`
+   * (each symbol is that source's key, `quote` is cosmetic). Omitting it falls back
+   * to the desk default venue (`marketMaking.defaultSource` = Hyperliquid), so the
+   * Binance presets set it EXPLICITLY to stay on Binance.
    */
   source?: string;
 }
@@ -44,6 +46,7 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     symbols: ['USDC', 'FDUSD', 'TUSD', 'DAI', 'USD1'],
     defaultSymbol: 'FDUSD',
     quote: 'USDT',
+    source: 'binance',
   },
   {
     id: 'fx-via-stables',
@@ -54,6 +57,7 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     symbols: ['EUR', 'EURI'],
     defaultSymbol: 'EUR',
     quote: 'USDT',
+    source: 'binance',
   },
   {
     id: 'crypto-majors-mm',
@@ -64,6 +68,7 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     symbols: ['BTC', 'ETH', 'SOL', 'BNB'],
     defaultSymbol: 'SOL',
     quote: 'USDT',
+    source: 'binance',
   },
   {
     id: 'dex-eth-bluechip',
