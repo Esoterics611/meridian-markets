@@ -1,0 +1,284 @@
+/**
+ * mm-l2-session — the QUEUE-AWARE market-making session: poll Hyperliquid's
+ * public `l2Book` (20×20 depth, no key) live, build a real L2 tape, and run the
+ * LobReplayHarness so fills are FIFO queue-aware instead of fill-on-touch. This is
+ * the honest counterpart to scripts/mm-paper-session.ts: where that one fills the
+ * instant a quote price is touched (an UPPER BOUND on fills, course §1.6), this
+ * fills a resting maker order only once the size that was AHEAD of it at its price
+ * level has actually been consumed by aggressive flow. It is the single biggest
+ * backtest-fidelity upgrade and the thing standing between "−0.6% conserved" and a
+ * real verdict on whether the HL maker-rebate CLOB nets positive.
+ *
+ * The headline number: queueFills vs touchFills — how much fill-on-touch overstated.
+ * The structural net is then judged on the queue-aware fills, against the −0.2bps HL
+ * maker rebate (the ≤0bps order-book venue the AS/GLFT book was built for).
+ *
+ * WHY LIVE (not replay): HL's `l2Book` gives a snapshot but NO history, and an honest
+ * queue depth cannot be reconstructed from OHLC candles (the candle has no spread or
+ * depth). So a real tape is built by POLLING the live book over a session. Each poll
+ * is one tape step: REAL time-varying depth + a touch gate read off the snapshot's own
+ * best bid/ask. The one estimate is the per-interval AGGRESSIVE VOLUME — taken from the
+ * matching 1m candle's volume (real), pro-rated to the poll interval and split into
+ * buy/sell by the mid tick (the approximations, stated honestly).
+ *
+ * Run (quick smoke — ~30s, 6 polls at 5s; thin tape, proves the path):
+ *   MM_L2_POLL_S=5 MM_L2_DURATION_MIN=0.5 \
+ *     npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
+ * Run (a real read — poll once a minute for 2 hours on your own box):
+ *   MM_L2_POLL_S=60 MM_L2_DURATION_MIN=120 MM_L2_COINS=BTC,ETH,SOL \
+ *     npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
+ */
+import 'dotenv/config';
+import { Bar } from '../src/stat-arb/backtest/bar';
+import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-client';
+import { mmStrategyRegistry } from '../src/market-making/registry/mm-strategy-registry';
+import { CompositeRiskGate } from '../src/market-making/risk/risk-gate';
+import { LobReplayHarness, LobReplayConfig, LobReplayMetrics } from '../src/market-making/backtest/lob-replay';
+import { L2TapeStep, l2SnapshotToOrderBook } from '../src/market-making/backtest/l2-tape';
+import { midMicros } from '../src/market-making/microstructure/order-book';
+import { IQuoter } from '../src/market-making/quote/quoter.interface';
+
+// ---- config -----------------------------------------------------------------
+const COINS = (process.env.MM_L2_COINS ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+const STRATEGY = process.env.MM_L2_STRATEGY ?? 'mm-glft';
+const INTERVAL = process.env.MM_L2_INTERVAL ?? '1m'; // candle interval used for the volume estimate
+const POLL_S = Number(process.env.MM_L2_POLL_S ?? 60);
+const DURATION_MIN = Number(process.env.MM_L2_DURATION_MIN ?? 20);
+const QUOTE_USD = Number(process.env.MM_L2_QUOTE_USD ?? 50_000);
+const CAPITAL_USD = Number(process.env.MM_L2_CAPITAL_USD ?? 1_000_000);
+const MAKER_BPS = Number(process.env.MM_L2_MAKER_BPS ?? -0.2); // HL maker rebate (signed; driving fee)
+const MAX_LOTS = Number(process.env.MM_L2_MAX_LOTS ?? 8);
+const MIN_BPS = Number(process.env.MM_L2_MIN_BPS ?? 1);
+const MAX_BPS = Number(process.env.MM_L2_MAX_BPS ?? 200);
+const GAMMA = Number(process.env.MM_L2_GAMMA ?? 0.0025);
+const KAPPA = Number(process.env.MM_L2_KAPPA ?? 2);
+const VOL_WINDOW = Number(process.env.MM_L2_VOL_WINDOW ?? 20);
+const MIN_NAV = Number(process.env.MM_L2_MIN_NAV ?? 0.9);
+const AGGRESSOR_SPLIT = Number(process.env.MM_L2_AGGRESSOR_SPLIT ?? 0.6); // fraction of interval volume to the up/down-tick side
+const DD_LIMIT_PCT = Number(process.env.MM_L2_DD_LIMIT_PCT ?? 2);
+
+const MICROS = 1_000_000n;
+const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(2);
+const sgn = (units: bigint): string => (units >= 0n ? '+' : '') + usd(units);
+const pad = (s: string | number, n: number): string => String(s).padStart(n);
+const intervalSeconds = (iv: string): number => (iv.endsWith('h') ? 3600 : iv.endsWith('d') ? 86400 : 60) * (parseInt(iv, 10) || 1);
+
+interface BookState {
+  coin: string;
+  quoter: IQuoter;
+  quoteUnits: bigint;
+  riskGate: CompositeRiskGate;
+  tape: L2TapeStep[];
+  lastMidMicros?: bigint;
+  candleVolPerSec: number; // base-asset units/sec, refreshed each minute
+  candleHighMicros?: bigint; // real traded high of the current candle (touch gate)
+  candleLowMicros?: bigint; // real traded low of the current candle (touch gate)
+  candleMinute: number; // wall-minute the candle was last refreshed for
+}
+
+function makeQuoter(quoteUnits: bigint): IQuoter {
+  return mmStrategyRegistry.build(STRATEGY, {
+    quoteSizeUnits: quoteUnits,
+    minHalfSpreadBps: MIN_BPS,
+    maxHalfSpreadBps: MAX_BPS,
+    maxInventoryLots: MAX_LOTS,
+  });
+}
+
+function makeRiskGate(quoteUnits: bigint): CompositeRiskGate {
+  return new CompositeRiskGate({
+    maxInventoryUnits: quoteUnits * BigInt(MAX_LOTS),
+    minNavRatio: MIN_NAV,
+    vpinPauseThreshold: 2,
+    vpinPauseMs: 30_000,
+    maxAdverseUnits: 1_000_000_000_000_000n,
+    adversePauseMs: 30_000,
+  });
+}
+
+function cfgFor(s: BookState): LobReplayConfig {
+  return {
+    tape: s.tape,
+    quoter: s.quoter,
+    quoteSizeUnits: s.quoteUnits,
+    gamma: GAMMA,
+    kappa: KAPPA,
+    horizonBars: 1,
+    volWindowBars: VOL_WINDOW,
+    volFloor: 0.0001,
+    makerFeeBps: MAKER_BPS,
+    capitalUnits: BigInt(Math.round(CAPITAL_USD * 1e6)),
+    symbol: s.coin,
+    riskGate: s.riskGate,
+  };
+}
+
+// ---- fee-sweep helpers (mirror mm-paper-session) -----------------------------
+function netAtBps(structural: bigint, feesAtDriving: bigint, bps: number): bigint {
+  if (MAKER_BPS === 0) return structural;
+  const feesAt = (feesAtDriving * BigInt(Math.round(bps * 1000))) / BigInt(Math.round(MAKER_BPS * 1000));
+  return structural - feesAt;
+}
+
+async function refreshCandle(client: HyperliquidClient, s: BookState): Promise<void> {
+  const minute = Math.floor(Date.now() / 60_000);
+  if (minute === s.candleMinute) return;
+  const bars: Bar[] = await client.klines(s.coin, INTERVAL, 2).catch(() => [] as Bar[]);
+  const last = bars[bars.length - 1];
+  if (last) {
+    s.candleVolPerSec = last.volume / intervalSeconds(INTERVAL);
+    s.candleHighMicros = BigInt(Math.round(last.high * 1e6));
+    s.candleLowMicros = BigInt(Math.round(last.low * 1e6));
+    s.candleMinute = minute;
+  }
+}
+
+async function poll(client: HyperliquidClient, s: BookState, dtSec: number): Promise<bigint | undefined> {
+  const snap = await client.l2Snapshot(s.coin).catch(() => undefined);
+  if (!snap) return undefined;
+  const book = l2SnapshotToOrderBook(snap);
+  const mid = midMicros(book);
+  if (mid === undefined) return undefined;
+  await refreshCandle(client, s);
+
+  // Aggressive volume over this interval ≈ (candle vol/sec) × dt, split by the mid tick.
+  const intervalUnits = Math.max(0, s.candleVolPerSec * dtSec);
+  const up = s.lastMidMicros === undefined ? null : mid > s.lastMidMicros ? true : mid < s.lastMidMicros ? false : null;
+  const buyFrac = up === true ? AGGRESSOR_SPLIT : up === false ? 1 - AGGRESSOR_SPLIT : 0.5;
+  const u = (x: number): bigint => BigInt(Math.max(0, Math.round(x * 1e6)));
+  const step: L2TapeStep = {
+    book, // REAL time-varying depth → real queue
+    aggressiveBuyUnits: u(intervalUnits * buyFrac),
+    aggressiveSellUnits: u(intervalUnits * (1 - buyFrac)),
+    // REAL traded extremes of the current candle gate the touch: our bid fills only
+    // if a trade actually printed down to it (low ≤ bid), our ask only if a print
+    // reached up to it (high ≥ ask). Exact at a 60s poll (one candle per step);
+    // at a sub-minute poll all polls in the minute share that minute's extremes.
+    tradedHighMicros: s.candleHighMicros,
+    tradedLowMicros: s.candleLowMicros,
+  };
+  s.tape.push(step);
+  s.lastMidMicros = mid;
+  return mid;
+}
+
+// ---- reporting --------------------------------------------------------------
+function reportCoin(coin: string, quoteUnits: bigint, m: LobReplayMetrics): void {
+  const structural = m.realisedPnlUnits + m.unrealisedPnlUnits;
+  console.log(
+    `  ${coin.padEnd(5)}  steps=${pad(m.steps, 4)}  quoting=${pad(m.quotingSteps, 4)}  ` +
+      `touchFills=${pad(m.touchFills, 5)}  queueFills=${pad(m.queueFills, 5)}  ratio=${m.fillRatio.toFixed(3)}  ` +
+      `| spread=${sgn(m.attribution.spreadCapturedUnits).padStart(9)}  adverse=${sgn(m.attribution.adverseSelectionUnits).padStart(9)}  ` +
+      `struct=${sgn(structural).padStart(9)}  net=${sgn(m.netPnlUnits).padStart(9)}  maxDD=${m.maxDrawdownPct.toFixed(3)}%`,
+  );
+}
+
+function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>): void {
+  console.log(`\n=== per-coin QUEUE-AWARE result (driving HL maker ${MAKER_BPS}bps) ===`);
+  console.log('  coin   steps      quoting   touchFills  queueFills  ratio   | spread      adverse     struct      net         maxDD');
+  let deskStruct = 0n;
+  let deskFees = 0n;
+  let deskCap = 0n;
+  let deskTouch = 0;
+  let deskQueue = 0;
+  let deskMaxDD = 0;
+  for (const s of states) {
+    const m = metrics.get(s.coin);
+    if (!m) continue;
+    reportCoin(s.coin, s.quoteUnits, m);
+    deskStruct += m.realisedPnlUnits + m.unrealisedPnlUnits;
+    deskFees += m.feesUnits;
+    deskCap += BigInt(Math.round(CAPITAL_USD * 1e6));
+    deskTouch += m.touchFills;
+    deskQueue += m.queueFills;
+    if (m.maxDrawdownPct > deskMaxDD) deskMaxDD = m.maxDrawdownPct;
+  }
+
+  const ratio = deskTouch > 0 ? deskQueue / deskTouch : 0;
+  const pct = (units: bigint): string => (deskCap > 0n ? ((Number(units) / Number(deskCap)) * 100).toFixed(4) : '0') + '%';
+  console.log(`\n=== DESK TOTAL on $${usd(deskCap)} capital ===`);
+  console.log(`  THE HONESTY NUMBER: fill-on-touch logged ${deskTouch} fills; queue-aware logged ${deskQueue} (ratio ${ratio.toFixed(3)}).`);
+  console.log(`    → a fill-on-touch backtest overstated fills by ${deskQueue > 0 ? (deskTouch / deskQueue).toFixed(1) : '∞'}×.`);
+  console.log(`  structural (0bps, no fee/no rebate) : ${sgn(deskStruct)}  (${pct(deskStruct)})  ← the real edge`);
+  console.log(`  rebate net (${MAKER_BPS}bps HL maker)        : ${sgn(netAtBps(deskStruct, deskFees, MAKER_BPS))}  (${pct(netAtBps(deskStruct, deskFees, MAKER_BPS))})`);
+  console.log(`  cost net   (+1bps retail maker)     : ${sgn(netAtBps(deskStruct, deskFees, 1))}  (${pct(netAtBps(deskStruct, deskFees, 1))})`);
+
+  console.log(`\n=== CONSERVATION (judged on queue-aware structural P&L) ===`);
+  const ddVerdict = deskMaxDD <= DD_LIMIT_PCT ? 'PASS' : 'FAIL';
+  const profitVerdict = deskStruct > 0n ? 'PASS' : 'FAIL';
+  console.log(`  desk max drawdown: ${deskMaxDD.toFixed(4)}%  (limit ${DD_LIMIT_PCT}%)  → ${ddVerdict}`);
+  console.log(`  structural net > 0: ${deskStruct > 0n ? 'yes' : 'no'}  → ${profitVerdict}`);
+
+  console.log(`\n  CAVEATS (read every number through these):`);
+  console.log(`   • Depth + the touch gate are REAL HL l2Book; the per-interval AGGRESSIVE VOLUME is an`);
+  console.log(`     estimate (1m candle volume, pro-rated to the poll, split ${AGGRESSOR_SPLIT}/${(1 - AGGRESSOR_SPLIT).toFixed(1)} by the mid tick).`);
+  console.log(`   • queueFills is a realistic LOWER-ish bound (strict FIFO, queue priority kept only while`);
+  console.log(`     the quote price is unchanged); touchFills is the upper bound. Truth is between.`);
+  console.log(`   • A short session is a thin tape — run --DURATION_MIN 120+ at POLL_S 60 for a real read.`);
+}
+
+// ---- main -------------------------------------------------------------------
+async function main(): Promise<void> {
+  if (!mmStrategyRegistry.has(STRATEGY)) throw new Error(`unknown MM strategy '${STRATEGY}' — try mm-glft | mm-avellaneda-stoikov | mm-symmetric`);
+  const client = new HyperliquidClient({ baseUrl: process.env.HYPERLIQUID_BASE_URL });
+
+  console.log(`\n=== Meridian MM L2 session — Hyperliquid (queue-aware fills) ===`);
+  console.log(`  coins: ${COINS.join(',')} | quoter: ${STRATEGY} | lot: $${QUOTE_USD.toLocaleString()}/quote | cap/book: $${CAPITAL_USD.toLocaleString()}`);
+  console.log(`  poll: ${POLL_S}s | duration: ${DURATION_MIN}min | driving HL maker: ${MAKER_BPS}bps | maxInv: ${MAX_LOTS} lots`);
+
+  // Probe each coin once to size the quote by $ notional ÷ price.
+  const states: BookState[] = [];
+  for (const coin of COINS) {
+    const snap = await client.l2Snapshot(coin).catch(() => undefined);
+    const mid = snap ? midMicros(l2SnapshotToOrderBook(snap)) : undefined;
+    const price = mid ? Number(mid) / 1e6 : 0;
+    if (!price) {
+      console.log(`  ${coin}: no L2 snapshot — skipping`);
+      continue;
+    }
+    const quoteUnits = BigInt(Math.max(1, Math.round((QUOTE_USD / price) * 1e6)));
+    states.push({
+      coin,
+      quoter: makeQuoter(quoteUnits),
+      quoteUnits,
+      riskGate: makeRiskGate(quoteUnits),
+      tape: [],
+      candleVolPerSec: 0,
+      candleMinute: -1,
+    });
+    console.log(`  ${coin}: mid $${price.toFixed(2)} → quote ${(QUOTE_USD / price).toFixed(5)} ${coin} ($${QUOTE_USD.toLocaleString()})`);
+  }
+  if (states.length === 0) throw new Error('no quotable coins — check connectivity / coin names');
+
+  const endAt = Date.now() + Math.round(DURATION_MIN * 60_000);
+  let polls = 0;
+  let lastPollAt = Date.now();
+  console.log(`\n=== polling l2Book until ${new Date(endAt).toISOString()} ===`);
+  while (Date.now() < endAt) {
+    const now = Date.now();
+    const dtSec = polls === 0 ? POLL_S : Math.max(1, (now - lastPollAt) / 1000);
+    lastPollAt = now;
+    const mids: string[] = [];
+    for (const s of states) {
+      const mid = await poll(client, s, dtSec);
+      mids.push(`${s.coin} ${mid ? (Number(mid) / 1e6).toFixed(2) : '—'} (d${s.tape[s.tape.length - 1]?.book.bids.length ?? 0}×${s.tape[s.tape.length - 1]?.book.asks.length ?? 0})`);
+    }
+    polls++;
+    console.log(`  poll ${pad(polls, 3)} @ ${new Date(now).toISOString().slice(11, 19)}  ${mids.join('  ')}`);
+    if (Date.now() >= endAt) break;
+    await new Promise((r) => setTimeout(r, POLL_S * 1000));
+  }
+
+  console.log(`\n=== captured ${polls} polls; running the LobReplayHarness ===`);
+  const harness = new LobReplayHarness();
+  const metrics = new Map<string, LobReplayMetrics>();
+  for (const s of states) metrics.set(s.coin, harness.run(cfgFor(s)));
+  finalReport(states, metrics);
+  console.log(`\nSESSION OK (${polls} polls)`);
+  process.exit(0);
+}
+
+main().catch((e) => {
+  console.error('\nSESSION FAIL:', e?.message ?? e);
+  process.exit(1);
+});

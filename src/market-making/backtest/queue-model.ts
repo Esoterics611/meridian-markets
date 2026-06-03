@@ -13,14 +13,14 @@ import { OrderBookLevel } from '../microstructure/order-book';
 // shrinks (cancellations), and read fill probability off a Poisson arrival
 // model once we're at the front.
 //
-// NOTE ON SCOPE: the QueueModel below is complete and unit-tested. The
-// LobReplayHarness that *drives* it (course A.10 — replay an L2 tape, host a
-// SimulatedVenue, attribute fills to specific orders) requires an L2 order-book
-// tape the engine does not ingest yet (today's feed is Binance public OHLCV).
-// When that L2 ingest lands, the harness is a thin driver over this model and
-// the existing PnlAttributor; until then the bar runner (an upper bound on
-// fills) is the runnable backtest, and this model is here so the upgrade is a
-// drop-in rather than a rewrite.
+// STATUS: this model is now DRIVEN. The LobReplayHarness (backtest/lob-replay.ts,
+// course A.10) replays a real L2 tape — Hyperliquid's no-key `l2Book` 20×20 depth
+// (HyperliquidClient.l2Snapshot) polled live by scripts/mm-l2-session.ts — and uses
+// this model for FIFO queue position, attributing fills through the existing
+// PnlAttributor. The harness extends the price-time-priority idea below across
+// levels (cumulative size at our price and better is ahead of us — l2-tape.ts).
+// The bar runner (fill-on-touch, an upper bound) remains the OHLCV-only backtest;
+// the harness is the honest, queue-aware one wherever an L2 tape exists.
 
 export interface QueuePosition {
   readonly priceMicros: bigint;

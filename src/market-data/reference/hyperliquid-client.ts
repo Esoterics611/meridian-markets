@@ -1,7 +1,11 @@
 import { Bar } from '../../stat-arb/backtest/bar';
 import {
   IReferenceBarSource,
+  IL2BookSource,
+  L2Level,
+  L2Snapshot,
   RefHttpPost,
+  decimalToMicros,
   defaultRefHttpPost,
   intervalToSeconds,
 } from './reference-source.interface';
@@ -16,8 +20,16 @@ import {
 //   -> [{ t, T, s, i, o, c, h, l, v, n }, ...]   (ms timestamps; o/h/l/c/v are strings)
 //
 // `coin` is the HL market name (BTC, ETH, SOL, ...). This client returns OHLCV
-// candles (the scannable / quotable series); the L2 book is a separate ingest
-// (the queue-aware-fills upgrade, tracked separately).
+// candles (the scannable / quotable series) AND a real L2 depth book:
+//
+//   POST {base}/info  {"type":"l2Book","coin":"BTC"}
+//   -> { coin, time, levels: [ [ {px,sz,n}, ... bids desc ],
+//                              [ {px,sz,n}, ... asks asc  ] ] }   (20×20, no key)
+//
+// The L2 book is what turns the MM backtest from fill-on-touch (an UPPER BOUND on
+// fills) into queue-aware: a maker order joins the back of its level and only
+// fills once the size resting ahead of it is consumed (LobReplayHarness + the
+// SimpleQueueModel, course A.10). It's the single biggest backtest-fidelity lever.
 
 export interface HyperliquidClientOptions {
   baseUrl?: string;
@@ -34,7 +46,7 @@ export function hyperliquidInterval(interval: string): string {
   return '1h'; // safe default for anything unmapped
 }
 
-export class HyperliquidClient implements IReferenceBarSource {
+export class HyperliquidClient implements IReferenceBarSource, IL2BookSource {
   readonly sourceId = 'hyperliquid';
   readonly label = 'Hyperliquid (perp CLOB)';
   readonly sampleSymbol = 'BTC';
@@ -57,6 +69,43 @@ export class HyperliquidClient implements IReferenceBarSource {
     });
     return parseHyperliquidCandles(symbol, raw);
   }
+
+  /** Current L2 depth snapshot (20×20, no key). Poll repeatedly to build a tape. */
+  async l2Snapshot(symbol: string): Promise<L2Snapshot> {
+    const raw = await this.httpPost(`${this.baseUrl}/info`, {
+      type: 'l2Book',
+      coin: symbol.trim().toUpperCase(),
+    });
+    return parseHyperliquidL2(symbol, raw);
+  }
+}
+
+/** Parse a Hyperliquid l2Book payload into an L2Snapshot (exported for tests). */
+export function parseHyperliquidL2(symbol: string, raw: unknown): L2Snapshot {
+  const r = raw as { time?: number; levels?: unknown[] };
+  const tsMs = Number(r?.time);
+  const ts = Number.isFinite(tsMs) ? new Date(tsMs) : new Date();
+  const levels = Array.isArray(r?.levels) ? r!.levels! : [];
+  const bids = parseLevels(levels[0]);
+  const asks = parseLevels(levels[1]);
+  // Defensive: enforce bids descending, asks ascending (HL already does, but a
+  // consumer that reads best() off [0] must not trust the wire ordering).
+  bids.sort((a, b) => (b.priceMicros > a.priceMicros ? 1 : b.priceMicros < a.priceMicros ? -1 : 0));
+  asks.sort((a, b) => (a.priceMicros > b.priceMicros ? 1 : a.priceMicros < b.priceMicros ? -1 : 0));
+  return { symbol, ts, bids, asks };
+}
+
+function parseLevels(side: unknown): L2Level[] {
+  if (!Array.isArray(side)) return [];
+  const out: L2Level[] = [];
+  for (const lvl of side) {
+    const l = lvl as { px?: string | number; sz?: string | number; n?: number };
+    const priceMicros = decimalToMicros(l?.px ?? 0);
+    const sizeUnits = decimalToMicros(l?.sz ?? 0);
+    if (priceMicros <= 0n || sizeUnits <= 0n) continue;
+    out.push({ priceMicros, sizeUnits, orderCount: Number.isFinite(Number(l?.n)) ? Number(l!.n) : 0 });
+  }
+  return out;
 }
 
 /** Parse a Hyperliquid candleSnapshot payload into ascending Bars (exported for tests). */

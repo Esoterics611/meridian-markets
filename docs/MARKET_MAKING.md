@@ -20,7 +20,7 @@ inventory skew), the **GLFT** steady-state variant, and a **Symmetric** baseline
 | Quoters | `src/market-making/quote/` | `SymmetricQuoter`, `AvellanedaStoikovQuoter`, `GlftQuoter` — all `IQuoter`, the MM analogue of stat-arb's `IStrategy`. |
 | Inventory | `src/market-making/inventory/inventory-book.ts` | Average-cost inventory + realised/unrealised/fees accounting (shared by backtest + live). |
 | Risk | `src/market-making/risk/` | `CompositeRiskGate` (Allow/Deny/**Pause**) + `VpinEstimator` (toxic-flow signal). |
-| Backtest | `src/market-making/backtest/` | `MmBacktestRunner` (bar-driven, runnable today) + `PnlAttributor` (4-component) + `SimpleQueueModel` (the honest queue-aware scaffold). |
+| Backtest | `src/market-making/backtest/` | `MmBacktestRunner` (bar-driven, OHLCV-only) + `PnlAttributor` (4-component) + `SimpleQueueModel` + **`LobReplayHarness`** (queue-aware fills off a real L2 tape — S33). |
 | Registry | `src/market-making/registry/mm-strategy-registry.ts` | Catalogue of deployable quoters — mirrors `StrategyRegistry`. |
 | Markets | `src/market-making/markets/mm-market-presets.ts` | Stablecoin / FX / crypto-major instrument sets. |
 | Live | `src/market-making/live/` | `MmBook` (one instrument) + `MmPortfolioTrader` (N books, one control plane). |
@@ -67,9 +67,19 @@ MM earns the thin, high-frequency spreads that only a maker can profit from.
 The bar backtest fills a quote **the instant the bar's range touches its price**
 (`fill-model.ts`). That assumes front-of-queue, no queue penalty, so it is an
 **upper bound on fills**, not a promise (course §1.6 / §6.8 — the single most
-common MM-backtest pathology). The honest correction is queue-aware LOB replay
-(`SimpleQueueModel` is implemented and tested); it needs an L2 order-book tape
-the engine doesn't ingest yet. Read every bar-backtest fill rate as a ceiling.
+common MM-backtest pathology). Read every *bar*-backtest fill rate as a ceiling.
+
+**The honest correction now exists (S33).** `LobReplayHarness`
+(`backtest/lob-replay.ts`) replays a **real L2 depth tape** — Hyperliquid's no-key
+`l2Book` 20×20, polled live by `scripts/mm-l2-session.ts` — and fills FIFO against
+**price-time-priority** queue position (everything resting at our price *and
+better* is ahead of us) using the `SimpleQueueModel`. It reports `queueFills` vs
+`touchFills`: how much fill-on-touch overstated. Empirically (live HL), a *top-of-
+book* quote fills ≈ touch (the level turns over fast — the cost is adverse
+selection, not phantom fills), while a quote placed *into the depth* fills far
+less (the sweep must consume every better level first). The truth is between the
+two, and the harness computes it instead of assuming it (Journal #20). The bar
+runner remains the OHLCV-only path where no L2 tape exists.
 
 ---
 
@@ -120,7 +130,10 @@ it is compensation for exactly these hazards. **First live-replay reads (Journal
 this out:** a naive fixed-spread book on volatile WETH/USDC was net-negative (adverse > spread),
 and the low-vol USDC/USDT peg was near-flat (maxDD 0.01% at $1M) but not yet positive at
 fill-on-touch without a maker rebate — the book still needs a **≤0 bps maker venue** + per-pool
-tuning + queue-aware fills to net positive (§1.5 / Journal #23).
+tuning + queue-aware fills to net positive (§1.5 / Journal #23). Two of those three are now in
+hand: Hyperliquid is a wired **−0.2bps maker-rebate CLOB** (S32), and **queue-aware fills are real**
+(`LobReplayHarness` off HL's live L2, S33 / Journal #20) — leaving **per-pool γ/κ tuning** as the
+open lever, against fills that are finally honest rather than an upper bound.
 
 ---
 

@@ -9,9 +9,11 @@
 // liquid book that OVERSTATES fills (course §1.6 / §6.8 — the single most common
 // market-making backtest pathology). It is the right first cut on bar data,
 // where we have no L2 depth or queue to model; the honest correction is the
-// QueueModel + LobReplayHarness path (backtest/lob-replay.ts), which the engine
-// scaffolds for when an L2 tape is ingested. Read every bar-backtest number as
-// an UPPER BOUND on fill rate, not a promise.
+// QueueModel + LobReplayHarness path (backtest/lob-replay.ts), now LIVE on
+// Hyperliquid's no-key l2Book depth (scripts/mm-l2-session.ts) — it fills FIFO
+// against real queue position instead of on touch. Read every bar-backtest number
+// here as an UPPER BOUND on fill rate, not a promise; the harness is the lower-ish
+// bound, and the truth is between the two.
 
 export interface BarRange {
   high: number;
