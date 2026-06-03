@@ -38,4 +38,16 @@ describe('GlftQuoter', () => {
     expect(a.halfSpreadMicros).toBe(b.halfSpreadMicros);
     expect(a.reservationMicros).toBe(b.reservationMicros);
   });
+
+  it('is price-scale-invariant: same bps spread + skew at $1 and $1,900, no blow-up (Journal #17)', () => {
+    const q = quoter();
+    const lo = q.quote(ctx({ midMicros: 1_000_000n, inventoryUnits: 1_000_000n, volatility: 0.002 }), 'X');
+    const hi = q.quote(ctx({ midMicros: 1_900_000_000n, inventoryUnits: 1_000_000n, volatility: 0.002 }), 'X');
+    const halfBps = (p: typeof lo) => (Number(p.halfSpreadMicros) / Number(p.context.midMicros)) * 1e4;
+    const skewBps = (p: typeof lo) => ((Number(p.context.midMicros) - Number(p.reservationMicros)) / Number(p.context.midMicros)) * 1e4;
+    expect(halfBps(hi)).toBeCloseTo(halfBps(lo), 1);
+    expect(skewBps(hi)).toBeCloseTo(skewBps(lo), 1);
+    expect(Number(hi.reservationMicros)).toBeGreaterThan(Number(hi.context.midMicros) * 0.5);
+    expect(Number(hi.reservationMicros)).toBeLessThan(Number(hi.context.midMicros) * 1.5);
+  });
 });

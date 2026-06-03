@@ -58,4 +58,17 @@ describe('AvellanedaStoikovQuoter', () => {
     const near = q.quote(ctx({ horizonBars: 0.01 }), 'USDC');
     expect(near.halfSpreadMicros).toBeLessThan(far.halfSpreadMicros);
   });
+
+  it('is price-scale-invariant: same bps spread + skew at $1 and $1,900, no blow-up (Journal #17)', () => {
+    const q = quoter();
+    const lo = q.quote(ctx({ midMicros: 1_000_000n, inventoryUnits: 1_000_000n, volatility: 0.002 }), 'X'); // $1
+    const hi = q.quote(ctx({ midMicros: 1_900_000_000n, inventoryUnits: 1_000_000n, volatility: 0.002 }), 'X'); // $1,900
+    const halfBps = (p: typeof lo) => (Number(p.halfSpreadMicros) / Number(p.context.midMicros)) * 1e4;
+    const skewBps = (p: typeof lo) => ((Number(p.context.midMicros) - Number(p.reservationMicros)) / Number(p.context.midMicros)) * 1e4;
+    expect(halfBps(hi)).toBeCloseTo(halfBps(lo), 1); // same half-spread in bps of mid
+    expect(skewBps(hi)).toBeCloseTo(skewBps(lo), 1); // same inventory skew in bps of mid
+    // the old code sent the $1,900 reservation to a nonsense price; now it stays sane
+    expect(Number(hi.reservationMicros)).toBeGreaterThan(Number(hi.context.midMicros) * 0.5);
+    expect(Number(hi.reservationMicros)).toBeLessThan(Number(hi.context.midMicros) * 1.5);
+  });
 });

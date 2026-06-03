@@ -1037,3 +1037,39 @@ verdict is *not yet a positive book*, and the two bugs above (one fixed, one sco
 **Next actions:** (1) σ-normalization in the quoters (unblocks high-priced pools); (2) per-pool γ/κ tuning
 on the DEX stable pools + the maker-rebate fee model; (3) queue-aware fills (the `SimpleQueueModel` exists,
 needs an L2 tape); (4) screen long-tail pools for spread > adverse (the source-aware `MmScreener` can now).
+
+## 2026-06-03 — Entry #18: σ-normalization — the quoters are now price-scale-invariant (Entry #17 bug #2 fixed)
+
+**The fix (step 1 of the Hyperliquid recommended order).** The AS/GLFT quoters computed
+`sigmaPrice = ctx.volatility · mid` (micros) and then `γ · sigmaPrice² · T` for both the inventory
+skew and the half-spread — so those terms scaled as **price²**. On a $1,900 asset the skew sent the
+reservation to a nonsense price (the −$18T DEX run, Entry #17). Root cause: squaring a *micros* price.
+
+`src/market-making/quote/avellaneda-stoikov.ts` (`asReservationMicros` / `asHalfSpreadMicros`, now shared
+by **both** AS and GLFT — GLFT no longer inlines its own copy) is rewritten to compute skew + spread as
+**fractions of mid** off a fixed **$1 reference scale** (`REF_MICROS`), with σ kept as a **return
+fraction**, then applied to the live mid. Consequences:
+- **Price-scale-invariant:** a given (γ, κ, σ_rel, q-lots) yields the *same bps* spread + skew at $1 or
+  $1,900 (new unit tests assert this on both quoters).
+- **Identical at mid=$1** by construction (the reference scale IS $1) → all 11 prior quote specs pass
+  unchanged; the documented stablecoin MM results (Entry #23) are unaffected.
+- **Skew bounded** to ±`MAX_SKEW_FRAC` (0.5) so a high-vol asset can never push the quote negative.
+
+**Validated end-to-end** — the DEX paper session (720h hourly, GLFT, $50k notional) that printed −$18T
+now prints sane, conserved numbers:
+
+| book | fills | fillRate | structural | maxDD |
+|---|---|---|---|---|
+| USDC/USDT | 72 | 0.53 | −$36.8k | 3.76% |
+| WETH/USDC | 24 | **0.033** (was 0.003 — quoter no longer stands absurdly wide) | −$7.0k | 0.77% |
+| WBTC/WETH | 58 | **0.081** | −$2.6k | 0.31% |
+| **Desk ($3M)** | 154 | — | **−$46.4k (−1.55%)** | **1.56% → drawdown PASS** |
+
+**Honest read:** the blow-up is gone and **drawdown is conserved (1.56% < 2%)**, but the book is **still
+net-negative** at fill-on-touch without per-pool tuning or a real rebate — exactly the remaining work.
+**855 tests** (+2 scale-invariance specs), tsc clean.
+
+**Next (the recommended order continues):** (2) `HyperliquidClient` behind `IReferenceBarSource` (candles)
++ an `hl-perps` MM preset — HL is the maker-rebate **CLOB** the book actually needs ([DATA_SOURCES.md](./DATA_SOURCES.md));
+(3) L2 ingest from HL `l2Book` → `SimpleQueueModel`/`LobReplayHarness` → queue-aware (honest) fills;
+(4) per-pool γ/κ tuning + the maker-rebate fee model on the low-vol stable pools.
