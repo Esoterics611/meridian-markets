@@ -76,7 +76,7 @@ A system meant to run unattended for hours/days must be **observable** — opera
 
 Surfaced when picking the HL-discovery session; the two not-taken directions, kept warm:
 
-- **Funding-carry basket on HL** — which HL perps pay *persistent, harvestable* funding across the universe; price the carry leg + the cross-venue delta-neutral form (short HL perp / long Binance spot). Tooling ready (`scripts/funding-carry-research.ts FC_SOURCE=hyperliquid`, `funding-carry.ts`). An uncorrelated diversifier (overlaps "Cross-venue funding capture" above).
+- **Funding-carry basket on HL** — ✅ **discovery layer shipped (2026-06-04 eve)**: `src/market-data/funding/funding-carry-discovery.ts` + `scripts/hl-funding-discovery.ts` rank the whole HL universe by *persistent, harvestable* funding (net of the one-time round-trip fee, sign-stability + breakeven + liquidity gates). Real read: 23/49 harvestable, XMR +36%/yr, majors ~8% ([Entry #26](QUANT_JOURNAL.md), [doc](FUNDING_CARRY_DISCOVERY.md)). **Remaining:** the live **cross-venue delta-neutral** form (short HL perp / long Binance spot) — the deployable book — + a multi-regime re-run to turn the n=1 board into a distribution.
 - **γ/κ distribution — harden the n=1 HL BTC MM read** into a *distribution* via long L2 captures across BTC/ETH/SOL + regimes (`scripts/mm-l2-session.ts` capture → `scripts/mm-l2-tune.ts` sweep, capture-once-sweep-many). Output: per-coin drawdown-compliant (γ,κ,floor) winners with a confidence band, not one window.
 
 ## Housekeeping (do when credits are low — mechanical, low-risk)

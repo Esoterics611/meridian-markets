@@ -1,99 +1,74 @@
-# Next-session kickoff brief — harvest the L2 tune, then a backlog item
+# Next-session kickoff brief — harvest the L2 tune (#27), then the carry/MM frontier
 
-> Paste the **Kickoff prompt** below to start. A fresh session auto-loads `CLAUDE.md` + the memory index; this brief points at everything else. Work autonomously — **do not ask for approval**; verify with `tsc` + `jest`, commit each phase on `master` (CLAUDE.md §0). `npm run start:dev` exits 144 in the sandbox, so any live run is a hand-off to the operator.
-
----
-
-## 🔴 LIVE SESSION LOG — 2026-06-04 (evening), gap-closing run (UPDATE AS YOU GO)
-
-Goal this session: close the **real remaining gaps + pushed-off items** one by one, leaving every step committed so a credit-out is safe. Doc reorg was done **manually by the operator** (accepted as done — committed as the "archive completed plan docs" commit). Priority order chosen: stat-arb event tape → stat-arb persistence → a research backlog item → harvest L2.
-
-**DONE ✅ — (1) Stat-arb business-event tape (Telemetry P2 remainder).** The flagged gap ([[feedback_business_event_logging]]): MM logged every fill, stat-arb logged only lifecycle. Now closed end-to-end, 3 commits on master:
-- *Phase A* — generalised `DeskEvent.desk` → `'mm' | 'stat-arb'`; new `src/execution/live-desk-events.ts` (pair-shaped OPEN/CLOSE/block/lifecycle builders reusing the shared `DeskEventInput`); wired `IDeskEventSink` (NULL default) into `LivePaperTrader` — emits on open / blocked-open / close / start / stop / reconfigure. Specs: `live-desk-events.spec.ts` + new cases in `live-paper-trader.spec.ts`.
-- *Phase B* — `LivePortfolioTrader` emits launch/remove/desk-start/stop; `StatArbModule` provides its **own** `DeskEventLog` (separate instance from MM; the module does NOT import MarketMakingModule) injected into the single trader, every portfolio sub-book, and the portfolio; `GET /api/stat-arb/live/events` on `LiveController` (seq-cursor long-poll, `@Optional`). Specs: `live.controller.spec.ts` + portfolio emit test.
-- *Phase C* — `/demo` Desk tab "Activity — live trade tape" feed polling the new endpoint (OPEN=teal, CLOSE=amber, block=red), JS syntax-checked.
-- Verify: **151 suites / 1002 tests, tsc clean** (was 149/993). Honest note: stat-arb fills carry no BUY/SELL `side` (pair trade) so the feed colours by `action`; the durable ledger is still `stat_arb_trades` — this tape is the live "what just happened", same as MM.
-
-**DONE ✅ — (2) Stat-arb live persistence (restart-safe books).** The "everything survives restart" asymmetry (MM books were restart-safe, stat-arb in-memory). Closed end-to-end, 3 commits, mirroring the MM arc:
-- *Phase 1* — `StatArbBookState` + `LivePaperTrader.serializeState()/restoreState()` (realised P&L, closed count via `priorClosedCount`, drawdown peak, open position). Because the pairs strategy is **stateful** (only CLOSEs when it thinks it's in-position), restore resumes the strategy in the held regime via a new optional `LiveStrategy.restorePosition(side)` — implemented in Bollinger + OU. Rolling window re-seeds from warmup (not persisted).
-- *Phase 2* — migration `1722…-AddStatArbBookState` (`stat_arb_book_state`, mutable checkpoint, SELECT/INSERT/UPDATE-no-DELETE, soft-close, OPEN partial index) + `IStatArbStateStore` seam + `StatArbStateRepository` + Null/Postgres stores. Unit-tested.
-- *Phase 3* — `LivePortfolioTrader` implements `OnApplicationBootstrap/Shutdown`: rehydrate OPEN books on boot (record → PortfolioPair → `makeTrader` → `restoreState`; no separate rebuild factory needed), checkpoint each tick, soft-close on remove, shutdown flatten+checkpoint. `StatArbModule` selects Postgres store when `STAT_ARB_PERSIST=true` AND a DB is present, else Null. Config: `live.persist` + `live.flattenOnShutdown`, default off.
-- Verify: **152 suites / 1012 tests, tsc clean.** Honest scope note: persistence covers the **portfolio** (the multi-book desk = the real "books" surface); the legacy single-pair `LivePaperTrader` console path is not persisted (it shares the strategy/feed; the portfolio is the durable desk). To run restart-safe: `STAT_ARB_PERSIST=true` + migrations run + Postgres up.
-
-**REMAINING this session:** (3) one research backlog item (funding-carry basket OR γ/κ distribution), (4) harvest the L2 tune once the 20-perp/6h capture finishes (~00:14 — runs all session; tapes at `docs/research/l2-tapes/hl-discovery-20260604-*.json`, `DATE=20260604 bash scripts/tune-hl-l2.sh`).
+> Paste the **Kickoff prompt** at the bottom to start. A fresh session auto-loads `CLAUDE.md` + the memory index; this brief points at everything else. Work autonomously — **do not ask for approval**; verify with `tsc` + `jest`, commit each item on `master` (CLAUDE.md §0), then push one feature branch + PR. `npm run start:dev` exits 144 in the sandbox, so any live run is a hand-off to the operator.
 
 ---
 
+## Shipped 2026-06-04 (evening) — the gap-closing run (3 items, all on `master`, in PR)
+
+Closed the **real remaining asymmetries** between the MM and stat-arb desks, plus a research-backlog item. Full detail in [SESSION_HISTORY.md §19](SESSION_HISTORY.md) + [QUANT_JOURNAL #26](QUANT_JOURNAL.md). Started 149 suites/993 tests → **153 suites / 1019 tests, tsc clean.**
+
+1. **Stat-arb business-event tape (Telemetry P2 remainder)** — the shared `IDeskEventSink`/`DeskEventLog` is now wired into the stat-arb live loop. Every enter/exit (with realised round-trip P&L), risk-block and book/desk lifecycle emits a `DeskEvent` (`src/execution/live-desk-events.ts`) → a server **log line** + `GET /api/stat-arb/live/events` + a `/demo` **Desk-tab "Activity"** feed. `DeskEvent.desk` is now `'mm' | 'stat-arb'`; each desk owns its own `DeskEventLog`.
+2. **Restart-safe stat-arb books** — `StatArbBookState` + `serializeState/restoreState` on `LivePaperTrader` (the stateful pairs strategy resumes its held regime via the new `LiveStrategy.restorePosition(side)`), `stat_arb_book_state` checkpoint table (migration 1722…) behind `IStatArbStateStore` (Null/Postgres), `LivePortfolioTrader` rehydrate-on-boot + checkpoint-per-tick + soft-close + shutdown flatten/checkpoint. Gated by `STAT_ARB_PERSIST` (default off). Scope = the **portfolio** desk.
+3. **HL funding-carry universe discovery** — `src/market-data/funding/funding-carry-discovery.ts` + `scripts/hl-funding-discovery.ts` rank the whole HL universe by persistent, harvestable funding (net of the one-time round-trip fee, sign-stability + breakeven + liquidity gates). Real read: 23/49 harvestable, XMR +36%/yr, majors ~8% ([doc](FUNDING_CARRY_DISCOVERY.md)).
+
+**Not done (handed off below):** the **L2-tune harvest** — the 20-perp/6h capture runs all session and finishes ~00:14, so its tune is **next session's Priority 0**.
+
 ---
 
-## Shipped 2026-06-04 (this session) — the business-event tape + Activity feed (Telemetry P2)
+## ⏳ Priority 0 next session — harvest the L2 capture (perishable, pure offline analysis)
 
-The operator's gap: *"I need to see every trade enter/exit in the log, not just DB transactions — I thought we had this."* We had metrics (P1) + durable NAV (P3) but **no per-trade business log**. Now shipped (`src/market-making/events/`):
-- **`DeskEvent` + `DeskEventLog`** — every fill (enter = open/add, exit = reduce/close/flip, with the realised P&L), every risk-verdict change (Allow⇄Pause⇄Deny, on transition only), and every book launch/remove/start/stop is emitted **once** from the place it happens (`MmBook`/`MmPortfolioTrader`) and rendered **twice**: a server **log line** + a bounded ring buffer.
-- **`GET /api/market-making/events?since=<seq>&limit=&book=`** — seq-cursor long-poll (never miss/double-count).
-- **`/demo` → Market Making → "Activity — live trade tape"** — newest-first feed, colored by kind; polls every 4s.
-- No-op sink default ⇒ unit tests unchanged. **149 suites / 993 tests, tsc clean.** Code is committed on `master`; PR `ship/mm-business-event-tape`.
-- **Honest remainder (P2):** the tape is **MM-specific**. The stat-arb `LivePaperTrader` still logs only lifecycle (start/stop/reconfigure), not per-trade — extending the same `IDeskEventSink` to it (+ a generic structured-JSON log seam) is the P2 remainder. Multi-market scale-up (the operator's "run continuously on a lot of markets") is the forward-paper track that now has a live feed to watch.
+The 20-perp / 6h / 10s real-WS L2 capture launched 2026-06-04 18:14 (tapes at `docs/research/l2-tapes/hl-discovery-20260604-<COIN>.json`, checkpointed every 10min, finishing ~00:14). 20 coins: BTC HYPE ETH ZEC SOL NEAR WLD XRP LIT TON ENA XPL VVV ONDO BNB SUI ADA DOGE PUMP ASTER.
+1. Confirm it finished (`ps aux | grep mm-l2-session`; or just use the final checkpoints).
+2. Tune: `DATE=20260604 bash scripts/tune-hl-l2.sh` (wide γ/κ/floor grid; tee's a `.txt`).
+3. Record per-coin drawdown-compliant maker-net winners (at the −0.2bps rebate) in `docs/research/TUNED_PARAMS.md` + write **QUANT_JOURNAL Entry #27** with the numbers + honest caveats (fill counts, single window). Turns the n=1 BTC read (Entry #23) into a per-coin board across 20 markets.
 
 ---
 
 ## Kickoff prompt
 
 ```
-GOAL (one session, autonomous — do NOT ask for approval):
+GOAL (one session, autonomous — do NOT ask for approval; verify tsc+jest, commit each
+item on master, then push ONE feature branch + open a PR):
 
-FIRST read, in order: docs/ROADMAP.md ("Open quant backlog" + "Housekeeping" + the
-Telemetry P2 line), docs/OPERATIONS_MANUAL.md (the 3 systems + storage map),
-docs/research/TUNED_PARAMS.md, docs/research/hl-universe/RUNBOOK.md,
-docs/QUANT_JOURNAL.md (Entries #23–#25), and the memory index (esp.
-[[project_next_session_backlog]] + [[project_mm_frontier_state]]).
+FIRST read, in order: docs/NEXT_SESSION.md (this file — "Priority 0" + below),
+docs/ROADMAP.md (Active + "Open quant backlog"), docs/SESSION_HISTORY.md §19,
+docs/QUANT_JOURNAL.md (#23 + #26), docs/research/TUNED_PARAMS.md,
+docs/research/hl-universe/RUNBOOK.md, docs/FUNDING_CARRY_DISCOVERY.md, and the memory
+index (esp. [[project_mm_frontier_state]] + [[project_next_session_backlog]]).
 
-PRIORITY 0 — harvest the L2 capture (perishable; do this first).
-A 20-perp / 6h / 10s real-WS L2 capture was launched 2026-06-04 18:14 (tapes at
-docs/research/l2-tapes/hl-discovery-20260604-<COIN>.json, checkpointed every 10min,
-finishing ~00:14). 20 coins captured: BTC HYPE ETH ZEC SOL NEAR WLD XRP LIT TON ENA
-XPL VVV ONDO BNB SUI ADA DOGE PUMP ASTER.
-  1. Confirm the run finished (ps aux | grep mm-l2-session; or just use the checkpoints).
-  2. Tune it:  DATE=20260604 bash scripts/tune-hl-l2.sh   (wide γ/κ/floor grid; tee's a .txt)
-  3. Record the per-coin winners (drawdown-compliant maker-net at the −0.2bps rebate) in
-     docs/research/TUNED_PARAMS.md + write QUANT_JOURNAL Entry #26 with the numbers +
-     honest caveats (fill counts, single window). BTC's n=1 read (Entry #23) becomes a
-     per-coin board across 20 markets.
-This is analysis + doc work — fully in-session (no live server needed).
+PRIORITY 0 — harvest the L2 capture (perishable; do this FIRST). The 20-perp/6h/10s
+real-WS L2 capture finished ~00:14 (tapes: docs/research/l2-tapes/hl-discovery-20260604-*.json).
+  1. DATE=20260604 bash scripts/tune-hl-l2.sh   (wide γ/κ/floor grid; tees a .txt)
+  2. Record per-coin drawdown-compliant maker-net winners (−0.2bps rebate) in
+     docs/research/TUNED_PARAMS.md + write QUANT_JOURNAL Entry #27 with numbers +
+     honest caveats (fill counts, single window). Pure offline analysis, no server.
 
-THEN pick ONE and ship it end-to-end (tsc+jest green, phases on master, then a PR):
-
-  A) FUNDING-CARRY BASKET ON HL — which HL perps pay persistent, harvestable funding
-     across the universe; price the carry leg + the cross-venue delta-neutral form
-     (short HL perp / long Binance spot). Tooling: scripts/funding-carry-research.ts
-     (FC_SOURCE=hyperliquid), src/market-data/funding/funding-carry.ts (staticCarry),
-     HyperliquidFundingClient.fundingHistory. Mirror the hl-universe-discovery
-     module+script+spec triple. Uncorrelated diversifier.
-
-  B) γ/κ DISTRIBUTION — generalise the single-tape tune into a cross-session/regime
-     distribution: a harness that ingests several saved tapes (the Priority-0 one is
-     data point #1) and reports per-coin (γ,κ,floor) winners with a stability band.
-
-  C) EXTEND THE BUSINESS-EVENT TAPE (the Telemetry P2 remainder) — wire the same
-     IDeskEventSink into the stat-arb LivePaperTrader so its entries/exits also log +
-     feed; optionally a generic structured-JSON log transport. Small, high-value for
-     the "run continuously on many markets" goal — the feed exists, extend its reach.
-
-  D) HOUSEKEEPING (good when credits are low) — trim docs + dead code; the dormant
-     legacy treasury/yield module (CLAUDE.md §5) IF confirmed unused (grep imports
-     first). Trim redundancy, NOT the honest-findings trail or git history.
+THEN pick ONE and ship it end-to-end (tsc+jest green, commit on master, PR):
+  A) FUNDING-CARRY CROSS-VENUE LIVE BOOK — the deployable form behind the discovery
+     shipped this session: long Binance spot / short HL perp, delta-neutral, harvest
+     the funding stream. Model the basis + real slippage; mirror the swap-seam
+     discipline. (scripts/hl-funding-discovery.ts gives the watchlist; staticCarry +
+     funding-carry-discovery.ts are the math.) Uncorrelated diversifier.
+  B) γ/κ DISTRIBUTION HARNESS — generalise the single-tape tune into a cross-
+     session/regime distribution: ingest several saved L2 tapes (the Priority-0 one
+     is data point #1) → per-coin (γ,κ,floor) winners with a stability band.
+  C) CAPITAL ALLOCATOR — the "next big piece": per-book/agent capital allocation
+     across the MM + stat-arb desks (replace the even split with risk-aware sizing).
+     The first real step toward the agentic layer.
 
 CONSTRAINTS: paper-only; honesty is the whole game; modular monolith (CLAUDE.md §6);
-swap-seam discipline (§7); process.env only in app-config.factory.ts; append-only tables
-get SELECT,INSERT grants only; verify via `npx tsc --noEmit` + `npx jest`; commit phases on
-master with a Co-Authored-By trailer; hand any multi-hour live run to the operator.
-Proceed autonomously to the end of the session.
+swap-seam discipline (§7); process.env only in app-config.factory.ts; append-only
+tables get SELECT,INSERT grants only (mutable caches get +UPDATE, no DELETE); verify
+via `npx tsc --noEmit` + `npx jest`; commit on master with a Co-Authored-By trailer;
+hand any multi-hour live run to the operator. Proceed autonomously to the end.
 ```
 
 ---
 
-## Why this order (context for me, not part of the prompt)
+## State at hand-off (for context, not part of the prompt)
 
-The Priority-0 tune harvest is **perishable + high-value**: the operator captured a real 20-perp / 6h L2 tape (Entry #25), and the point was to turn the n=1 BTC read (Entry #23) into a per-coin maker-net board. Pure analysis (no live server) ⇒ a clean in-session win producing a real artifact (TUNED_PARAMS.md + a journal entry).
-
-After that, the backlog items are the genuinely-deferred directions the operator flagged ([[project_next_session_backlog]]): **funding-carry**, the **γ/κ distribution**, the **business-event tape extension** (now that MM has it, stat-arb is the gap), and the **doc/code trim**. Each is self-contained and offline-verifiable with a pattern to mirror.
+- **Tests:** 153 suites / 1019 tests, tsc clean. Branch + PR for this session's 3 items is open (see the PR link in the session output).
+- **Restart-safe books** now cover BOTH desks (MM via `MM_PERSIST`, stat-arb via `STAT_ARB_PERSIST`) — the foundation for the multi-hour forward-paper track the demo needs.
+- **Both desks have the live business-event tape** (MM `/api/market-making/events`, stat-arb `/api/stat-arb/live/events`) + `/demo` Activity feeds — the "see every trade in the log" requirement is met across the board.
+- **The frontier** is now (a) the L2-tune distribution (Priority 0 + B), (b) the funding-carry live book (A), and (c) the capital allocator → agentic layer (C) — the pieces that turn a restart-safe multi-strategy system into an agent-run quant group.

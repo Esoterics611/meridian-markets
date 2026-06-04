@@ -672,3 +672,21 @@ A **20-perp, 6h, 10s-poll, real-WS-flow** L2 capture is running (checkpointed). 
 
 ### Verification
 - `npx tsc --noEmit` clean; **147 suites / 976 tests** (+ the discovery pure module/spec); demo + preset + script changes covered by tsc + the demo/preset specs.
+
+---
+
+## 19. Gap-closing run — stat-arb event tape + restart-safe stat-arb books + funding-carry discovery (2026-06-04 evening)
+
+Same day, evening. With the 20-perp L2 capture running all session (harvest is next-session work), the session closed the **real remaining asymmetries** between the MM and stat-arb desks, one item at a time, each committed so a credit-out is always safe. (The doc reorg — archiving finished plan/spec docs under `docs/archive/` — was done manually by the operator and committed as-is.)
+
+### Shipped (each its own commit on master)
+1. **Stat-arb business-event tape (Telemetry P2 remainder)** — the operator-flagged gap: the MM desk logged every fill, stat-arb logged only lifecycle. Now the shared `IDeskEventSink`/`DeskEventLog` is wired into the stat-arb `LivePaperTrader`/`LivePortfolioTrader`: every enter/exit (with realised round-trip P&L), risk-block and book/desk lifecycle emits a `DeskEvent` (`src/execution/live-desk-events.ts`), rendered as a server **log line** + `GET /api/stat-arb/live/events` (seq-cursor long-poll) + a `/demo` **Desk-tab "Activity"** feed. Each desk owns its own `DeskEventLog` instance. `DeskEvent.desk` generalised to `'mm' | 'stat-arb'`.
+2. **Restart-safe stat-arb books** — mirrors the MM persistence arc end-to-end: `StatArbBookState` + `serializeState/restoreState` on `LivePaperTrader` (realised P&L, open position, drawdown peak; the **stateful** pairs strategy resumes its held regime via a new `LiveStrategy.restorePosition(side)`, so a rehydrated trade is worked off, not re-opened); `stat_arb_book_state` checkpoint table (migration 1722…) behind `IStatArbStateStore` (Null/Postgres); `LivePortfolioTrader` rehydrate-on-boot + checkpoint-per-tick + soft-close-on-remove + shutdown flatten/checkpoint. Gated by `STAT_ARB_PERSIST` (default off ⇒ no DB dependency on the live path). Scope: the **portfolio** desk (the legacy single-pair console is not persisted).
+3. **HL funding-carry universe discovery** — `src/market-data/funding/funding-carry-discovery.ts` + `scripts/hl-funding-discovery.ts` rank the whole HL universe by *persistent, harvestable* funding net of the one-time round-trip fee (sign-stability + breakeven + liquidity gates). Real 14d/top-50 read: 23 harvestable perps, XMR +36%/yr, majors ~8% ([Journal #26](QUANT_JOURNAL.md), [doc](FUNDING_CARRY_DISCOVERY.md)).
+
+### Deferred to next session
+- **Priority 0 (perishable):** harvest the 20-perp/6h L2 capture (`DATE=20260604 bash scripts/tune-hl-l2.sh`) → record per-coin (γ,κ,floor) winners in `TUNED_PARAMS.md` + **Journal #27**. The capture finishes ~00:14; the harvest is pure offline analysis.
+- Funding-carry **cross-venue live book** (short HL perp / long Binance spot) + a multi-regime re-run; the γ/κ-distribution harness; the capital allocator; the agentic layer.
+
+### Verification
+- `npx tsc --noEmit` clean; **153 suites / 1019 tests** (was 149/993 at session start — +4 suites/+26 tests across the event tape, persistence, and funding-carry discovery). Each item committed on master with a `Co-Authored-By` trailer.
