@@ -6,6 +6,7 @@ import { attributeFill, PnlComponent, sumComponents, AttributionSummary } from '
 import { SimpleQueueModel, QueuePosition } from './queue-model';
 import { RiskGate, RiskState } from '../risk/risk-gate';
 import { OrderBook, OrderBookLevel, midMicros } from '../microstructure/order-book';
+import { MicroPriceCalculator } from '../microstructure/micro-price';
 import { L2TapeStep, cumulativeBidSizeToPrice, cumulativeAskSizeToPrice, bestBidMicros, bestAskMicros } from './l2-tape';
 
 // LobReplayHarness — the queue-aware market-making backtest (course A.10). It is
@@ -84,6 +85,15 @@ export interface LobReplayConfig {
    * no funding (back-compat). The rate is static over the run, like staticCarry.
    */
   fundingRatePerHour?: number;
+  /**
+   * Quote around the book-imbalance MICRO-PRICE over this many levels per side
+   * (FAIR_VALUE_AND_THESIS_DESIGN.md F1) instead of the raw mid — the adverse-
+   * selection fix. The quoter centers its reservation on the micro-price; the
+   * P&L attribution + drawdown + funding stay scored against the PLAIN mid (the
+   * true fair value), so this honestly measures whether quoting around the
+   * micro-price REDUCES adverse selection. 0/undefined ⇒ quote off the mid (legacy).
+   */
+  microDepth?: number;
 }
 
 export interface LobReplayMetrics {
@@ -116,6 +126,8 @@ export class LobReplayHarness {
   run(cfg: LobReplayConfig): LobReplayMetrics {
     const symbol = cfg.symbol ?? cfg.quoter.familyId;
     const vol = new RollingVolatility(cfg.volWindowBars);
+    // F1: optionally quote around the book-imbalance micro-price instead of the mid.
+    const microPrice = cfg.microDepth && cfg.microDepth > 0 ? new MicroPriceCalculator({ depth: cfg.microDepth }) : undefined;
     const book = new InventoryBook();
     const components: PnlComponent[] = [];
 
@@ -221,9 +233,13 @@ export class LobReplayHarness {
 
       // --- 2) re-quote off this book ---
       const inventoryBefore = book.inventoryUnits();
+      // The quote center: the micro-price when enabled (so we quote where price is
+      // GOING), else the mid. Attribution below still uses the plain `mid`.
+      const microMicros = microPrice ? microPrice.compute(ob) : undefined;
       const ctx: QuoteContext = {
         inventoryUnits: inventoryBefore,
         midMicros: mid,
+        referenceMicros: microMicros !== undefined ? BigInt(Math.round(microMicros)) : undefined,
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
         arrivalDecay: cfg.kappa,
