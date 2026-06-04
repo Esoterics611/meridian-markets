@@ -280,6 +280,18 @@
         <div class="spark-k" style="margin-bottom:8px;">Maker books <span id="mm-summary" class="muted"></span></div>
         <div id="mm-books" class="book-grid"><div class="muted">no maker books — launch one above</div></div>
       </div>
+      <div style="margin-top:18px;">
+        <div class="spark-k" style="margin-bottom:8px;">Desk NAV — durable track record
+          <select id="mm-nav-hours" style="font-size:11px;margin-left:6px;padding:1px 4px;">
+            <option value="6">6h</option>
+            <option value="24" selected>24h</option>
+            <option value="72">72h</option>
+            <option value="168">7d</option>
+          </select>
+          <span id="mm-nav-summary" class="muted" style="text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div id="mm-nav-curve"><div class="muted">needs MM_PERSIST=true — the durable desk curve (mm_nav) draws here once the NAV cron writes a point (≈60s)</div></div>
+      </div>
     </section>
 
     <section class="panel span-12" data-tab="research">
@@ -654,6 +666,31 @@
           <div style="margin-top:10px;"><div class="spark-k">equity over time</div>${spark(h.eq, net >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
         </div>`;
       }).join('');
+    }
+
+    // --- Durable desk NAV curve (mm_nav, telemetry P3) — survives restart, unlike the
+    //     in-session per-book sparklines above. Reads GET /api/market-making/nav. ---
+    async function refreshMmNav() {
+      const sel = $('mm-nav-hours');
+      const hours = sel ? (Number(sel.value) || 24) : 24;
+      let r; try { r = await jget('/api/market-making/nav?hours=' + hours); } catch { return; }
+      const box = $('mm-nav-curve'), sum = $('mm-nav-summary');
+      if (!box) return;
+      if (!r || r.enabled === false) {
+        box.innerHTML = '<div class="muted">durable NAV is off — start the server with MM_PERSIST=true (needs Postgres + migrations)</div>';
+        if (sum) sum.textContent = ''; return;
+      }
+      const pts = (r && r.points) || [];
+      if (pts.length < 2) {
+        box.innerHTML = '<div class="muted">no NAV points yet — the cron writes the desk curve every MM_NAV_INTERVAL_MS (≈60s); give it a minute</div>';
+        if (sum) sum.textContent = ''; return;
+      }
+      const eq = pts.map((p) => Number(p.equityUnits) / USDC);
+      const last = pts[pts.length - 1], net = eq[eq.length - 1] - eq[0];
+      const dd = Number(last.maxDrawdownPct) || 0;
+      const color = net >= 0 ? '#00d4aa' : '#ff5c5c';
+      box.innerHTML = spark(eq, color, 360, 70);
+      if (sum) sum.innerHTML = `· now <b>${fmtUsdc(last.equityUnits)}</b> USDC · Δ${hours}h <span style="color:${color}">${net >= 0 ? '+' : ''}${num(net, 2)}</span> · maxDD ${dd.toFixed(2)}% · ${pts.length} pts`;
     }
 
     // --- Opportunity scanner: net-edge board (stat-arb) + spread-capture board (MM) ---
@@ -1174,7 +1211,7 @@
     async function pollAll() {
       if (polling) return; // never overlap (a slow/hung fetch shouldn't pile up)
       polling = true;
-      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm()]); lastUpdateMs = Date.now(); }
+      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm(), refreshMmNav()]); lastUpdateMs = Date.now(); }
       catch { /* refreshers swallow their own errors; a stalled poll shows via heartbeat age */ }
       finally { polling = false; }
     }
@@ -1315,6 +1352,7 @@
     $('mm-start').onclick = async () => { await jpost('/api/market-making/start'); refreshMm(); };
     $('mm-stop').onclick = async () => { await jpost('/api/market-making/stop'); refreshMm(); };
     $('mm-flatten').onclick = async () => { await jpost('/api/market-making/flatten'); refreshMm(); };
+    $('mm-nav-hours').onchange = refreshMmNav;
     $('scan-run').onclick = scanRun;
     $('rt-walkforward-real').onclick = () => runWalkForwardReal('walk-forward');
     $('rt-purgedkfold').onclick = () => runWalkForwardReal('purged-kfold');
