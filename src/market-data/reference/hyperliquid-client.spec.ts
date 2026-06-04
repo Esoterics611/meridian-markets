@@ -1,4 +1,5 @@
 import { HyperliquidClient, hyperliquidInterval, parseHyperliquidCandles, parseHyperliquidL2 } from './hyperliquid-client';
+import { MinimalWs } from './reference-source.interface';
 
 // As HL actually returns it: ms timestamps, string OHLCV, ascending by t.
 const SAMPLE = [
@@ -86,6 +87,16 @@ describe('HyperliquidClient', () => {
     const snap = await c.l2Snapshot('btc');
     expect(seenBody).toEqual({ type: 'l2Book', coin: 'BTC' });
     expect(snap.bids[0].priceMicros).toBe(65779000000n);
+  });
+
+  it('openTradeStream derives the wss /ws url from the REST base and subscribes', () => {
+    let seenUrl = '';
+    const noopWs: MinimalWs = { send: () => undefined, close: () => undefined, addEventListener: () => undefined };
+    const c = new HyperliquidClient({ baseUrl: 'https://hl.test', wsFactory: (url) => ((seenUrl = url), noopWs) });
+    const stream = c.openTradeStream(['BTC']);
+    expect(seenUrl).toBe('wss://hl.test/ws');
+    expect(stream.drain('BTC')).toEqual({ aggressiveBuyUnits: 0n, aggressiveSellUnits: 0n, tradeCount: 0 });
+    stream.close();
   });
 
   it('POSTs a candleSnapshot for the coin + maps the interval, returns ascending bars', async () => {
