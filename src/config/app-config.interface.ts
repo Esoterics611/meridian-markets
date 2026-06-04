@@ -125,6 +125,15 @@ export interface AppConfig {
     advUnits: bigint;
     /** Slippage lambda (bps per notional/ADV). */
     slippageLambdaBps: number;
+    /**
+     * Persist live stat-arb portfolio books to Postgres (restart-safe books):
+     * checkpoint each tick to stat_arb_book_state, rehydrate OPEN books on boot
+     * (STAT_ARB_PERSIST). Off ⇒ in-memory only (the legacy behaviour; no DB
+     * dependency on the live path). Requires migrations run.
+     */
+    persist: boolean;
+    /** On graceful shutdown, flatten every stat-arb book before the final checkpoint. */
+    flattenOnShutdown: boolean;
   };
   /** Automated market-making books (runs alongside the stat-arb portfolio). */
   marketMaking: {
