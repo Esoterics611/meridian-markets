@@ -42,6 +42,8 @@ export interface MmPortfolioSnapshot {
   realisedPnlUnits: string;
   unrealisedPnlUnits: string;
   feesUnits: string;
+  /** Desk-total funding accrued on held perp inventory (+ received / − paid). */
+  fundingUnits: string;
   netPnlUnits: string;
   books: MmBookSnapshot[];
 }
@@ -130,6 +132,7 @@ export class MmPortfolioTrader {
     let real = 0n;
     let unreal = 0n;
     let fees = 0n;
+    let funding = 0n;
     let net = 0n;
     for (const b of this.books.values()) {
       const s = b.snapshot();
@@ -139,6 +142,7 @@ export class MmPortfolioTrader {
       real += BigInt(s.realisedPnlUnits);
       unreal += BigInt(s.unrealisedPnlUnits);
       fees += BigInt(s.feesUnits);
+      funding += BigInt(s.fundingUnits);
       net += BigInt(s.netPnlUnits);
     }
     return {
@@ -149,6 +153,7 @@ export class MmPortfolioTrader {
       realisedPnlUnits: real.toString(),
       unrealisedPnlUnits: unreal.toString(),
       feesUnits: fees.toString(),
+      fundingUnits: funding.toString(),
       netPnlUnits: net.toString(),
       books,
     };

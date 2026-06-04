@@ -203,7 +203,7 @@ These invariants are the desk's internal controls. They are enforced by the unit
 | Realised / unrealised / fees / equity | `src/market-making/inventory/inventory-book.ts` |
 | 4-component attribution | `src/market-making/backtest/pnl-attribution.ts` |
 | Venue maker/taker fees | `src/market-making/backtest/venue-fees.ts` |
-| Funding accrual (5th line) | `src/market-making/backtest/lob-replay.ts` |
+| Funding accrual (5th line) | `src/market-making/backtest/lob-replay.ts` (backtest) · `src/market-making/live/mm-book.ts` (live paper) |
 | Funding rate source (HL) | `src/market-data/funding/hyperliquid-funding-client.ts` |
 | Delta-neutral carry model | `src/market-data/funding/funding-carry.ts` |
 | Queue-aware fills + drawdown + sweep | `src/market-making/backtest/lob-replay.ts`, `gamma-kappa-sweep.ts` |

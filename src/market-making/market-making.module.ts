@@ -16,6 +16,7 @@ import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
 import { venueFeeFor } from './backtest/venue-fees';
+import { HyperliquidFundingClient } from '../market-data/funding/hyperliquid-funding-client';
 import { MmScreener } from './screen/mm-screener';
 import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
@@ -72,6 +73,14 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const feeFloorBps = mm.makerFeeBps > 0 ? 2 * mm.makerFeeBps : 0;
         const effMinHalfSpreadBps = Math.max(mm.minHalfSpreadBps, feeFloorBps);
         const warmupBars = Math.max(mm.volWindowBars * 3, 90);
+
+        // Live perp funding for the inventory carry (5th P&L line — MM course §8.10).
+        // Only a perp venue has funding; HL is the wired one. Spot/AMM books get 0.
+        const hlFunding = new HyperliquidFundingClient({ baseUrl: app.feed.hyperliquidBaseUrl });
+        const fundingRateFor = async (srcId: string | undefined, symbol: string): Promise<number> =>
+          srcId === 'hyperliquid'
+            ? hlFunding.currentFunding(symbol).then((f) => f.lastFundingRate).catch(() => 0)
+            : 0;
 
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
@@ -136,6 +145,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics,
             // not a desk-wide assumption. (mm.makerFeeBps is now only the screener's.)
             makerFeeBps: venueFeeFor(srcId).makerBps,
+            fundingRatePerHour: await fundingRateFor(srcId, spec.symbol),
             capitalUnits: mm.capitalUnits,
             nextBar: (s) => feed.nextBar(s),
             warmupCloses,
