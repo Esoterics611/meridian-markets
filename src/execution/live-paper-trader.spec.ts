@@ -270,6 +270,62 @@ describe('LivePaperTrader', () => {
     expect(blocks[0].message).toContain('blocked by risk gate');
   });
 
+  it('serializes then restores P&L state losslessly onto a fresh book', async () => {
+    const notional = 1_000_000_000n;
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    const trader = new LivePaperTrader(scriptedStrategy(notional), venue, feed, cfg);
+    trader.setStartingCapital(1_000_000_000n);
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick(); // open
+    venue.prices = { BTC: 110n * M, ETH: 100n * M };
+    await trader.tick(); // close (+100 USDC realised, 1 closed trade)
+
+    const state = trader.serializeState();
+    expect(state.realisedPnlUnits).toBe('100000000');
+    expect(state.closedTradeCount).toBe(1);
+
+    // A fresh book restores to the same equity + count.
+    const fresh = new LivePaperTrader(scriptedStrategy(notional), new FakeVenue(), new FakeFeed([], [], 'BTC'), cfg);
+    fresh.setStartingCapital(1_000_000_000n);
+    fresh.restoreState(state);
+    const snap = fresh.snapshot();
+    expect(snap.realisedPnlUnits).toBe('100000000');
+    expect(snap.equityUnits).toBe((1_000_000_000n + 100_000_000n).toString());
+    expect(snap.closedTradeCount).toBe(1);
+    expect(snap.openPosition).toBeNull();
+  });
+
+  it('restores an OPEN position and puts the strategy back into the held regime', () => {
+    // A strategy that records restorePosition + would re-OPEN if left FLAT.
+    let restoredTo: string | null = null;
+    const strat: LiveStrategy = {
+      lastZ: NaN, currentBeta: () => 1, currentRegime: () => 'FLAT',
+      onBar: () => [],
+      restorePosition: (side) => { restoredTo = side; },
+    };
+    const trader = new LivePaperTrader(strat, new FakeVenue(), new FakeFeed([], [], 'BTC'), cfg);
+    trader.setStartingCapital(1_000_000_000n);
+    trader.restoreState({
+      realisedPnlUnits: '5000000', closedTradeCount: 3, peakNav: 1.02,
+      barsSeen: 42, seededBars: 10, blockedEntries: 1,
+      open: {
+        side: 'SHORT', notionalUnits: (500n * M).toString(), entryZ: 2.3,
+        entryPriceAMicros: (100n * M).toString(), entryPriceBMicros: (50n * M).toString(),
+        entryFeesUnits: '250000', openedAt: new Date(1_000_000).toISOString(),
+      },
+    });
+    const snap = trader.snapshot();
+    expect(snap.openPosition).toMatchObject({ side: 'SHORT', entryZ: 2.3 });
+    expect(snap.closedTradeCount).toBe(3);
+    expect(snap.barsSeen).toBe(42);
+    expect(restoredTo).toBe('SHORT'); // strategy resumed in-position
+  });
+
   it('blocks an OPEN when the risk engine denies, and never places the order', async () => {
     const denyEngine = {
       preTradeCheck: () => [{ allow: false as const, reason: 'drawdown breach' }],

@@ -102,6 +102,12 @@ export class OuSpreadStrategy implements IStrategy {
     this.regime = 'FLAT';
   }
 
+  /** Resume in a held position on boot (restart-safe books): re-enter the regime
+   *  so the next bar evaluates an EXIT, not a fresh entry. */
+  restorePosition(side: 'LONG' | 'SHORT'): void {
+    this.regime = side;
+  }
+
   reset(): void {
     this.regime = 'FLAT';
     this.lastFit = null;
