@@ -68,6 +68,10 @@ const TRADES_WS = (process.env.MM_L2_TRADES_WS ?? 'true').toLowerCase() !== 'fal
 // Accrue real HL funding on held inventory (MM course §8.10). On by default; the
 // live hourly rate is fetched per coin at startup and applied pro-rata each step.
 const FUNDING = (process.env.MM_L2_FUNDING ?? 'true').toLowerCase() !== 'false';
+// Checkpoint the tapes to disk every N minutes during the run (0 = only at the end).
+// A long capture that crashes/gets killed at hour 7 otherwise loses everything; with
+// checkpointing the saved files always hold the capture so far. Default 10 min.
+const CHECKPOINT_MIN = Number(process.env.MM_L2_CHECKPOINT_MIN ?? 10);
 
 const MICROS = 1_000_000n;
 const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(2);
@@ -277,6 +281,20 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   console.log(`   • A short session is a thin tape — run --DURATION_MIN 120+ at POLL_S 60 for a real read.`);
 }
 
+// Write each coin's tape so far to `${savePath}-${coin}.json` (overwrite). Used by
+// both the periodic checkpoint and the final save — idempotent, so a kill between
+// checkpoints loses at most CHECKPOINT_MIN of capture, never the whole run.
+function saveTapes(states: BookState[], savePath: string): number {
+  mkdirSync(dirname(`${savePath}-x`), { recursive: true });
+  let n = 0;
+  for (const s of states) {
+    if (s.tape.length === 0) continue;
+    writeFileSync(`${savePath}-${s.coin}.json`, serializeTape(s.tape, s.coin));
+    n++;
+  }
+  return n;
+}
+
 // ---- main -------------------------------------------------------------------
 async function main(): Promise<void> {
   if (!mmStrategyRegistry.has(STRATEGY)) throw new Error(`unknown MM strategy '${STRATEGY}' — try mm-glft | mm-avellaneda-stoikov | mm-symmetric`);
@@ -327,7 +345,12 @@ async function main(): Promise<void> {
   const endAt = Date.now() + Math.round(DURATION_MIN * 60_000);
   let polls = 0;
   let lastPollAt = Date.now();
+  // Tape checkpointing (crash-safety): flush every CHECKPOINT_MIN minutes.
+  const savePath = (process.env.MM_L2_SAVE_TAPE ?? '').trim();
+  const checkpointMs = savePath && CHECKPOINT_MIN > 0 ? CHECKPOINT_MIN * 60_000 : 0;
+  let lastCheckpointAt = Date.now();
   console.log(`\n=== polling l2Book until ${new Date(endAt).toISOString()} ===`);
+  if (checkpointMs) console.log(`  (checkpointing tapes every ${CHECKPOINT_MIN}min → ${savePath}-<coin>.json)`);
   while (Date.now() < endAt) {
     const now = Date.now();
     const dtSec = polls === 0 ? POLL_S : Math.max(1, (now - lastPollAt) / 1000);
@@ -339,22 +362,22 @@ async function main(): Promise<void> {
     }
     polls++;
     console.log(`  poll ${pad(polls, 3)} @ ${new Date(now).toISOString().slice(11, 19)}  ${mids.join('  ')}`);
+    // Periodic crash-safe checkpoint: the tape files always hold the capture so far.
+    if (checkpointMs && Date.now() - lastCheckpointAt >= checkpointMs) {
+      const n = saveTapes(states, savePath);
+      lastCheckpointAt = Date.now();
+      console.log(`  ⏺ checkpoint — flushed ${n} tape(s) at poll ${polls} → ${savePath}-<coin>.json`);
+    }
     if (Date.now() >= endAt) break;
     await new Promise((r) => setTimeout(r, POLL_S * 1000));
   }
   tradeStream?.close();
 
-  // Persist the captured tape(s) so scripts/mm-l2-tune.ts can sweep γ/κ over the
-  // SAME real flow (capture-once, sweep-many). One file per coin: `${path}-${coin}.json`.
-  const savePath = (process.env.MM_L2_SAVE_TAPE ?? '').trim();
+  // Final persist so scripts/mm-l2-tune.ts can sweep γ/κ over the SAME real flow
+  // (capture-once, sweep-many). One file per coin: `${path}-${coin}.json`.
   if (savePath) {
-    mkdirSync(dirname(`${savePath}-x`), { recursive: true });
-    for (const s of states) {
-      if (s.tape.length === 0) continue;
-      const file = `${savePath}-${s.coin}.json`;
-      writeFileSync(file, serializeTape(s.tape, s.coin));
-      console.log(`  saved ${s.tape.length}-step tape → ${file}`);
-    }
+    saveTapes(states, savePath);
+    for (const s of states) if (s.tape.length > 0) console.log(`  saved ${s.tape.length}-step tape → ${savePath}-${s.coin}.json`);
   }
 
   console.log(`\n=== captured ${polls} polls; running the LobReplayHarness ===`);

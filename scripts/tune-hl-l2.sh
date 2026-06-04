@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DATE="${DATE:-$(date +%Y%m%d)}"
-COINS="${COINS:-BTC,ETH,SOL,XRP,DOGE,BNB}"
+COINS="${COINS:-BTC,HYPE,ETH,ZEC,SOL,NEAR,WLD,XRP,LIT,TON,ENA,XPL,VVV,ONDO,BNB,SUI,ADA,DOGE,PUMP,ASTER}"
 PREFIX="docs/research/l2-tapes/hl-discovery-${DATE}"
 OUT="docs/research/l2-tapes/tune-${DATE}-$(date +%H%M).txt"
 
