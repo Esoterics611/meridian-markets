@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Optional, Post, Query } from '@nestjs/common';
 import { MmPortfolioTrader } from './live/mm-portfolio-trader';
 import { MmScreener } from './screen/mm-screener';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
 import { listMmPresets, getMmPreset } from './markets/mm-market-presets';
+import { MmNavRepository, MmNavRow } from './persistence/mm-nav.repository';
 
 // Control plane for the automated market-making books. Mirrors the stat-arb
 // LiveController's portfolio shape so the desk drives both the same way — launch
@@ -15,14 +16,21 @@ import { listMmPresets, getMmPreset } from './markets/mm-market-presets';
 //   POST /api/market-making/start|stop|tick
 //   POST /api/market-making/flatten      — flatten every book
 //   GET  /api/market-making/snapshot     — desk + per-book quotes/inventory/PnL
+//   GET  /api/market-making/nav          — durable desk/per-book equity curve (P3)
 
 const USDC = 1_000_000n;
+const DEFAULT_NAV_HOURS = 24;
+const MAX_NAV_HOURS = 24 * 365; // a year of curve — generous cap, bounds the scan
 
 @Controller('api/market-making')
 export class MmController {
   constructor(
     private readonly portfolio: MmPortfolioTrader,
     private readonly screener: MmScreener,
+    // Durable NAV history (Telemetry P3). Null when MM_PERSIST is off / no DB ⇒ the
+    // endpoint returns an empty curve with a note. @Optional so the isolated
+    // controller spec (no DB) and a bare `new MmController(...)` both resolve.
+    @Optional() @Inject(MmNavRepository) private readonly navRepo: MmNavRepository | null = null,
   ) {}
 
   /**
@@ -154,4 +162,47 @@ export class MmController {
   snapshot() {
     return this.portfolio.snapshot();
   }
+
+  /**
+   * Durable NAV / equity-curve history (Telemetry P3) — the multi-day track record,
+   * read from the append-only mm_nav table. Oldest-first (chart order).
+   *   GET /api/market-making/nav?hours=24            — the desk-aggregate NAV curve
+   *   GET /api/market-making/nav?hours=72&book=BTC   — one book's equity curve
+   * Returns an empty curve + a note when MM_PERSIST is off (no durable NAV without
+   * Postgres). bigints are serialised to decimal strings, like every MM read.
+   */
+  @Get('nav')
+  async nav(@Query('hours') hours?: string, @Query('book') book?: string) {
+    const bookKey = book ?? '';
+    if (!this.navRepo) {
+      return { enabled: false, book: bookKey, points: [], note: 'durable NAV is off — set MM_PERSIST=true (needs Postgres + migrations)' };
+    }
+    const h = clampNavHours(hours);
+    const fromAsOf = new Date(Date.now() - h * 3_600_000);
+    const rows = await this.navRepo.navHistory(fromAsOf, bookKey);
+    return { enabled: true, book: bookKey, hours: h, points: rows.map(serializeNavRow) };
+  }
+}
+
+/** Parse + clamp the `hours` query param to a sane, bounded window. */
+function clampNavHours(raw?: string): number {
+  const h = Number(raw);
+  if (!Number.isFinite(h) || h <= 0) return DEFAULT_NAV_HOURS;
+  return Math.min(h, MAX_NAV_HOURS);
+}
+
+/** Map a NAV row to a JSON-safe shape (bigints → decimal strings). */
+function serializeNavRow(r: MmNavRow) {
+  return {
+    asOf: r.asOf.toISOString(),
+    bookKey: r.bookKey,
+    equityUnits: r.equityUnits.toString(),
+    netPnlUnits: r.netPnlUnits.toString(),
+    realisedPnlUnits: r.realisedPnlUnits.toString(),
+    unrealisedPnlUnits: r.unrealisedPnlUnits.toString(),
+    feesUnits: r.feesUnits.toString(),
+    fundingUnits: r.fundingUnits.toString(),
+    inventoryUnits: r.inventoryUnits.toString(),
+    maxDrawdownPct: r.maxDrawdownPct,
+  };
 }

@@ -50,4 +50,12 @@ describe('MarketMakingModule — the endpoints the /demo MM tab calls', () => {
     const r = (await controller.launch({ symbol: 'FDUSD', strategyId: 'nope' })) as { error?: string };
     expect(r.error).toMatch(/unknown/i);
   });
+
+  it('GET /nav returns the disabled-but-empty shape when MM_PERSIST is off (the default)', async () => {
+    const r = (await controller.nav()) as { enabled: boolean; points: unknown[]; note?: string };
+    // No DB / persistence off in this isolated module ⇒ no durable NAV repo wired.
+    expect(r.enabled).toBe(false);
+    expect(r.points).toEqual([]);
+    expect(r.note).toMatch(/MM_PERSIST/);
+  });
 });
