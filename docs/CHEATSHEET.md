@@ -12,6 +12,11 @@ Every way to drive the engine: terminal commands, backend run modes, and the
 
 > Paper-only demo (CLAUDE.md §1). `paper` mode = real market data + simulated
 > fills, no API key, no real money. `canary`/`live` are parked engineering seams.
+>
+> **New here? Read the [Operator's Manual](OPERATIONS_MANUAL.md) first** — it explains
+> the three systems (live desk / research pipeline / observability), where every
+> result is stored, and the recurring jobs end-to-end. This cheatsheet is the terse
+> command index; the manual is the explained version.
 
 ---
 
