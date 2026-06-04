@@ -69,16 +69,22 @@ Start with `g(I)=I` (linear, Stoikov's first-order); refine `g` empirically from
 tapes (the imbalance→next-move curve is estimable directly). **This alone is the single
 biggest adverse-selection cut available** and needs only the L2 we already capture.
 
-### Layer B — Lead–lag from the CEX (seconds; very high IC, we have the data)
-HL perps follow Binance spot/futures price discovery with a lag. Quote HL around the
-**Binance-implied** fair value:
+### Layer B — Cross-venue fusion (seconds; high IC, we have the data) — MEASURE who leads
+**HL is itself a major price-discovery venue, NOT just a Binance follower** (Ronnie,
+2026-06-05). So this layer is a *measured* cross-venue fusion, not an assumption:
 ```
-μ_lead = μ_micro + β · (P_binance − P_hl_mid)      # β fit per coin; the basis-corrected lead
+μ_x = μ_micro + β · (P_binance − P_hl_mid)         # β FIT PER COIN from the data — may be ≈0
 ```
-We already have `BinancePublicClient` + `HyperliquidClient`. Measuring the HL-vs-Binance
-lead-lag (cross-correlation of returns at sub-minute lags) and folding the lead into the
-theo is, in my judgment, **the highest-leverage practical edge in the whole project** —
-it directly attacks the stale-mid problem with a faster, deeper reference we already pull.
+- **Measure the lead-lag both ways**, per coin: cross-correlate each venue's returns against
+  the other at ±sub-minute lags. The data says who leads (Binance often on majors via its
+  deeper book; HL plausibly on its native/dominant coins; some contemporaneous), by how much,
+  and how stable it is — that sets β (and its sign/whether to use it at all).
+- **β≈0 is a valid, expected outcome** on coins where HL self-discovers — there the cross-venue
+  term is noise and we skip it. Adopt it only where it *measurably* reduces adverse on the tapes.
+We already have `BinancePublicClient` + `HyperliquidClient`. Where a real lead exists it is a
+high-leverage, structural edge most DEX-only MMs ignore (a faster/deeper reference we already
+pull); where it doesn't, the micro-price (Layer A) already carries HL's own discovery. The
+honest move is to **let the cross-correlation decide**, per coin.
 
 ### Layer C — Order/trade-flow drift (seconds–minutes; we capture 45–100% real flow)
 Aggressive flow is persistent and predicts short-term drift. From the HL trades-WS:
