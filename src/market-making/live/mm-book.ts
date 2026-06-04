@@ -3,7 +3,7 @@ import { Bar } from '../../stat-arb/backtest/bar';
 import { IQuoter } from '../quote/quoter.interface';
 import { QuoteContext, QuotePair } from '../quote/quote-pair';
 import { RollingVolatility } from '../quote/volatility';
-import { InventoryBook } from '../inventory/inventory-book';
+import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
@@ -41,6 +41,14 @@ export interface MmBookConfig {
   volFloor: number;
   /** Maker fee in bps, SIGNED: negative = rebate. */
   makerFeeBps: number;
+  /**
+   * Perp funding rate as a SIGNED fraction per HOUR (+ ⇒ longs pay shorts, the HL
+   * convention). When set, funding accrues each bar on the inventory held over the
+   * interval, pro-rated by the real inter-bar time, into equity + net P&L (the same
+   * 5th-line model as the queue-aware harness — MM course §8.10). Omit/0 ⇒ none
+   * (spot/AMM venues have no funding). Static over the run unless refreshed.
+   */
+  fundingRatePerHour?: number;
   capitalUnits: bigint;
   /** Latest-closed-bar source (one bar per call, null when none new). */
   nextBar: (symbol: string) => Promise<Bar | null>;
@@ -48,6 +56,26 @@ export interface MmBookConfig {
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
   now?: () => Date;
+}
+
+/**
+ * Persistable book state (ledger + all P&L accumulators), bigints as strings.
+ * The quoter / feed / risk gate are NOT here — they are rebuilt from config on
+ * restart; only the evolving P&L state needs to survive (restart-safe books).
+ * The σ window is re-seeded from recent closes via warmup(), so it is not stored.
+ */
+export interface MmBookState {
+  book: InventoryBookState;
+  fundingUnits: string;
+  spreadCapturedUnits: string;
+  adverseUnits: string;
+  peakEquityUnits: string;
+  maxDrawdownPct: number;
+  barsSeen: number;
+  fills: number;
+  bidFills: number;
+  askFills: number;
+  blockedQuotes: number;
 }
 
 export interface MmBookSnapshot {
@@ -70,6 +98,8 @@ export interface MmBookSnapshot {
   realisedPnlUnits: string;
   unrealisedPnlUnits: string;
   feesUnits: string;
+  /** Funding accrued on held inventory (+ received / − paid); "0" on non-perp venues. */
+  fundingUnits: string;
   netPnlUnits: string;
   spreadCapturedUnits: string;
   adverseSelectionUnits: string;
@@ -97,6 +127,10 @@ export class MmBook {
   private blockedQuotes = 0;
   private spreadCaptured = 0n;
   private adverse = 0n;
+  /** Funding harvested (+) / paid (−) on held inventory over the run; 0 when no rate. */
+  private fundingUnits = 0n;
+  private prevBarMs: number | undefined;
+  private prevMidMicros: bigint | undefined;
   private peakEquity: bigint;
   private maxDrawdownPct = 0;
   private lastVerdict: RiskVerdict['kind'] = 'Allow';
@@ -119,6 +153,72 @@ export class MmBook {
     if (units <= 0n) throw new Error('mm book capital must be positive');
     this.cfg = { ...this.cfg, capitalUnits: units };
     this.peakEquity = units;
+  }
+
+  /** Refresh the live perp funding rate (signed fraction/hour). Lets a scheduler keep
+   *  the static-per-run rate current as funding drifts over a multi-hour session. */
+  setFundingRatePerHour(rate: number): void {
+    this.cfg = { ...this.cfg, fundingRatePerHour: rate };
+  }
+
+  /** The resolved numeric config needed to persist + rebuild this book on restart. */
+  config(): {
+    strategyId: string;
+    quoteSizeUnits: bigint;
+    gamma: number;
+    kappa: number;
+    horizonBars: number;
+    volWindowBars: number;
+    volFloor: number;
+    makerFeeBps: number;
+    fundingRatePerHour: number;
+    capitalUnits: bigint;
+  } {
+    return {
+      strategyId: this.cfg.strategyId,
+      quoteSizeUnits: this.cfg.quoteSizeUnits,
+      gamma: this.cfg.gamma,
+      kappa: this.cfg.kappa,
+      horizonBars: this.cfg.horizonBars,
+      volWindowBars: this.cfg.volWindowBars,
+      volFloor: this.cfg.volFloor,
+      makerFeeBps: this.cfg.makerFeeBps,
+      fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
+      capitalUnits: this.cfg.capitalUnits,
+    };
+  }
+
+  /** Snapshot the evolving P&L state for persistence (restart-safe books). */
+  serializeState(): MmBookState {
+    return {
+      book: this.book.serialize(),
+      fundingUnits: this.fundingUnits.toString(),
+      spreadCapturedUnits: this.spreadCaptured.toString(),
+      adverseUnits: this.adverse.toString(),
+      peakEquityUnits: this.peakEquity.toString(),
+      maxDrawdownPct: this.maxDrawdownPct,
+      barsSeen: this.barsSeen,
+      fills: this.fills,
+      bidFills: this.bidFills,
+      askFills: this.askFills,
+      blockedQuotes: this.blockedQuotes,
+    };
+  }
+
+  /** Restore a previously-persisted state onto a freshly-built book (post-construct,
+   *  before the first tick). The book then re-warms σ from warmup() and resumes. */
+  restore(s: MmBookState): void {
+    this.book.restore(s.book);
+    this.fundingUnits = BigInt(s.fundingUnits);
+    this.spreadCaptured = BigInt(s.spreadCapturedUnits);
+    this.adverse = BigInt(s.adverseUnits);
+    this.peakEquity = BigInt(s.peakEquityUnits);
+    this.maxDrawdownPct = s.maxDrawdownPct;
+    this.barsSeen = s.barsSeen;
+    this.fills = s.fills;
+    this.bidFills = s.bidFills;
+    this.askFills = s.askFills;
+    this.blockedQuotes = s.blockedQuotes;
   }
 
   /** Seed the σ window from recent closes so the book can quote immediately. */
@@ -145,6 +245,23 @@ export class MmBook {
     const midMicros = toMicros(bar.close);
     this.vol.push(bar.close);
 
+    // Accrue funding on the inventory CARRIED INTO this bar over the interval since
+    // the previous bar (long pays a positive rate ⇒ −(signed inv notional)·rate·Δt).
+    // Done before the warmup early-return so the inter-bar clock stays correct; while
+    // warming, inventory is 0 ⇒ no accrual. (MM course §8.10.)
+    const tsMs = bar.timestamp.getTime();
+    const fundingRate = this.cfg.fundingRatePerHour ?? 0;
+    if (fundingRate !== 0 && this.prevBarMs !== undefined && this.prevMidMicros !== undefined) {
+      const dtHours = (tsMs - this.prevBarMs) / 3_600_000;
+      const inv = this.book.inventoryUnits();
+      if (dtHours > 0 && inv !== 0n) {
+        const notional = (inv * this.prevMidMicros) / MICROS;
+        this.fundingUnits += BigInt(Math.round(-Number(notional) * fundingRate * dtHours));
+      }
+    }
+    this.prevBarMs = tsMs;
+    this.prevMidMicros = midMicros;
+
     // Resolve any prior-bar fills' adverse selection against this bar's mid.
     for (const p of this.pendingMarkout) {
       const c = attributeFill({ side: p.side, sizeUnits: p.sizeUnits, priceMicros: p.fairMid, feeUnits: 0n }, p.fairMid, midMicros, 0n);
@@ -168,7 +285,7 @@ export class MmBook {
     this.lastQuote = quote;
 
     if (this.cfg.riskGate) {
-      const navRatio = Number(this.book.equityUnits(this.cfg.capitalUnits, midMicros)) / Number(this.cfg.capitalUnits);
+      const navRatio = Number(this.equityWithFunding(midMicros)) / Number(this.cfg.capitalUnits);
       const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: 0, recentAdverseUnits: this.adverse, killed: false };
       const verdict = this.cfg.riskGate.check(quote, state);
       this.lastVerdict = verdict.kind;
@@ -213,8 +330,13 @@ export class MmBook {
     this.book.apply({ side, sizeUnits: size, priceMicros: midMicros, feeUnits: fee });
   }
 
+  /** Equity including funding: capital + trading P&L + funding accrued. */
+  private equityWithFunding(midMicros: bigint): bigint {
+    return this.book.equityUnits(this.cfg.capitalUnits, midMicros) + this.fundingUnits;
+  }
+
   private markEquity(midMicros: bigint): void {
-    const equity = this.book.equityUnits(this.cfg.capitalUnits, midMicros);
+    const equity = this.equityWithFunding(midMicros);
     if (equity > this.peakEquity) this.peakEquity = equity;
     if (this.peakEquity > 0n) {
       const ddPct = (Number(this.peakEquity - equity) / Number(this.peakEquity)) * 100;
@@ -241,11 +363,12 @@ export class MmBook {
       halfSpreadMicros: q ? q.halfSpreadMicros.toString() : null,
       inventoryUnits: this.book.inventoryUnits().toString(),
       capitalUnits: this.cfg.capitalUnits.toString(),
-      equityUnits: this.book.equityUnits(this.cfg.capitalUnits, midMicros).toString(),
+      equityUnits: this.equityWithFunding(midMicros).toString(),
       realisedPnlUnits: this.book.realisedUnits().toString(),
       unrealisedPnlUnits: this.book.unrealisedUnits(midMicros).toString(),
       feesUnits: this.book.feesUnits().toString(),
-      netPnlUnits: this.book.totalPnlUnits(midMicros).toString(),
+      fundingUnits: this.fundingUnits.toString(),
+      netPnlUnits: (this.book.totalPnlUnits(midMicros) + this.fundingUnits).toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseSelectionUnits: this.adverse.toString(),
       fills: this.fills,

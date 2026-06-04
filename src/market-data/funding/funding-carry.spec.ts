@@ -63,4 +63,17 @@ describe('staticCarry', () => {
     expect(r.fundingCollectedUnits).toBe(0n);
     expect(r.annualizedNetPct).toBe(0);
   });
+
+  it('accrues funding on entry notional when the source omits mark (markPrice 0)', () => {
+    // HL fundingHistory carries no mark ⇒ markPrice 0. A literal mark/perpEntry would
+    // zero funding; the guard accrues on notional instead. 1 settlement × 1bp × $1M.
+    const r = staticCarry(base({ funding: [fp(0.0001, 0, 0)] }));
+    expect(r.fundingCollectedUnits).toBe(100_000_000n);
+  });
+
+  it('annualises on a venue-specific periodsPerYear (HL hourly = 8760)', () => {
+    const r = staticCarry(base({ periodsPerYear: 8760 }));
+    // 0.0001 × 8760 × 100 = 87.6% / yr (vs 10.95% at the Binance 8h cadence)
+    expect(r.annualizedFundingPct).toBeCloseTo(87.6, 1);
+  });
 });

@@ -1,0 +1,54 @@
+{
+  "title": "HL queue-aware MM — first net-positive honest-fill read (per-pool γ/κ tuned)",
+  "date": "2026-06-04",
+  "capture": {
+    "source": "hyperliquid",
+    "tapes": "docs/research/l2-tapes/wsflow1-{BTC,ETH,SOL}.json (gitignored)",
+    "steps": 111,
+    "pollSeconds": 60,
+    "durationMin": 120,
+    "coins": ["BTC", "ETH", "SOL"],
+    "quoteUsd": 50000,
+    "capitalPerBookUsd": 1000000,
+    "makerFeeBps": -0.2,
+    "aggressorFlow": "REAL HL trades WebSocket (332/333 steps real, 1 warmup-estimate)",
+    "fillModel": "queue-aware FIFO against the real L2 depth tape",
+    "fundingAccrued": true,
+    "note": "First capture on REAL per-trade aggressor flow (vs the earlier candle-volume estimate that filled 0 everywhere)."
+  },
+  "sessionDefaultCalibration": {
+    "gamma": 0.0025,
+    "kappa": 2,
+    "perCoin": {
+      "BTC": { "touchFills": 4, "queueFills": 1, "fillRatio": 0.25, "spreadUnits": 85.09, "adverseUnits": 34.83, "structuralUnits": -56.20, "netUnits": -55.21, "maxDrawdownPct": 0.120 },
+      "ETH": { "touchFills": 3, "queueFills": 1, "fillRatio": 0.333, "spreadUnits": 112.46, "adverseUnits": 110.88, "structuralUnits": -364.33, "netUnits": -363.34, "maxDrawdownPct": 0.154 },
+      "SOL": { "touchFills": 2, "queueFills": 1, "fillRatio": 0.50, "spreadUnits": 131.19, "adverseUnits": 72.81, "structuralUnits": -714.51, "netUnits": -713.52, "maxDrawdownPct": 0.220 }
+    },
+    "deskTotal": {
+      "capitalUsd": 3000000,
+      "touchFills": 9,
+      "queueFills": 3,
+      "fillOverstatementX": 3.0,
+      "structuralUnits": -1135.04,
+      "structuralPct": -0.0378,
+      "rebateNetUnits": -1132.08,
+      "costNetUnits": -1149.83,
+      "maxDrawdownPct": 0.2202,
+      "drawdownVerdict": "PASS",
+      "profitVerdict": "FAIL"
+    }
+  },
+  "perPoolTunedWinners": {
+    "grid": "γ∈{0.0005,0.0025,0.01,0.05} × κ∈{1,2,5} × floor∈{0.5,1,2,5}bps (48 combos/coin), ranked drawdown-compliant-first then maker-net at -0.2bps",
+    "BTC": { "gamma": 0.0005, "kappa": 1, "floorBps": 5, "queueFills": 5, "fillRatio": 0.455, "spreadUnits": 540.88, "adverseUnits": 434.29, "structuralUnits": 340.17, "makerNetUnits": 345.08, "maxDrawdownPct": 0.526, "verdict": "NET-POSITIVE" },
+    "ETH": { "gamma": 0.01, "kappa": 1, "floorBps": 0.5, "queueFills": 0, "makerNetUnits": 0.0, "maxDrawdownPct": 0.0, "verdict": "STAND-ASIDE (every filling combo net-negative ⇒ 0-fill wins)" },
+    "SOL": { "gamma": 0.01, "kappa": 1, "floorBps": 0.5, "queueFills": 0, "makerNetUnits": 0.0, "maxDrawdownPct": 0.0, "verdict": "STAND-ASIDE (every filling combo net-negative ⇒ 0-fill wins)" }
+  },
+  "verdict": "First time a calibration nets POSITIVE on honest fills (real WS flow + queue-aware FIFO + HL -0.2bps rebate): BTC γ=0.0005/κ=1/5bps → +$345 over ~111min on $1M, maxDD 0.53%. ETH/SOL have no profitable calibration on this window — the tuner correctly stands aside (0 fills beats every net-negative quoting combo). Coin-specific edge, drawdown-compliant throughout.",
+  "caveats": [
+    "Single 111-step window, one regime (~2h). Directional, not definitive — re-capture across regimes/sessions before trusting live.",
+    "Queue priority is kept only while the quote price is unchanged (a re-price rejoins the back); queueFills is a realistic lower-ish bound, touchFills the upper bound.",
+    "mm-l2-tune.ts prints a generic 'candle-estimate' caveat; for the wsflow1 tapes the aggressive flow is REAL WS (the session that built them used MM_L2_TRADES_WS).",
+    "Small fill counts (queueFills 0–5) ⇒ P&L is dominated by inventory mark on a few fills; high-variance. Need many more fills for a stable per-pool number."
+  ]
+}

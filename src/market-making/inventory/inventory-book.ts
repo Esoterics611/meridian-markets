@@ -26,6 +26,19 @@ export interface InventoryFill {
   feeUnits: bigint; // signed: + cost, − rebate
 }
 
+/**
+ * The full ledger state, with bigints as decimal STRINGS so it survives JSON +
+ * a Postgres BIGINT round-trip. The book is exactly reconstructable from this —
+ * persistence (restart-safe books) serialises this and restores it on boot.
+ */
+export interface InventoryBookState {
+  inventoryUnits: string;
+  avgCostMicros: string;
+  realisedUnits: string;
+  feesUnits: string;
+  fillCount: number;
+}
+
 const MICROS = 1_000_000n;
 
 function valueUnits(qtyUnits: bigint, priceMicros: bigint): bigint {
@@ -129,5 +142,25 @@ export class InventoryBook {
     this.realised = 0n;
     this.fees = 0n;
     this.fillCount = 0;
+  }
+
+  /** Snapshot the full ledger state for persistence (restart-safe books). */
+  serialize(): InventoryBookState {
+    return {
+      inventoryUnits: this.inventory.toString(),
+      avgCostMicros: this.avgCostMicros.toString(),
+      realisedUnits: this.realised.toString(),
+      feesUnits: this.fees.toString(),
+      fillCount: this.fillCount,
+    };
+  }
+
+  /** Restore a previously-serialised ledger state (overwrites current state). */
+  restore(s: InventoryBookState): void {
+    this.inventory = BigInt(s.inventoryUnits);
+    this.avgCostMicros = BigInt(s.avgCostMicros);
+    this.realised = BigInt(s.realisedUnits);
+    this.fees = BigInt(s.feesUnits);
+    this.fillCount = s.fillCount;
   }
 }

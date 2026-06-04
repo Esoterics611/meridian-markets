@@ -16,10 +16,10 @@
  * WHY LIVE (not replay): HL's `l2Book` gives a snapshot but NO history, and an honest
  * queue depth cannot be reconstructed from OHLC candles (the candle has no spread or
  * depth). So a real tape is built by POLLING the live book over a session. Each poll
- * is one tape step: REAL time-varying depth + a touch gate read off the snapshot's own
- * best bid/ask. The one estimate is the per-interval AGGRESSIVE VOLUME — taken from the
- * matching 1m candle's volume (real), pro-rated to the poll interval and split into
- * buy/sell by the mid tick (the approximations, stated honestly).
+ * is one tape step: REAL time-varying depth + the REAL aggressive flow that arrived
+ * over the interval, drained from the HL trades WebSocket (per-trade prints, signed by
+ * HL's taker side — `openTradeStream`). This replaces the old candle-volume estimate;
+ * the estimate remains only as a warmup/no-egress fallback (MM_L2_TRADES_WS=false).
  *
  * Run (quick smoke — ~30s, 6 polls at 5s; thin tape, proves the path):
  *   MM_L2_POLL_S=5 MM_L2_DURATION_MIN=0.5 \
@@ -33,6 +33,8 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-client';
+import { ITradeStream } from '../src/market-data/reference/reference-source.interface';
+import { HyperliquidFundingClient } from '../src/market-data/funding/hyperliquid-funding-client';
 import { mmStrategyRegistry } from '../src/market-making/registry/mm-strategy-registry';
 import { CompositeRiskGate } from '../src/market-making/risk/risk-gate';
 import { LobReplayHarness, LobReplayConfig, LobReplayMetrics } from '../src/market-making/backtest/lob-replay';
@@ -59,6 +61,13 @@ const VOL_WINDOW = Number(process.env.MM_L2_VOL_WINDOW ?? 20);
 const MIN_NAV = Number(process.env.MM_L2_MIN_NAV ?? 0.9);
 const AGGRESSOR_SPLIT = Number(process.env.MM_L2_AGGRESSOR_SPLIT ?? 0.6); // fraction of interval volume to the up/down-tick side
 const DD_LIMIT_PCT = Number(process.env.MM_L2_DD_LIMIT_PCT ?? 2);
+// REAL aggressor flow from the HL trades WS (replaces the candle-volume estimate).
+// On by default — it's the whole point of the queue-aware harness; set to 'false'
+// to force the legacy candle estimate (e.g. an env with no WS egress).
+const TRADES_WS = (process.env.MM_L2_TRADES_WS ?? 'true').toLowerCase() !== 'false';
+// Accrue real HL funding on held inventory (MM course §8.10). On by default; the
+// live hourly rate is fetched per coin at startup and applied pro-rata each step.
+const FUNDING = (process.env.MM_L2_FUNDING ?? 'true').toLowerCase() !== 'false';
 
 const MICROS = 1_000_000n;
 const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(2);
@@ -77,6 +86,9 @@ interface BookState {
   candleHighMicros?: bigint; // real traded high of the current candle (touch gate)
   candleLowMicros?: bigint; // real traded low of the current candle (touch gate)
   candleMinute: number; // wall-minute the candle was last refreshed for
+  stepsReal: number; // tape steps fed by REAL trades-WS aggressor flow
+  stepsEst: number; // tape steps that fell back to the candle estimate
+  fundingRatePerHour: number; // live HL funding rate (signed; + longs pay shorts)
 }
 
 function makeQuoter(quoteUnits: bigint): IQuoter {
@@ -113,6 +125,7 @@ function cfgFor(s: BookState): LobReplayConfig {
     capitalUnits: BigInt(Math.round(CAPITAL_USD * 1e6)),
     symbol: s.coin,
     riskGate: s.riskGate,
+    fundingRatePerHour: FUNDING ? s.fundingRatePerHour : 0,
   };
 }
 
@@ -136,29 +149,50 @@ async function refreshCandle(client: HyperliquidClient, s: BookState): Promise<v
   }
 }
 
-async function poll(client: HyperliquidClient, s: BookState, dtSec: number): Promise<bigint | undefined> {
+async function poll(client: HyperliquidClient, s: BookState, dtSec: number, stream?: ITradeStream): Promise<bigint | undefined> {
   const snap = await client.l2Snapshot(s.coin).catch(() => undefined);
   if (!snap) return undefined;
   const book = l2SnapshotToOrderBook(snap);
   const mid = midMicros(book);
   if (mid === undefined) return undefined;
-  await refreshCandle(client, s);
-
-  // Aggressive volume over this interval ≈ (candle vol/sec) × dt, split by the mid tick.
-  const intervalUnits = Math.max(0, s.candleVolPerSec * dtSec);
-  const up = s.lastMidMicros === undefined ? null : mid > s.lastMidMicros ? true : mid < s.lastMidMicros ? false : null;
-  const buyFrac = up === true ? AGGRESSOR_SPLIT : up === false ? 1 - AGGRESSOR_SPLIT : 0.5;
   const u = (x: number): bigint => BigInt(Math.max(0, Math.round(x * 1e6)));
+
+  // REAL aggressor flow first: drain the trades-WS accumulator for this coin. If it
+  // saw prints this interval, use the real taker buy/sell volume AND the real traded
+  // extremes (exact between polls, not a 1m-candle proxy). Only fall back to the
+  // candle-volume estimate when the stream is off or saw no prints (e.g. warmup).
+  const flow = stream?.drain(s.coin);
+  let aggressiveBuyUnits: bigint;
+  let aggressiveSellUnits: bigint;
+  let tradedHighMicros: bigint | undefined;
+  let tradedLowMicros: bigint | undefined;
+  if (flow && flow.tradeCount > 0) {
+    aggressiveBuyUnits = flow.aggressiveBuyUnits;
+    aggressiveSellUnits = flow.aggressiveSellUnits;
+    tradedHighMicros = flow.highMicros;
+    tradedLowMicros = flow.lowMicros;
+    s.stepsReal++;
+  } else {
+    await refreshCandle(client, s);
+    const intervalUnits = Math.max(0, s.candleVolPerSec * dtSec);
+    const up = s.lastMidMicros === undefined ? null : mid > s.lastMidMicros ? true : mid < s.lastMidMicros ? false : null;
+    const buyFrac = up === true ? AGGRESSOR_SPLIT : up === false ? 1 - AGGRESSOR_SPLIT : 0.5;
+    aggressiveBuyUnits = u(intervalUnits * buyFrac);
+    aggressiveSellUnits = u(intervalUnits * (1 - buyFrac));
+    tradedHighMicros = s.candleHighMicros;
+    tradedLowMicros = s.candleLowMicros;
+    s.stepsEst++;
+  }
+
   const step: L2TapeStep = {
     book, // REAL time-varying depth → real queue
-    aggressiveBuyUnits: u(intervalUnits * buyFrac),
-    aggressiveSellUnits: u(intervalUnits * (1 - buyFrac)),
-    // REAL traded extremes of the current candle gate the touch: our bid fills only
-    // if a trade actually printed down to it (low ≤ bid), our ask only if a print
-    // reached up to it (high ≥ ask). Exact at a 60s poll (one candle per step);
-    // at a sub-minute poll all polls in the minute share that minute's extremes.
-    tradedHighMicros: s.candleHighMicros,
-    tradedLowMicros: s.candleLowMicros,
+    aggressiveBuyUnits,
+    aggressiveSellUnits,
+    // Touch gate: our bid fills only if a trade actually printed down to it (low ≤ bid),
+    // our ask only if a print reached up to it (high ≥ ask). Real per-poll extremes when
+    // the trades WS fed this step; the matching candle's extremes on the estimate path.
+    tradedHighMicros,
+    tradedLowMicros,
   };
   s.tape.push(step);
   s.lastMidMicros = mid;
@@ -185,15 +219,21 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   let deskTouch = 0;
   let deskQueue = 0;
   let deskMaxDD = 0;
+  let deskReal = 0;
+  let deskEst = 0;
+  let deskFunding = 0n;
   for (const s of states) {
     const m = metrics.get(s.coin);
     if (!m) continue;
     reportCoin(s.coin, s.quoteUnits, m);
     deskStruct += m.realisedPnlUnits + m.unrealisedPnlUnits;
     deskFees += m.feesUnits;
+    deskFunding += m.fundingUnits;
     deskCap += BigInt(Math.round(CAPITAL_USD * 1e6));
     deskTouch += m.touchFills;
     deskQueue += m.queueFills;
+    deskReal += s.stepsReal;
+    deskEst += s.stepsEst;
     if (m.maxDrawdownPct > deskMaxDD) deskMaxDD = m.maxDrawdownPct;
   }
 
@@ -202,21 +242,38 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   console.log(`\n=== DESK TOTAL on $${usd(deskCap)} capital ===`);
   console.log(`  THE HONESTY NUMBER: fill-on-touch logged ${deskTouch} fills; queue-aware logged ${deskQueue} (ratio ${ratio.toFixed(3)}).`);
   console.log(`    → a fill-on-touch backtest overstated fills by ${deskQueue > 0 ? (deskTouch / deskQueue).toFixed(1) : '∞'}×.`);
-  console.log(`  structural (0bps, no fee/no rebate) : ${sgn(deskStruct)}  (${pct(deskStruct)})  ← the real edge`);
-  console.log(`  rebate net (${MAKER_BPS}bps HL maker)        : ${sgn(netAtBps(deskStruct, deskFees, MAKER_BPS))}  (${pct(netAtBps(deskStruct, deskFees, MAKER_BPS))})`);
-  console.log(`  cost net   (+1bps retail maker)     : ${sgn(netAtBps(deskStruct, deskFees, 1))}  (${pct(netAtBps(deskStruct, deskFees, 1))})`);
+  const structPlusFunding = deskStruct + deskFunding;
+  console.log(`  structural (0bps, no fee/no rebate) : ${sgn(deskStruct)}  (${pct(deskStruct)})  ← the trading edge (spread − adverse)`);
+  if (FUNDING) {
+    console.log(`  funding (held inventory)            : ${sgn(deskFunding)}  (${pct(deskFunding)})  ← perp carry on inventory held`);
+    console.log(`  structural + funding                : ${sgn(structPlusFunding)}  (${pct(structPlusFunding)})  ← the real edge incl. carry`);
+  }
+  console.log(`  rebate net (${MAKER_BPS}bps HL maker)${FUNDING ? ' + funding' : '       '}: ${sgn(netAtBps(deskStruct, deskFees, MAKER_BPS) + deskFunding)}  (${pct(netAtBps(deskStruct, deskFees, MAKER_BPS) + deskFunding)})`);
+  console.log(`  cost net   (+1bps retail maker)${FUNDING ? '+ funding' : '     '}: ${sgn(netAtBps(deskStruct, deskFees, 1) + deskFunding)}  (${pct(netAtBps(deskStruct, deskFees, 1) + deskFunding)})`);
 
-  console.log(`\n=== CONSERVATION (judged on queue-aware structural P&L) ===`);
+  console.log(`\n=== CONSERVATION (judged on queue-aware structural P&L${FUNDING ? ' incl. funding' : ''}) ===`);
   const ddVerdict = deskMaxDD <= DD_LIMIT_PCT ? 'PASS' : 'FAIL';
-  const profitVerdict = deskStruct > 0n ? 'PASS' : 'FAIL';
+  const edge = FUNDING ? structPlusFunding : deskStruct;
+  const profitVerdict = edge > 0n ? 'PASS' : 'FAIL';
   console.log(`  desk max drawdown: ${deskMaxDD.toFixed(4)}%  (limit ${DD_LIMIT_PCT}%)  → ${ddVerdict}`);
-  console.log(`  structural net > 0: ${deskStruct > 0n ? 'yes' : 'no'}  → ${profitVerdict}`);
+  console.log(`  ${FUNDING ? 'structural+funding' : 'structural'} net > 0: ${edge > 0n ? 'yes' : 'no'}  → ${profitVerdict}`);
 
+  const totSteps = deskReal + deskEst;
+  const realPct = totSteps > 0 ? ((deskReal / totSteps) * 100).toFixed(0) : '0';
+  console.log(`\n  AGGRESSOR-FLOW SOURCE: ${deskReal} steps REAL (HL trades WS) / ${deskEst} estimated  (${realPct}% real).`);
   console.log(`\n  CAVEATS (read every number through these):`);
-  console.log(`   • Depth + the touch gate are REAL HL l2Book; the per-interval AGGRESSIVE VOLUME is an`);
-  console.log(`     estimate (1m candle volume, pro-rated to the poll, split ${AGGRESSOR_SPLIT}/${(1 - AGGRESSOR_SPLIT).toFixed(1)} by the mid tick).`);
+  if (deskEst > 0) {
+    console.log(`   • ${deskEst} step(s) fell back to the candle-volume ESTIMATE (1m volume × mid tick, split`);
+    console.log(`     ${AGGRESSOR_SPLIT}/${(1 - AGGRESSOR_SPLIT).toFixed(1)}) — typically WS warmup; real prints feed the rest. Depth is always REAL l2Book.`);
+  } else {
+    console.log(`   • Aggressive volume + traded extremes are REAL per-trade prints (HL trades WS); depth is REAL l2Book.`);
+  }
   console.log(`   • queueFills is a realistic LOWER-ish bound (strict FIFO, queue priority kept only while`);
   console.log(`     the quote price is unchanged); touchFills is the upper bound. Truth is between.`);
+  if (FUNDING) {
+    console.log(`   • Funding accrues on held inventory at the LIVE hourly rate captured at startup (static over`);
+    console.log(`     the run, pro-rated per step); a real multi-hour book sees the rate drift — re-read for precision.`);
+  }
   console.log(`   • A short session is a thin tape — run --DURATION_MIN 120+ at POLL_S 60 for a real read.`);
 }
 
@@ -229,7 +286,9 @@ async function main(): Promise<void> {
   console.log(`  coins: ${COINS.join(',')} | quoter: ${STRATEGY} | lot: $${QUOTE_USD.toLocaleString()}/quote | cap/book: $${CAPITAL_USD.toLocaleString()}`);
   console.log(`  poll: ${POLL_S}s | duration: ${DURATION_MIN}min | driving HL maker: ${MAKER_BPS}bps | maxInv: ${MAX_LOTS} lots`);
 
-  // Probe each coin once to size the quote by $ notional ÷ price.
+  // Probe each coin once to size the quote by $ notional ÷ price, and read the live
+  // HL funding rate (hourly, signed) to accrue on held inventory (MM course §8.10).
+  const fundingClient = new HyperliquidFundingClient({ baseUrl: process.env.HYPERLIQUID_BASE_URL });
   const states: BookState[] = [];
   for (const coin of COINS) {
     const snap = await client.l2Snapshot(coin).catch(() => undefined);
@@ -239,6 +298,7 @@ async function main(): Promise<void> {
       console.log(`  ${coin}: no L2 snapshot — skipping`);
       continue;
     }
+    const fundingRatePerHour = FUNDING ? await fundingClient.currentFunding(coin).then((f) => f.lastFundingRate).catch(() => 0) : 0;
     const quoteUnits = BigInt(Math.max(1, Math.round((QUOTE_USD / price) * 1e6)));
     states.push({
       coin,
@@ -248,10 +308,21 @@ async function main(): Promise<void> {
       tape: [],
       candleVolPerSec: 0,
       candleMinute: -1,
+      stepsReal: 0,
+      stepsEst: 0,
+      fundingRatePerHour,
     });
-    console.log(`  ${coin}: mid $${price.toFixed(2)} → quote ${(QUOTE_USD / price).toFixed(5)} ${coin} ($${QUOTE_USD.toLocaleString()})`);
+    console.log(
+      `  ${coin}: mid $${price.toFixed(2)} → quote ${(QUOTE_USD / price).toFixed(5)} ${coin} ($${QUOTE_USD.toLocaleString()})` +
+        `${FUNDING ? `  funding ${(fundingRatePerHour * 10_000).toFixed(3)}bps/h` : ''}`,
+    );
   }
   if (states.length === 0) throw new Error('no quotable coins — check connectivity / coin names');
+
+  // Open the REAL aggressor stream (HL trades WS) for all coins at once; it warms up
+  // while we poll, and each poll drains the prints accumulated since the last one.
+  const tradeStream: ITradeStream | undefined = TRADES_WS ? client.openTradeStream(states.map((s) => s.coin)) : undefined;
+  console.log(`  aggressor flow: ${tradeStream ? 'REAL (HL trades WS)' : 'ESTIMATE (1m candle volume × mid tick)'}`);
 
   const endAt = Date.now() + Math.round(DURATION_MIN * 60_000);
   let polls = 0;
@@ -263,7 +334,7 @@ async function main(): Promise<void> {
     lastPollAt = now;
     const mids: string[] = [];
     for (const s of states) {
-      const mid = await poll(client, s, dtSec);
+      const mid = await poll(client, s, dtSec, tradeStream);
       mids.push(`${s.coin} ${mid ? (Number(mid) / 1e6).toFixed(2) : '—'} (d${s.tape[s.tape.length - 1]?.book.bids.length ?? 0}×${s.tape[s.tape.length - 1]?.book.asks.length ?? 0})`);
     }
     polls++;
@@ -271,6 +342,7 @@ async function main(): Promise<void> {
     if (Date.now() >= endAt) break;
     await new Promise((r) => setTimeout(r, POLL_S * 1000));
   }
+  tradeStream?.close();
 
   // Persist the captured tape(s) so scripts/mm-l2-tune.ts can sweep γ/κ over the
   // SAME real flow (capture-once, sweep-many). One file per coin: `${path}-${coin}.json`.

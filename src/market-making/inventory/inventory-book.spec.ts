@@ -42,4 +42,24 @@ describe('InventoryBook', () => {
     expect(b.totalPnlUnits(P(1.0))).toBe(100n);
     expect(b.equityUnits(1_000_000n, P(1.0))).toBe(1_000_100n);
   });
+
+  it('serialize → restore reproduces the ledger exactly (restart-safe)', () => {
+    const b = new InventoryBook();
+    b.apply({ side: 'BUY', sizeUnits: 3n * A, priceMicros: P(1.5), feeUnits: -30n });
+    b.apply({ side: 'SELL', sizeUnits: A, priceMicros: P(2.0), feeUnits: 5n }); // realise some
+    const state = b.serialize();
+    expect(state).toEqual({ inventoryUnits: (2n * A).toString(), avgCostMicros: P(1.5).toString(), realisedUnits: '500000', feesUnits: '-25', fillCount: 2 });
+
+    const revived = new InventoryBook();
+    revived.restore(state);
+    expect(revived.inventoryUnits()).toBe(b.inventoryUnits());
+    expect(revived.avgCost()).toBe(b.avgCost());
+    expect(revived.realisedUnits()).toBe(b.realisedUnits());
+    expect(revived.feesUnits()).toBe(b.feesUnits());
+    expect(revived.fills()).toBe(b.fills());
+    // …and it keeps accounting correctly from the restored position.
+    revived.apply({ side: 'SELL', sizeUnits: 2n * A, priceMicros: P(2.0), feeUnits: 0n });
+    expect(revived.inventoryUnits()).toBe(0n);
+    expect(revived.realisedUnits()).toBe(500_000n + 1_000_000n); // +0.5 prior + (2.0-1.5)*2
+  });
 });

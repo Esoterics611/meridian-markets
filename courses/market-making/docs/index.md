@@ -62,6 +62,7 @@ If you've read the stat-arb course's §4 (execution) and §5 (risk), you've seen
 | 5 | [Risk, inventory, kill switches](05-risk.md) | Set inventory limits, adverse-selection circuit breakers, and toxicity gates. Know which fire automatically and which require an operator. |
 | 6 | [Backtesting & LOB replay](06-backtesting.md) | Run an LOB-replay backtest that respects queue position. Calibrate a fill-probability model. Recognise the three most common backtest pathologies before they ship. |
 | 7 | [From paper to production](07-production.md) | Take a quoter from shadow mode to minimum-capital live to full allocation along a published ramp, with named acceptance bands. |
+| 8 | [The Meridian desk stack](08-the-meridian-desk-stack.md) | Run the desk procedure: launch a book on Hyperliquid, keep the quoter price-scale-invariant, price each book at its own venue's fee, fill FIFO against a real L2 tape, tune γ/κ per pool, and size in dollars. |
 | A | [Code-shape catalogue](appendix-a-code-shapes.md) | Recognise the recurring TypeScript patterns the chapters lean on. |
 | B | [Source notebook](appendix-b-sources.md) | Look up any citation in the course. |
 

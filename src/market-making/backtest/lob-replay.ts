@@ -76,6 +76,14 @@ export interface LobReplayConfig {
   capitalUnits: bigint;
   symbol?: string;
   riskGate?: RiskGate;
+  /**
+   * Perp funding rate as a SIGNED fraction per HOUR (+ ⇒ longs pay shorts, the HL
+   * convention). When set, funding accrues each step on the inventory held over the
+   * interval, pro-rated by the real inter-snapshot time: a held perp inventory then
+   * carries its real funding flow instead of being free (MM course §8.10). Omit/0 ⇒
+   * no funding (back-compat). The rate is static over the run, like staticCarry.
+   */
+  fundingRatePerHour?: number;
 }
 
 export interface LobReplayMetrics {
@@ -92,6 +100,8 @@ export interface LobReplayMetrics {
   realisedPnlUnits: bigint;
   finalInventoryUnits: bigint;
   unrealisedPnlUnits: bigint;
+  /** Funding harvested (+) or paid (−) on held inventory over the run; 0 when no rate given. */
+  fundingUnits: bigint;
   netPnlUnits: bigint;
   feesUnits: bigint;
   maxDrawdownPct: number;
@@ -119,11 +129,18 @@ export class LobReplayHarness {
     let aheadSum = 0n;
     let placements = 0;
 
+    // Funding accrual on held inventory (MM course §8.10). Static rate per hour,
+    // pro-rated by the real inter-snapshot interval; signed into equity + net.
+    let fundingUnits = 0n;
+    const fundingRatePerHour = cfg.fundingRatePerHour ?? 0;
+    let prevTsMs: number | undefined;
+    let prevMid: bigint | undefined;
+
     let peakEquity = cfg.capitalUnits;
     let maxDrawdownPct = 0;
 
     const markDd = (m: bigint): void => {
-      const equity = book.equityUnits(cfg.capitalUnits, m);
+      const equity = book.equityUnits(cfg.capitalUnits, m) + fundingUnits;
       if (equity > peakEquity) peakEquity = equity;
       if (peakEquity > 0n) {
         const dd = (Number(peakEquity - equity) / Number(peakEquity)) * 100;
@@ -148,6 +165,21 @@ export class LobReplayHarness {
       const mid = midMicros(ob);
       if (mid === undefined) continue; // empty book — nothing to mark or quote against
       vol.push(Number(mid) / 1e6);
+
+      // --- 0) accrue funding on the inventory CARRIED INTO this step over the
+      //         interval since the previous snapshot. A long pays funding when the
+      //         rate is positive ⇒ fundingPnl = −(signed inventory notional)·rate·dt.
+      const tsMs = ob.ts.getTime();
+      if (fundingRatePerHour !== 0 && prevTsMs !== undefined && prevMid !== undefined) {
+        const dtHours = (tsMs - prevTsMs) / 3_600_000;
+        const inv = book.inventoryUnits();
+        if (dtHours > 0 && inv !== 0n) {
+          const notional = (inv * prevMid) / MICROS; // signed USDC-units held over [prev, now]
+          fundingUnits += BigInt(Math.round(-Number(notional) * fundingRatePerHour * dtHours));
+        }
+      }
+      prevTsMs = tsMs;
+      prevMid = mid;
 
       // --- 1) settle orders resting since the previous step against THIS flow ---
       if (restingBid) {
@@ -239,7 +271,8 @@ export class LobReplayHarness {
       realisedPnlUnits: book.realisedUnits(),
       finalInventoryUnits: finalInventory,
       unrealisedPnlUnits: unrealised,
-      netPnlUnits: book.totalPnlUnits(lastMid),
+      fundingUnits,
+      netPnlUnits: book.totalPnlUnits(lastMid) + fundingUnits,
       feesUnits: book.feesUnits(),
       maxDrawdownPct,
       avgQueueAheadUnits: placements > 0 ? aheadSum / BigInt(placements) : 0n,

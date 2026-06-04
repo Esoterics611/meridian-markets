@@ -2,13 +2,17 @@ import { Bar } from '../../stat-arb/backtest/bar';
 import {
   IReferenceBarSource,
   IL2BookSource,
+  ITradeStream,
+  ITradeStreamSource,
   L2Level,
   L2Snapshot,
   RefHttpPost,
+  RefWsFactory,
   decimalToMicros,
   defaultRefHttpPost,
   intervalToSeconds,
 } from './reference-source.interface';
+import { HyperliquidTradeStream } from './hyperliquid-trades';
 
 // Hyperliquid — the largest on-chain perp DEX, a fully on-chain CLOB (not an AMM).
 // This is the maker-rebate ORDER-BOOK venue the MM engine was built for and needs
@@ -34,6 +38,8 @@ import {
 export interface HyperliquidClientOptions {
   baseUrl?: string;
   httpPost?: RefHttpPost;
+  /** Injected WebSocket factory for the trades stream (defaults to the global WebSocket). */
+  wsFactory?: RefWsFactory;
 }
 
 // HL candle intervals: 1m 3m 5m 15m 30m 1h 2h 4h 8h 12h 1d 3d 1w 1M. Our kline
@@ -46,16 +52,18 @@ export function hyperliquidInterval(interval: string): string {
   return '1h'; // safe default for anything unmapped
 }
 
-export class HyperliquidClient implements IReferenceBarSource, IL2BookSource {
+export class HyperliquidClient implements IReferenceBarSource, IL2BookSource, ITradeStreamSource {
   readonly sourceId = 'hyperliquid';
   readonly label = 'Hyperliquid (perp CLOB)';
   readonly sampleSymbol = 'BTC';
   private readonly baseUrl: string;
   private readonly httpPost: RefHttpPost;
+  private readonly wsFactory?: RefWsFactory;
 
   constructor(opts: HyperliquidClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? 'https://api.hyperliquid.xyz').replace(/\/+$/, '');
     this.httpPost = opts.httpPost ?? defaultRefHttpPost;
+    this.wsFactory = opts.wsFactory;
   }
 
   async klines(symbol: string, interval = '1h', limit = 240): Promise<Bar[]> {
@@ -77,6 +85,16 @@ export class HyperliquidClient implements IReferenceBarSource, IL2BookSource {
       coin: symbol.trim().toUpperCase(),
     });
     return parseHyperliquidL2(symbol, raw);
+  }
+
+  /**
+   * Open a live per-trade aggressor stream (real taker buy/sell flow), the REAL
+   * input to the queue-aware backtest that replaces the candle-volume estimate.
+   * The WS url is derived from the REST base (https→wss, /ws path).
+   */
+  openTradeStream(symbols: string[]): ITradeStream {
+    const wsUrl = `${this.baseUrl.replace(/^http/, 'ws')}/ws`;
+    return new HyperliquidTradeStream({ wsUrl, symbols, wsFactory: this.wsFactory });
   }
 }
 

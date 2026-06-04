@@ -33,6 +33,27 @@ export const defaultRefHttpPost: RefHttpPost = async (url: string, body: unknown
   return res.json();
 };
 
+// A live STREAM transport — some sources (Hyperliquid, dYdX) publish per-trade
+// aggressor flow only over a WebSocket, not a request/response endpoint. The
+// minimal surface below is the WHATWG `WebSocket` shape (open/message/close/error
+// + send/close), duck-typed so a unit test can inject a fake socket and emit
+// canned frames offline — the same swap-seam discipline as RefHttpGet/Post.
+export interface RefWsEvent {
+  readonly data?: unknown;
+}
+export interface MinimalWs {
+  send(data: string): void;
+  close(): void;
+  addEventListener(type: 'open' | 'message' | 'close' | 'error', listener: (ev: RefWsEvent) => void): void;
+}
+export type RefWsFactory = (url: string) => MinimalWs;
+
+export const defaultRefWsFactory: RefWsFactory = (url: string) => {
+  const Ctor = (globalThis as unknown as { WebSocket?: new (u: string) => MinimalWs }).WebSocket;
+  if (!Ctor) throw new Error('no global WebSocket — Node 20+ or a polyfill is required for the trades stream');
+  return new Ctor(url);
+};
+
 export interface IReferenceBarSource {
   /** Stable source id: 'pyth' | 'defillama' | 'bit2c'. */
   readonly sourceId: string;
@@ -75,6 +96,42 @@ export interface L2Snapshot {
 export interface IL2BookSource {
   /** Current depth-of-book for an internal symbol (a single snapshot — poll for a tape). */
   l2Snapshot(symbol: string): Promise<L2Snapshot>;
+}
+
+// Aggressor (taker) flow capability — the THIRD optional seam. The L2 book gives
+// depth (the queue ahead of a maker quote) but NOT the aggressive flow that
+// consumes it; the queue-aware backtest (LobReplayHarness) needs both. Before this
+// seam, mm-l2-session ESTIMATED aggressive volume from the matching candle's
+// volume signed by the mid tick — an approximation flagged in every report. A
+// source that streams per-trade prints lets the tape carry REAL taker buy/sell
+// volume (and the real traded extremes for the touch gate) instead of an estimate.
+
+/** Aggressor flow accumulated over an interval, drained from a live trade stream. */
+export interface AggressorFlow {
+  /** Taker BUYS that lifted asks over the drained interval, in 6-dec asset units. */
+  readonly aggressiveBuyUnits: bigint;
+  /** Taker SELLS that hit bids over the drained interval, in 6-dec asset units. */
+  readonly aggressiveSellUnits: bigint;
+  /** Number of prints folded into this drain (0 ⇒ no real flow; caller may fall back). */
+  readonly tradeCount: number;
+  /** Highest traded price over the interval (micros) — real touch gate for the ask side. */
+  readonly highMicros?: bigint;
+  /** Lowest traded price over the interval (micros) — real touch gate for the bid side. */
+  readonly lowMicros?: bigint;
+}
+
+/** A live, stateful aggressor-flow stream. Poll `drain` once per tape step. */
+export interface ITradeStream {
+  /** Accumulated aggressor flow for a symbol since the last drain (resets the counters). */
+  drain(symbol: string): AggressorFlow;
+  /** Close the underlying transport. Idempotent. */
+  close(): void;
+}
+
+/** A source that can open a live per-trade aggressor stream (real taker flow). */
+export interface ITradeStreamSource {
+  /** Open a live aggressor stream for these symbols. Drain it once per tape step. */
+  openTradeStream(symbols: string[]): ITradeStream;
 }
 
 /** Parse a decimal price/size string to 6-decimal integer units (micros). */
