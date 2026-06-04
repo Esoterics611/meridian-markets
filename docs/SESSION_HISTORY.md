@@ -653,3 +653,22 @@ See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md
 
 ### Not in P3 / next
 - Stat-arb live books are still in-memory (the next restart-safety target). A **multi-hour forward paper run** writing a real multi-day `mm_nav` curve is the live deliverable (hand to the operator — `start:dev` exits 144 in this sandbox). P2 (structured logs) + P4 (traces + Grafana dashboard reading these curves) remain.
+
+---
+
+## 18. Operator enablement + HL market discovery + the first broad L2 capture (2026-06-04)
+
+Same day as §17 (Telemetry P3). With durable NAV shipped and the desk paper-trading, the session pivoted to making the system **operable by a human**, the mission's growth frontier (**HL market discovery**), and kicking off the first **broad high-fidelity L2 capture** to move the n=1 BTC MM read (Journal #23) toward a cross-coin distribution.
+
+### Shipped
+- **Durable NAV on the UI** — a "Desk NAV — durable" curve on the `/demo` Market-Making panel (6h/24h/72h/7d) reading `GET /api/market-making/nav`. The P3 track record is now visible at a glance, not just via curl.
+- **HL universe MM discovery** (Journal #24) — `scripts/hl-universe-discovery.ts` + the unit-tested pure `src/market-making/screen/hl-universe-discovery.ts`. One `metaAndAssetCtxs` call → rank all ~230 HL perps by inventory risk → surface the calm liquid non-majors (XRP/DOGE/ASTER/BNB → the `hl-discovery` preset). Honest finding: a fixed-spread OHLCV scan nets negative on *every* perp — the deliverable is the σ-ranked liquid shortlist to point the L2 capture at.
+- **The Operator's Manual** (`docs/OPERATIONS_MANUAL.md`) — the three systems (live desk / research pipeline / observability), the storage map (Postgres vs files vs memory), and every recurring job end-to-end; written because the operator was (reasonably) drowning in ad-hoc commands. Plus `docs/research/TUNED_PARAMS.md` (the winners' book) + a cheatsheet pointer.
+- **One-command capture/tune tooling** — `scripts/capture-hl-l2.sh` + `scripts/tune-hl-l2.sh` bake the coin list + settings into the file (no terminal line-wrap footguns), default to the top-20 liquid perps / 6h / 10s, wide tune grid, tee'd analysis.
+- **Tape checkpointing** (operator's idea) — `mm-l2-session.ts` now flushes every coin's tape to disk every `MM_L2_CHECKPOINT_MIN` (default 10min), so a crash/kill mid-run never loses the whole capture.
+
+### In flight → next session's first action
+A **20-perp, 6h, 10s-poll, real-WS-flow** L2 capture is running (checkpointed). **Verdict pending** — harvest it with `tune-hl-l2.sh` → record winners in `TUNED_PARAMS.md` → relaunch books tuned. See [NEXT_SESSION.md](NEXT_SESSION.md) (Priority 0).
+
+### Verification
+- `npx tsc --noEmit` clean; **147 suites / 976 tests** (+ the discovery pure module/spec); demo + preset + script changes covered by tsc + the demo/preset specs.

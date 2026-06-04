@@ -1305,3 +1305,9 @@ queue-aware tune — turning "230 perps" into "capture these, tune, and quote th
 
 **Tests:** 147 suites / 976 tests (+ the `hl-universe-discovery` pure module/spec + the `hl-discovery` preset),
 tsc clean. See [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) §6/§7 + [ROADMAP.md](ROADMAP.md).
+
+## 2026-06-04 — Entry #25: first BROAD high-fidelity L2 capture kicked off (20 perps, 6h) — verdict pending
+
+Entry #23 gave the first net-positive honest-fill MM read, but on **one coin, one ~2h window (n=1)**; Entry #24's discovery scan produced the liquid shortlist. This entry marks the **first broad capture** toward a distribution: a **20-perp** (top HL perps by daily volume — BTC/HYPE/ETH/ZEC/SOL/NEAR/WLD/XRP/LIT/TON/ENA/XPL/VVV/ONDO/BNB/SUI/ADA/DOGE/PUMP/ASTER), **6-hour**, **10s-poll** L2 session with **100% real WS aggressor flow + funding + 10-min tape checkpointing** (`scripts/capture-hl-l2.sh`). The wide-grid tune (`scripts/tune-hl-l2.sh`: γ∈{0.0001…0.05}, κ∈{0.5…5}, floor∈{1…12}bps — deliberately brackets the Entry #23 boundary winner) is the **next session's first action**: it turns "BTC +$345/2h/$1M" into a per-coin, drawdown-compliant maker-net board across 20 markets. **No numbers yet** — the run is in flight; winners get recorded in [TUNED_PARAMS.md](research/TUNED_PARAMS.md) + a future Entry #26.
+
+**Tooling milestone.** Capture + tune are now **one-command operator scripts** (no line-wrap footguns), with **mid-run tape checkpointing** (a crash never loses the run) and an [Operator's Manual](OPERATIONS_MANUAL.md) covering the three systems + the storage map. The research pipeline is now reproducible by the operator unattended. **Tests:** 147 suites / 976 tests, tsc clean.
