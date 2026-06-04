@@ -4,6 +4,9 @@ Every way to drive the engine: terminal commands, backend run modes, and the
 `/demo` UI flow. Sourced from [README](../README.md),
 [HEADLESS_OPERATIONS.md](./HEADLESS_OPERATIONS.md),
 [PAPER_TRADING.md](./PAPER_TRADING.md), [MARKET_MAKING.md](./MARKET_MAKING.md),
+[DATA_SOURCES.md](./DATA_SOURCES.md), [PNL_ACCOUNTING.md](./PNL_ACCOUNTING.md),
+[RESEARCH_FINDINGS.md](./RESEARCH_FINDINGS.md), the
+[Market-Making course §8](../courses/market-making/docs/08-the-meridian-desk-stack.md),
 [UI_USER_STORIES.md](./UI_USER_STORIES.md), [CLAUDE.md](../CLAUDE.md), and
 `package.json`. Server listens on **`:3100`**; Postgres on **`:5433`**.
 
@@ -112,12 +115,39 @@ MM_SESSION_SOURCE=geckoterminal \
 # Reference data sources (Pyth / DefiLlama / Bit2C / Gecko / Hyperliquid) — no server, no DB
 npx ts-node -r tsconfig-paths/register scripts/smoke-reference-sources.ts
 ```
+
+**Queue-aware MM (Hyperliquid — the default MM venue, S33–S35 + funding).** Fills are
+FIFO against a REAL HL L2 depth tape (not fill-on-touch); aggressor flow is the REAL
+HL trades WebSocket; funding accrues on held inventory. The honest path to the per-pool
+rebate verdict:
+```bash
+# 1) Capture: poll the live HL l2Book + drain real trade flow → a saved tape.
+#    Quick smoke (~30s):
+MM_L2_POLL_S=5 MM_L2_DURATION_MIN=0.5 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
+#    A real read (multi-hour) + save the tapes for tuning:
+MM_L2_POLL_S=60 MM_L2_DURATION_MIN=120 MM_L2_COINS=BTC,ETH,SOL \
+  MM_L2_SAVE_TAPE=docs/research/l2-tapes/run1 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-l2-session.ts
+#    Reports queueFills vs touchFills (the honesty number), the fee sweep
+#    (structural / −0.2bps rebate / +1bps cost), funding line, and drawdown.
+
+# 2) Tune: sweep γ × κ × spread-floor over the SAVED tape, ranked drawdown-first
+#    then maker-net at the venue's own fee. Prints the per-coin winner.
+MM_TUNE_TAPE_PREFIX=docs/research/l2-tapes/run1 MM_TUNE_COINS=BTC,ETH,SOL \
+  npx ts-node -r tsconfig-paths/register scripts/mm-l2-tune.ts
+```
+Key `mm-l2-session` knobs: `MM_L2_COINS`, `MM_L2_STRATEGY` (mm-glft), `MM_L2_POLL_S`,
+`MM_L2_DURATION_MIN`, `MM_L2_QUOTE_USD` (notional/quote), `MM_L2_GAMMA`/`MM_L2_KAPPA`,
+`MM_L2_TRADES_WS` (real aggressor feed, default on), `MM_L2_FUNDING` (accrue HL funding,
+default on), `MM_L2_SAVE_TAPE`. Tune knobs: `MM_TUNE_GAMMAS`/`MM_TUNE_KAPPAS`/
+`MM_TUNE_MIN_BPS`, `MM_TUNE_QUOTE_USD`, `MM_TUNE_DD_LIMIT`.
 Research / thesis scripts (also `ts-node`, same shape):
 ```bash
 scripts/quant-research.ts             # asset-class × strategy × entry-z × interval sweep
 scripts/cointegration-stability.ts    # cointegration-cliff thesis (STAB_SOURCE=alpaca|yahoo)
 scripts/oos-candidates.ts             # real-history OOS + deflated-Sharpe gate (OOS_SOURCE=…, OOS_BASKET=true)
-scripts/funding-carry-research.ts     # funding-rate carry research
+scripts/funding-carry-research.ts     # funding carry (FC_SOURCE=binance|hyperliquid; HL = hourly)
 scripts/fx-basis-research.ts          # FX basis research
 scripts/vol-carry-research.ts         # vol-carry research
 ```
@@ -145,14 +175,19 @@ curl -XPOST localhost:3100/api/stat-arb/live/portfolio/launch \
   -H 'content-type: application/json' \
   -d '{"symbolA":"ETH","symbolB":"BTC","strategyId":"ou-bertram","beta":18.0,"capitalUsdc":50000}'
 
-# Market-making control plane
+# Market-making control plane (HL is the DEFAULT venue — a bare launch quotes HL BTC)
 curl localhost:3100/api/market-making/strategies|markets|snapshot
+curl localhost:3100/api/market-making/screen          # source-aware spread-capture screener
+# Default-venue (Hyperliquid) book, sized by $ notional (not a raw unit cap):
 curl -XPOST localhost:3100/api/market-making/launch -H 'content-type: application/json' \
-  -d '{"symbol":"FDUSD","strategyId":"mm-avellaneda-stoikov","capitalUsdc":100000}'
+  -d '{"symbol":"ETH","strategyId":"mm-glft","quoteNotionalUsd":50000}'
+# Explicit per-book source: Binance stablecoin, or a DEX pool:
+curl -XPOST localhost:3100/api/market-making/launch -H 'content-type: application/json' \
+  -d '{"symbol":"FDUSD","strategyId":"mm-avellaneda-stoikov","source":"binance","capitalUsdc":100000}'
 curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: application/json' \
-  -d '{"presetId":"stablecoin-peg","strategyId":"mm-glft","capitalUsdcPerBook":50000}'
+  -d '{"presetId":"hl-perps","strategyId":"mm-glft","quoteNotionalUsd":50000}'
 curl -XPOST localhost:3100/api/market-making/tick|flatten|stop
-curl -XPOST localhost:3100/api/market-making/remove -H 'content-type: application/json' -d '{"symbol":"FDUSD"}'
+curl -XPOST localhost:3100/api/market-making/remove -H 'content-type: application/json' -d '{"symbol":"ETH"}'
 ```
 
 ---
@@ -200,8 +235,13 @@ Requires a wired real-venue adapter; `ExecutionModeBootGuard` blocks boot withou
 Key tunables (full list in `.env.example`): `PORT=3100`, `FEED_SOURCE`,
 `FEED_QUOTE`/`FEED_INTERVAL`, `LIVE_PAIR_A/B`, `LIVE_BETA`, `LIVE_Z_LOOKBACK`,
 `LIVE_ENTRY_Z`/`LIVE_EXIT_Z`, `LIVE_NOTIONAL_UNITS`, `LIVE_POLL_INTERVAL_MS`,
-`LIVE_AUTOSTART`; MM: `MM_STRATEGY_ID`, `MM_SYMBOL`, `MM_QUOTE_SIZE_UNITS`,
-`MM_GAMMA`/`MM_KAPPA`, `MM_MAKER_FEE_BPS`, `MM_MAX_DRAWDOWN_PCT`.
+`LIVE_AUTOSTART`; MM: `MM_SOURCE` (**default MM venue = `hyperliquid`**), `MM_SYMBOL`
+(default BTC), `MM_STRATEGY_ID` (default `mm-glft`), `MM_QUOTE_SIZE_UNITS`,
+`MM_GAMMA`/`MM_KAPPA`, `MM_MAKER_FEE_BPS`, `MM_MAX_DRAWDOWN_PCT`. The global
+`FEED_SOURCE` stays Binance (HL is perps-only, a *per-book* source); each book is
+priced at its OWN venue's maker fee (`venueFeeFor`), and an HL-source live book
+**auto-accrues the live HL funding** on held inventory. P&L accounting reference:
+[PNL_ACCOUNTING.md](./PNL_ACCOUNTING.md).
 
 ---
 
@@ -273,8 +313,19 @@ Trade history**, with a top strip (Asset class / Market set / Strategy / Lookbac
 
 ---
 
-> **Accuracy note:** this cheatsheet reflects the markdown docs, some of which are
-> dated (HEADLESS_OPERATIONS.md "as of 2026-05-31"). Newer surfaces in the CLAUDE.md
-> session log (Hyperliquid `hl-perps`, DEX presets, `/api/market-making/screen`) may
-> not appear in every doc's endpoint table. Verify routes against the controllers if
-> you need the definitive live list.
+## 4. Reference & research docs
+
+| Doc | What it covers |
+|---|---|
+| [PNL_ACCOUNTING.md](./PNL_ACCOUNTING.md) | how every P&L number is measured: the ledger, the 5-component attribution, venue fees, funding, structural-vs-net, the audit invariants |
+| [RESEARCH_FINDINGS.md](./RESEARCH_FINDINGS.md) | publishable cross-venue/asset findings: the cointegration cliff, equities ~0.06 Sharpe, funding carry, MM microstructure |
+| [DATA_SOURCES.md](./DATA_SOURCES.md) | venue/data evaluation ledger (WIRED / EVALUATED / CANDIDATE; maker economics) |
+| [Market-Making course §8](../courses/market-making/docs/08-the-meridian-desk-stack.md) | the desk procedure: HL venue, σ-invariance, queue-aware fills, γ/κ tuning, funding |
+| [QUANT_JOURNAL.md](./QUANT_JOURNAL.md) | chronological research log with per-run numbers + artifact paths |
+
+---
+
+> **Accuracy note:** current through 2026-06-04 (HL default MM venue, L2 queue-aware
+> fills, trades-WS aggressor feed, funding accrual). Some older docs are dated
+> (HEADLESS_OPERATIONS.md "as of 2026-05-31"). If you need the definitive live route
+> list, verify against the controllers (`*.controller.ts`).
