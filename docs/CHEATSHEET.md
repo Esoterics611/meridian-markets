@@ -189,6 +189,17 @@ curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: app
 curl -XPOST localhost:3100/api/market-making/tick|flatten|stop
 curl -XPOST localhost:3100/api/market-making/remove -H 'content-type: application/json' -d '{"symbol":"ETH"}'
 
+# Durable NAV / equity-curve track record (telemetry P3) — needs MM_PERSIST=true + Postgres
+curl 'localhost:3100/api/market-making/nav?hours=24'           # desk-aggregate NAV curve, oldest-first
+curl 'localhost:3100/api/market-making/nav?hours=72&book=BTC'  # one book's equity curve
+# (MM_PERSIST off ⇒ { enabled:false, points:[] }; cron appends desk+per-book rows every MM_NAV_INTERVAL_MS)
+
+# Read any JSON response — jq is OPTIONAL (`sudo apt install -y jq`); python3 is always present:
+curl -s localhost:3100/api/market-making/snapshot | python3 -m json.tool
+curl -s 'localhost:3100/api/market-making/nav?hours=1' | python3 -m json.tool
+# Watch the desk live (just polls /snapshot; forces nothing):
+watch -n 5 "curl -s localhost:3100/api/market-making/snapshot | python3 -m json.tool"
+
 # Observability (telemetry P1) — set TELEMETRY_ENABLED=true to populate /metrics
 curl localhost:3100/metrics          # Prometheus text: tick/feed/persist + desk equity/PnL/funding/maxDD/fills/risk-verdict + feed staleness
 curl localhost:3100/health           # liveness (always 200 when the process answers)
@@ -253,6 +264,20 @@ every MM book to Postgres (`mm_book_state`) each tick and rehydrates OPEN books 
 — P&L, positions, and config survive a restart. `MM_FLATTEN_ON_SHUTDOWN=true` closes
 all MM inventory before the final checkpoint on SIGINT/SIGTERM. Needs Postgres +
 `npm run migration:run`. Default off ⇒ in-memory only (no DB dependency).
+
+**Durable NAV / track record** (telemetry P3): under `MM_PERSIST`, `MmNavCron` appends
+the desk + per-book equity to the append-only `mm_nav` table every `MM_NAV_INTERVAL_MS`
+(default 60s) — the multi-day equity curve, restart-safe. Read it at
+`GET /api/market-making/nav?hours=24[&book=SYMBOL]`. It's *derived from* `snapshot()`,
+so the persisted desk NAV equals the `meridian_desk_nav_units` metric to the unit.
+
+**MM operating notes (read once — saves confusion):**
+- **A freshly launched book looks "empty" for up to a poll interval — that's warming, not a bug.** It shows `midMicros:"1000000"` ($1 placeholder), `barsSeen:0`, `lastBarAt:null` until the first **closed** bar arrives (`FEED_INTERVAL`, default `1m`). `warm:true` + `seededBars:91` means σ is seeded and it *will* quote; force the first bar now with `POST /api/market-making/tick`, then re-read `/snapshot`. Real data = `barsSeen`>0 and `midMicros` jumps to the live price (BTC ≈ `60000000000`+ micros).
+- **Re-launching a symbol REPLACES its book**; `launch-preset` launches **one book per symbol** in the preset (so a bare BTC launch then `hl-perps` preset = BTC replaced + ETH + SOL).
+- **Books rehydrated on restart come back STOPPED** — `POST /api/market-making/start` to resume quoting (their P&L/positions are intact).
+- **Keep each curl JSON payload on ONE line.** A shell-wrapped line drops a newline *inside* the string → `400 Bad control character in string literal`.
+- **Few/zero fills at a tight GLFT spread on liquid majors is honest**, not broken (fill-on-touch needs the bar range to cross your quote). The NAV curve still records equity each interval; widen with `mm-symmetric` or pick a higher-vol symbol to see fills sooner.
+- **Prove restart-safety:** note `GET /nav?hours=1 | length` and `/snapshot.bookCount` → Ctrl-C → restart with the **same** env → both survive (books restored from `mm_book_state`, curve from `mm_nav`); then `POST /start`.
 
 ---
 

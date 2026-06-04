@@ -192,6 +192,58 @@ describeIfDb('INTEGRATION: stat_arb_trades and stat_arb_nav are append-only', ()
   });
 });
 
+// ── Telemetry P3: mm_nav privilege assertions ─────────────────────────────────
+// The durable MM NAV / equity-curve time series. Same oracle as stat_arb_nav:
+// meridian_markets_app gets SELECT,INSERT only — append-only at the privilege
+// layer. No UPDATE, no DELETE (a track record is never rewritten).
+describeIfDb('INTEGRATION: mm_nav is append-only for meridian_markets_app', () => {
+  let ds: DataSource;
+  let dbUp = false;
+
+  beforeAll(async () => {
+    dbUp = await dbAvailableCached();
+    if (!dbUp) return;
+    ds = newPrivilegedDataSource();
+    await ds.initialize();
+  });
+
+  afterAll(async () => {
+    if (dbUp && ds) await ds.destroy();
+  });
+
+  async function may(table: string, priv: string): Promise<boolean> {
+    const rows = await ds.query<{ ok: boolean }[]>(
+      `SELECT has_table_privilege('meridian_markets_app', $1, $2) AS ok`,
+      [table, priv],
+    );
+    return rows[0].ok === true;
+  }
+
+  it('meridian_markets_app MAY SELECT and INSERT mm_nav', async () => {
+    if (!dbUp) return;
+    expect(await may('mm_nav', 'SELECT')).toBe(true);
+    expect(await may('mm_nav', 'INSERT')).toBe(true);
+  });
+
+  it('meridian_markets_app may NOT UPDATE or DELETE mm_nav', async () => {
+    if (!dbUp) return;
+    expect(await may('mm_nav', 'UPDATE')).toBe(false);
+    expect(await may('mm_nav', 'DELETE')).toBe(false);
+  });
+
+  it('mm_nav CHECK rejects a negative max_drawdown_pct', async () => {
+    if (!dbUp) return;
+    await expect(
+      ds.query(
+        `INSERT INTO mm_nav
+           (as_of, book_key, equity_units, net_pnl_units, realised_pnl_units,
+            unrealised_pnl_units, fees_units, funding_units, inventory_units, max_drawdown_pct)
+         VALUES (NOW(), 'chk-${Math.random()}', 0, 0, 0, 0, 0, 0, 0, -1)`,
+      ),
+    ).rejects.toThrow();
+  });
+});
+
 // ── Phase 3: market-data table privilege assertions ───────────────────────────
 // Same oracle for the Session-11 ingest tables. market_bars / funding_rates /
 // data_gaps are all append-only — meridian_markets_app gets SELECT,INSERT only.

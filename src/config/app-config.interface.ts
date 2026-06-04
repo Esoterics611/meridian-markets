@@ -175,6 +175,13 @@ export interface AppConfig {
     persist: boolean;
     /** On graceful shutdown, flatten every MM book's inventory before the final checkpoint. */
     flattenOnShutdown: boolean;
+    /**
+     * Durable NAV / equity-curve cron cadence (ms). Each interval the MmNavCron
+     * appends one desk row + one per-book row to mm_nav — the multi-day track
+     * record (Telemetry P3). Only runs when `persist` is on AND a DB is present;
+     * otherwise the cron no-ops (no DB dependency on the live MM path). Default 60s.
+     */
+    navIntervalMs: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

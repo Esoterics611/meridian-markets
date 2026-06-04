@@ -120,6 +120,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // the persistent research system (needs Postgres + migrations).
     persist: (process.env['MM_PERSIST'] ?? 'false').toLowerCase() === 'true',
     flattenOnShutdown: (process.env['MM_FLATTEN_ON_SHUTDOWN'] ?? 'false').toLowerCase() === 'true',
+    navIntervalMs: parseInt(process.env['MM_NAV_INTERVAL_MS'] ?? '60000', 10),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

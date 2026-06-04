@@ -22,6 +22,8 @@ import { MmStateRepository } from './persistence/mm-state.repository';
 import { PostgresMmStateStore } from './persistence/postgres-mm-state-store';
 import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
+import { MmNavRepository } from './persistence/mm-nav.repository';
+import { MmNavCron } from './persistence/mm-nav.cron';
 import { MmScreener } from './screen/mm-screener';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
@@ -235,6 +237,28 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           tele,
         );
       },
+    },
+    // Durable NAV / equity-curve history (Telemetry P3). The repository is the
+    // Postgres backend when MM_PERSIST is on AND a DB is present, else null so the
+    // cron + endpoint no-op (no DB dependency on the live MM path — same posture as
+    // the restart-safe store). DbService is optional (the controller unit test
+    // builds this module in isolation, with no @Global DB).
+    {
+      provide: MmNavRepository,
+      inject: [ConfigService, { token: DbService, optional: true }],
+      useFactory: (cfg: ConfigService, db?: DbService): MmNavRepository | null => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return app.marketMaking.persist && db ? new MmNavRepository(db) : null;
+      },
+    },
+    // The cron that appends the desk + per-book equity snapshot each interval. It
+    // reads the same live snapshot() the telemetry collector does (DC-3) and is a
+    // no-op when the repository above is null.
+    {
+      provide: MmNavCron,
+      inject: [ConfigService, MmPortfolioTrader, MmNavRepository],
+      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null): MmNavCron =>
+        new MmNavCron(cfg, trader, repo),
     },
     // Spread-capture screener: ranks instruments by expected MM profit/day.
     {
