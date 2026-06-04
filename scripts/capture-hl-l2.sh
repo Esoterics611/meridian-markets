@@ -10,11 +10,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Default = the TOP 20 HL perps by daily volume (2026-06-04 scan, all ≥ ~$10M/day) —
-# enough liquidity to actually fill, broad enough to find edge. Tapes checkpoint every
-# 10min (MM_L2_CHECKPOINT_MIN) so a crash never loses the run. No lowercase symbols
-# (mm-l2-session upper-cases coin names, which would break HL's lowercase-k tickers).
-COINS="${COINS:-BTC,HYPE,ETH,ZEC,SOL,NEAR,WLD,XRP,LIT,TON,ENA,XPL,VVV,ONDO,BNB,SUI,ADA,DOGE,PUMP,ASTER}"
+# Default = the KEEP set after the 2026-06-04 6h harvest (QUANT_JOURNAL #28): the
+# liquid, low-σ perps where fills recycle + drawdown stays low. The toxic coins
+# (NEAR,HYPE,WLD,LIT,ZEC,XPL,TON,VVV) are CUT — they fail fills<30/6h OR maxDD>0.40%
+# OR net<−$1,500 (structural disqualifiers, not edge claims). Re-add any via COINS=.
+# BTC kept as benchmark. Tapes checkpoint every 10min so a crash never loses the run.
+# No lowercase symbols (mm-l2-session upper-cases, which would break HL's kPEPE tickers).
+COINS="${COINS:-BTC,ETH,SOL,XRP,ADA,SUI,BNB,DOGE,ENA,ONDO,PUMP}"
 POLL_S="${POLL_S:-10}"
 DURATION_MIN="${DURATION_MIN:-360}"
 QUOTE_USD="${QUOTE_USD:-50000}"

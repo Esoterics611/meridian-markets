@@ -11,7 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DATE="${DATE:-$(date +%Y%m%d)}"
-COINS="${COINS:-BTC,HYPE,ETH,ZEC,SOL,NEAR,WLD,XRP,LIT,TON,ENA,XPL,VVV,ONDO,BNB,SUI,ADA,DOGE,PUMP,ASTER}"
+# KEEP set (QUANT_JOURNAL #28) — toxic coins cut. Override with COINS=… to re-include.
+COINS="${COINS:-BTC,ETH,SOL,XRP,ADA,SUI,BNB,DOGE,ENA,ONDO,PUMP}"
 PREFIX="docs/research/l2-tapes/hl-discovery-${DATE}"
 OUT="docs/research/l2-tapes/tune-${DATE}-$(date +%H%M).txt"
 
@@ -28,6 +29,7 @@ MM_TUNE_COINS="$COINS" \
 MM_TUNE_GAMMAS="${GAMMAS:-0.0001,0.0005,0.0025,0.01,0.05}" \
 MM_TUNE_KAPPAS="${KAPPAS:-0.5,1,2,5}" \
 MM_TUNE_MIN_BPS="${FLOORS:-1,2,5,8,12}" \
+MM_TUNE_MAX_LOTS="${LOTS:-8}" \
   npx ts-node -r tsconfig-paths/register scripts/mm-l2-tune.ts 2>&1 | tee "$OUT"
 
 echo
