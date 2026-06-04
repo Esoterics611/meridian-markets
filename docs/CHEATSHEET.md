@@ -189,6 +189,11 @@ curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: app
 curl -XPOST localhost:3100/api/market-making/tick|flatten|stop
 curl -XPOST localhost:3100/api/market-making/remove -H 'content-type: application/json' -d '{"symbol":"ETH"}'
 
+# Durable NAV / equity-curve track record (telemetry P3) — needs MM_PERSIST=true + Postgres
+curl 'localhost:3100/api/market-making/nav?hours=24'           # desk-aggregate NAV curve, oldest-first
+curl 'localhost:3100/api/market-making/nav?hours=72&book=BTC'  # one book's equity curve
+# (MM_PERSIST off ⇒ { enabled:false, points:[] }; cron appends desk+per-book rows every MM_NAV_INTERVAL_MS)
+
 # Observability (telemetry P1) — set TELEMETRY_ENABLED=true to populate /metrics
 curl localhost:3100/metrics          # Prometheus text: tick/feed/persist + desk equity/PnL/funding/maxDD/fills/risk-verdict + feed staleness
 curl localhost:3100/health           # liveness (always 200 when the process answers)
@@ -253,6 +258,12 @@ every MM book to Postgres (`mm_book_state`) each tick and rehydrates OPEN books 
 — P&L, positions, and config survive a restart. `MM_FLATTEN_ON_SHUTDOWN=true` closes
 all MM inventory before the final checkpoint on SIGINT/SIGTERM. Needs Postgres +
 `npm run migration:run`. Default off ⇒ in-memory only (no DB dependency).
+
+**Durable NAV / track record** (telemetry P3): under `MM_PERSIST`, `MmNavCron` appends
+the desk + per-book equity to the append-only `mm_nav` table every `MM_NAV_INTERVAL_MS`
+(default 60s) — the multi-day equity curve, restart-safe. Read it at
+`GET /api/market-making/nav?hours=24[&book=SYMBOL]`. It's *derived from* `snapshot()`,
+so the persisted desk NAV equals the `meridian_desk_nav_units` metric to the unit.
 
 ---
 

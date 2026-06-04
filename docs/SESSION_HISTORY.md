@@ -633,3 +633,23 @@ See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md
 
 ### Not in P1 (honest)
 - `ws_connected` + `feed_gaps` (the HL trades/WS path, not the bar loop), a dedicated stale-feed / risk-`Pause` *alert event* (the verdict is computed inside `MmBook`), a starter Grafana dashboard, and **P3 durable NAV history** (the multi-day track-record table) — all tracked in TELEMETRY_REQUIREMENTS §7/§8. The live `meridian_desk_nav_units` gauge already equals desk equity to the unit on scrape.
+
+---
+
+## 17. Backend telemetry P3 — durable MM NAV / equity-curve history (2026-06-04)
+
+**Goal:** close the one remaining ⏳ in [TELEMETRY_REQUIREMENTS.md](TELEMETRY_REQUIREMENTS.md) §8 — make the desk NAV **queryable over a multi-day run and matching the ledger/gauge to the unit**, surviving restart. Built behind `MM_PERSIST` (the restart-safe-books flag) with a Postgres/no-op swap seam, mirroring the stat-arb per-day NAV cron but generalised to a **per-interval MM time series**.
+
+### Shipped (`src/market-making/persistence/mm-nav.*` + migration)
+- **`mm_nav` (migration `1721000000000`).** An **append-only** per-interval series — one table, `book_key=''` = the **desk aggregate** row, `book_key='<SYMBOL>'` = a per-book equity row. Columns: `equity/net/realised/unrealised/fees/funding/inventory_units` (BIGINT) + `max_drawdown_pct`. Indexes `(as_of DESC)` + `(book_key, as_of DESC)`; **no per-day unique** — every interval is a row. `meridian_markets_app` gets **SELECT,INSERT only** (same append-only oracle as `stat_arb_nav`, asserted in `append-only.int-spec.ts`).
+- **`MmNavRepository`** (mirrors `StatArbRepository`): `insertNavSnapshot(rows[])` batches the desk + per-book rows in **one SERIALIZABLE txn** (a reader never sees a desk row without its books); `navHistory(fromAsOf, bookKey?)` returns the curve oldest-first; bigint↔decimal-string coercion.
+- **`MmNavCron`** (mirrors `StatArbNavCron`): each `MM_NAV_INTERVAL_MS` (default 60s) reads `MmPortfolioTrader.snapshot()` and appends a desk row + one per book. **Derived from `snapshot()` (DC-3)** — the cron owns no accounting state, so the desk row's `equity_units` **equals the live `meridian_desk_nav_units` gauge to the unit** (both read the same snapshot). No-op unless `MM_PERSIST` **and** a `DbService` are present; skips the timer under `nodeEnv=test`; explicit `tick(now?)`.
+- **Endpoint.** `GET /api/market-making/nav?hours=24[&book=SYMBOL]` → `{ points }` (bigints → decimal strings, like every MM read). Returns `{ enabled:false, points:[] }` with a note when `MM_PERSIST` is off.
+- **Wiring.** `MmNavRepository` (optional `DbService`) + `MmNavCron` registered in `market-making.module.ts` — Postgres when `MM_PERSIST` and a DB are present, else `null` ⇒ cron + endpoint no-op. `MM_NAV_INTERVAL_MS` added to `AppConfig.marketMaking` (interface + factory + `.env.example`).
+
+### Verification
+- `npx tsc --noEmit` clean; **146 suites / 962 tests** (+3 suites / +20 tests: cron mapping incl. the §8 desk-equity identity `desk.equity == BigInt(snapshot.equityUnits)`, repository unit + DB-gated round-trip, append-only grants, endpoint shape). Migration applied to local Postgres; the DB-gated round-trip + grant specs pass against it.
+- **Default off ⇒ full suite unchanged**: `MM_PERSIST=false` makes the repo provider `null`, so the cron + endpoint are inert and no live-loop behaviour changes.
+
+### Not in P3 / next
+- Stat-arb live books are still in-memory (the next restart-safety target). A **multi-hour forward paper run** writing a real multi-day `mm_nav` curve is the live deliverable (hand to the operator — `start:dev` exits 144 in this sandbox). P2 (structured logs) + P4 (traces + Grafana dashboard reading these curves) remain.
