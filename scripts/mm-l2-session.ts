@@ -34,6 +34,7 @@ import { dirname } from 'path';
 import { Bar } from '../src/stat-arb/backtest/bar';
 import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-client';
 import { ITradeStream } from '../src/market-data/reference/reference-source.interface';
+import { HyperliquidFundingClient } from '../src/market-data/funding/hyperliquid-funding-client';
 import { mmStrategyRegistry } from '../src/market-making/registry/mm-strategy-registry';
 import { CompositeRiskGate } from '../src/market-making/risk/risk-gate';
 import { LobReplayHarness, LobReplayConfig, LobReplayMetrics } from '../src/market-making/backtest/lob-replay';
@@ -64,6 +65,9 @@ const DD_LIMIT_PCT = Number(process.env.MM_L2_DD_LIMIT_PCT ?? 2);
 // On by default — it's the whole point of the queue-aware harness; set to 'false'
 // to force the legacy candle estimate (e.g. an env with no WS egress).
 const TRADES_WS = (process.env.MM_L2_TRADES_WS ?? 'true').toLowerCase() !== 'false';
+// Accrue real HL funding on held inventory (MM course §8.10). On by default; the
+// live hourly rate is fetched per coin at startup and applied pro-rata each step.
+const FUNDING = (process.env.MM_L2_FUNDING ?? 'true').toLowerCase() !== 'false';
 
 const MICROS = 1_000_000n;
 const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(2);
@@ -84,6 +88,7 @@ interface BookState {
   candleMinute: number; // wall-minute the candle was last refreshed for
   stepsReal: number; // tape steps fed by REAL trades-WS aggressor flow
   stepsEst: number; // tape steps that fell back to the candle estimate
+  fundingRatePerHour: number; // live HL funding rate (signed; + longs pay shorts)
 }
 
 function makeQuoter(quoteUnits: bigint): IQuoter {
@@ -120,6 +125,7 @@ function cfgFor(s: BookState): LobReplayConfig {
     capitalUnits: BigInt(Math.round(CAPITAL_USD * 1e6)),
     symbol: s.coin,
     riskGate: s.riskGate,
+    fundingRatePerHour: FUNDING ? s.fundingRatePerHour : 0,
   };
 }
 
@@ -215,12 +221,14 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   let deskMaxDD = 0;
   let deskReal = 0;
   let deskEst = 0;
+  let deskFunding = 0n;
   for (const s of states) {
     const m = metrics.get(s.coin);
     if (!m) continue;
     reportCoin(s.coin, s.quoteUnits, m);
     deskStruct += m.realisedPnlUnits + m.unrealisedPnlUnits;
     deskFees += m.feesUnits;
+    deskFunding += m.fundingUnits;
     deskCap += BigInt(Math.round(CAPITAL_USD * 1e6));
     deskTouch += m.touchFills;
     deskQueue += m.queueFills;
@@ -234,15 +242,21 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   console.log(`\n=== DESK TOTAL on $${usd(deskCap)} capital ===`);
   console.log(`  THE HONESTY NUMBER: fill-on-touch logged ${deskTouch} fills; queue-aware logged ${deskQueue} (ratio ${ratio.toFixed(3)}).`);
   console.log(`    → a fill-on-touch backtest overstated fills by ${deskQueue > 0 ? (deskTouch / deskQueue).toFixed(1) : '∞'}×.`);
-  console.log(`  structural (0bps, no fee/no rebate) : ${sgn(deskStruct)}  (${pct(deskStruct)})  ← the real edge`);
-  console.log(`  rebate net (${MAKER_BPS}bps HL maker)        : ${sgn(netAtBps(deskStruct, deskFees, MAKER_BPS))}  (${pct(netAtBps(deskStruct, deskFees, MAKER_BPS))})`);
-  console.log(`  cost net   (+1bps retail maker)     : ${sgn(netAtBps(deskStruct, deskFees, 1))}  (${pct(netAtBps(deskStruct, deskFees, 1))})`);
+  const structPlusFunding = deskStruct + deskFunding;
+  console.log(`  structural (0bps, no fee/no rebate) : ${sgn(deskStruct)}  (${pct(deskStruct)})  ← the trading edge (spread − adverse)`);
+  if (FUNDING) {
+    console.log(`  funding (held inventory)            : ${sgn(deskFunding)}  (${pct(deskFunding)})  ← perp carry on inventory held`);
+    console.log(`  structural + funding                : ${sgn(structPlusFunding)}  (${pct(structPlusFunding)})  ← the real edge incl. carry`);
+  }
+  console.log(`  rebate net (${MAKER_BPS}bps HL maker)${FUNDING ? ' + funding' : '       '}: ${sgn(netAtBps(deskStruct, deskFees, MAKER_BPS) + deskFunding)}  (${pct(netAtBps(deskStruct, deskFees, MAKER_BPS) + deskFunding)})`);
+  console.log(`  cost net   (+1bps retail maker)${FUNDING ? '+ funding' : '     '}: ${sgn(netAtBps(deskStruct, deskFees, 1) + deskFunding)}  (${pct(netAtBps(deskStruct, deskFees, 1) + deskFunding)})`);
 
-  console.log(`\n=== CONSERVATION (judged on queue-aware structural P&L) ===`);
+  console.log(`\n=== CONSERVATION (judged on queue-aware structural P&L${FUNDING ? ' incl. funding' : ''}) ===`);
   const ddVerdict = deskMaxDD <= DD_LIMIT_PCT ? 'PASS' : 'FAIL';
-  const profitVerdict = deskStruct > 0n ? 'PASS' : 'FAIL';
+  const edge = FUNDING ? structPlusFunding : deskStruct;
+  const profitVerdict = edge > 0n ? 'PASS' : 'FAIL';
   console.log(`  desk max drawdown: ${deskMaxDD.toFixed(4)}%  (limit ${DD_LIMIT_PCT}%)  → ${ddVerdict}`);
-  console.log(`  structural net > 0: ${deskStruct > 0n ? 'yes' : 'no'}  → ${profitVerdict}`);
+  console.log(`  ${FUNDING ? 'structural+funding' : 'structural'} net > 0: ${edge > 0n ? 'yes' : 'no'}  → ${profitVerdict}`);
 
   const totSteps = deskReal + deskEst;
   const realPct = totSteps > 0 ? ((deskReal / totSteps) * 100).toFixed(0) : '0';
@@ -256,6 +270,10 @@ function finalReport(states: BookState[], metrics: Map<string, LobReplayMetrics>
   }
   console.log(`   • queueFills is a realistic LOWER-ish bound (strict FIFO, queue priority kept only while`);
   console.log(`     the quote price is unchanged); touchFills is the upper bound. Truth is between.`);
+  if (FUNDING) {
+    console.log(`   • Funding accrues on held inventory at the LIVE hourly rate captured at startup (static over`);
+    console.log(`     the run, pro-rated per step); a real multi-hour book sees the rate drift — re-read for precision.`);
+  }
   console.log(`   • A short session is a thin tape — run --DURATION_MIN 120+ at POLL_S 60 for a real read.`);
 }
 
@@ -268,7 +286,9 @@ async function main(): Promise<void> {
   console.log(`  coins: ${COINS.join(',')} | quoter: ${STRATEGY} | lot: $${QUOTE_USD.toLocaleString()}/quote | cap/book: $${CAPITAL_USD.toLocaleString()}`);
   console.log(`  poll: ${POLL_S}s | duration: ${DURATION_MIN}min | driving HL maker: ${MAKER_BPS}bps | maxInv: ${MAX_LOTS} lots`);
 
-  // Probe each coin once to size the quote by $ notional ÷ price.
+  // Probe each coin once to size the quote by $ notional ÷ price, and read the live
+  // HL funding rate (hourly, signed) to accrue on held inventory (MM course §8.10).
+  const fundingClient = new HyperliquidFundingClient({ baseUrl: process.env.HYPERLIQUID_BASE_URL });
   const states: BookState[] = [];
   for (const coin of COINS) {
     const snap = await client.l2Snapshot(coin).catch(() => undefined);
@@ -278,6 +298,7 @@ async function main(): Promise<void> {
       console.log(`  ${coin}: no L2 snapshot — skipping`);
       continue;
     }
+    const fundingRatePerHour = FUNDING ? await fundingClient.currentFunding(coin).then((f) => f.lastFundingRate).catch(() => 0) : 0;
     const quoteUnits = BigInt(Math.max(1, Math.round((QUOTE_USD / price) * 1e6)));
     states.push({
       coin,
@@ -289,8 +310,12 @@ async function main(): Promise<void> {
       candleMinute: -1,
       stepsReal: 0,
       stepsEst: 0,
+      fundingRatePerHour,
     });
-    console.log(`  ${coin}: mid $${price.toFixed(2)} → quote ${(QUOTE_USD / price).toFixed(5)} ${coin} ($${QUOTE_USD.toLocaleString()})`);
+    console.log(
+      `  ${coin}: mid $${price.toFixed(2)} → quote ${(QUOTE_USD / price).toFixed(5)} ${coin} ($${QUOTE_USD.toLocaleString()})` +
+        `${FUNDING ? `  funding ${(fundingRatePerHour * 10_000).toFixed(3)}bps/h` : ''}`,
+    );
   }
   if (states.length === 0) throw new Error('no quotable coins — check connectivity / coin names');
 

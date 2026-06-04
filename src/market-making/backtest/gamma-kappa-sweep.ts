@@ -63,6 +63,8 @@ export interface SweepBase {
   riskGate?: RiskGate;
   /** Drawdown limit (%) a combo must respect to rank as ddPass. Default 2. */
   ddLimitPct?: number;
+  /** Signed funding rate per hour (+ longs pay shorts) — accrued on held inventory, into makerNet. */
+  fundingRatePerHour?: number;
 }
 
 export interface SweepOptions {
@@ -102,6 +104,7 @@ export function sweepGammaKappa(opts: SweepOptions): SweepResult[] {
           capitalUnits: base.capitalUnits,
           symbol: base.symbol,
           riskGate: base.riskGate,
+          fundingRatePerHour: base.fundingRatePerHour,
         };
         const m = harness.run(cfg);
         const structural = m.realisedPnlUnits + m.unrealisedPnlUnits;

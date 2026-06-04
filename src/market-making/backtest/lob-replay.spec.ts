@@ -89,6 +89,14 @@ function deepTape(): L2TapeStep[] {
   // best bid 99 with 100 units resting (we JOIN behind → ahead = 100), best ask 102.
   return Array.from({ length: LEN }, () => step(book(99, 100, 102, 10), 1, 0, 99, 100));
 }
+// The front tape, but each snapshot is 1 HOUR apart so funding can accrue (the
+// default helpers stamp every book at t=0 ⇒ zero elapsed time ⇒ no funding).
+function timedFrontTape(): L2TapeStep[] {
+  return Array.from({ length: LEN }, (_, i) => {
+    const ob: OrderBook = { ...book(98, 10, 102, 10), ts: new Date(i * 3_600_000) };
+    return step(ob, 1, 0, 99, 100);
+  });
+}
 
 describe('LobReplayHarness — queue-aware vs fill-on-touch', () => {
   it('front of queue (ahead=0) fills on touch; deep queue (ahead≫vol) does not — same touches', () => {
@@ -150,6 +158,30 @@ describe('LobReplayHarness — P&L attribution', () => {
     // Maker rebate is negative fees (revenue).
     expect(r.attribution.feesUnits).toBeLessThan(0n);
     expect(r.feesUnits).toBeLessThan(0n);
+  });
+});
+
+describe('LobReplayHarness — funding accrual on held inventory', () => {
+  it('defaults off: no rate ⇒ zero funding, net unchanged', () => {
+    const r = new LobReplayHarness().run(baseCfg(timedFrontTape()));
+    expect(r.fundingUnits).toBe(0n);
+  });
+
+  it('a long book pays funding when the rate is positive (longs pay shorts), signed into net', () => {
+    const tape = timedFrontTape();
+    const zero = new LobReplayHarness().run(baseCfg(tape));
+    const withF = new LobReplayHarness().run({ ...baseCfg(tape), fundingRatePerHour: 0.0001 }); // +1bp/h
+
+    expect(withF.finalInventoryUnits).toBeGreaterThan(0n); // we bought the sells → net long
+    expect(withF.fundingUnits).toBeLessThan(0n); // long pays a positive rate
+    // funding is the ONLY difference vs the no-funding run (fills are identical).
+    expect(withF.netPnlUnits).toBe(zero.netPnlUnits + withF.fundingUnits);
+  });
+
+  it('a negative rate pays the long (sign flips)', () => {
+    const withF = new LobReplayHarness().run({ ...baseCfg(timedFrontTape()), fundingRatePerHour: -0.0001 });
+    expect(withF.finalInventoryUnits).toBeGreaterThan(0n);
+    expect(withF.fundingUnits).toBeGreaterThan(0n); // long receives when rate < 0
   });
 });
 
