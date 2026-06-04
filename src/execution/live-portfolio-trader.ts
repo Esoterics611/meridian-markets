@@ -1,5 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { LivePaperTrader } from './live-paper-trader';
+import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../market-making/events/desk-event-sink';
+import { statArbLifecycleEvent } from './live-desk-events';
 
 // LivePortfolioTrader — the multi-currency generalisation of LivePaperTrader.
 //
@@ -81,8 +83,14 @@ export class LivePortfolioTrader {
     private readonly makeTrader: TraderFactory,
     private readonly pollIntervalMs: number,
     initialCapitalUnits = 100_000_000n,
+    /** Business-event tape (CLAUDE.md §8). No-op default ⇒ tests/no-DB runs unchanged. */
+    private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
   ) {
     this.capitalUnits = initialCapitalUnits;
+  }
+
+  private emitLifecycle(kind: 'launch' | 'remove' | 'start' | 'stop', book: string, message: string): void {
+    this.events.emit(statArbLifecycleEvent({ ts: Date.now(), kind, book, message }));
   }
 
   /**
@@ -106,6 +114,7 @@ export class LivePortfolioTrader {
       this.books.set(pairKey(p), trader);
     }
     this.logger.log(`portfolio set to ${unique.length} pairs: ${unique.map(pairKey).join(', ')}`);
+    for (const p of unique) this.emitLifecycle('launch', pairKey(p), `${pairKey(p)} ▸ launched via ${p.strategyId ?? 'default'}`);
   }
 
   /**
@@ -123,6 +132,7 @@ export class LivePortfolioTrader {
     trader.setStartingCapital(capitalUnits);
     this.books.set(key, trader);
     this.logger.log(`launched book ${key} via ${pair.strategyId ?? 'default'} (capital=${capitalUnits})`);
+    this.emitLifecycle('launch', key, `${key} ▸ launched via ${pair.strategyId ?? 'default'} (capital ${capitalUnits} units)`);
   }
 
   /** Flatten every book's open position (manual desk-wide flatten). */
@@ -141,6 +151,7 @@ export class LivePortfolioTrader {
     await t.flatten().catch(() => undefined);
     this.books.delete(pair);
     this.logger.log(`removed book ${pair}`);
+    this.emitLifecycle('remove', pair, `${pair} ▸ removed (flattened + dropped)`);
     if (this.books.size === 0) this.stop();
     return true;
   }
@@ -148,12 +159,14 @@ export class LivePortfolioTrader {
   start(): void {
     if (this.timer || this.books.size === 0) return;
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
+    this.emitLifecycle('start', '', `stat-arb desk ▸ loop started (${this.books.size} book${this.books.size === 1 ? '' : 's'})`);
   }
 
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+      this.emitLifecycle('stop', '', 'stat-arb desk ▸ loop stopped');
     }
   }
 

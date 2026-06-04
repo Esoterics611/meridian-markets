@@ -48,6 +48,7 @@ import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader'
 import { LivePortfolioTrader, PortfolioPair } from '../execution/live-portfolio-trader';
 import { strategyRegistry } from './strategies/strategy-registry';
 import { LiveController } from '../execution/live.controller';
+import { DeskEventLog } from '../market-making/events/desk-event-log';
 import { RiskEngine } from './risk/risk-engine';
 import { DrawdownGate } from './risk/drawdown-gate';
 
@@ -197,7 +198,7 @@ async function warmupFromAlpaca(
     // The live event loop: pairs strategy + venue + feed + persistence.
     {
       provide: LivePaperTrader,
-      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT, ALPACA_CLIENT],
+      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT, ALPACA_CLIENT, DeskEventLog],
       useFactory: (
         cfg: ConfigService,
         venue: ITradingVenue,
@@ -205,6 +206,7 @@ async function warmupFromAlpaca(
         repo: StatArbRepository,
         client: BinancePublicClient,
         alpaca: AlpacaDataClient,
+        deskEvents: DeskEventLog,
       ): LivePaperTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         // A fresh strategy per pair from the desk registry: switching presaved
@@ -242,6 +244,7 @@ async function warmupFromAlpaca(
           undefined,
           (opts) => makeStrategy({ beta: opts.beta, strategyId: opts.strategyId, params: opts.params }),
           warmup,
+          deskEvents,
         );
       },
     },
@@ -249,7 +252,7 @@ async function warmupFromAlpaca(
     // (own feed cursor + venue + strategy) on the shared live data client.
     {
       provide: LivePortfolioTrader,
-      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry, ALPACA_CLIENT],
+      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry, ALPACA_CLIENT, DeskEventLog],
       useFactory: (
         cfg: ConfigService,
         client: BinancePublicClient,
@@ -257,6 +260,7 @@ async function warmupFromAlpaca(
         repo: StatArbRepository,
         refRegistry: ReferenceSourceRegistry,
         alpaca: AlpacaDataClient,
+        deskEvents: DeskEventLog,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>, notionalUnits?: bigint) =>
@@ -334,11 +338,17 @@ async function warmupFromAlpaca(
             undefined,
             (o) => makeStrategy(o.beta, o.strategyId, o.params, bookNotional),
             warmup,
+            deskEvents,
           );
         };
-        return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits);
+        return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits, deskEvents);
       },
     },
+    // The stat-arb desk's own business-event tape (CLAUDE.md §8 / Telemetry P2):
+    // every live enter/exit + risk-block + lifecycle flows through this one
+    // DeskEventLog (a NestJS log line + the GET /api/stat-arb/live/events feed).
+    // Separate instance from the MM desk's log — each desk owns its own tape.
+    DeskEventLog,
     DemoService,
     StatArbRepository,
     StatArbNavCron,

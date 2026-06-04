@@ -1,7 +1,16 @@
 import { LivePortfolioTrader, PortfolioPair } from './live-portfolio-trader';
 import { LivePaperTrader } from './live-paper-trader';
+import { DeskEventInput } from '../market-making/events/desk-event';
+import { IDeskEventSink } from '../market-making/events/desk-event-sink';
 
 const M = 1_000_000n;
+
+class CapturingSink implements IDeskEventSink {
+  readonly events: DeskEventInput[] = [];
+  emit(event: DeskEventInput): void {
+    this.events.push(event);
+  }
+}
 
 // Minimal fake sub-trader: the portfolio only calls setStartingCapital / tick /
 // snapshot on each book, so we stub exactly those.
@@ -13,6 +22,7 @@ function fakeTrader(pair: PortfolioPair) {
     _ticks: () => ticks,
     setStartingCapital(u: bigint) { capital = u; },
     async tick() { ticks += 1; },
+    async flatten() { return false; },
     snapshot() {
       return {
         feedId: 'binance.spot', venueId: 'paper',
@@ -104,6 +114,22 @@ describe('LivePortfolioTrader', () => {
     expect(pt.isRunning()).toBe(true);
     pt.stop();
     expect(pt.isRunning()).toBe(false);
+  });
+
+  it('emits launch / start / stop / remove business events to the desk-event sink', async () => {
+    const sink = new CapturingSink();
+    const factory = (p: PortfolioPair) => fakeTrader(p);
+    const pt = new LivePortfolioTrader(factory, 10, 100n * M, sink);
+    pt.setPairs([{ symbolA: 'ETH', symbolB: 'BTC' }], 100n * M); // 1 launch
+    pt.addBook({ symbolA: 'SOL', symbolB: 'AVAX' }, 40n * M); // 1 launch
+    pt.start(); // 1 start (desk-level)
+    await pt.removeBook('SOL/AVAX'); // 1 remove
+    pt.stop(); // 1 stop (desk-level)
+
+    const kinds = sink.events.map((e) => e.kind);
+    expect(kinds).toEqual(['launch', 'launch', 'start', 'remove', 'stop']);
+    expect(sink.events.every((e) => e.desk === 'stat-arb')).toBe(true);
+    expect(sink.events.find((e) => e.kind === 'remove')?.book).toBe('SOL/AVAX');
   });
 
   it('empty snapshot reports the standalone capital anchor', () => {

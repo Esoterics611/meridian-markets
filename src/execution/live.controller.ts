@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Optional, Post, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
 import { LivePaperTrader } from './live-paper-trader';
 import { LivePortfolioTrader, PortfolioPair } from './live-portfolio-trader';
 import { StatArbRepository } from '../stat-arb/persistence/stat-arb.repository';
 import { strategyRegistry } from '../stat-arb/strategies/strategy-registry';
+import { DeskEventLog } from '../market-making/events/desk-event-log';
+
+const DEFAULT_EVENTS_LIMIT = 200;
+const MAX_EVENTS_LIMIT = 2000;
 
 /**
  * Venue id closed trades persist under, per execution mode:
@@ -44,6 +48,9 @@ export class LiveController {
     private readonly portfolio: LivePortfolioTrader,
     private readonly repo: StatArbRepository,
     private readonly cfg: ConfigService,
+    // The desk's live business-event tape. Optional so a stripped test module
+    // (or any wiring without the log) degrades to an empty feed, not a 500.
+    @Optional() @Inject(DeskEventLog) private readonly eventLog: DeskEventLog | null = null,
   ) {}
 
   /**
@@ -188,6 +195,25 @@ export class LiveController {
     return this.trader.snapshot();
   }
 
+  /**
+   * Live business-event tape — every enter/exit, risk-block, and book/desk
+   * lifecycle the live loop emits (the "see every trade in the log" surface for
+   * stat-arb, mirroring the MM desk's /api/market-making/events). Seq-cursor
+   * long-poll: pass `?since=<cursor>` to get only newer events; `cursor` in the
+   * response is the latest seq to poll with next.
+   *
+   *   GET /api/stat-arb/live/events                 — recent events (default 200)
+   *   GET /api/stat-arb/live/events?since=128        — only events after seq 128
+   *   GET /api/stat-arb/live/events?book=ETH/BTC&limit=50
+   */
+  @Get('events')
+  events(@Query('since') since?: string, @Query('limit') limit?: string, @Query('book') book?: string) {
+    if (!this.eventLog) return { events: [], cursor: 0 };
+    const sinceSeq = Number.isFinite(Number(since)) && since !== undefined && since !== '' ? Number(since) : undefined;
+    const events = this.eventLog.recent({ sinceSeq, limit: clampEventsLimit(limit), book: book || undefined });
+    return { events, cursor: this.eventLog.lastSeq() };
+  }
+
   // --- Multi-currency portfolio: N pairs trading concurrently on live data ---
 
   /**
@@ -291,4 +317,11 @@ export class LiveController {
   portfolioSnapshot() {
     return this.portfolio.snapshot();
   }
+}
+
+/** Parse + clamp the events `limit` query param. */
+function clampEventsLimit(raw?: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_EVENTS_LIMIT;
+  return Math.min(Math.floor(n), MAX_EVENTS_LIMIT);
 }
