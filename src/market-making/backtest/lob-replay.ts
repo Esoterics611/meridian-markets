@@ -7,6 +7,7 @@ import { SimpleQueueModel, QueuePosition } from './queue-model';
 import { RiskGate, RiskState } from '../risk/risk-gate';
 import { OrderBook, OrderBookLevel, midMicros } from '../microstructure/order-book';
 import { MicroPriceCalculator } from '../microstructure/micro-price';
+import { crossVenueReference } from '../microstructure/cross-venue';
 import { L2TapeStep, cumulativeBidSizeToPrice, cumulativeAskSizeToPrice, bestBidMicros, bestAskMicros } from './l2-tape';
 
 // LobReplayHarness — the queue-aware market-making backtest (course A.10). It is
@@ -94,6 +95,16 @@ export interface LobReplayConfig {
    * micro-price REDUCES adverse selection. 0/undefined ⇒ quote off the mid (legacy).
    */
   microDepth?: number;
+  /**
+   * F2 cross-venue fusion: a lead venue's mid (micros) per tape step (parallel to
+   * `tape`; undefined where unavailable). With `leadBeta`, the quote center is pulled
+   * toward the lead by β·(lead − hlMid) — a MEASURED fusion, not an assumption (HL is
+   * itself a price-discovery venue; β is fit per coin and may be ≈0). Undefined ⇒ no
+   * cross-venue term (unchanged).
+   */
+  leadMicros?: (bigint | undefined)[];
+  /** F2 error-correction coefficient β (per coin). 0/undefined ⇒ ignore the lead. */
+  leadBeta?: number;
 }
 
 export interface LobReplayMetrics {
@@ -234,12 +245,18 @@ export class LobReplayHarness {
       // --- 2) re-quote off this book ---
       const inventoryBefore = book.inventoryUnits();
       // The quote center: the micro-price when enabled (so we quote where price is
-      // GOING), else the mid. Attribution below still uses the plain `mid`.
+      // GOING), else the mid; then F2 pulls it toward the lead venue by β·(lead−mid).
+      // Attribution below still uses the plain `mid`.
       const microMicros = microPrice ? microPrice.compute(ob) : undefined;
+      let referenceMicros: bigint | undefined = microMicros !== undefined ? BigInt(Math.round(microMicros)) : undefined;
+      const lead = cfg.leadMicros?.[i];
+      if (lead !== undefined && cfg.leadBeta) {
+        referenceMicros = crossVenueReference(referenceMicros ?? mid, mid, lead, cfg.leadBeta);
+      }
       const ctx: QuoteContext = {
         inventoryUnits: inventoryBefore,
         midMicros: mid,
-        referenceMicros: microMicros !== undefined ? BigInt(Math.round(microMicros)) : undefined,
+        referenceMicros,
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
         arrivalDecay: cfg.kappa,
