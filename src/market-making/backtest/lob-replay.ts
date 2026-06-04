@@ -105,6 +105,15 @@ export interface LobReplayConfig {
   leadMicros?: (bigint | undefined)[];
   /** F2 error-correction coefficient β (per coin). 0/undefined ⇒ ignore the lead. */
   leadBeta?: number;
+  /**
+   * F3 confidence-scaled spread: when true, the half-spread is scaled by current flow
+   * toxicity vs its rolling average — TIGHTEN on calm/benign flow (the rebate-farming
+   * regime), WIDEN on toxic one-sided flow (where adverse selection lives). Off ⇒
+   * spread unchanged. The scale is clamped to [f3MinScale, f3MaxScale].
+   */
+  f3Toxicity?: boolean;
+  f3MinScale?: number; // default 0.5 — how tight we dare quote when calm
+  f3MaxScale?: number; // default 3.0 — how wide we back off when toxic
 }
 
 export interface LobReplayMetrics {
@@ -139,6 +148,10 @@ export class LobReplayHarness {
     const vol = new RollingVolatility(cfg.volWindowBars);
     // F1: optionally quote around the book-imbalance micro-price instead of the mid.
     const microPrice = cfg.microDepth && cfg.microDepth > 0 ? new MicroPriceCalculator({ depth: cfg.microDepth }) : undefined;
+    // F3: rolling flow-toxicity for the confidence-scaled spread.
+    const tox: number[] = [];
+    const f3MinScale = cfg.f3MinScale ?? 0.5;
+    const f3MaxScale = cfg.f3MaxScale ?? 3.0;
     const book = new InventoryBook();
     const components: PnlComponent[] = [];
 
@@ -253,10 +266,22 @@ export class LobReplayHarness {
       if (lead !== undefined && cfg.leadBeta) {
         referenceMicros = crossVenueReference(referenceMicros ?? mid, mid, lead, cfg.leadBeta);
       }
+      // F3: spread scale from current flow toxicity vs its rolling average.
+      let spreadScale: number | undefined;
+      if (cfg.f3Toxicity) {
+        const flow = Number(step.aggressiveBuyUnits + step.aggressiveSellUnits);
+        const tau = flow > 0 ? Math.abs(Number(step.aggressiveBuyUnits - step.aggressiveSellUnits)) / flow : 0;
+        tox.push(tau);
+        if (tox.length > cfg.volWindowBars) tox.shift();
+        const avg = tox.reduce((a, b) => a + b, 0) / tox.length;
+        const raw = avg > 1e-9 ? tau / avg : 1;
+        spreadScale = Math.min(f3MaxScale, Math.max(f3MinScale, raw));
+      }
       const ctx: QuoteContext = {
         inventoryUnits: inventoryBefore,
         midMicros: mid,
         referenceMicros,
+        spreadScale,
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
         arrivalDecay: cfg.kappa,

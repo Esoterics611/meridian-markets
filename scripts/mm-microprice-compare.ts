@@ -42,6 +42,7 @@ const VOL_WINDOW = Number(process.env.VOL_WINDOW ?? 20);
 const VOL_FLOOR = Number(process.env.VOL_FLOOR ?? 0.0001);
 const HORIZON = Number(process.env.HORIZON ?? 1);
 const DD_LIMIT = Number(process.env.DD_LIMIT ?? 2);
+const F3 = (process.env.F3 ?? '0') === '1'; // add F3 confidence-scaled spread to the MICRO run
 
 const u = (units: bigint): number => Number(units) / 1e6;
 const f2 = (x: number): string => (x >= 0 ? '+' : '') + x.toFixed(2);
@@ -99,6 +100,7 @@ function replay(lt: Loaded, micro: boolean): LobReplayMetrics {
     symbol: lt.coin,
     riskGate,
     microDepth: micro ? MICRO_DEPTH : 0,
+    f3Toxicity: micro && F3, // F3 layered onto the micro run when F3=1
   });
 }
 

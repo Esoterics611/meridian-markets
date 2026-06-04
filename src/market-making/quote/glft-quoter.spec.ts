@@ -50,6 +50,18 @@ describe('GlftQuoter', () => {
     expect(onMicro.halfSpreadMicros).toBe(onMid.halfSpreadMicros);
   });
 
+  it('F3: spreadScale tightens (<1) and widens (>1) the half-spread; 1/undefined unchanged', () => {
+    const q = quoter();
+    const base = q.quote(ctx({ inventoryUnits: 0n }), 'USDC');
+    const tight = q.quote(ctx({ inventoryUnits: 0n, spreadScale: 0.5 }), 'USDC');
+    const wide = q.quote(ctx({ inventoryUnits: 0n, spreadScale: 2 }), 'USDC');
+    expect(Number(tight.halfSpreadMicros)).toBeLessThan(Number(base.halfSpreadMicros));
+    expect(Number(wide.halfSpreadMicros)).toBeGreaterThan(Number(base.halfSpreadMicros));
+    // The center is untouched — only the spread scales.
+    expect(tight.reservationMicros).toBe(base.reservationMicros);
+    expect(q.quote(ctx({ inventoryUnits: 0n, spreadScale: 1 }), 'USDC').halfSpreadMicros).toBe(base.halfSpreadMicros);
+  });
+
   it('referenceMicros === midMicros reproduces the mid-quoter exactly (swap-seam default)', () => {
     const q = quoter();
     const a = q.quote(ctx({ inventoryUnits: 3_000_000n }), 'USDC');

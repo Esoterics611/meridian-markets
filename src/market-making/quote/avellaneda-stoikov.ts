@@ -92,7 +92,11 @@ export class AvellanedaStoikovQuoter implements IQuoter {
     const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
-    const halfSpreadMicros = railHalfSpread(halfRaw, minMicros, maxMicros);
+    const railed = railHalfSpread(halfRaw, minMicros, maxMicros);
+    // F3: confidence-scaled spread (tighten when calm, widen when toxic), after the rails.
+    const scale = ctx.spreadScale && ctx.spreadScale > 0 ? ctx.spreadScale : 1;
+    const scaled = scale === 1 ? railed : BigInt(Math.round(Number(railed) * scale));
+    const halfSpreadMicros = scaled > 1n ? scaled : 1n;
 
     return buildQuotePair({
       symbol,
