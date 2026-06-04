@@ -44,6 +44,9 @@ Make the system restart-safe and multi-hour-robust. Phased:
 - **Phase 3 ✅** — `MmPortfolioTrader` rehydrates OPEN books on boot (`OnApplicationBootstrap`) + checkpoints every tick + soft-closes on remove; `OnApplicationShutdown` hook flattens (when `MM_FLATTEN_ON_SHUTDOWN`) then checkpoints; `app.enableShutdownHooks()`; `MM_PERSIST` flag. **Default off ⇒ no-DB runs + tests unchanged** (911 tests green). MM books now survive restart with P&L, positions, and config intact.
 - **Next** — extend the same to **stat-arb live books** and add **durable NAV / equity-curve history** (the multi-day research output).
 
+### Backend telemetry / observability ([TELEMETRY_REQUIREMENTS.md](TELEMETRY_REQUIREMENTS.md))
+A system meant to run unattended for hours/days must be **observable** — operational health (process, tick loop, feeds, DB), financial health (equity, drawdown, fills, risk verdicts), data-quality (feed staleness, WS state), and persistence health. Four pillars (metrics / structured logs / traces / health endpoints) behind a config-gated swap seam (no-op default), exporting to Prometheus + OpenTelemetry. Phased: **P1** metrics + `/metrics` + `/health[/ready]` (mapped from the existing `snapshot()` + tick loop) → **P2** structured logs → **P3** durable NAV/equity-curve history (shared with persistence) → **P4** traces + uniform alerting. Requirements specified; **not yet implemented**.
+
 ---
 
 ## Parked → re-evaluate now (mission shift to a system + agent group)
