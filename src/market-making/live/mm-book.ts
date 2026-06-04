@@ -7,6 +7,8 @@ import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
+import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
+import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
 
 // MmBook — a single-instrument live paper market-making book. The market-making
 // analogue of LivePaperTrader: on each tick it pulls the latest closed bar for
@@ -58,6 +60,13 @@ export interface MmBookConfig {
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
   now?: () => Date;
+  /**
+   * Business-event sink: a fill (enter/exit) + a risk-verdict change emit a
+   * human-readable event here, rendered as a log line + buffered for the live
+   * activity feed. No-op by default ⇒ the unit tests that build a book directly
+   * are unchanged; the module injects the real DeskEventLog.
+   */
+  events?: IDeskEventSink;
 }
 
 /**
@@ -120,6 +129,7 @@ export class MmBook {
   private readonly vol: RollingVolatility;
   private readonly book = new InventoryBook();
   private readonly now: () => Date;
+  private readonly events: IDeskEventSink;
 
   private barsSeen = 0;
   private seededBars = 0;
@@ -146,6 +156,7 @@ export class MmBook {
   constructor(private cfg: MmBookConfig) {
     this.vol = new RollingVolatility(cfg.volWindowBars);
     this.now = cfg.now ?? (() => new Date());
+    this.events = cfg.events ?? NULL_DESK_EVENT_SINK;
     this.peakEquity = cfg.capitalUnits;
   }
 
@@ -292,6 +303,11 @@ export class MmBook {
       const navRatio = Number(this.equityWithFunding(midMicros)) / Number(this.cfg.capitalUnits);
       const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: 0, recentAdverseUnits: this.adverse, killed: false };
       const verdict = this.cfg.riskGate.check(quote, state);
+      // Emit a business event only on a verdict TRANSITION (Allow ⇄ Pause ⇄ Deny),
+      // not every blocked tick — the operator wants the state change, not a flood.
+      if (verdict.kind !== this.lastVerdict) {
+        this.events.emit(verdictEvent({ ts: this.now().getTime(), book: this.cfg.symbol, source: this.cfg.source ?? '', prev: this.lastVerdict, next: verdict.kind }));
+      }
       this.lastVerdict = verdict.kind;
       if (verdict.kind !== 'Allow') {
         this.blockedQuotes += 1;
@@ -304,12 +320,31 @@ export class MmBook {
     const feeFor = (notionalUnits: bigint): bigint => (notionalUnits * BigInt(Math.round(this.cfg.makerFeeBps * 100))) / 1_000_000n;
     const applyOne = (side: 'BUY' | 'SELL', priceMicros: bigint): void => {
       const fee = feeFor(valueUnits(this.cfg.quoteSizeUnits, priceMicros));
+      const invBefore = this.book.inventoryUnits();
+      const realisedBefore = this.book.realisedUnits();
       this.book.apply({ side, sizeUnits: this.cfg.quoteSizeUnits, priceMicros, feeUnits: fee });
+      const invAfter = this.book.inventoryUnits();
       const c = attributeFill({ side, sizeUnits: this.cfg.quoteSizeUnits, priceMicros, feeUnits: fee }, midMicros, midMicros, 0n);
       this.spreadCaptured += c.spreadCapturedUnits;
       this.fills += 1;
       // Defer adverse selection to next bar's mid (a one-bar mark-out).
       this.pendingMarkout.push({ side, sizeUnits: this.cfg.quoteSizeUnits, fairMid: priceMicros });
+      // The business event: a trade entered/exited inventory (enter = open/add,
+      // exit = reduce/close/flip, with the realised P&L the exit just booked).
+      this.events.emit(
+        fillEvent({
+          ts: this.now().getTime(),
+          book: this.cfg.symbol,
+          source: this.cfg.source ?? '',
+          side,
+          action: classifyFill(invBefore, invAfter),
+          sizeUnits: this.cfg.quoteSizeUnits,
+          priceMicros,
+          inventoryUnits: invAfter,
+          realisedDeltaUnits: this.book.realisedUnits() - realisedBefore,
+          feeUnits: fee,
+        }),
+      );
     };
     if (res.bidFilled) {
       applyOne('BUY', quote.bid.priceMicros);

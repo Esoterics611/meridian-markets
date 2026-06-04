@@ -51,6 +51,14 @@ describe('MarketMakingModule — the endpoints the /demo MM tab calls', () => {
     expect(r.error).toMatch(/unknown/i);
   });
 
+  it('GET /events serves the live business-event tape with a polling cursor', () => {
+    const r = controller.events() as { events: unknown[]; cursor: number };
+    // No fills yet on a freshly-booted desk ⇒ empty tape, cursor 0 (the UI polls ?since=cursor).
+    expect(Array.isArray(r.events)).toBe(true);
+    expect(r.events).toEqual([]);
+    expect(r.cursor).toBe(0);
+  });
+
   it('GET /nav returns the disabled-but-empty shape when MM_PERSIST is off (the default)', async () => {
     const r = (await controller.nav()) as { enabled: boolean; points: unknown[]; note?: string };
     // No DB / persistence off in this isolated module ⇒ no durable NAV repo wired.

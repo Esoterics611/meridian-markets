@@ -5,6 +5,8 @@ import { NullMmStateStore } from '../persistence/null-mm-state-store';
 import { ITelemetry } from '../../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
 import { M } from '../../telemetry/metric-catalog';
+import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
+import { lifecycleEvent } from '../events/desk-event';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -87,6 +89,10 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     // Observability seam: NullTelemetry by default ⇒ no behaviour change + the unit
     // tests construct the trader unchanged. The module injects the real telemetry.
     private readonly telemetry: ITelemetry = NULL_TELEMETRY,
+    // Business-event sink (launch / remove / start / stop). No-op default ⇒ the
+    // unit tests are unchanged; the module injects the shared DeskEventLog so these
+    // lifecycle events land in the same log + activity feed as the per-book fills.
+    private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
   ) {
     this.capitalUnits = initialCapitalUnits;
     this.store = persistence.store ?? new NullMmStateStore();
@@ -149,7 +155,15 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     this.books.set(spec.symbol, book);
     this.specs.set(spec.symbol, spec);
     await this.persist(spec.symbol); // durable from launch
-    this.logger.log(`launched mm book ${spec.symbol} via ${spec.strategyId ?? 'default'} (capital=${capitalUnits})`);
+    this.events.emit(
+      lifecycleEvent({
+        ts: Date.now(),
+        kind: 'launch',
+        book: spec.symbol,
+        source: spec.source ?? '',
+        message: `launched ${spec.symbol} via ${spec.strategyId ?? 'default'} (capital ${(capitalUnits / 1_000_000n).toString()} USDC)`,
+      }),
+    );
   }
 
   /** Stop + remove one book: flatten its inventory, then drop it (soft-close in the store). */
@@ -161,7 +175,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     this.books.delete(symbol);
     this.specs.delete(symbol);
     if (this.store.enabled) await this.store.close(symbol).catch((e) => this.logger.error(`mm close ${symbol}: ${(e as Error).message}`));
-    this.logger.log(`removed mm book ${symbol}`);
+    this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'remove', book: symbol, message: `removed ${symbol} (flattened + dropped)` }));
     if (this.books.size === 0) this.stop();
     return true;
   }
@@ -174,14 +188,17 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     if (this.timer || this.books.size === 0) return;
     for (const b of this.books.values()) b.setRunning(true);
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
+    this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'start', message: `desk loop started — ${this.books.size} book(s) quoting every ${this.pollIntervalMs}ms` }));
   }
 
   stop(): void {
+    const wasRunning = this.timer !== null;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
     for (const b of this.books.values()) b.setRunning(false);
+    if (wasRunning) this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'stop', message: 'desk loop stopped' }));
   }
 
   isRunning(): boolean {

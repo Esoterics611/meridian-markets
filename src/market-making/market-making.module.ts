@@ -25,6 +25,7 @@ import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interf
 import { MmNavRepository } from './persistence/mm-nav.repository';
 import { MmNavCron } from './persistence/mm-nav.cron';
 import { MmScreener } from './screen/mm-screener';
+import { DeskEventLog } from './events/desk-event-log';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
 import { M } from '../telemetry/metric-catalog';
@@ -60,8 +61,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       // DbService is optional: it's @Global in the full app, but the controller
       // unit test builds this module in isolation. Persistence needs it; without
       // it (or with MM_PERSIST off) the trader uses the no-op Null store.
-      inject: [ConfigService, MM_BINANCE_CLIENT, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
+      inject: [ConfigService, MM_BINANCE_CLIENT, DeskEventLog, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, deskEvents: DeskEventLog, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
@@ -187,6 +188,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             nextBar,
             warmupCloses,
             riskGate: makeRiskGate(quoteSizeUnits),
+            events: deskEvents,
           });
         };
 
@@ -220,6 +222,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             nextBar,
             warmupCloses,
             riskGate: makeRiskGate(rec.quoteSizeUnits),
+            events: deskEvents,
           });
         };
 
@@ -235,9 +238,15 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           mm.capitalUnits,
           { store, rebuildBook, flattenOnShutdown: mm.flattenOnShutdown },
           tele,
+          deskEvents,
         );
       },
     },
+    // Live business-event tape (fills enter/exit, verdict changes, lifecycle). A
+    // single shared instance: injected into every MmBook + the trader (emit) and
+    // the MmController (read at GET /api/market-making/events). In-memory + bounded
+    // — the durable record is the append-only mm_nav table (Telemetry P3).
+    DeskEventLog,
     // Durable NAV / equity-curve history (Telemetry P3). The repository is the
     // Postgres backend when MM_PERSIST is on AND a DB is present, else null so the
     // cron + endpoint no-op (no DB dependency on the live MM path — same posture as

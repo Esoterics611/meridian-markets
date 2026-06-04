@@ -292,6 +292,12 @@
         </div>
         <div id="mm-nav-curve"><div class="muted">needs MM_PERSIST=true — the durable desk curve (mm_nav) draws here once the NAV cron writes a point (≈60s)</div></div>
       </div>
+      <div style="margin-top:18px;">
+        <div class="spark-k" style="margin-bottom:8px;">Activity — live trade tape <span id="mm-events-summary" class="muted" style="text-transform:none;letter-spacing:0;"></span></div>
+        <div id="mm-events" style="max-height:300px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:6px 10px;background:rgba(0,0,0,0.18);">
+          <div class="muted">no activity yet — launch a book and start the desk. Every fill (enter/exit), risk-verdict change and launch/stop streams here, newest first — the same business events the server logs.</div>
+        </div>
+      </div>
     </section>
 
     <section class="panel span-12" data-tab="research">
@@ -691,6 +697,37 @@
       const color = net >= 0 ? '#00d4aa' : '#ff5c5c';
       box.innerHTML = spark(eq, color, 360, 70);
       if (sum) sum.innerHTML = `· now <b>${fmtUsdc(last.equityUnits)}</b> USDC · Δ${hours}h <span style="color:${color}">${net >= 0 ? '+' : ''}${num(net, 2)}</span> · maxDD ${dd.toFixed(2)}% · ${pts.length} pts`;
+    }
+
+    // --- Live business-event tape (GET /api/market-making/events). The "what just
+    //     happened" feed: every fill (enter/exit), risk-verdict change and book
+    //     lifecycle event — the same events the server logs. Long-polls with a seq
+    //     cursor so nothing is missed or double-counted; newest-first. ---
+    const __mmEv = { cursor: 0, items: [] };
+    const evColor = (e) => {
+      if (e.kind === 'fill') return e.side === 'BUY' ? '#00d4aa' : '#ffb454';
+      if (e.kind === 'verdict') return e.verdict === 'Allow' ? '#00d4aa' : '#ff5c5c';
+      if (e.kind === 'launch' || e.kind === 'start') return '#6ea8ff';
+      return '#8a93a3'; // remove / stop
+    };
+    const evTime = (ts) => new Date(ts).toLocaleTimeString('en-GB', { hour12: false });
+    const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    async function refreshMmEvents() {
+      let r; try { r = await jget('/api/market-making/events?since=' + __mmEv.cursor + '&limit=200'); } catch { return; }
+      if (!r) return;
+      if (r.events && r.events.length) {
+        __mmEv.items.push(...r.events);
+        if (__mmEv.items.length > 250) __mmEv.items = __mmEv.items.slice(__mmEv.items.length - 250);
+      }
+      if (typeof r.cursor === 'number') __mmEv.cursor = r.cursor;
+      const box = $('mm-events'); if (!box || !__mmEv.items.length) return;
+      const sum = $('mm-events-summary'); if (sum) sum.textContent = '· ' + __mmEv.items.length + ' recent';
+      box.innerHTML = __mmEv.items.slice().reverse().map((e) =>
+        `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);">`
+        + `<span class="mono muted" style="font-size:11px;flex:0 0 auto;">${evTime(e.ts)}</span>`
+        + `<span style="flex:0 0 auto;color:${evColor(e)};line-height:1;">●</span>`
+        + `<span class="mono" style="font-size:12px;">${esc(e.message)}</span></div>`
+      ).join('');
     }
 
     // --- Opportunity scanner: net-edge board (stat-arb) + spread-capture board (MM) ---
@@ -1211,7 +1248,7 @@
     async function pollAll() {
       if (polling) return; // never overlap (a slow/hung fetch shouldn't pile up)
       polling = true;
-      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm(), refreshMmNav()]); lastUpdateMs = Date.now(); }
+      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm(), refreshMmNav(), refreshMmEvents()]); lastUpdateMs = Date.now(); }
       catch { /* refreshers swallow their own errors; a stalled poll shows via heartbeat age */ }
       finally { polling = false; }
     }
@@ -1416,6 +1453,7 @@
       await refreshPortfolio();
       await refreshTrades();
       await refreshMm();
+      await refreshMmEvents();
       tickClock(); setInterval(tickClock, 1000);
       pollAll(); setInterval(pollAll, 4000);
       showTab((location.hash || '').replace('#', '') || 'desk');

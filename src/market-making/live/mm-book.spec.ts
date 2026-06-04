@@ -1,6 +1,15 @@
 import { MmBook, MmBookConfig } from './mm-book';
 import { Bar } from '../../stat-arb/backtest/bar';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
+import { IDeskEventSink } from '../events/desk-event-sink';
+import { DeskEventInput } from '../events/desk-event';
+
+class CapturingSink implements IDeskEventSink {
+  readonly events: DeskEventInput[] = [];
+  emit(e: DeskEventInput): void {
+    this.events.push(e);
+  }
+}
 
 function bar(i: number, close: number, high: number, low: number): Bar {
   return { symbol: 'USDC', timestamp: new Date(2026, 0, 1, 0, i), open: close, high, low, close, volume: 1000 };
@@ -54,6 +63,20 @@ describe('MmBook', () => {
     expect(BigInt(book.snapshot().inventoryUnits)).toBeGreaterThan(0n);
     await book.flatten();
     expect(BigInt(book.snapshot().inventoryUnits)).toBe(0n);
+  });
+
+  it('emits a business event on every fill (the operator sees each trade enter)', async () => {
+    const sink = new CapturingSink();
+    // long-only tape → the first fill opens a long, later fills add to it.
+    const bars = Array.from({ length: 6 }, (_, i) => bar(i, 1.0, 1.0001, 0.999));
+    const book = new MmBook({ ...cfg(bars), events: sink });
+    await tickAll(book, 6);
+    const fills = sink.events.filter((e) => e.kind === 'fill');
+    expect(fills.length).toBe(book.snapshot().fills); // one event per fill, no double-count
+    expect(fills[0].side).toBe('BUY');
+    expect(fills[0].action).toBe('open');
+    expect(fills[0].message).toContain('opened long');
+    expect(fills.some((e) => e.action === 'add')).toBe(true);
   });
 
   it('serialize → restore is lossless and the restored book keeps trading (restart-safe)', async () => {
