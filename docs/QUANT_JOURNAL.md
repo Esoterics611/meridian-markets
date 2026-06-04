@@ -1221,3 +1221,50 @@ that's the long-capture + γ/κ-sweep verdict (next session). Venue decisions ar
 **Next:** (1) long capture + sweep for the rebate-net verdict; (2) **HL funding ingest** (hourly funding;
 `IFundingRateSource` on `HyperliquidClient` + period-aware `staticCarry` + `FC_SOURCE=hyperliquid`) — harvest
 carry on the venue we already make markets on; (3) HL `trades`/WS for real aggressor data; (4) forward paper track.
+
+## 2026-06-04 — Entry #23: the rebate-net verdict — first NET-POSITIVE honest-fill read (real WS flow + per-pool tuning)
+
+**The question, finally answered (directionally).** Entries #20/#21 left the maker-rebate-CLOB thesis on a
+cliff: the queue-aware harness was honest, but the only long capture ran on a **candle-volume estimate** of
+aggressive flow, and every tuned (γ×κ×floor) combo filled **0** — so "does HL's −0.2bps rebate net positive
+on honest fills" was unanswerable from that data. This session wired the **real HL trades WebSocket**
+(per-trade taker flow, signed by aggressor side) + **funding accrual**, then ran the real thing: a
+**111-step, 60s-poll, ~2h capture on BTC/ETH/SOL** with **100% real WS aggressor flow** (332/333 steps),
+saved to `docs/research/l2-tapes/wsflow1-*` and swept with `mm-l2-tune.ts`. Artifact:
+[docs/research/2026-06-04-mm-l2-wsflow1-verdict.json](research/2026-06-04-mm-l2-wsflow1-verdict.json).
+
+**Finding 1 — real flow produces real (few) fills; fill-on-touch overstates 3×.** At the default γ=0.0025/κ=2
+the desk logged **queueFills 3 vs touchFills 9 (ratio 0.33)** — fill-on-touch overstated fills by 3×. This is
+the honest middle the harness was built to find: not 0 (the candle-estimate artifact), not 9 (the
+fill-on-touch upper bound). Desk structural −$1,135 on $3M (−0.038%), **maxDD 0.22% → drawdown PASS**, profit
+FAIL. The loss is small-sample inventory mark on a handful of unhedged fills, not a structural bleed.
+
+**Finding 2 — a tuned BTC calibration is NET-POSITIVE on honest fills.** The 48-combo sweep, ranked
+drawdown-compliant-first then maker-net at −0.2bps, found **BTC γ=0.0005 / κ=1 / 5bps floor → makerNet
++$345.08** (structural +$340.17), queueFills 5 (ratio 0.455), **maxDD 0.526%**. The tight-γ + wide-floor quote
+captures **more spread (+$541) than it pays in adverse selection (+$434)** — the first time, across all the
+DEX/HL work (Entries #16/#17/#19/#20/#21), that a calibration clears positive on fills we could actually have
+gotten, at the rebate. **The maker-rebate-CLOB thesis is, for the first time, confirmed in the positive — on
+BTC, on this window.**
+
+**Finding 3 — ETH/SOL: stand aside (no profitable calibration this window).** For ETH and SOL every *filling*
+combo in the grid was net-negative (adverse selection ≥ spread on the trending window), so the ranker
+correctly returned a **0-fill combo** as the "winner" (0 P&L + 0 DD beats every losing quoting combo). The
+honest read: on this 2h window the desk should **quote BTC and sit out ETH/SOL** — a coin-specific, regime-
+specific edge, not a desk-wide one.
+
+**Honest caveats (binding).** Single ~2h window, one regime, **tiny fill counts (0–5/coin)** ⇒ the per-pool
+P&L is high-variance inventory mark on a few fills — **directional, not a deployable number**. Re-capture
+across many sessions/regimes before trusting the BTC calibration live. (`mm-l2-tune.ts` also still prints a
+generic "candle-estimate" caveat; for the wsflow1 tapes the flow is REAL WS — the tape format doesn't tag the
+source, noted in the artifact.)
+
+**Decision.** The frontier's central question moves from *"can a rebate book ever net positive on honest
+fills?"* (now: **yes, BTC, +$345/2h/$1M, DD 0.53%**) to *"is it stable across regimes, and on which coins?"*
+The next step is **repeated captures** (a scheduled multi-session sweep) to turn one directional read into a
+distribution — exactly the kind of unattended multi-hour run the restart-safe-books + telemetry work (this
+session) exists to support. Full machinery: capture (real WS flow + funding) → tune (per-pool, venue-fee-
+aware, drawdown-first) → honest verdict, all on data we could have traded.
+
+**Tests:** 137 suites / 911 tests (the trades-WS, funding full-stack, and restart-safe-books work this
+session), tsc clean. See [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) §6 + [ROADMAP.md](ROADMAP.md).
