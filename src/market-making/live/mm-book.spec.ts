@@ -56,6 +56,33 @@ describe('MmBook', () => {
     expect(BigInt(book.snapshot().inventoryUnits)).toBe(0n);
   });
 
+  it('serialize → restore is lossless and the restored book keeps trading (restart-safe)', async () => {
+    const bars = (): Bar[] => Array.from({ length: 6 }, (_, i) => bar(i, 1.0, 1.0001, 0.999)); // long-only
+    const orig = new MmBook({ ...cfg(bars()), fundingRatePerHour: 0.01 });
+    await tickAll(orig, 6);
+    const a = orig.snapshot();
+    const state = orig.serializeState();
+    expect(BigInt(state.book.inventoryUnits)).toBeGreaterThan(0n); // there is real state to carry
+
+    // Rebuild a fresh book (as the module would on boot) and restore the state.
+    const revived = new MmBook({ ...cfg(bars()), fundingRatePerHour: 0.01 });
+    revived.restore(state);
+    expect(revived.serializeState()).toEqual(state); // round-trip is exact
+
+    // Mid-independent ledger numbers survive verbatim.
+    const b = revived.snapshot();
+    expect(b.realisedPnlUnits).toBe(a.realisedPnlUnits);
+    expect(b.feesUnits).toBe(a.feesUnits);
+    expect(b.fundingUnits).toBe(a.fundingUnits);
+    expect(b.inventoryUnits).toBe(a.inventoryUnits);
+    expect(b.maxDrawdownPct).toBe(a.maxDrawdownPct);
+    expect(b.fills).toBe(a.fills);
+
+    // …and it resumes trading from the carried-over position.
+    await tickAll(revived, 3);
+    expect(revived.snapshot().barsSeen).toBeGreaterThan(a.barsSeen);
+  });
+
   it('accrues funding on held inventory (long pays a positive rate), folded into net + equity', async () => {
     const longBars = (): Bar[] => Array.from({ length: 6 }, (_, i) => bar(i, 1.0, 1.0001, 0.999));
     const noF = new MmBook(cfg(longBars()));

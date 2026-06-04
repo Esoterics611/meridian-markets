@@ -3,7 +3,7 @@ import { Bar } from '../../stat-arb/backtest/bar';
 import { IQuoter } from '../quote/quoter.interface';
 import { QuoteContext, QuotePair } from '../quote/quote-pair';
 import { RollingVolatility } from '../quote/volatility';
-import { InventoryBook } from '../inventory/inventory-book';
+import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
@@ -56,6 +56,26 @@ export interface MmBookConfig {
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
   now?: () => Date;
+}
+
+/**
+ * Persistable book state (ledger + all P&L accumulators), bigints as strings.
+ * The quoter / feed / risk gate are NOT here — they are rebuilt from config on
+ * restart; only the evolving P&L state needs to survive (restart-safe books).
+ * The σ window is re-seeded from recent closes via warmup(), so it is not stored.
+ */
+export interface MmBookState {
+  book: InventoryBookState;
+  fundingUnits: string;
+  spreadCapturedUnits: string;
+  adverseUnits: string;
+  peakEquityUnits: string;
+  maxDrawdownPct: number;
+  barsSeen: number;
+  fills: number;
+  bidFills: number;
+  askFills: number;
+  blockedQuotes: number;
 }
 
 export interface MmBookSnapshot {
@@ -139,6 +159,39 @@ export class MmBook {
    *  the static-per-run rate current as funding drifts over a multi-hour session. */
   setFundingRatePerHour(rate: number): void {
     this.cfg = { ...this.cfg, fundingRatePerHour: rate };
+  }
+
+  /** Snapshot the evolving P&L state for persistence (restart-safe books). */
+  serializeState(): MmBookState {
+    return {
+      book: this.book.serialize(),
+      fundingUnits: this.fundingUnits.toString(),
+      spreadCapturedUnits: this.spreadCaptured.toString(),
+      adverseUnits: this.adverse.toString(),
+      peakEquityUnits: this.peakEquity.toString(),
+      maxDrawdownPct: this.maxDrawdownPct,
+      barsSeen: this.barsSeen,
+      fills: this.fills,
+      bidFills: this.bidFills,
+      askFills: this.askFills,
+      blockedQuotes: this.blockedQuotes,
+    };
+  }
+
+  /** Restore a previously-persisted state onto a freshly-built book (post-construct,
+   *  before the first tick). The book then re-warms σ from warmup() and resumes. */
+  restore(s: MmBookState): void {
+    this.book.restore(s.book);
+    this.fundingUnits = BigInt(s.fundingUnits);
+    this.spreadCaptured = BigInt(s.spreadCapturedUnits);
+    this.adverse = BigInt(s.adverseUnits);
+    this.peakEquity = BigInt(s.peakEquityUnits);
+    this.maxDrawdownPct = s.maxDrawdownPct;
+    this.barsSeen = s.barsSeen;
+    this.fills = s.fills;
+    this.bidFills = s.bidFills;
+    this.askFills = s.askFills;
+    this.blockedQuotes = s.blockedQuotes;
   }
 
   /** Seed the σ window from recent closes so the book can quote immediately. */
