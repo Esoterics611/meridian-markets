@@ -16,7 +16,7 @@ import { FundingPoint } from './funding-source.interface';
 // per-trade edge". Pure + deterministic; the research harness and any future live
 // path compute P&L identically. Money is bigint USDC-units (6-dec); rates floats.
 
-const PERIODS_PER_YEAR = (365 * 24) / 8; // Binance settles funding every 8h
+const BINANCE_PERIODS_PER_YEAR = (365 * 24) / 8; // Binance settles funding every 8h
 
 export interface CarryInputs {
   /** Funding settlements realised during the hold, chronological. */
@@ -30,6 +30,12 @@ export interface CarryInputs {
   /** Taker fee per side, bps of notional. */
   spotFeeBps: number;
   perpFeeBps: number;
+  /**
+   * Settlements per year for THIS venue (annualisation + trailing-interval days).
+   * Binance USDⓈ-M = (365×24)/8 = 1095 (8h); Hyperliquid = 8760 (HOURLY). Defaults
+   * to the Binance 8h cadence so existing callers are unchanged.
+   */
+  periodsPerYear?: number;
 }
 
 export interface CarryResult {
@@ -60,14 +66,18 @@ function round(x: number): bigint {
 export function staticCarry(inp: CarryInputs): CarryResult {
   const notional = Number(inp.notionalUnits);
   const periods = inp.funding.length;
+  const periodsPerYear = inp.periodsPerYear ?? BINANCE_PERIODS_PER_YEAR;
 
   // 1. Funding harvested by the short-perp leg. Funding accrues on the perp's
   //    notional at each settlement = rate · (qty · mark). qty = notional/perpEntry,
-  //    so the per-settlement cash flow is rate · notional · (mark/perpEntry).
+  //    so the per-settlement cash flow is rate · notional · (mark/perpEntry). When a
+  //    source omits per-settlement mark (HL fundingHistory has none ⇒ markPrice 0),
+  //    fall back to markRatio 1 — accrue on the entry notional rather than zeroing
+  //    funding outright (the bug a literal mark/perpEntry would cause at mark 0).
   let funding = 0;
   let positive = 0;
   for (const p of inp.funding) {
-    const markRatio = inp.perpEntry > 0 ? p.markPrice / inp.perpEntry : 1;
+    const markRatio = inp.perpEntry > 0 && p.markPrice > 0 ? p.markPrice / inp.perpEntry : 1;
     funding += p.fundingRate * notional * markRatio;
     if (p.fundingRate > 0) positive += 1;
   }
@@ -84,8 +94,10 @@ export function staticCarry(inp: CarryInputs): CarryResult {
 
   const firstMs = periods ? inp.funding[0].fundingTimeMs : 0;
   const lastMs = periods ? inp.funding[periods - 1].fundingTimeMs : 0;
-  // Hold spans the settlements; +1 interval so a single settlement isn't 0 days.
-  const windowDays = periods ? (lastMs - firstMs) / 86_400_000 + 8 / 24 : 0;
+  // Hold spans the settlements; +1 interval so a single settlement isn't 0 days. The
+  // interval is 365/periodsPerYear days (8h Binance ⇒ 1/3 day; 1h HL ⇒ 1/24 day).
+  const intervalDays = 365 / periodsPerYear;
+  const windowDays = periods ? (lastMs - firstMs) / 86_400_000 + intervalDays : 0;
   const meanFunding = periods ? inp.funding.reduce((s, p) => s + p.fundingRate, 0) / periods : 0;
 
   return {
@@ -96,7 +108,7 @@ export function staticCarry(inp: CarryInputs): CarryResult {
     feesUnits: round(fees),
     netUnits: round(net),
     meanFundingPerPeriod: meanFunding,
-    annualizedFundingPct: meanFunding * PERIODS_PER_YEAR * 100,
+    annualizedFundingPct: meanFunding * periodsPerYear * 100,
     annualizedNetPct: windowDays > 0 && notional > 0 ? (net / notional / windowDays) * 365 * 100 : 0,
     positiveFraction: periods ? positive / periods : 0,
   };

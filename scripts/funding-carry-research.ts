@@ -13,16 +13,35 @@
  * Run:
  *   npx ts-node -r tsconfig-paths/register scripts/funding-carry-research.ts
  *   FC_DAYS=60 FC_SYMBOLS=BTC,ETH,SOL npx ts-node ... funding-carry-research.ts
+ *   FC_SOURCE=hyperliquid FC_DAYS=20 npx ts-node ... funding-carry-research.ts  (HOURLY funding)
+ *
+ * FC_SOURCE=hyperliquid prices the HL funding STREAM (the carry edge + its
+ * persistence/sign) — the cash flow that accrues on whatever inventory the HL MM
+ * book holds (MM course §8.10). HL is perps-only, so there is no spot leg and the
+ * basis term is ~0 (single-venue); a delta-neutral CAPTURE would short the HL perp
+ * against spot on another venue (a cross-venue carry, a later step).
  */
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { BinanceFundingClient } from '../src/market-data/funding/binance-funding-client';
+import { HyperliquidFundingClient, HYPERLIQUID_PERIODS_PER_YEAR } from '../src/market-data/funding/hyperliquid-funding-client';
+import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-client';
+import { IFundingRateSource } from '../src/market-data/funding/funding-source.interface';
+import { Bar } from '../src/stat-arb/backtest/bar';
 import { staticCarry } from '../src/market-data/funding/funding-carry';
+
+// FC_SOURCE picks the venue: 'binance' (8h funding, real spot leg) or 'hyperliquid'
+// (HOURLY funding, perps-only ⇒ no spot leg, basis ~0; prices the funding STREAM,
+// the input to the MM book's inventory carry — MM course §8.10).
+const SOURCE = (process.env.FC_SOURCE ?? 'binance').trim().toLowerCase();
+const IS_HL = SOURCE === 'hyperliquid';
+const PERIODS_PER_YEAR = IS_HL ? HYPERLIQUID_PERIODS_PER_YEAR : (365 * 24) / 8;
+const BAR_INTERVAL = IS_HL ? '1h' : '8h'; // funding-settlement cadence
 
 const SYMBOLS = (process.env.FC_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE').split(',').map((s) => s.trim()).filter(Boolean);
 const DAYS = Number(process.env.FC_DAYS ?? 30);
 const NOTIONAL = BigInt(process.env.FC_NOTIONAL_UNITS ?? '100000000000'); // $100k/leg
-const SPOT_FEE_BPS = Number(process.env.FC_SPOT_FEE_BPS ?? 10); // spot taker per side
-const PERP_FEE_BPS = Number(process.env.FC_PERP_FEE_BPS ?? 5); // perp taker per side
+const SPOT_FEE_BPS = Number(process.env.FC_SPOT_FEE_BPS ?? (IS_HL ? 0 : 10)); // HL has no spot leg
+const PERP_FEE_BPS = Number(process.env.FC_PERP_FEE_BPS ?? (IS_HL ? 2.5 : 5)); // HL perp taker 2.5bps
 const POS_FRAC_MIN = Number(process.env.FC_POS_FRAC_MIN ?? 0.7); // carry-direction stability bar
 
 const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(0);
@@ -44,14 +63,20 @@ interface Row {
 }
 
 async function main(): Promise<void> {
-  const spot = new BinancePublicClient({ quote: 'USDT' });
-  const fund = new BinanceFundingClient({ quote: 'USDT' });
+  // Funding source + the price series for the basis leg. Binance = real spot;
+  // Hyperliquid = perps-only, so the HL candle IS the price series and basis ≈ 0.
+  const fund: IFundingRateSource = IS_HL ? new HyperliquidFundingClient() : new BinanceFundingClient({ quote: 'USDT' });
+  const hlPrice = IS_HL ? new HyperliquidClient() : undefined;
+  const binSpot = IS_HL ? undefined : new BinancePublicClient({ quote: 'USDT' });
+  const priceBars = (sym: string, n: number): Promise<Bar[]> =>
+    IS_HL ? hlPrice!.klines(sym, BAR_INTERVAL, n) : binSpot!.klines(sym, BAR_INTERVAL, n);
   const endMs = Date.now();
   const startMs = endMs - DAYS * 86_400_000;
   const roundTripBps = 2 * (SPOT_FEE_BPS + PERP_FEE_BPS);
+  const legs = IS_HL ? 'perps-only, single-venue (basis ~0)' : 'delta-neutral (long spot / short perp)';
 
-  console.log(`\n=== Funding-rate carry — ${DAYS}d real history, $${usd(NOTIONAL)}/leg, delta-neutral (long spot / short perp) ===`);
-  console.log(`  fees: spot ${SPOT_FEE_BPS}bps + perp ${PERP_FEE_BPS}bps per side ⇒ ${roundTripBps}bps round trip | basket: ${SYMBOLS.join(',')}`);
+  console.log(`\n=== Funding-rate carry [${SOURCE}] — ${DAYS}d real history, $${usd(NOTIONAL)}/leg, ${legs} ===`);
+  console.log(`  fees: spot ${SPOT_FEE_BPS}bps + perp ${PERP_FEE_BPS}bps per side ⇒ ${roundTripBps}bps round trip | funding cadence: ${BAR_INTERVAL} (${PERIODS_PER_YEAR}/yr) | basket: ${SYMBOLS.join(',')}`);
   console.log(`  carry yield = annualised funding (the edge) · fee = ONE-TIME round trip · basis = mean-zero entry-timing noise for a perp`);
   console.log(`\n  symbol  periods  carry%/yr  posFrac  breakeven  funding$  basis*$   fee$     net(${DAYS}d)$  hold1y%/yr  verdict`);
 
@@ -60,7 +85,7 @@ async function main(): Promise<void> {
     let funding, bars;
     try {
       funding = await fund.fundingHistory(sym, startMs, endMs);
-      bars = await spot.klines(sym, '8h', Math.max(funding.length + 2, 10));
+      bars = await priceBars(sym, Math.max(funding.length + 2, 10));
     } catch (e) {
       console.log(`  ${sym.padEnd(6)}  — fetch failed: ${(e as Error).message}`);
       continue;
@@ -95,10 +120,12 @@ async function main(): Promise<void> {
       notionalUnits: NOTIONAL,
       spotFeeBps: SPOT_FEE_BPS,
       perpFeeBps: PERP_FEE_BPS,
+      periodsPerYear: PERIODS_PER_YEAR,
     });
-    // Breakeven hold: 8h-periods for mean funding to clear the round-trip fee.
+    // Breakeven hold: settlement-periods for mean funding to clear the round-trip
+    // fee, × the period length in days (365/periodsPerYear: 8h→1/3, HL 1h→1/24).
     const meanFundingBps = r.meanFundingPerPeriod * 10_000;
-    const breakevenDays = meanFundingBps > 0 ? (roundTripBps / meanFundingBps) * (8 / 24) : Infinity;
+    const breakevenDays = meanFundingBps > 0 ? (roundTripBps / meanFundingBps) * (365 / PERIODS_PER_YEAR) : Infinity;
     rows.push({
       symbol: sym,
       periods: r.periods,
@@ -132,7 +159,7 @@ async function main(): Promise<void> {
   for (const sym of SYMBOLS) {
     try {
       const s = await fund.currentFunding(sym);
-      console.log(`  ${sym.padEnd(6)} lastFunding=${(s.lastFundingRate * 10_000).toFixed(3)}bps/8h  mark=${s.markPrice}  next=${new Date(s.nextFundingTimeMs).toISOString()}`);
+      console.log(`  ${sym.padEnd(6)} lastFunding=${(s.lastFundingRate * 10_000).toFixed(3)}bps/${BAR_INTERVAL}  mark=${s.markPrice}  next=${new Date(s.nextFundingTimeMs).toISOString()}`);
     } catch {
       /* skip */
     }
@@ -151,7 +178,8 @@ async function main(): Promise<void> {
   } else {
     console.log(`  Nothing clears the carry bar — funding too low/unstable this window. Sit and re-scan.`);
   }
-  console.log(`\n  CAVEATS: in-sample / single window; static buy-and-hold (no funding-sign timing); basis uses 8h closes; perp borrow/liquidation not modelled.`);
+  const basisNote = IS_HL ? 'basis ~0 (HL perps-only, no spot leg)' : `basis uses ${BAR_INTERVAL} closes`;
+  console.log(`\n  CAVEATS: in-sample / single window; static buy-and-hold (no funding-sign timing); ${basisNote}; perp borrow/liquidation not modelled.`);
   console.log('\nFUNDING-CARRY OK');
   process.exit(0);
 }
