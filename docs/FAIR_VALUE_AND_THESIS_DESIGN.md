@@ -230,6 +230,36 @@ swap-seam discipline; `b=0`/`μ=mid` reproduces today's quoter bit-for-bit; draw
 
 ---
 
+## 6b. MILLISECOND cadence — the binding constraint (Ronnie, 2026-06-05; Journal #31)
+
+The 6h-tape results forced this: F1 (micro-price) helped, but **F2 (cross-venue) was a
+no-op and F3 (toxicity timing) was inconclusive — one root cause: the 18s poll cadence is
+far too coarse for the sub-second phenomena that beat adverse selection.** Adverse
+selection happens in *milliseconds*; the CEX↔DEX lead lives below ~1s; toxicity must be
+read tick-by-tick. And the sim's markout adverse is an 18s window — a book re-quoting every
+few ms carries far less stale-quote risk, so **the true adverse is much smaller than the
+18s sim shows.** So the next milestone is cadence, not more parameters.
+
+**The build (event-driven, ms-resolution):**
+1. **WS capture, not REST polling.** Subscribe to HL `l2Book` + trades WS and Binance depth
+   + trade WS; reconstruct each book on every update; write an **event tape** timestamped to
+   the ms (book deltas + prints), not 10s snapshots. (`HyperliquidClient` already has the L2 +
+   trades WS; add the Binance depth WS.)
+2. **Re-quote on every tick.** The harness already re-quotes per step; at ms steps that *is*
+   ms re-quoting. The markout horizon shrinks to the re-quote interval → measured adverse
+   collapses toward the true number. Model a realistic **cancel/replace latency** (e.g. 50–250ms)
+   so the fast-requote benefit isn't a free lunch.
+3. **Re-run the whole stack on a ms tape** (a few minutes = thousands of ticks): F1/F2/F3
+   should come alive — the lead-lag becomes visible *and* exploitable, toxicity becomes
+   timeable, adverse drops. **Prove it measurably**, log + journal, then **scale on
+   hardware/colocation** when moving to big venues (the latency game justifies the infra).
+
+**Honesty rails:** a ms tape is a *different, larger* artifact (gitignore it like the others);
+the cancel/replace latency must be realistic (no zero-latency fantasy); and the verdict is
+still "does spread − adverse go positive on the liquid coins?" — now at a cadence where it
+actually can. This is the milestone that turns the fair-value *direction* (proven by F1) into
+a fair-value *engine* that wins.
+
 ## 7. Why this is the right edge to chase (the critical-thinking summary)
 
 - The data says the spread can't be tuned into profit; the **price** can be. Fair value is
