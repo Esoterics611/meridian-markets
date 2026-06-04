@@ -4,6 +4,24 @@
 
 ---
 
+## 🔴 LIVE SESSION LOG — 2026-06-04 (evening), gap-closing run (UPDATE AS YOU GO)
+
+Goal this session: close the **real remaining gaps + pushed-off items** one by one, leaving every step committed so a credit-out is safe. Doc reorg was done **manually by the operator** (accepted as done — committed as the "archive completed plan docs" commit). Priority order chosen: stat-arb event tape → stat-arb persistence → a research backlog item → harvest L2.
+
+**DONE ✅ — (1) Stat-arb business-event tape (Telemetry P2 remainder).** The flagged gap ([[feedback_business_event_logging]]): MM logged every fill, stat-arb logged only lifecycle. Now closed end-to-end, 3 commits on master:
+- *Phase A* — generalised `DeskEvent.desk` → `'mm' | 'stat-arb'`; new `src/execution/live-desk-events.ts` (pair-shaped OPEN/CLOSE/block/lifecycle builders reusing the shared `DeskEventInput`); wired `IDeskEventSink` (NULL default) into `LivePaperTrader` — emits on open / blocked-open / close / start / stop / reconfigure. Specs: `live-desk-events.spec.ts` + new cases in `live-paper-trader.spec.ts`.
+- *Phase B* — `LivePortfolioTrader` emits launch/remove/desk-start/stop; `StatArbModule` provides its **own** `DeskEventLog` (separate instance from MM; the module does NOT import MarketMakingModule) injected into the single trader, every portfolio sub-book, and the portfolio; `GET /api/stat-arb/live/events` on `LiveController` (seq-cursor long-poll, `@Optional`). Specs: `live.controller.spec.ts` + portfolio emit test.
+- *Phase C* — `/demo` Desk tab "Activity — live trade tape" feed polling the new endpoint (OPEN=teal, CLOSE=amber, block=red), JS syntax-checked.
+- Verify: **151 suites / 1002 tests, tsc clean** (was 149/993). Honest note: stat-arb fills carry no BUY/SELL `side` (pair trade) so the feed colours by `action`; the durable ledger is still `stat_arb_trades` — this tape is the live "what just happened", same as MM.
+
+**IN PROGRESS 🟡 — (2) Stat-arb live persistence (restart-safe books).** See task list + below. Mirror the MM persistence arc (Phase 1 serialize/restore → Phase 2 `stat_arb_book_state` migration + repo behind `IStatArbStateStore` Postgres/Null → Phase 3 rehydrate-on-boot + checkpoint-per-tick + soft-close). Default off ⇒ no-DB/tests unchanged.
+
+**REMAINING this session:** (3) one research backlog item (funding-carry basket OR γ/κ distribution), (4) harvest the L2 tune once the 20-perp/6h capture finishes (~00:14 — runs all session; tapes at `docs/research/l2-tapes/hl-discovery-20260604-*.json`, `DATE=20260604 bash scripts/tune-hl-l2.sh`).
+
+---
+
+---
+
 ## Shipped 2026-06-04 (this session) — the business-event tape + Activity feed (Telemetry P2)
 
 The operator's gap: *"I need to see every trade enter/exit in the log, not just DB transactions — I thought we had this."* We had metrics (P1) + durable NAV (P3) but **no per-trade business log**. Now shipped (`src/market-making/events/`):
