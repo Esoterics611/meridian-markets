@@ -1424,3 +1424,19 @@ If this session runs out: the plan is locked. **Complete the fair-value stack an
 3. **THEN re-run a NEW 8h capture** on the keep coins WITH the full stack (micro + lead + confidence) and **compare to the 6h/8h baselines** — the honest, measurable proof that the theo engine improves the model (the quant's job: show the number moved). Record as Journal #30.
 
 Commits: F2a (math+wiring), F2b (measurement+backtest), F2c (capture records Binance), F3 (confidence-scaled) — **separate commits, ONE PR** (with F1). Honesty rails hold: each layer earns its weight by reducing adverse on the tapes before live; `referenceMicros=undefined`/no-lead reproduces today's quoter bit-for-bit. See [FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md) + Entry #29 (F1: micro-price −21% adverse, real+partial).
+
+## 2026-06-05 — Entry #30 (F2 verdict): HL self-discovers — cross-venue fusion is a NO-OP at our cadence (Ronnie was right)
+
+Built **F2** (cross-venue fair-value fusion) the honest way — *measure* who leads, don't assume — and the data delivered a clean negative result. Per coin, fetched Binance 1s klines over the 6h tape window, aligned the most recent fully-closed Binance price to each HL step (no lookahead), measured the two-sided lead-lag cross-correlation + the error-correction β, then replayed mid / micro / micro+fused (`scripts/mm-leadlag.ts`, harness `leadMicros[]`+`leadBeta`).
+
+| coin | leads | lag | peak corr | β | s−adv micro→fused | net micro→fused |
+|---|---|---|---|---|---|---|
+| BTC | **sync** | 0 | 0.982 | +0.004 | −340 → −334 | −1092 → −1161 |
+| ETH | sync | 0 | 0.982 | +0.005 | −72 → −72 | flat |
+| SOL | sync | 0 | 0.970 | −0.011 | −267 → −323 | worse |
+| BNB | sync | 0 | 0.974 | −0.017 | −4.2 → −4.8 | flat |
+| DOGE/XRP/ADA/SUI | sync | 0 | 0.92–0.97 | ≈0 (−0.00…−0.055) | ≈flat / mixed | mixed |
+
+**Verdict: HL is a price-discovery venue in its own right (Ronnie, 2026-06-05) — confirmed by data.** At the 18s decision cadence the book operates at, HL and Binance are **contemporaneous** (corr ~0.97) and HL shows **no error-correction toward Binance** (β≈0). The cross-venue term adds **nothing** (desk s−adv micro −683 → fused −800, slightly WORSE — the tiny βs are noise-fitting the perp-vs-spot basis). **Decision: skip the cross-venue fusion at our frequency; HL's own micro-price (F1) IS the fair value.** The machinery is built + tested (`cross-venue.ts`, 7 specs) and stays available behind the seam (β=0 default ⇒ off), but we do **not** adopt it and we do **not** augment the capture to record Binance (F2c cancelled — building plumbing for a confirmed no-op is the opposite of the doctrine).
+
+**Honest caveat (the one nuance):** the lead-lag was measured at **18s granularity** (the tape's poll cadence). A genuine CEX↔DEX lead almost certainly exists at the **millisecond–second** scale — but it's (a) invisible at 18s and (b) **un-exploitable by a 10–18s-polling book anyway** (capturing it is a latency game, a different project). So for *this* desk, at *this* speed, the finding stands: **don't chase Binance; HL self-prices.** The lever that remains is **F3 — confidence-scaled spread/size** (quote tight+big only when the HL micro-price uncertainty Σ is small), which is where the spread−adverse flip should come from. F2 spent its budget proving a no-op so we don't carry dead weight — exactly what the gates are for.
