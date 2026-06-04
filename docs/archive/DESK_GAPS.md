@@ -10,7 +10,7 @@ The roadmap doc is forward-looking ("what code to write"); this doc is operation
 > - **◐ partial** — primitives exist but the human-facing workflow doesn't.
 > - **✗ missing** — neither the code nor the workflow exists.
 >
-> A "✓ shipped" item in a synthetic demo still has to clear the KYB / Phase 2 / Phase 4 gates before it touches real money — see [PHASED_PLAN.md](../PHASED_PLAN.md).
+> A "✓ shipped" item in a synthetic demo still has to clear the KYB / Phase 2 / Phase 4 gates before it touches real money — see [PHASED_PLAN.md](PHASED_PLAN.md).
 
 ---
 

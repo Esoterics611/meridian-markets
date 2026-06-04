@@ -2,7 +2,7 @@
 
 > **Purpose.** This doc is the master map of what a real stat-arb desk needs, what we have today, and the detailed prompts to ship the rest session by session. Each session block below is **self-contained** — copy it verbatim into the next Opus session.
 >
-> **Where this fits.** Phase 3 of [PHASED_PLAN.md](../PHASED_PLAN.md) is the stat-arb scaffold. This doc breaks the remainder of Phase 3 + Phase 4 (3(c)(7) fund readiness) into atomic sessions, with optional sessions queued behind feature gates.
+> **Where this fits.** Phase 3 of [PHASED_PLAN.md](PHASED_PLAN.md) is the stat-arb scaffold. This doc breaks the remainder of Phase 3 + Phase 4 (3(c)(7) fund readiness) into atomic sessions, with optional sessions queued behind feature gates.
 >
 > **Working note.** Sessions 7–9 correspond to Blocks A/B/C from [`prompts/PHASE_3_SESSION_6_PROMPT.md`](../prompts/PHASE_3_SESSION_6_PROMPT.md) — restated here with extra context. Sessions 10–18 are net new.
 

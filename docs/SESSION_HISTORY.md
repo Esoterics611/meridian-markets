@@ -78,7 +78,7 @@ Per-session log. Architectural notes that earn keep-around status get a numbered
 1. **The hedge module follows the swap-seam pattern verbatim.** Future venues (Drift, GMX) implement `IHedgeVenue` and register in the `HedgeModule` factory. No service-layer changes when adding venues.
 2. **Bigint price math in micros (1e6) is the codebase convention.** Same as `treasury_movements.amount_units` (USDC micros). `MockHedgeVenue` does all FX math in bigint with explicit scaling to avoid precision loss — the pattern extends to any future hedge venue.
 3. **The hedge module ships with no DB tables yet.** Persistence (`hedge_movements`, `hedge_positions`) lands in [PHASE_1_PROMPT.md](../prompts/PHASE_1_PROMPT.md)'s next session. The swap seam works without persistence; persistence is the orchestrator's concern, not the venue's.
-4. **`courses/stat-arb/` is documentation, not code.** It lives under `courses/` (not `docs/`) to keep mkdocs-built sites separable from the repo's flat-file docs. The course's existence does not create a Phase 3 commitment — implementation is still gated behind Phase 2 legal formation per [PHASED_PLAN.md](../PHASED_PLAN.md) cross-phase dependency #1.
+4. **`courses/stat-arb/` is documentation, not code.** It lives under `courses/` (not `docs/`) to keep mkdocs-built sites separable from the repo's flat-file docs. The course's existence does not create a Phase 3 commitment — implementation is still gated behind Phase 2 legal formation per [PHASED_PLAN.md](archive/PHASED_PLAN.md) cross-phase dependency #1.
 
 ### Open follow-ups
 

@@ -6,7 +6,7 @@
 
 ## 1. Why an HTTP boundary at all
 
-Markets and Lira-Bridge are deliberately separate companies with separate licensing surfaces ([PHASED_PLAN.md §Why](../PHASED_PLAN.md)). If they share a database or import each other's types, the legal "these are two entities" story becomes fiction the day a regulator looks at the architecture. So:
+Markets and Lira-Bridge are deliberately separate companies with separate licensing surfaces ([PHASED_PLAN.md §Why](PHASED_PLAN.md)). If they share a database or import each other's types, the legal "these are two entities" story becomes fiction the day a regulator looks at the architecture. So:
 
 - **Two processes**, two deploys, two databases.
 - **One contract**, HTTP/JSON, intentionally narrow.

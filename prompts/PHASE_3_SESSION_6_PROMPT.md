@@ -1,6 +1,6 @@
 # Phase 3 Session 6 — Verify the demo, then start the β-refit + risk module
 
-> **Read first:** [docs/SESSION_HISTORY.md §Session 5](../docs/SESSION_HISTORY.md), [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md), and the existing [prompts/PHASE_3_DEMO_PROMPT.md](PHASE_3_DEMO_PROMPT.md) which scoped Session 5. Session 5 shipped the signal library, backtest runner, and demo dashboard but did **not** visually verify the running app. This session opens with that verification, then advances Phase 3 by one step.
+> **Read first:** [docs/SESSION_HISTORY.md §Session 5](../docs/SESSION_HISTORY.md), [PHASED_PLAN.md §Phase 3](../docs/archive/PHASED_PLAN.md), and the existing [prompts/PHASE_3_DEMO_PROMPT.md](PHASE_3_DEMO_PROMPT.md) which scoped Session 5. Session 5 shipped the signal library, backtest runner, and demo dashboard but did **not** visually verify the running app. This session opens with that verification, then advances Phase 3 by one step.
 >
 > Current repo state (master, no uncommitted changes): 24 test suites, 150 tests green; `npx tsc --noEmit` clean. New code lives under `src/stat-arb/`.
 
@@ -151,6 +151,6 @@ Phase 3 Step 4. Adds the append-only persistence layer the demo currently lacks.
 ## 6. Cross-references
 
 - [docs/SESSION_HISTORY.md §Session 5](../docs/SESSION_HISTORY.md) — full surface from this session.
-- [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md) — step list and gating criteria.
+- [PHASED_PLAN.md §Phase 3](../docs/archive/PHASED_PLAN.md) — step list and gating criteria.
 - [CLAUDE.md §6, §7](../CLAUDE.md) — modular monolith + mock-default discipline (binding).
 - [courses/stat-arb/](../courses/stat-arb/) — math reference for cointegration, OU, Bertram thresholds.

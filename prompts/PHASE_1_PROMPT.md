@@ -1,12 +1,12 @@
 # Phase 1 Prompt — On-chain FX hedge module
 
-> **Session goal:** flesh out the Phase 1 FX hedge module beyond the scaffold (already committed). Read [PHASED_PLAN.md §Phase 1](../PHASED_PLAN.md) and [docs/SESSION_HISTORY.md](../docs/SESSION_HISTORY.md) first — the scaffold (interface + mock + dormant real + module + tests) is already on disk; do not duplicate it.
+> **Session goal:** flesh out the Phase 1 FX hedge module beyond the scaffold (already committed). Read [PHASED_PLAN.md §Phase 1](../docs/archive/PHASED_PLAN.md) and [docs/SESSION_HISTORY.md](../docs/SESSION_HISTORY.md) first — the scaffold (interface + mock + dormant real + module + tests) is already on disk; do not duplicate it.
 
 ---
 
 ## 0. Hard constraints (do not violate)
 
-- **First-party only.** Never customer-facing. Never "hedging-as-a-service." See [PHASED_PLAN.md cross-phase dependency #3](../PHASED_PLAN.md).
+- **First-party only.** Never customer-facing. Never "hedging-as-a-service." See [PHASED_PLAN.md cross-phase dependency #3](../docs/archive/PHASED_PLAN.md).
 - **Modular monolith.** One repo, one DB, one ordered migration history. Same posture as [CLAUDE.md §6](../CLAUDE.md). No new microservice. No new database.
 - **Mock-default discipline.** `MOCK_HEDGE_ENABLED=true` is the default. `RealHyperliquidHedgeVenue` stays dormant until venue KYB + secrets land. Flipping it is a **business gate**, not an engineering gate.
 - **`process.env` only in `src/config/app-config.factory.ts`.** All other consumers read typed `AppConfig` via `ConfigService` or secrets via `ISecretProvider.get()`.
@@ -103,7 +103,7 @@ Cron behavior:
 
 ### 2.4 Circuit breakers — `HedgeCircuitBreaker`
 
-`src/hedge/hedge-circuit-breaker.ts`. Enforces the [PHASED_PLAN.md §Phase 1](../PHASED_PLAN.md) gates:
+`src/hedge/hedge-circuit-breaker.ts`. Enforces the [PHASED_PLAN.md §Phase 1](../docs/archive/PHASED_PLAN.md) gates:
 
 - **Funding spike:** kill switch if `IHedgeVenue.fetchHealth().lastFundingBps > MAX_FUNDING_BPS` (default 100 bps).
 - **Venue health degradation:** kill switch if `fetchHealth().healthy === false`.

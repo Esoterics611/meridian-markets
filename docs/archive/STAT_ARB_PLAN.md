@@ -1,6 +1,6 @@
 # Statistical Arbitrage — Plan & Research
 
-> **Scope:** Phase 3 prop desk (per [PHASED_PLAN.md](../PHASED_PLAN.md)). **Own capital only. No customer money, no advisory surface.** Stat-arb sits inside Phase 3 alongside the three strategies already listed there (cross-venue spot arb, funding-rate carry, spot/futures basis).
+> **Scope:** Phase 3 prop desk (per [PHASED_PLAN.md](PHASED_PLAN.md)). **Own capital only. No customer money, no advisory surface.** Stat-arb sits inside Phase 3 alongside the three strategies already listed there (cross-venue spot arb, funding-rate carry, spot/futures basis).
 >
 > **Status:** planning doc — no code written yet. All external repo URLs are **`unverified`** in this draft (network access was unavailable when this was written); next session must spot-check each before committing to it as a reference.
 
@@ -51,11 +51,11 @@ For multi-asset baskets use **Johansen's test** instead — it finds *all* coint
 
 ### 2.3 Cross-venue spot arb
 
-Already in [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md). Not duplicated here. Stat-arb borrows its **execution router** and **fee model** from this strategy's infra — both need to exist to backtest pairs trading honestly.
+Already in [PHASED_PLAN.md §Phase 3](PHASED_PLAN.md). Not duplicated here. Stat-arb borrows its **execution router** and **fee model** from this strategy's infra — both need to exist to backtest pairs trading honestly.
 
 ### 2.4 Funding-rate carry / basis trade
 
-Already in [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md). Not duplicated. Note: funding-rate signals overlap with the FX-hedge module's funding telemetry (Phase 1 `IHedgeVenue.fetchHealth()` reports `lastFundingBps`); future versions of the strategy library can consume the same data stream.
+Already in [PHASED_PLAN.md §Phase 3](PHASED_PLAN.md). Not duplicated. Note: funding-rate signals overlap with the FX-hedge module's funding telemetry (Phase 1 `IHedgeVenue.fetchHealth()` reports `lastFundingBps`); future versions of the strategy library can consume the same data stream.
 
 ### 2.5 Index / basket arb (likely defer)
 
@@ -188,11 +188,11 @@ Start with (2). Upgrade to (3) only when a specific strategy's backtest diverges
 
 **Per-strategy.** Fractional Kelly (`f* = (μ − r_f) / σ²`, then take `0.25 · f*`) — shrunk because the strategy's true μ is always lower than the backtest's estimated μ.
 
-**Per-venue.** Hard cap on notional per venue: never more than `min($X, Y% of venue daily volume)`. Y typically 1–2%. Hyperliquid > Drift > GMX > others per [PHASED_PLAN.md §Phase 1](../PHASED_PLAN.md) — same ordering applies here, weighted by venue solvency.
+**Per-venue.** Hard cap on notional per venue: never more than `min($X, Y% of venue daily volume)`. Y typically 1–2%. Hyperliquid > Drift > GMX > others per [PHASED_PLAN.md §Phase 1](PHASED_PLAN.md) — same ordering applies here, weighted by venue solvency.
 
 **Portfolio-level.** Cross-strategy VaR (95% / 99%, historical and parametric, take the worse). Recompute daily.
 
-**Circuit breakers** (mirror [PHASED_PLAN.md §Phase 1](../PHASED_PLAN.md)'s list):
+**Circuit breakers** (mirror [PHASED_PLAN.md §Phase 1](PHASED_PLAN.md)'s list):
 - **Drawdown gate** — kill all trading if portfolio drops N% peak-to-trough intraday (default N=5%, configurable per strategy).
 - **Data staleness gate** — pause strategies whose feed has been silent for >M seconds (default M=30s for live, 0 in backtest).
 - **Venue health gate** — `IHedgeVenue.fetchHealth()` pattern: each venue exposes `healthy: boolean + lastFundingBps`; if unhealthy or funding spikes >K bps in N minutes, close positions on that venue and pause new orders.
@@ -229,7 +229,7 @@ Each step lists its prerequisites, deliverable, and the test bar.
 - Deliverable: a `LiveRunner` that consumes a real CCXT feed, runs the strategy, and *logs* the orders it would have submitted without actually placing them. Compare to backtest expectations on the same time window.
 - Test bar: smoke-test only; this is operations, not unit-tested code.
 
-**Step 6 — first live small-capital deployment.** **GATED behind [PHASED_PLAN.md §Phase 2](../PHASED_PLAN.md) legal formation per cross-phase dependency #1.** Do not flip until legal formation closes; opinion letters confirm own-capital trading is unregulated in the team's jurisdictions; venue KYB completes.
+**Step 6 — first live small-capital deployment.** **GATED behind [PHASED_PLAN.md §Phase 2](PHASED_PLAN.md) legal formation per cross-phase dependency #1.** Do not flip until legal formation closes; opinion letters confirm own-capital trading is unregulated in the team's jurisdictions; venue KYB completes.
 
 ---
 
@@ -246,7 +246,7 @@ Each step lists its prerequisites, deliverable, and the test bar.
 
 ## 10. Cross-references
 
-- [PHASED_PLAN.md](../PHASED_PLAN.md) — overall phasing; Phase 3 envelope
+- [PHASED_PLAN.md](PHASED_PLAN.md) — overall phasing; Phase 3 envelope
 - [CLAUDE.md](../CLAUDE.md) — modular-monolith binding, append-only invariant, mock-default discipline
 - [SESSION_HISTORY.md](./SESSION_HISTORY.md) — what's actually built so far
 - [INTEGRATION_WITH_LIRA_BRIDGE.md](./INTEGRATION_WITH_LIRA_BRIDGE.md) — only sanctioned coupling with Lira-Bridge; stat-arb has no such coupling
