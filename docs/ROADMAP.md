@@ -72,6 +72,19 @@ A system meant to run unattended for hours/days must be **observable** — opera
 
 ---
 
+## Open quant backlog (deferred 2026-06-04)
+
+Surfaced when picking the HL-discovery session; the two not-taken directions, kept warm:
+
+- **Funding-carry basket on HL** — which HL perps pay *persistent, harvestable* funding across the universe; price the carry leg + the cross-venue delta-neutral form (short HL perp / long Binance spot). Tooling ready (`scripts/funding-carry-research.ts FC_SOURCE=hyperliquid`, `funding-carry.ts`). An uncorrelated diversifier (overlaps "Cross-venue funding capture" above).
+- **γ/κ distribution — harden the n=1 HL BTC MM read** into a *distribution* via long L2 captures across BTC/ETH/SOL + regimes (`scripts/mm-l2-session.ts` capture → `scripts/mm-l2-tune.ts` sweep, capture-once-sweep-many). Output: per-coin drawdown-compliant (γ,κ,floor) winners with a confidence band, not one window.
+
+## Housekeeping (do when credits are low — mechanical, low-risk)
+
+- **Trim docs + code for repo size / maintainability.** `docs/` is ~1.4M (`QUANT_JOURNAL.md` ~1270 lines); consolidate or retire stale sections, and drop dead code where it's *easy and safe* (e.g. the dormant legacy treasury/yield module, CLAUDE.md §5, once confirmed unused). Trim redundancy, **not** the honest-findings trail or git history.
+
+---
+
 ## Immediate path
 
 Finish persistence end-to-end (phases 2–3), extend to stat-arb books + durable NAV, then take up the **capital allocator** and the **agentic layer** — the two pieces that turn a restart-safe multi-strategy system into an agent-run quant group. The P0 gates + queue-aware fills + venue fees + survivorship gate remain the live honesty discipline throughout.
