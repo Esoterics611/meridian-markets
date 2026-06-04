@@ -6,6 +6,8 @@ import { BarContext, DesiredOrder } from '../stat-arb/backtest/strategy.interfac
 import { StatArbRepository } from '../stat-arb/persistence/stat-arb.repository';
 import { IRiskEngine } from '../stat-arb/risk/risk-engine';
 import { GateEvent } from '../stat-arb/risk/gate';
+import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../market-making/events/desk-event-sink';
+import { statArbBlockedEvent, statArbEntryEvent, statArbExitEvent, statArbLifecycleEvent } from './live-desk-events';
 
 // The loop depends only on this slice of a strategy, not on a concrete class.
 // PairsStrategy satisfies it structurally; tests can inject a scripted fake.
@@ -173,6 +175,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     private readonly strategyFactory?: StrategyFactory,
     /** Optional: warm the rolling window from recent real bars on the first tick. */
     private readonly warmup?: WarmupProvider,
+    /** Business-event tape (CLAUDE.md §8). No-op default ⇒ tests/no-DB runs unchanged. */
+    private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
   ) {
     this.strategy = strategy;
     // Own the config: reconfigure() mutates symbolA/symbolB, so we must not
@@ -212,6 +216,15 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.blockedEntries = 0;
     this.gateEvents.length = 0;
     this.logger.log(`reconfigured to ${opts.symbolA}/${opts.symbolB} via ${this.cfg.strategyId ?? 'default'} (β=${opts.beta ?? 'cfg'})`);
+    this.events.emit(
+      statArbLifecycleEvent({
+        ts: this.now().getTime(),
+        kind: 'launch',
+        book: this.pairLabel(),
+        source: this.feed.feedId,
+        message: `${this.pairLabel()} ▸ reconfigured via ${this.cfg.strategyId ?? 'default'} (β=${opts.beta ?? 'cfg'})`,
+      }),
+    );
   }
 
   /**
@@ -269,12 +282,24 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.timer = setInterval(() => {
       void this.tick();
     }, this.cfg.pollIntervalMs);
+    this.events.emit(
+      statArbLifecycleEvent({
+        ts: this.now().getTime(),
+        kind: 'start',
+        book: this.pairLabel(),
+        source: this.feed.feedId,
+        message: `${this.pairLabel()} ▸ live loop started (${this.feed.feedId} → ${this.venue.venueId})`,
+      }),
+    );
   }
 
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+      this.events.emit(
+        statArbLifecycleEvent({ ts: this.now().getTime(), kind: 'stop', book: this.pairLabel(), source: this.feed.feedId, message: `${this.pairLabel()} ▸ live loop stopped` }),
+      );
     }
   }
 
@@ -369,7 +394,9 @@ export class LivePaperTrader implements OnApplicationBootstrap {
         this.blockedEntries += 1;
         this.gateEvents.push(...this.cfg.riskEngine.drainEvents());
         this.strategy.rollbackEntry?.(); // re-attempt on a later bar
-        this.logger.warn(`OPEN blocked by risk gate at bar ${this.barsSeen - 1}`);
+        this.events.emit(
+          statArbBlockedEvent({ ts: this.now().getTime(), pair: this.pairLabel(), source: this.feed.feedId, side, barIndex: this.barsSeen - 1 }),
+        );
         return;
       }
     }
@@ -386,6 +413,19 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       entryFeesUnits: a.feesUnits + b.feesUnits,
       openedAt: this.now(),
     };
+    this.events.emit(
+      statArbEntryEvent({
+        ts: this.open.openedAt.getTime(),
+        pair: this.pairLabel(),
+        source: this.feed.feedId,
+        side,
+        notionalUnits: this.open.notionalUnits,
+        entryZ: this.open.entryZ,
+        feeUnits: this.open.entryFeesUnits,
+        symbolA: this.cfg.symbolA,
+        symbolB: this.cfg.symbolB,
+      }),
+    );
   }
 
   private async closePosition(orders: DesiredOrder[]): Promise<void> {
@@ -420,6 +460,18 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.closed.push(trade);
     this.realisedPnlUnits += pnlUnits;
     this.open = null;
+    this.events.emit(
+      statArbExitEvent({
+        ts: trade.closedAt.getTime(),
+        pair: this.pairLabel(),
+        source: this.feed.feedId,
+        side: trade.side,
+        notionalUnits: trade.notionalUnits,
+        exitZ: trade.exitZ,
+        realisedDeltaUnits: trade.pnlUnits,
+        feeUnits: trade.feesUnits,
+      }),
+    );
 
     if (this.repo) {
       try {
@@ -522,6 +574,10 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       closedTradeCount: this.closed.length,
       recentTrades: recent,
     };
+  }
+
+  private pairLabel(): string {
+    return `${this.cfg.symbolA}/${this.cfg.symbolB}`;
   }
 
   private push(arr: Bar[], bar: Bar): void {

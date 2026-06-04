@@ -3,6 +3,16 @@ import { Bar } from '../stat-arb/backtest/bar';
 import { Fill, ITradingVenue, PlaceOrderRequest } from '../stat-arb/trading-venue.interface';
 import { IBarFeed } from '../stat-arb/feed/live-feed.interface';
 import { DesiredOrder } from '../stat-arb/backtest/strategy.interface';
+import { DeskEventInput } from '../market-making/events/desk-event';
+import { IDeskEventSink } from '../market-making/events/desk-event-sink';
+
+/** Records every emitted business event for assertion. */
+class CapturingSink implements IDeskEventSink {
+  readonly events: DeskEventInput[] = [];
+  emit(event: DeskEventInput): void {
+    this.events.push(event);
+  }
+}
 
 function bar(symbol: string, close: number, t: number): Bar {
   return { symbol, timestamp: new Date(t), open: close, high: close, low: close, close, volume: 1 };
@@ -215,6 +225,49 @@ describe('LivePaperTrader', () => {
     trader.reconfigure({ symbolA: 'AAVE', symbolB: 'UNI' });
     expect(didReset).toBe(true);
     expect(trader.snapshot().symbolA).toBe('AAVE');
+  });
+
+  it('emits OPEN then CLOSE business events through the desk-event sink', async () => {
+    const notional = 1_000_000_000n;
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    const sink = new CapturingSink();
+    const trader = new LivePaperTrader(
+      scriptedStrategy(notional), venue, feed, cfg, undefined, undefined, undefined, undefined, sink,
+    );
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick(); // open LONG
+    venue.prices = { BTC: 110n * M, ETH: 100n * M };
+    await trader.tick(); // close
+
+    const fills = sink.events.filter((e) => e.kind === 'fill');
+    expect(fills.map((e) => e.action)).toEqual(['open', 'close']);
+    expect(fills.every((e) => e.desk === 'stat-arb' && e.book === 'BTC/ETH')).toBe(true);
+    // The CLOSE carries the booked round-trip P&L (+100 USDC, no fees).
+    expect(fills[1].realisedDeltaUnits).toBe('100000000');
+  });
+
+  it('emits a risk-block business event when an OPEN is denied', async () => {
+    const denyEngine = {
+      preTradeCheck: () => [{ allow: false as const, reason: 'drawdown breach' }],
+      drainEvents: () => [{ kind: 'DRAWDOWN' as const, barIndex: 0, reason: 'drawdown breach' }],
+    };
+    const feed = new FakeFeed([bar('BTC', 100, 1_000)], [bar('ETH', 100, 1_000)], 'BTC');
+    const venue = new FakeVenue();
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    const sink = new CapturingSink();
+    const trader = new LivePaperTrader(
+      scriptedStrategy(1_000_000_000n), venue, feed, { ...cfg, riskEngine: denyEngine },
+      undefined, undefined, undefined, undefined, sink,
+    );
+    await trader.tick();
+    const blocks = sink.events.filter((e) => e.kind === 'verdict');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].message).toContain('blocked by risk gate');
   });
 
   it('blocks an OPEN when the risk engine denies, and never places the order', async () => {

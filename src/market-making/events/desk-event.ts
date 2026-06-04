@@ -38,8 +38,8 @@ export interface DeskEvent {
   seq: number;
   /** Epoch ms. */
   ts: number;
-  /** Which desk produced it (room to grow to 'stat-arb'). */
-  desk: 'mm';
+  /** Which desk produced it. */
+  desk: 'mm' | 'stat-arb';
   kind: DeskEventKind;
   /** Book/symbol; '' for a desk-level event (start/stop). */
   book: string;
