@@ -72,6 +72,12 @@ const FUNDING = (process.env.MM_L2_FUNDING ?? 'true').toLowerCase() !== 'false';
 // A long capture that crashes/gets killed at hour 7 otherwise loses everything; with
 // checkpointing the saved files always hold the capture so far. Default 10 min.
 const CHECKPOINT_MIN = Number(process.env.MM_L2_CHECKPOINT_MIN ?? 10);
+// Fair-value engine (FAIR_VALUE_AND_THESIS_DESIGN.md): the end-of-run replay can use
+// F1 (quote off the book-imbalance micro-price, depth N; 0 = the raw mid) + F3
+// (confidence-scaled spread). The captured TAPE is param-free either way — these only
+// shape the preview replay so it reflects "the good quoting" on the same flow.
+const MICRO_DEPTH = Number(process.env.MM_L2_MICRO_DEPTH ?? 0);
+const F3 = (process.env.MM_L2_F3 ?? 'false').toLowerCase() === 'true';
 
 const MICROS = 1_000_000n;
 const usd = (units: bigint): string => (Number(units) / 1e6).toFixed(2);
@@ -130,6 +136,8 @@ function cfgFor(s: BookState): LobReplayConfig {
     symbol: s.coin,
     riskGate: s.riskGate,
     fundingRatePerHour: FUNDING ? s.fundingRatePerHour : 0,
+    microDepth: MICRO_DEPTH, // F1
+    f3Toxicity: F3, // F3
   };
 }
 
@@ -353,7 +361,9 @@ async function main(): Promise<void> {
   if (checkpointMs) console.log(`  (checkpointing tapes every ${CHECKPOINT_MIN}min → ${savePath}-<coin>.json)`);
   while (Date.now() < endAt) {
     const now = Date.now();
-    const dtSec = polls === 0 ? POLL_S : Math.max(1, (now - lastPollAt) / 1000);
+    // Real inter-poll interval (funding accrual + candle-vol estimate). Floor at a small
+    // value so a SUB-SECOND cadence accrues funding correctly (no 1s clamp distortion).
+    const dtSec = polls === 0 ? POLL_S : Math.max(0.02, (now - lastPollAt) / 1000);
     lastPollAt = now;
     // Fetch every coin's L2 CONCURRENTLY so the poll cadence is bounded by a single
     // fetch (~hundreds of ms), not the sum across coins — the finer cadence the
