@@ -614,3 +614,22 @@ See [docs/PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [docs/QUANT_ROLE.md
 - **Forward paper track records** — run the MM book + the survivor-safe equities basket live for
   hours/days; show steady, low-drawdown equity curves (the demo itself).
 - **P1 (real capital) is parked** (allocator-on-live, maker/limit exec, real-venue adapter — out of scope).
+
+---
+
+## 16. Backend telemetry P1 — metrics + health endpoints (2026-06-04)
+
+**Goal:** [docs/NEXT_SESSION.md](NEXT_SESSION.md) — make the persistent paper-trading research system observable for unattended multi-hour runs, built exactly to [TELEMETRY_REQUIREMENTS.md](TELEMETRY_REQUIREMENTS.md) P1, behind a config-gated swap seam with a no-op default.
+
+### Shipped (`src/telemetry/`)
+- **The seam (DC-1).** `ITelemetry` (counter / gauge / histogram + a uniform `alert()` hook) + a `TELEMETRY` token. `NullTelemetry` (no-op, default) ⇒ `TELEMETRY_ENABLED=false` runs + every existing test behave exactly as before, near-zero overhead. `PrometheusTelemetry` writes the §4 catalog into a **hand-rolled, dependency-free** `PrometheusRegistry` (Counter/Gauge/Histogram + standard v0.0.4 text exposition — chosen over adding `prom-client` to keep the modular monolith dep-light + the whole layer offline-unit-testable). Every emit is best-effort: an error is swallowed + counted (`meridian_telemetry_errors_total`), never thrown into a tick (DC-5).
+- **Endpoints.** `GET /metrics` (on scrape the collector reads the live desk `snapshot()` → gauges, the **pull model** DC-3 — no parallel accounting path), `GET /health` (liveness), `GET /health/ready` (DB under `MM_PERSIST` + tick fresh within N×poll + ≥1 feed fresh ⇒ 200 / else 503). Readiness is a **pure** `assessReadiness()` (a warming book with no bar yet is *not* a failure) — exhaustively unit-tested.
+- **The §4 catalog.** Operational (uptime, event-loop lag via a self-managed unref'd sampler, rss/heap, http via a global interceptor, db via `DbService`, tick count/duration/**overrun**), feed (poll count/duration by source, **last-bar-age staleness**), desk/financial mapped from `snapshot()` (per-book + desk equity/net/realised/unrealised/fees/**funding**/inventory/**maxDD**/fills/blocked/**risk-verdict state**/NAV; bounded labels book/source/strategy/verdict DC-4), persistence (checkpoint ok/error + duration + rehydrated-books). Alerts (FR-10) → `meridian_alerts_total{kind,severity}` + a structured log on tick-overrun / persist-failure.
+- **Instrumentation (all no-op when off).** `MmPortfolioTrader` (tick metrics + overrun alert, `lastTickAt()`/`getPollIntervalMs()`, persist ok/error + critical alert + duration, rehydrated-books gauge on boot); the MM module wraps `nextBar` for feed-poll metrics + `MmBook` now carries `source`; `DbService` gains `ping()` (readiness) + optional tx duration/error metrics.
+- **Wiring.** `AppConfig.telemetry { enabled, readyTickMultiplier, feedStalenessMs }` read once in `app-config.factory.ts` (DC-2). `@Global TelemetryModule` (config-selected) imports `MarketMakingModule` (now exports `MmPortfolioTrader`); the global `TELEMETRY` token flows back in (optional) so the graph stays acyclic. An **offline DI-compile spec** (disabled + enabled) catches wiring breaks without booting the app (`start:dev` exits 144 here).
+
+### Verification
+- `npx tsc --noEmit` clean; **143 suites / 942 tests** (+6 suites / +31 tests, all telemetry). Default-off ⇒ no behaviour change.
+
+### Not in P1 (honest)
+- `ws_connected` + `feed_gaps` (the HL trades/WS path, not the bar loop), a dedicated stale-feed / risk-`Pause` *alert event* (the verdict is computed inside `MmBook`), a starter Grafana dashboard, and **P3 durable NAV history** (the multi-day track-record table) — all tracked in TELEMETRY_REQUIREMENTS §7/§8. The live `meridian_desk_nav_units` gauge already equals desk equity to the unit on scrape.

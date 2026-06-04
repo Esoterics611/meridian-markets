@@ -32,6 +32,8 @@ function valueUnits(qtyUnits: bigint, priceMicros: bigint): bigint {
 export interface MmBookConfig {
   symbol: string;
   strategyId: string;
+  /** Venue/source id ('hyperliquid'/'binance'/'geckoterminal'/…) for labels + telemetry. */
+  source?: string;
   quoter: IQuoter;
   quoteSizeUnits: bigint;
   gamma: number;
@@ -81,6 +83,8 @@ export interface MmBookState {
 export interface MmBookSnapshot {
   symbol: string;
   strategyId: string;
+  /** Venue/source id; '' for the default Binance feed. */
+  source: string;
   family: string;
   running: boolean;
   warm: boolean;
@@ -350,6 +354,7 @@ export class MmBook {
     return {
       symbol: this.cfg.symbol,
       strategyId: this.cfg.strategyId,
+      source: this.cfg.source ?? '',
       family: this.cfg.quoter.familyId,
       running: this.running,
       warm: this.vol.ready(),

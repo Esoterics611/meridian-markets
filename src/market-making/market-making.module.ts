@@ -23,6 +23,9 @@ import { PostgresMmStateStore } from './persistence/postgres-mm-state-store';
 import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmScreener } from './screen/mm-screener';
+import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
+import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
+import { M } from '../telemetry/metric-catalog';
 import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
 import { CompositeRiskGate } from './risk/risk-gate';
@@ -55,11 +58,14 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       // DbService is optional: it's @Global in the full app, but the controller
       // unit test builds this module in isolation. Persistence needs it; without
       // it (or with MM_PERSIST off) the trader uses the no-op Null store.
-      inject: [ConfigService, MM_BINANCE_CLIENT, { token: DbService, optional: true }],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient, db?: DbService): MmPortfolioTrader => {
+      inject: [ConfigService, MM_BINANCE_CLIENT, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
+        // Optional so the isolated mm.controller.spec (no TelemetryModule) resolves;
+        // the full app injects the @Global TELEMETRY. No-op ⇒ zero behaviour change.
+        const tele = telemetry ?? NULL_TELEMETRY;
 
         // Reference-source registry (Pyth / DefiLlama / Bit2C / GeckoTerminal),
         // so a DEX / decentralized book quotes on the SAME live loop as a Binance
@@ -90,10 +96,27 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             ? hlFunding.currentFunding(symbol).then((f) => f.lastFundingRate).catch(() => 0)
             : 0;
 
+        // Feed-poll telemetry: wrap nextBar so every poll counts (by source/result)
+        // and times into a histogram — the data-quality signal (FR-3). No-op when
+        // telemetry is off; the bar value is untouched, so behaviour is identical.
+        const instrumentedNextBar = (srcLabel: string, feed: IBarFeed) => async (s: string): Promise<Bar | null> => {
+          const startMs = Date.now();
+          try {
+            const bar = await feed.nextBar(s);
+            tele.counter(M.feedPolls, { source: srcLabel, result: 'ok' });
+            return bar;
+          } catch (e) {
+            tele.counter(M.feedPolls, { source: srcLabel, result: 'error' });
+            throw e;
+          } finally {
+            tele.histogram(M.feedPollDuration, (Date.now() - startMs) / 1000, { source: srcLabel });
+          }
+        };
+
         // Shared feed/warmup routing: 'binance'/'mock' → native feed, a reference id
         // ('hyperliquid'/'geckoterminal'/…) → a ReferenceBarFeed. Used by both a fresh
         // launch and a restart-rehydration so a revived book reads the same feed.
-        const resolveFeed = (srcId: string): { feed: IBarFeed; warmupCloses?: (s: string) => Promise<number[]> } => {
+        const resolveFeed = (srcId: string): { nextBar: (s: string) => Promise<Bar | null>; warmupCloses?: (s: string) => Promise<number[]> } => {
           const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
           const feed: IBarFeed = refSource
             ? new ReferenceBarFeed(refSource, app.feed.interval)
@@ -105,7 +128,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             : onBinance
               ? async (s: string): Promise<number[]> => (await client.klines(s, app.feed.interval, warmupBars)).map((b) => b.close)
               : undefined;
-          return { feed, warmupCloses };
+          return { nextBar: instrumentedNextBar(srcId, feed), warmupCloses };
         };
         const makeRiskGate = (quoteSizeUnits: bigint): CompositeRiskGate =>
           new CompositeRiskGate({
@@ -142,10 +165,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             maxInventoryLots: mm.maxInventoryLots,
             params: spec.params,
           });
-          const { feed, warmupCloses } = resolveFeed(srcId);
+          const { nextBar, warmupCloses } = resolveFeed(srcId);
           return new MmBook({
             symbol: spec.symbol,
             strategyId,
+            source: srcId,
             quoter,
             quoteSizeUnits,
             gamma: spec.params?.['gamma'] ?? mm.gamma,
@@ -158,7 +182,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             makerFeeBps: venueFeeFor(srcId).makerBps,
             fundingRatePerHour: await fundingRateFor(srcId, spec.symbol),
             capitalUnits: mm.capitalUnits,
-            nextBar: (s) => feed.nextBar(s),
+            nextBar,
             warmupCloses,
             riskGate: makeRiskGate(quoteSizeUnits),
           });
@@ -168,7 +192,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         // its EXACT resolved config (no notional re-probe), so it resumes identical.
         // The trader then restores the P&L state onto it.
         const rebuildBook = async (rec: MmBookRecord): Promise<MmBook> => {
-          const { feed, warmupCloses } = resolveFeed(rec.source ?? mm.defaultSource);
+          const srcId = rec.source ?? mm.defaultSource;
+          const { nextBar, warmupCloses } = resolveFeed(srcId);
           const quoter = mmStrategyRegistry.build(rec.strategyId, {
             quoteSizeUnits: rec.quoteSizeUnits,
             minHalfSpreadBps: effMinHalfSpreadBps,
@@ -179,6 +204,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           return new MmBook({
             symbol: rec.symbol,
             strategyId: rec.strategyId,
+            source: srcId,
             quoter,
             quoteSizeUnits: rec.quoteSizeUnits,
             gamma: rec.gamma,
@@ -189,7 +215,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             makerFeeBps: rec.makerFeeBps,
             fundingRatePerHour: rec.fundingRatePerHour,
             capitalUnits: rec.capitalUnits,
-            nextBar: (s) => feed.nextBar(s),
+            nextBar,
             warmupCloses,
             riskGate: makeRiskGate(rec.quoteSizeUnits),
           });
@@ -201,11 +227,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const store: IMmStateStore = mm.persist && db ? new PostgresMmStateStore(new MmStateRepository(db)) : new NullMmStateStore();
         if (mm.persist && !db) new Logger('MarketMakingModule').warn('MM_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
 
-        return new MmPortfolioTrader(makeBook, mm.pollIntervalMs, mm.capitalUnits, {
-          store,
-          rebuildBook,
-          flattenOnShutdown: mm.flattenOnShutdown,
-        });
+        return new MmPortfolioTrader(
+          makeBook,
+          mm.pollIntervalMs,
+          mm.capitalUnits,
+          { store, rebuildBook, flattenOnShutdown: mm.flattenOnShutdown },
+          tele,
+        );
       },
     },
     // Spread-capture screener: ranks instruments by expected MM profit/day.
@@ -255,5 +283,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
     },
   ],
   controllers: [MmController],
+  // Exported so TelemetryModule's collector + health controller can read the live
+  // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
+  exports: [MmPortfolioTrader],
 })
 export class MarketMakingModule {}

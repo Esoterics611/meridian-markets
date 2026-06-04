@@ -188,6 +188,11 @@ curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: app
   -d '{"presetId":"hl-perps","strategyId":"mm-glft","quoteNotionalUsd":50000}'
 curl -XPOST localhost:3100/api/market-making/tick|flatten|stop
 curl -XPOST localhost:3100/api/market-making/remove -H 'content-type: application/json' -d '{"symbol":"ETH"}'
+
+# Observability (telemetry P1) — set TELEMETRY_ENABLED=true to populate /metrics
+curl localhost:3100/metrics          # Prometheus text: tick/feed/persist + desk equity/PnL/funding/maxDD/fills/risk-verdict + feed staleness
+curl localhost:3100/health           # liveness (always 200 when the process answers)
+curl -i localhost:3100/health/ready  # readiness: 200 ready / 503 not (DB under MM_PERSIST, tick freshness, feed staleness)
 ```
 
 ---

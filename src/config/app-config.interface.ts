@@ -176,6 +176,19 @@ export interface AppConfig {
     /** On graceful shutdown, flatten every MM book's inventory before the final checkpoint. */
     flattenOnShutdown: boolean;
   };
+  /**
+   * Backend observability (metrics + health endpoints). A config-gated swap seam
+   * (CLAUDE.md §7, TELEMETRY_REQUIREMENTS.md): off by default ⇒ NullTelemetry, no
+   * behaviour change, near-zero overhead. On ⇒ Prometheus registry at GET /metrics.
+   */
+  telemetry: {
+    /** Master switch (TELEMETRY_ENABLED). false ⇒ no-op; /metrics returns a disabled note. */
+    enabled: boolean;
+    /** /health/ready: the running loop is unhealthy if its last tick is older than N×poll. */
+    readyTickMultiplier: number;
+    /** /health/ready: a feed whose newest bar is older than this (ms) is stale. */
+    feedStalenessMs: number;
+  };
 }
 
 export type FeedSource = 'mock' | 'binance' | 'alpaca';

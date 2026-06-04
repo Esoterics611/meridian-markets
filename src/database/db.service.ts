@@ -1,6 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager } from 'typeorm';
+import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
+import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
+import { M } from '../telemetry/metric-catalog';
 
 const PG_SERIALIZATION_FAILURE = '40001';
 const SLOW_TX_MS = 500;
@@ -18,7 +21,22 @@ const BASE_BACKOFF_MS = 8;
 export class DbService {
   private readonly logger = new Logger(DbService.name);
 
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    // Optional observability seam: NullTelemetry by default ⇒ no behaviour change
+    // and manual `new DbService(ds)` (the int-specs) work unchanged.
+    @Optional() @Inject(TELEMETRY) private readonly telemetry: ITelemetry = NULL_TELEMETRY,
+  ) {}
+
+  /** Lightweight reachability probe for GET /health/ready. true iff SELECT 1 succeeds. */
+  async ping(): Promise<boolean> {
+    try {
+      await this.dataSource.query('SELECT 1');
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   async runInSerializableTransaction<T>(
     fn: (em: EntityManager) => Promise<T>,
@@ -28,6 +46,7 @@ export class DbService {
       try {
         const result = await this.dataSource.transaction('SERIALIZABLE', fn);
         const durationMs = Date.now() - startedAt;
+        this.telemetry.histogram(M.dbDuration, durationMs / 1000, { op: 'serializable_tx' });
         if (durationMs > SLOW_TX_MS) {
           this.logger.warn(`slow SERIALIZABLE tx: ${durationMs}ms`);
         }
@@ -36,8 +55,12 @@ export class DbService {
         const code =
           (err as { code?: string })?.code ??
           (err as { driverError?: { code?: string } })?.driverError?.code;
-        if (code !== PG_SERIALIZATION_FAILURE) throw err;
+        if (code !== PG_SERIALIZATION_FAILURE) {
+          this.telemetry.counter(M.dbErrors);
+          throw err;
+        }
         if (attempt >= MAX_RETRIES) {
+          this.telemetry.counter(M.dbErrors);
           this.logger.error(
             `SERIALIZABLE serialization_failure exhausted after ${MAX_RETRIES + 1} attempts`,
           );

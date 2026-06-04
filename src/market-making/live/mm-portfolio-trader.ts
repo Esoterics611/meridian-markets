@@ -2,6 +2,9 @@ import { Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/c
 import { MmBook, MmBookSnapshot } from './mm-book';
 import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
 import { NullMmStateStore } from '../persistence/null-mm-state-store';
+import { ITelemetry } from '../../telemetry/telemetry.interface';
+import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
+import { M } from '../../telemetry/metric-catalog';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -70,6 +73,8 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   private capitalUnits: bigint;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  /** Epoch ms of the last completed tick (readiness probe); null until first tick. */
+  private lastTickAtMs: number | null = null;
   private readonly store: IMmStateStore;
   private readonly rebuildBook?: MmBookRebuilder;
   private readonly flattenOnShutdown: boolean;
@@ -79,11 +84,24 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     private readonly pollIntervalMs: number,
     initialCapitalUnits = 100_000_000_000n,
     persistence: MmPortfolioPersistence = {},
+    // Observability seam: NullTelemetry by default ⇒ no behaviour change + the unit
+    // tests construct the trader unchanged. The module injects the real telemetry.
+    private readonly telemetry: ITelemetry = NULL_TELEMETRY,
   ) {
     this.capitalUnits = initialCapitalUnits;
     this.store = persistence.store ?? new NullMmStateStore();
     this.rebuildBook = persistence.rebuildBook;
     this.flattenOnShutdown = persistence.flattenOnShutdown ?? false;
+  }
+
+  /** Epoch ms of the last completed tick (or null) — the readiness freshness probe. */
+  lastTickAt(): number | null {
+    return this.lastTickAtMs;
+  }
+
+  /** The loop's configured poll cadence (ms) — readiness compares tick age to N×this. */
+  getPollIntervalMs(): number {
+    return this.pollIntervalMs;
   }
 
   /** Boot: rehydrate persisted OPEN books (restart-safe). Stopped until start(). */
@@ -105,6 +123,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
         this.logger.error(`mm rehydrate ${rec.bookKey} failed: ${(e as Error).message}`);
       }
     }
+    this.telemetry.gauge(M.persistRehydratedBooks, this.books.size);
     if (this.books.size) this.logger.log(`rehydrated ${this.books.size} mm book(s) from persistence — start the desk to resume quoting`);
   }
 
@@ -173,6 +192,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   async tick(): Promise<void> {
     if (this.ticking) return;
     this.ticking = true;
+    const startMs = Date.now();
     try {
       await Promise.all(
         [...this.books.values()].map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
@@ -180,6 +200,16 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
     } finally {
       this.ticking = false;
+      const durSec = (Date.now() - startMs) / 1000;
+      this.lastTickAtMs = Date.now();
+      this.telemetry.counter(M.tick, { loop: 'mm' });
+      this.telemetry.histogram(M.tickDuration, durSec, { loop: 'mm' });
+      // A tick that runs longer than the poll interval is a first-class signal
+      // (the loop can't keep cadence) — count it and raise a uniform alert (FR-2/10).
+      if (durSec * 1000 > this.pollIntervalMs) {
+        this.telemetry.counter(M.tickOverrun, { loop: 'mm' });
+        this.telemetry.alert({ kind: 'tick_overrun', severity: 'warn', message: `mm tick ${Math.round(durSec * 1000)}ms exceeded poll ${this.pollIntervalMs}ms` });
+      }
     }
   }
 
@@ -213,7 +243,19 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   private async persist(symbol: string): Promise<void> {
     if (!this.store.enabled) return;
     const rec = this.recordFor(symbol);
-    if (rec) await this.store.save(rec).catch((e) => this.logger.error(`mm persist ${symbol}: ${(e as Error).message}`));
+    if (!rec) return;
+    const startMs = Date.now();
+    try {
+      await this.store.save(rec);
+      this.telemetry.counter(M.persistCheckpoints, { result: 'ok' });
+    } catch (e) {
+      // A persistence failure threatens restart-safety — count it AND alert loudly.
+      this.telemetry.counter(M.persistCheckpoints, { result: 'error' });
+      this.telemetry.alert({ kind: 'persist_failure', book: symbol, severity: 'critical', message: `mm persist ${symbol}: ${(e as Error).message}` });
+      this.logger.error(`mm persist ${symbol}: ${(e as Error).message}`);
+    } finally {
+      this.telemetry.histogram(M.persistDuration, (Date.now() - startMs) / 1000);
+    }
   }
 
   /** Checkpoint every book (called each tick + on shutdown). */

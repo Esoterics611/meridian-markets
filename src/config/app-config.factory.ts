@@ -121,4 +121,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     persist: (process.env['MM_PERSIST'] ?? 'false').toLowerCase() === 'true',
     flattenOnShutdown: (process.env['MM_FLATTEN_ON_SHUTDOWN'] ?? 'false').toLowerCase() === 'true',
   },
+  telemetry: {
+    enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',
+    readyTickMultiplier: parseInt(process.env['TELEMETRY_READY_TICK_MULTIPLIER'] ?? '5', 10),
+    feedStalenessMs: parseInt(process.env['TELEMETRY_FEED_STALENESS_MS'] ?? '120000', 10),
+  },
 }));
