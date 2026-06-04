@@ -40,4 +40,14 @@ describe('MM market presets', () => {
   it('routes the perp preset to Hyperliquid (the default MM venue)', () => {
     expect(getMmPreset('hl-perps')!.source).toBe('hyperliquid');
   });
+
+  it('ships the hl-discovery preset (calm liquid non-major HL perps) routed to Hyperliquid', () => {
+    const disc = getMmPreset('hl-discovery');
+    expect(disc).toBeDefined();
+    expect(disc!.source).toBe('hyperliquid');
+    expect(disc!.symbols).toEqual(expect.arrayContaining(['XRP', 'DOGE', 'BNB']));
+    expect(disc!.symbols).toContain(disc!.defaultSymbol);
+    // Discovery is strictly NON-major — BTC/ETH/SOL live in hl-perps, not here.
+    expect(disc!.symbols).not.toEqual(expect.arrayContaining(['BTC', 'ETH', 'SOL']));
+  });
 });

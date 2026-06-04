@@ -92,6 +92,17 @@ export const MM_MARKET_PRESETS: readonly MmMarketPreset[] = [
     quote: 'USD',
     source: 'hyperliquid',
   },
+  {
+    id: 'hl-discovery',
+    label: 'Hyperliquid Discovery (calm liquid non-majors)',
+    assetClass: 'Perp DEX',
+    description:
+      'Discovery payload from scripts/hl-universe-discovery.ts (2026-06-04, full 230-perp HL scan): the calmest LIQUID non-major HL perps, sitting at major-grade 1m-σ (≈12bps) — the next markets to make markets in beyond BTC/ETH/SOL. XRP stands out (as calm as ETH, $96M/day, funding ≈−19% APR so a forced-short maker earns carry); DOGE/ASTER/BNB are the next calmest. HONEST CAVEAT: ranked by inventory risk on OHLCV proxies, NOT a profitability verdict — the fixed-spread scan nets negative across ALL perps (adverse dominates a tight quote). Capture an L2 tape (mm-l2-session) + γ/κ-tune queue-aware (mm-l2-tune) before sizing. Paper-only.',
+    symbols: ['XRP', 'DOGE', 'ASTER', 'BNB'],
+    defaultSymbol: 'XRP',
+    quote: 'USD',
+    source: 'hyperliquid',
+  },
 ];
 
 export function listMmPresets(): readonly MmMarketPreset[] {
