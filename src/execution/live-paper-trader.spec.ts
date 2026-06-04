@@ -3,6 +3,16 @@ import { Bar } from '../stat-arb/backtest/bar';
 import { Fill, ITradingVenue, PlaceOrderRequest } from '../stat-arb/trading-venue.interface';
 import { IBarFeed } from '../stat-arb/feed/live-feed.interface';
 import { DesiredOrder } from '../stat-arb/backtest/strategy.interface';
+import { DeskEventInput } from '../market-making/events/desk-event';
+import { IDeskEventSink } from '../market-making/events/desk-event-sink';
+
+/** Records every emitted business event for assertion. */
+class CapturingSink implements IDeskEventSink {
+  readonly events: DeskEventInput[] = [];
+  emit(event: DeskEventInput): void {
+    this.events.push(event);
+  }
+}
 
 function bar(symbol: string, close: number, t: number): Bar {
   return { symbol, timestamp: new Date(t), open: close, high: close, low: close, close, volume: 1 };
@@ -215,6 +225,105 @@ describe('LivePaperTrader', () => {
     trader.reconfigure({ symbolA: 'AAVE', symbolB: 'UNI' });
     expect(didReset).toBe(true);
     expect(trader.snapshot().symbolA).toBe('AAVE');
+  });
+
+  it('emits OPEN then CLOSE business events through the desk-event sink', async () => {
+    const notional = 1_000_000_000n;
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    const sink = new CapturingSink();
+    const trader = new LivePaperTrader(
+      scriptedStrategy(notional), venue, feed, cfg, undefined, undefined, undefined, undefined, sink,
+    );
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick(); // open LONG
+    venue.prices = { BTC: 110n * M, ETH: 100n * M };
+    await trader.tick(); // close
+
+    const fills = sink.events.filter((e) => e.kind === 'fill');
+    expect(fills.map((e) => e.action)).toEqual(['open', 'close']);
+    expect(fills.every((e) => e.desk === 'stat-arb' && e.book === 'BTC/ETH')).toBe(true);
+    // The CLOSE carries the booked round-trip P&L (+100 USDC, no fees).
+    expect(fills[1].realisedDeltaUnits).toBe('100000000');
+  });
+
+  it('emits a risk-block business event when an OPEN is denied', async () => {
+    const denyEngine = {
+      preTradeCheck: () => [{ allow: false as const, reason: 'drawdown breach' }],
+      drainEvents: () => [{ kind: 'DRAWDOWN' as const, barIndex: 0, reason: 'drawdown breach' }],
+    };
+    const feed = new FakeFeed([bar('BTC', 100, 1_000)], [bar('ETH', 100, 1_000)], 'BTC');
+    const venue = new FakeVenue();
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    const sink = new CapturingSink();
+    const trader = new LivePaperTrader(
+      scriptedStrategy(1_000_000_000n), venue, feed, { ...cfg, riskEngine: denyEngine },
+      undefined, undefined, undefined, undefined, sink,
+    );
+    await trader.tick();
+    const blocks = sink.events.filter((e) => e.kind === 'verdict');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].message).toContain('blocked by risk gate');
+  });
+
+  it('serializes then restores P&L state losslessly onto a fresh book', async () => {
+    const notional = 1_000_000_000n;
+    const feed = new FakeFeed(
+      [bar('BTC', 100, 1_000), bar('BTC', 110, 61_000)],
+      [bar('ETH', 100, 1_000), bar('ETH', 100, 61_000)],
+      'BTC',
+    );
+    const venue = new FakeVenue();
+    const trader = new LivePaperTrader(scriptedStrategy(notional), venue, feed, cfg);
+    trader.setStartingCapital(1_000_000_000n);
+    venue.prices = { BTC: 100n * M, ETH: 100n * M };
+    await trader.tick(); // open
+    venue.prices = { BTC: 110n * M, ETH: 100n * M };
+    await trader.tick(); // close (+100 USDC realised, 1 closed trade)
+
+    const state = trader.serializeState();
+    expect(state.realisedPnlUnits).toBe('100000000');
+    expect(state.closedTradeCount).toBe(1);
+
+    // A fresh book restores to the same equity + count.
+    const fresh = new LivePaperTrader(scriptedStrategy(notional), new FakeVenue(), new FakeFeed([], [], 'BTC'), cfg);
+    fresh.setStartingCapital(1_000_000_000n);
+    fresh.restoreState(state);
+    const snap = fresh.snapshot();
+    expect(snap.realisedPnlUnits).toBe('100000000');
+    expect(snap.equityUnits).toBe((1_000_000_000n + 100_000_000n).toString());
+    expect(snap.closedTradeCount).toBe(1);
+    expect(snap.openPosition).toBeNull();
+  });
+
+  it('restores an OPEN position and puts the strategy back into the held regime', () => {
+    // A strategy that records restorePosition + would re-OPEN if left FLAT.
+    let restoredTo: string | null = null;
+    const strat: LiveStrategy = {
+      lastZ: NaN, currentBeta: () => 1, currentRegime: () => 'FLAT',
+      onBar: () => [],
+      restorePosition: (side) => { restoredTo = side; },
+    };
+    const trader = new LivePaperTrader(strat, new FakeVenue(), new FakeFeed([], [], 'BTC'), cfg);
+    trader.setStartingCapital(1_000_000_000n);
+    trader.restoreState({
+      realisedPnlUnits: '5000000', closedTradeCount: 3, peakNav: 1.02,
+      barsSeen: 42, seededBars: 10, blockedEntries: 1,
+      open: {
+        side: 'SHORT', notionalUnits: (500n * M).toString(), entryZ: 2.3,
+        entryPriceAMicros: (100n * M).toString(), entryPriceBMicros: (50n * M).toString(),
+        entryFeesUnits: '250000', openedAt: new Date(1_000_000).toISOString(),
+      },
+    });
+    const snap = trader.snapshot();
+    expect(snap.openPosition).toMatchObject({ side: 'SHORT', entryZ: 2.3 });
+    expect(snap.closedTradeCount).toBe(3);
+    expect(snap.barsSeen).toBe(42);
+    expect(restoredTo).toBe('SHORT'); // strategy resumed in-position
   });
 
   it('blocks an OPEN when the risk engine denies, and never places the order', async () => {

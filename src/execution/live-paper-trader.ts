@@ -6,6 +6,8 @@ import { BarContext, DesiredOrder } from '../stat-arb/backtest/strategy.interfac
 import { StatArbRepository } from '../stat-arb/persistence/stat-arb.repository';
 import { IRiskEngine } from '../stat-arb/risk/risk-engine';
 import { GateEvent } from '../stat-arb/risk/gate';
+import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../market-making/events/desk-event-sink';
+import { statArbBlockedEvent, statArbEntryEvent, statArbExitEvent, statArbLifecycleEvent } from './live-desk-events';
 
 // The loop depends only on this slice of a strategy, not on a concrete class.
 // PairsStrategy satisfies it structurally; tests can inject a scripted fake.
@@ -19,6 +21,14 @@ export interface LiveStrategy {
   rollbackEntry?(): void;
   /** Wipe per-pair state so the instance can be reused on a different pair. */
   reset?(): void;
+  /**
+   * Resume in a held position on boot (restart-safe books). The strategy is
+   * stateful — it only emits a CLOSE when it believes it's in-position — so a
+   * rehydrated trade must put the strategy back into the held regime, else a
+   * fresh strategy would re-OPEN instead of working the position off. No-op for
+   * stateless strategies.
+   */
+  restorePosition?(side: 'LONG' | 'SHORT'): void;
 }
 
 /** Builds a fresh strategy for a chosen pair (per-pair β from discovery + chosen catalogue id + optional param overrides). */
@@ -88,6 +98,35 @@ interface OpenPosition {
   openedAt: Date;
 }
 
+/**
+ * The book's durable P&L state, with bigints as decimal STRINGS so it survives
+ * JSON + a Postgres BIGINT round-trip (mirrors MmBookState). The CONFIG (pair,
+ * strategy, β, notional, capital) is held alongside this by the persistence
+ * layer; this is just the evolving state the live loop must carry across a
+ * restart. The strategy's rolling window is NOT persisted — it's re-seeded from
+ * recent real bars by the warmup provider on the first tick after rehydration.
+ */
+export interface StatArbBookState {
+  realisedPnlUnits: string;
+  /** Total closed round-trips so far (the in-memory `closed` array is not persisted). */
+  closedTradeCount: number;
+  /** Drawdown peak (NAV ratio) — restoring it keeps the kill-switch honest across restart. */
+  peakNav: number;
+  barsSeen: number;
+  seededBars: number;
+  blockedEntries: number;
+  /** The held position, or null when flat. */
+  open: {
+    side: 'LONG' | 'SHORT';
+    notionalUnits: string;
+    entryZ: number;
+    entryPriceAMicros: string;
+    entryPriceBMicros: string;
+    entryFeesUnits: string;
+    openedAt: string; // ISO
+  } | null;
+}
+
 export interface LiveSnapshot {
   feedId: string;
   venueId: string;
@@ -149,6 +188,9 @@ export class LivePaperTrader implements OnApplicationBootstrap {
   private open: OpenPosition | null = null;
   private realisedPnlUnits = 0n;
   private readonly closed: ClosedTrade[] = [];
+  /** Closes booked BEFORE a restart (the in-memory `closed` array starts empty on
+   *  rehydration); added to `closed.length` so the snapshot count stays continuous. */
+  private priorClosedCount = 0;
   private barsSeen = 0;
   private seededBars = 0;
   private warmedUp = false;
@@ -173,6 +215,8 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     private readonly strategyFactory?: StrategyFactory,
     /** Optional: warm the rolling window from recent real bars on the first tick. */
     private readonly warmup?: WarmupProvider,
+    /** Business-event tape (CLAUDE.md §8). No-op default ⇒ tests/no-DB runs unchanged. */
+    private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
   ) {
     this.strategy = strategy;
     // Own the config: reconfigure() mutates symbolA/symbolB, so we must not
@@ -203,6 +247,7 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.historyB.length = 0;
     this.open = null;
     this.closed.length = 0;
+    this.priorClosedCount = 0;
     this.realisedPnlUnits = 0n;
     this.barsSeen = 0;
     this.seededBars = 0;
@@ -212,6 +257,15 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.blockedEntries = 0;
     this.gateEvents.length = 0;
     this.logger.log(`reconfigured to ${opts.symbolA}/${opts.symbolB} via ${this.cfg.strategyId ?? 'default'} (β=${opts.beta ?? 'cfg'})`);
+    this.events.emit(
+      statArbLifecycleEvent({
+        ts: this.now().getTime(),
+        kind: 'launch',
+        book: this.pairLabel(),
+        source: this.feed.feedId,
+        message: `${this.pairLabel()} ▸ reconfigured via ${this.cfg.strategyId ?? 'default'} (β=${opts.beta ?? 'cfg'})`,
+      }),
+    );
   }
 
   /**
@@ -246,6 +300,7 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.capitalUnits = units;
     this.realisedPnlUnits = 0n;
     this.closed.length = 0;
+    this.priorClosedCount = 0;
     this.peakNav = 1.0;
     this.logger.log(`starting capital set to ${units} units`);
   }
@@ -269,12 +324,24 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.timer = setInterval(() => {
       void this.tick();
     }, this.cfg.pollIntervalMs);
+    this.events.emit(
+      statArbLifecycleEvent({
+        ts: this.now().getTime(),
+        kind: 'start',
+        book: this.pairLabel(),
+        source: this.feed.feedId,
+        message: `${this.pairLabel()} ▸ live loop started (${this.feed.feedId} → ${this.venue.venueId})`,
+      }),
+    );
   }
 
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+      this.events.emit(
+        statArbLifecycleEvent({ ts: this.now().getTime(), kind: 'stop', book: this.pairLabel(), source: this.feed.feedId, message: `${this.pairLabel()} ▸ live loop stopped` }),
+      );
     }
   }
 
@@ -369,7 +436,9 @@ export class LivePaperTrader implements OnApplicationBootstrap {
         this.blockedEntries += 1;
         this.gateEvents.push(...this.cfg.riskEngine.drainEvents());
         this.strategy.rollbackEntry?.(); // re-attempt on a later bar
-        this.logger.warn(`OPEN blocked by risk gate at bar ${this.barsSeen - 1}`);
+        this.events.emit(
+          statArbBlockedEvent({ ts: this.now().getTime(), pair: this.pairLabel(), source: this.feed.feedId, side, barIndex: this.barsSeen - 1 }),
+        );
         return;
       }
     }
@@ -386,6 +455,19 @@ export class LivePaperTrader implements OnApplicationBootstrap {
       entryFeesUnits: a.feesUnits + b.feesUnits,
       openedAt: this.now(),
     };
+    this.events.emit(
+      statArbEntryEvent({
+        ts: this.open.openedAt.getTime(),
+        pair: this.pairLabel(),
+        source: this.feed.feedId,
+        side,
+        notionalUnits: this.open.notionalUnits,
+        entryZ: this.open.entryZ,
+        feeUnits: this.open.entryFeesUnits,
+        symbolA: this.cfg.symbolA,
+        symbolB: this.cfg.symbolB,
+      }),
+    );
   }
 
   private async closePosition(orders: DesiredOrder[]): Promise<void> {
@@ -420,6 +502,18 @@ export class LivePaperTrader implements OnApplicationBootstrap {
     this.closed.push(trade);
     this.realisedPnlUnits += pnlUnits;
     this.open = null;
+    this.events.emit(
+      statArbExitEvent({
+        ts: trade.closedAt.getTime(),
+        pair: this.pairLabel(),
+        source: this.feed.feedId,
+        side: trade.side,
+        notionalUnits: trade.notionalUnits,
+        exitZ: trade.exitZ,
+        realisedDeltaUnits: trade.pnlUnits,
+        feeUnits: trade.feesUnits,
+      }),
+    );
 
     if (this.repo) {
       try {
@@ -519,9 +613,69 @@ export class LivePaperTrader implements OnApplicationBootstrap {
             openedAt: this.open.openedAt.toISOString(),
           }
         : null,
-      closedTradeCount: this.closed.length,
+      closedTradeCount: this.closed.length + this.priorClosedCount,
       recentTrades: recent,
     };
+  }
+
+  /**
+   * Serialise the evolving P&L state for a durable checkpoint (restart-safe
+   * books). The config + strategy are rebuilt from the persisted record on boot;
+   * this carries only the state the live loop can't re-derive. Bigints → strings.
+   */
+  serializeState(): StatArbBookState {
+    return {
+      realisedPnlUnits: this.realisedPnlUnits.toString(),
+      closedTradeCount: this.closed.length + this.priorClosedCount,
+      peakNav: this.peakNav,
+      barsSeen: this.barsSeen,
+      seededBars: this.seededBars,
+      blockedEntries: this.blockedEntries,
+      open: this.open
+        ? {
+            side: this.open.side,
+            notionalUnits: this.open.notionalUnits.toString(),
+            entryZ: this.open.entryZ,
+            entryPriceAMicros: this.open.entryPriceAMicros.toString(),
+            entryPriceBMicros: this.open.entryPriceBMicros.toString(),
+            entryFeesUnits: this.open.entryFeesUnits.toString(),
+            openedAt: this.open.openedAt.toISOString(),
+          }
+        : null,
+    };
+  }
+
+  /**
+   * Restore a checkpointed state onto a freshly-built book (boot rehydration).
+   * Call AFTER setStartingCapital (which zeroes the curve). If a position was
+   * held, the strategy is put back into that regime so it works the position off
+   * on the next tick instead of re-opening. The rolling window is re-seeded by
+   * the warmup provider, not restored here.
+   */
+  restoreState(s: StatArbBookState): void {
+    this.realisedPnlUnits = BigInt(s.realisedPnlUnits);
+    this.priorClosedCount = s.closedTradeCount;
+    this.closed.length = 0;
+    this.peakNav = s.peakNav;
+    this.barsSeen = s.barsSeen;
+    this.seededBars = s.seededBars;
+    this.blockedEntries = s.blockedEntries;
+    this.open = s.open
+      ? {
+          side: s.open.side,
+          notionalUnits: BigInt(s.open.notionalUnits),
+          entryZ: s.open.entryZ,
+          entryPriceAMicros: BigInt(s.open.entryPriceAMicros),
+          entryPriceBMicros: BigInt(s.open.entryPriceBMicros),
+          entryFeesUnits: BigInt(s.open.entryFeesUnits),
+          openedAt: new Date(s.open.openedAt),
+        }
+      : null;
+    if (this.open) this.strategy.restorePosition?.(this.open.side);
+  }
+
+  private pairLabel(): string {
+    return `${this.cfg.symbolA}/${this.cfg.symbolB}`;
   }
 
   private push(arr: Bar[], bar: Bar): void {

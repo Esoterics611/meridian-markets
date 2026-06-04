@@ -1310,4 +1310,28 @@ tsc clean. See [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) §6/§7 + [ROADMAP.m
 
 Entry #23 gave the first net-positive honest-fill MM read, but on **one coin, one ~2h window (n=1)**; Entry #24's discovery scan produced the liquid shortlist. This entry marks the **first broad capture** toward a distribution: a **20-perp** (top HL perps by daily volume — BTC/HYPE/ETH/ZEC/SOL/NEAR/WLD/XRP/LIT/TON/ENA/XPL/VVV/ONDO/BNB/SUI/ADA/DOGE/PUMP/ASTER), **6-hour**, **10s-poll** L2 session with **100% real WS aggressor flow + funding + 10-min tape checkpointing** (`scripts/capture-hl-l2.sh`). The wide-grid tune (`scripts/tune-hl-l2.sh`: γ∈{0.0001…0.05}, κ∈{0.5…5}, floor∈{1…12}bps — deliberately brackets the Entry #23 boundary winner) is the **next session's first action**: it turns "BTC +$345/2h/$1M" into a per-coin, drawdown-compliant maker-net board across 20 markets. **No numbers yet** — the run is in flight; winners get recorded in [TUNED_PARAMS.md](research/TUNED_PARAMS.md) + a future Entry #26.
 
-**Tooling milestone.** Capture + tune are now **one-command operator scripts** (no line-wrap footguns), with **mid-run tape checkpointing** (a crash never loses the run) and an [Operator's Manual](OPERATIONS_MANUAL.md) covering the three systems + the storage map. The research pipeline is now reproducible by the operator unattended. **Tests:** 147 suites / 976 tests, tsc clean.
+**Tooling milestone.** Capture + tune are now **one-command operator scripts** (no line-wrap footguns), with **mid-run tape checkpointing** (a crash never loses the run) and an [Operator's Manual](OPERATIONS_MANUAL.md) covering the three systems + the storage map. The research pipeline is now reproducible by the operator unattended. **Tests:** 147 suites / 976 tests, tsc clean. *(The L2-tune harvest is now slated for **Entry #27** — this evening's gap-closing session took #26 for funding-carry discovery first; the 6h capture finishes ~00:14 and is the next session's Priority 0.)*
+
+## 2026-06-04 — Entry #26: HL funding-carry universe discovery — which perp pays persistent, harvestable funding
+
+**Context.** "Cross-venue funding capture (long spot / short HL perp)" sat on the roadmap as a deferred diversifier; the per-basket carry P&L was already built (`scripts/funding-carry-research.ts` + `staticCarry`), but only over a **fixed symbol list**. This entry adds the **universe-scan discovery layer** — the carry analogue of Entry #24's MM universe scan — that ranks the **whole HL perp universe** by *persistent, harvestable* funding. New pure module + script + 7-spec triple (`src/market-data/funding/funding-carry-discovery.ts` + `scripts/hl-funding-discovery.ts`), [doc](FUNDING_CARRY_DISCOVERY.md).
+
+**The model (honest by construction).** `net = funding harvested − one-time round-trip fee`; basis P&L **excluded** (delta-neutral ⇒ direction washes out, residual is mean-zero entry noise). The edge is the **continuous** funding stream; the 4-fill round trip is a **one-time** cost — so a perp is **harvestable** only when it clears **all four** gates: `|annualised funding| ≥ 8%` (material), `stableFraction = max(posFrac,1−posFrac) ≥ 0.70` (you can't harvest a sign that flips), `breakevenDays ≤ 20` (funding repays the round trip fast), and `dayNtlVlm ≥ $5M` (you can leg in). Each coin reports its `direction`: `SHORT_PERP` (harvest + funding: long spot/short perp) or `LONG_PERP` (harvest − funding).
+
+**Real read — 14d, top-50 by volume, HL public API** (`docs/research/hl-funding/discovery-2026-06-04T18-05-48-312Z.json`):
+
+| symbol | dir | annFund%/yr | stable | breakeven | vol$M | harvest |
+|---|---|---|---|---|---|---|
+| XMR | short perp | +35.7 | 0.97 | 1.4d | 13 | ✅ |
+| TRUMP | long perp | −23.8 | 0.79 | 2.1d | 6 | ✅ |
+| PURR | short perp | +23.8 | 0.89 | 2.1d | 7 | ✅ |
+| BCH | long perp | −21.1 | 0.81 | 2.4d | 11 | ✅ |
+| VVV / ZRO | short perp | ~+17 | 0.79 / 0.96 | 3.0d | 33 / 11 | ✅ |
+| NEAR / GRASS / HYPE | short perp | +13–14 | 0.88–1.00 | ~3.8d | 230 / 6 / 2191 | ✅ |
+| ETH / BTC | short perp | +7.8 / ~+8 | 0.88–0.97 | ~6d | 1799 / 7206 | · (just under the 8% gate this window) |
+
+**23 of 49 scored perps harvestable.** The board cleanly separates the persistent payers (XMR, the meme/alt shorts) from the coin-flip funders (ADA/JTO/TON `stable ≈ 0.55–0.66` → rejected) and surfaces both directions (BCH/TRUMP pay **shorts**, so you harvest them **long the perp**).
+
+**Honesty caveats (binding).** Funding-only; a 14-day window is **one regime**, not a forward track — re-run across regimes to build a distribution (the funding analogue of the γ/κ-distribution plan). `annNet%` over a short window is dominated by the one-time fee in the annualisation, so `breakeven` + `harvestableFundingPct` are the cleaner persistence signals (a +8% coin with a 6d breakeven is a real carry held past a week, even where `annNet%` reads slightly negative on a 14d window). The board is a **watchlist**, not a fill forecast: the deployable form (long Binance spot / short HL perp) and its real slippage/basis are the **live** verdict. **Corroborates** RESEARCH_FINDINGS' "funding carry real but modest (~3–8%/yr) on majors" — and shows the *fat* carry lives in the **non-major** perps.
+
+**Tests:** 153 suites / 1019 tests (+ the `funding-carry-discovery` module/spec), tsc clean. See [FUNDING_CARRY_DISCOVERY.md](FUNDING_CARRY_DISCOVERY.md) + [ROADMAP.md](ROADMAP.md).

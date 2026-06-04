@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
 import { MockTradingVenue } from './mock-trading-venue';
@@ -48,6 +48,12 @@ import { LivePaperTrader, WarmupProvider } from '../execution/live-paper-trader'
 import { LivePortfolioTrader, PortfolioPair } from '../execution/live-portfolio-trader';
 import { strategyRegistry } from './strategies/strategy-registry';
 import { LiveController } from '../execution/live.controller';
+import { DeskEventLog } from '../market-making/events/desk-event-log';
+import { DbService } from '@database/db.service';
+import { IStatArbStateStore } from './persistence/stat-arb-state-store.interface';
+import { StatArbStateRepository } from './persistence/stat-arb-state.repository';
+import { PostgresStatArbStateStore } from './persistence/postgres-stat-arb-state-store';
+import { NullStatArbStateStore } from './persistence/null-stat-arb-state-store';
 import { RiskEngine } from './risk/risk-engine';
 import { DrawdownGate } from './risk/drawdown-gate';
 
@@ -197,7 +203,7 @@ async function warmupFromAlpaca(
     // The live event loop: pairs strategy + venue + feed + persistence.
     {
       provide: LivePaperTrader,
-      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT, ALPACA_CLIENT],
+      inject: [ConfigService, TRADING_VENUE, LIVE_FEED, StatArbRepository, BINANCE_CLIENT, ALPACA_CLIENT, DeskEventLog],
       useFactory: (
         cfg: ConfigService,
         venue: ITradingVenue,
@@ -205,6 +211,7 @@ async function warmupFromAlpaca(
         repo: StatArbRepository,
         client: BinancePublicClient,
         alpaca: AlpacaDataClient,
+        deskEvents: DeskEventLog,
       ): LivePaperTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         // A fresh strategy per pair from the desk registry: switching presaved
@@ -242,6 +249,7 @@ async function warmupFromAlpaca(
           undefined,
           (opts) => makeStrategy({ beta: opts.beta, strategyId: opts.strategyId, params: opts.params }),
           warmup,
+          deskEvents,
         );
       },
     },
@@ -249,7 +257,10 @@ async function warmupFromAlpaca(
     // (own feed cursor + venue + strategy) on the shared live data client.
     {
       provide: LivePortfolioTrader,
-      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry, ALPACA_CLIENT],
+      // DbService is optional: it's @Global in the full app, but unit tests build
+      // this module in isolation. Persistence needs it; without it (or with
+      // STAT_ARB_PERSIST off) the trader uses the no-op Null store.
+      inject: [ConfigService, BINANCE_CLIENT, PRICE_SOURCE, StatArbRepository, ReferenceSourceRegistry, ALPACA_CLIENT, DeskEventLog, { token: DbService, optional: true }],
       useFactory: (
         cfg: ConfigService,
         client: BinancePublicClient,
@@ -257,6 +268,8 @@ async function warmupFromAlpaca(
         repo: StatArbRepository,
         refRegistry: ReferenceSourceRegistry,
         alpaca: AlpacaDataClient,
+        deskEvents: DeskEventLog,
+        db?: DbService,
       ): LivePortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const makeStrategy = (beta?: number, strategyId?: string, params?: Record<string, number>, notionalUnits?: bigint) =>
@@ -334,11 +347,28 @@ async function warmupFromAlpaca(
             undefined,
             (o) => makeStrategy(o.beta, o.strategyId, o.params, bookNotional),
             warmup,
+            deskEvents,
           );
         };
-        return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits);
+        // Restart-safe books: Postgres store when STAT_ARB_PERSIST is on AND a DB
+        // is present, else the no-op Null store (no-DB runs + tests unchanged).
+        const store: IStatArbStateStore =
+          app.live.persist && db ? new PostgresStatArbStateStore(new StatArbStateRepository(db)) : new NullStatArbStateStore();
+        if (app.live.persist && !db) {
+          new Logger('StatArbModule').warn('STAT_ARB_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
+        }
+        return new LivePortfolioTrader(makeTrader, app.live.pollIntervalMs, app.live.capitalUnits, deskEvents, {
+          store,
+          flattenOnShutdown: app.live.flattenOnShutdown,
+          defaultNotionalUnits: app.live.notionalUnits,
+        });
       },
     },
+    // The stat-arb desk's own business-event tape (CLAUDE.md §8 / Telemetry P2):
+    // every live enter/exit + risk-block + lifecycle flows through this one
+    // DeskEventLog (a NestJS log line + the GET /api/stat-arb/live/events feed).
+    // Separate instance from the MM desk's log — each desk owns its own tape.
+    DeskEventLog,
     DemoService,
     StatArbRepository,
     StatArbNavCron,

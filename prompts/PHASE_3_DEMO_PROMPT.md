@@ -2,13 +2,13 @@
 
 > **Session goal:** build the Phase 3 stat-arb signal library, a deterministic backtest runner, and a live web dashboard at `http://localhost:3100/demo` that shows the system running for test traders, markets operators, and sales associates. This is the **demo session** — everything is mock-default, no real venue or real data.
 >
-> **Read first:** [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md), [docs/STAT_ARB_PLAN.md](../docs/STAT_ARB_PLAN.md), [docs/SESSION_HISTORY.md](../docs/SESSION_HISTORY.md) (Sessions 1–4 are complete; do not re-create what's there).
+> **Read first:** [PHASED_PLAN.md §Phase 3](../docs/archive/PHASED_PLAN.md), [docs/STAT_ARB_PLAN.md](../docs/STAT_ARB_PLAN.md), [docs/SESSION_HISTORY.md](../docs/SESSION_HISTORY.md) (Sessions 1–4 are complete; do not re-create what's there).
 
 ---
 
 ## 0. Hard constraints (do not violate)
 
-- **Phase 2 legal formation is not done.** The stat-arb module is DEMO + SCAFFOLD only — no real exchange connections, no real trading, no solicitation of investors. It is a proof-of-concept for an internal audience. Per [PHASED_PLAN.md cross-phase dependency #1](../PHASED_PLAN.md): the build stays private; no real capital deployment until Phase 2 closes.
+- **Phase 2 legal formation is not done.** The stat-arb module is DEMO + SCAFFOLD only — no real exchange connections, no real trading, no solicitation of investors. It is a proof-of-concept for an internal audience. Per [PHASED_PLAN.md cross-phase dependency #1](../docs/archive/PHASED_PLAN.md): the build stays private; no real capital deployment until Phase 2 closes.
 - **Modular monolith. One repo, one DB.** No new database, no microservice. Per [CLAUDE.md §6](../CLAUDE.md).
 - **Mock-default discipline.** All stat-arb execution uses `MockTradingVenue`; real exchange connections stay dormant. Per [CLAUDE.md §7](../CLAUDE.md).
 - **`process.env` only in `src/config/app-config.factory.ts`.** No exceptions.
@@ -351,7 +351,7 @@ If a matrix library is truly needed for OLS: use `ml-matrix` (MIT, 5kb gzipped) 
 
 ## 10. Cross-references
 
-- [PHASED_PLAN.md §Phase 3](../PHASED_PLAN.md)
+- [PHASED_PLAN.md §Phase 3](../docs/archive/PHASED_PLAN.md)
 - [CLAUDE.md](../CLAUDE.md) — binding architectural constraints
 - [docs/STAT_ARB_PLAN.md](../docs/STAT_ARB_PLAN.md) — detailed signal + backtest architecture
 - [courses/stat-arb/](../courses/stat-arb/) — full educational backdrop for every math choice

@@ -93,6 +93,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     capitalUnits: BigInt(process.env['LIVE_CAPITAL_UNITS'] ?? '100000000000'), // 100k USDC
     advUnits: BigInt(process.env['LIVE_ADV_UNITS'] ?? '0'), // 0 = slippage off
     slippageLambdaBps: parseFloat(process.env['LIVE_SLIPPAGE_LAMBDA_BPS'] ?? '100'),
+    // Restart-safe stat-arb books — off by default (no DB dependency on the live path).
+    persist: (process.env['STAT_ARB_PERSIST'] ?? 'false').toLowerCase() === 'true',
+    flattenOnShutdown: (process.env['STAT_ARB_FLATTEN_ON_SHUTDOWN'] ?? 'false').toLowerCase() === 'true',
   },
   marketMaking: {
     // Default MM venue = Hyperliquid (the maker-rebate perp CLOB, DATA_SOURCES.md).

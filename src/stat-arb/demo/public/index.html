@@ -378,6 +378,14 @@
       <table><thead><tr><th>closed</th><th>pair</th><th>side</th><th>entry z</th><th>exit z</th><th>pnl (USDC)</th></tr></thead>
       <tbody id="trade-history"><tr><td colspan="6" class="muted">no persisted trades yet — arm a book and let a round-trip close</td></tr></tbody></table>
     </section>
+
+    <section class="panel span-12" data-tab="desk">
+      <div class="spark-k" style="margin-bottom:8px;">Activity — live trade tape <span id="sa-events-summary" class="muted" style="text-transform:none;letter-spacing:0;"></span></div>
+      <div class="desc">Every stat-arb <b>enter / exit</b> (with realised round-trip P&amp;L), risk-block and book/desk lifecycle event — the same business events the server logs, newest first. Long-polls <span class="mono">/api/stat-arb/live/events</span>.</div>
+      <div id="sa-events" style="max-height:300px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:6px 10px;background:rgba(0,0,0,0.18);">
+        <div class="muted">no activity yet — launch a book and start the desk. Every OPEN/CLOSE, risk-block and launch/stop streams here.</div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -726,6 +734,34 @@
         `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);">`
         + `<span class="mono muted" style="font-size:11px;flex:0 0 auto;">${evTime(e.ts)}</span>`
         + `<span style="flex:0 0 auto;color:${evColor(e)};line-height:1;">●</span>`
+        + `<span class="mono" style="font-size:12px;">${esc(e.message)}</span></div>`
+      ).join('');
+    }
+
+    // --- Stat-arb live business-event tape (GET /api/stat-arb/live/events). Same
+    //     seq-cursor long-poll as the MM feed; coloured by action since pair
+    //     trades carry no BUY/SELL side: OPEN=enter (teal), CLOSE=exit (amber). ---
+    const __saEv = { cursor: 0, items: [] };
+    const evColorSa = (e) => {
+      if (e.kind === 'fill') return e.action === 'open' ? '#00d4aa' : '#ffb454';
+      if (e.kind === 'verdict') return '#ff5c5c'; // risk-block
+      if (e.kind === 'launch' || e.kind === 'start') return '#6ea8ff';
+      return '#8a93a3'; // remove / stop
+    };
+    async function refreshSaEvents() {
+      let r; try { r = await jget('/api/stat-arb/live/events?since=' + __saEv.cursor + '&limit=200'); } catch { return; }
+      if (!r) return;
+      if (r.events && r.events.length) {
+        __saEv.items.push(...r.events);
+        if (__saEv.items.length > 250) __saEv.items = __saEv.items.slice(__saEv.items.length - 250);
+      }
+      if (typeof r.cursor === 'number') __saEv.cursor = r.cursor;
+      const box = $('sa-events'); if (!box || !__saEv.items.length) return;
+      const sum = $('sa-events-summary'); if (sum) sum.textContent = '· ' + __saEv.items.length + ' recent';
+      box.innerHTML = __saEv.items.slice().reverse().map((e) =>
+        `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);">`
+        + `<span class="mono muted" style="font-size:11px;flex:0 0 auto;">${evTime(e.ts)}</span>`
+        + `<span style="flex:0 0 auto;color:${evColorSa(e)};line-height:1;">●</span>`
         + `<span class="mono" style="font-size:12px;">${esc(e.message)}</span></div>`
       ).join('');
     }
@@ -1248,7 +1284,7 @@
     async function pollAll() {
       if (polling) return; // never overlap (a slow/hung fetch shouldn't pile up)
       polling = true;
-      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm(), refreshMmNav(), refreshMmEvents()]); lastUpdateMs = Date.now(); }
+      try { await Promise.all([refreshSnapshot(), refreshPortfolio(), refreshTrades(), refreshMm(), refreshMmNav(), refreshMmEvents(), refreshSaEvents()]); lastUpdateMs = Date.now(); }
       catch { /* refreshers swallow their own errors; a stalled poll shows via heartbeat age */ }
       finally { polling = false; }
     }
@@ -1454,6 +1490,7 @@
       await refreshTrades();
       await refreshMm();
       await refreshMmEvents();
+      await refreshSaEvents();
       tickClock(); setInterval(tickClock, 1000);
       pollAll(); setInterval(pollAll, 4000);
       showTab((location.hash || '').replace('#', '') || 'desk');
