@@ -40,9 +40,9 @@ Crypto stat-arb *killed* (cointegration cliff) · equities ~0.06 Sharpe *survivo
 Make the system restart-safe and multi-hour-robust. Phased:
 
 - **Phase 1 ✅** — lossless `serialize()`/`restore()` of `InventoryBook` + `MmBook` (ledger + all P&L accumulators), unit-tested.
-- **Phase 2 (in progress)** — `mm_book_state` migration (mutable checkpoint, soft-close, app-role grants) + `MmStateRepository` + `IMmStateStore` (Postgres / Null), config-selected.
-- **Phase 3** — trader rehydrates books on boot + checkpoints each tick; `OnApplicationShutdown` hook with optional flatten (`MM_FLATTEN_ON_SHUTDOWN`); `MM_PERSIST` config flag. Default off ⇒ no-DB runs + tests unchanged.
-- **Then** — extend the same to **stat-arb live books** and add **durable NAV / equity-curve history** (the multi-day research output).
+- **Phase 2 ✅** — `mm_book_state` migration (mutable checkpoint, soft-close, app-role grants) + `MmStateRepository` + `IMmStateStore` (Postgres / Null), config-selected.
+- **Phase 3 ✅** — `MmPortfolioTrader` rehydrates OPEN books on boot (`OnApplicationBootstrap`) + checkpoints every tick + soft-closes on remove; `OnApplicationShutdown` hook flattens (when `MM_FLATTEN_ON_SHUTDOWN`) then checkpoints; `app.enableShutdownHooks()`; `MM_PERSIST` flag. **Default off ⇒ no-DB runs + tests unchanged** (911 tests green). MM books now survive restart with P&L, positions, and config intact.
+- **Next** — extend the same to **stat-arb live books** and add **durable NAV / equity-curve history** (the multi-day research output).
 
 ---
 

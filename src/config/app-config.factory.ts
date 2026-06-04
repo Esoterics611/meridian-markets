@@ -116,5 +116,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
     maxDrawdownPct: parseFloat(process.env['MM_MAX_DRAWDOWN_PCT'] ?? '10'),
+    // Restart-safe books: off by default so a no-DB run is unaffected. Turn on for
+    // the persistent research system (needs Postgres + migrations).
+    persist: (process.env['MM_PERSIST'] ?? 'false').toLowerCase() === 'true',
+    flattenOnShutdown: (process.env['MM_FLATTEN_ON_SHUTDOWN'] ?? 'false').toLowerCase() === 'true',
   },
 }));

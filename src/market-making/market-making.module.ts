@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
 import { Bar } from '../stat-arb/backtest/bar';
@@ -17,6 +17,11 @@ import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
 import { venueFeeFor } from './backtest/venue-fees';
 import { HyperliquidFundingClient } from '../market-data/funding/hyperliquid-funding-client';
+import { DbService } from '@database/db.service';
+import { MmStateRepository } from './persistence/mm-state.repository';
+import { PostgresMmStateStore } from './persistence/postgres-mm-state-store';
+import { NullMmStateStore } from './persistence/null-mm-state-store';
+import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmScreener } from './screen/mm-screener';
 import { MM_MARKET_PRESETS } from './markets/mm-market-presets';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
@@ -47,8 +52,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
     },
     {
       provide: MmPortfolioTrader,
-      inject: [ConfigService, MM_BINANCE_CLIENT],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient): MmPortfolioTrader => {
+      // DbService is optional: it's @Global in the full app, but the controller
+      // unit test builds this module in isolation. Persistence needs it; without
+      // it (or with MM_PERSIST off) the trader uses the no-op Null store.
+      inject: [ConfigService, MM_BINANCE_CLIENT, { token: DbService, optional: true }],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, db?: DbService): MmPortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
@@ -82,17 +90,40 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             ? hlFunding.currentFunding(symbol).then((f) => f.lastFundingRate).catch(() => 0)
             : 0;
 
+        // Shared feed/warmup routing: 'binance'/'mock' → native feed, a reference id
+        // ('hyperliquid'/'geckoterminal'/…) → a ReferenceBarFeed. Used by both a fresh
+        // launch and a restart-rehydration so a revived book reads the same feed.
+        const resolveFeed = (srcId: string): { feed: IBarFeed; warmupCloses?: (s: string) => Promise<number[]> } => {
+          const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
+          const feed: IBarFeed = refSource
+            ? new ReferenceBarFeed(refSource, app.feed.interval)
+            : onBinance
+              ? new BinancePublicBarFeed(client, app.feed.interval)
+              : new MockBarFeed();
+          const warmupCloses = refSource
+            ? async (s: string): Promise<number[]> => (await refSource.klines(s, app.feed.interval, warmupBars).catch(() => [])).map((b) => b.close)
+            : onBinance
+              ? async (s: string): Promise<number[]> => (await client.klines(s, app.feed.interval, warmupBars)).map((b) => b.close)
+              : undefined;
+          return { feed, warmupCloses };
+        };
+        const makeRiskGate = (quoteSizeUnits: bigint): CompositeRiskGate =>
+          new CompositeRiskGate({
+            maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
+            minNavRatio: 1 - mm.maxDrawdownPct / 100,
+            vpinPauseThreshold: 2, // bar mode has no live VPIN; effectively off until the tick tape lands
+            vpinPauseMs: 30_000,
+            maxAdverseUnits: mm.capitalUnits, // generous; the tick-data path tightens this
+            adversePauseMs: 30_000,
+          });
+
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
-          // Resolve the venue: an explicit spec.source, else the desk's default MM
-          // venue (mm.defaultSource = Hyperliquid). 'binance'/'mock' use the native
-          // feed; a reference id ('hyperliquid'/'geckoterminal'/…) a ReferenceBarFeed.
           const srcId = spec.source ?? mm.defaultSource;
-          const refSource = srcId && srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
+          const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
 
           // Notional sizing: when a $ quote is requested, probe the live price and
-          // size quoteSizeUnits = notional ÷ price, so a $66k perp isn't over-sized
-          // by the fixed unit default (notional-sizing.ts). Else keep the config size.
+          // size quoteSizeUnits = notional ÷ price (notional-sizing.ts). Else fixed.
           let quoteSizeUnits = mm.quoteSizeUnits;
           if (spec.quoteNotionalUsd && spec.quoteNotionalUsd > 0) {
             const probe = refSource
@@ -111,26 +142,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             maxInventoryLots: mm.maxInventoryLots,
             params: spec.params,
           });
-          const feed: IBarFeed = refSource
-            ? new ReferenceBarFeed(refSource, app.feed.interval)
-            : onBinance
-              ? new BinancePublicBarFeed(client, app.feed.interval)
-              : new MockBarFeed();
-          const warmupCloses = refSource
-            ? async (s: string): Promise<number[]> =>
-                (await refSource.klines(s, app.feed.interval, warmupBars).catch(() => [])).map((b) => b.close)
-            : onBinance
-              ? async (s: string): Promise<number[]> =>
-                  (await client.klines(s, app.feed.interval, warmupBars)).map((b) => b.close)
-              : undefined;
-          const riskGate = new CompositeRiskGate({
-            maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
-            minNavRatio: 1 - mm.maxDrawdownPct / 100,
-            vpinPauseThreshold: 2, // bar mode has no live VPIN; effectively off until the tick tape lands
-            vpinPauseMs: 30_000,
-            maxAdverseUnits: mm.capitalUnits, // generous; the tick-data path tightens this
-            adversePauseMs: 30_000,
-          });
+          const { feed, warmupCloses } = resolveFeed(srcId);
           return new MmBook({
             symbol: spec.symbol,
             strategyId,
@@ -142,18 +154,58 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             volWindowBars: mm.volWindowBars,
             volFloor: mm.volFloor,
             // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
-            // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics,
-            // not a desk-wide assumption. (mm.makerFeeBps is now only the screener's.)
+            // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics.
             makerFeeBps: venueFeeFor(srcId).makerBps,
             fundingRatePerHour: await fundingRateFor(srcId, spec.symbol),
             capitalUnits: mm.capitalUnits,
             nextBar: (s) => feed.nextBar(s),
             warmupCloses,
-            riskGate,
+            riskGate: makeRiskGate(quoteSizeUnits),
           });
         };
 
-        return new MmPortfolioTrader(makeBook, mm.pollIntervalMs, mm.capitalUnits);
+        // Restart-safe rehydration: rebuild a book from its persisted record using
+        // its EXACT resolved config (no notional re-probe), so it resumes identical.
+        // The trader then restores the P&L state onto it.
+        const rebuildBook = async (rec: MmBookRecord): Promise<MmBook> => {
+          const { feed, warmupCloses } = resolveFeed(rec.source ?? mm.defaultSource);
+          const quoter = mmStrategyRegistry.build(rec.strategyId, {
+            quoteSizeUnits: rec.quoteSizeUnits,
+            minHalfSpreadBps: effMinHalfSpreadBps,
+            maxHalfSpreadBps: mm.maxHalfSpreadBps,
+            maxInventoryLots: mm.maxInventoryLots,
+            params: rec.params ?? undefined,
+          });
+          return new MmBook({
+            symbol: rec.symbol,
+            strategyId: rec.strategyId,
+            quoter,
+            quoteSizeUnits: rec.quoteSizeUnits,
+            gamma: rec.gamma,
+            kappa: rec.kappa,
+            horizonBars: rec.horizonBars,
+            volWindowBars: rec.volWindowBars,
+            volFloor: rec.volFloor,
+            makerFeeBps: rec.makerFeeBps,
+            fundingRatePerHour: rec.fundingRatePerHour,
+            capitalUnits: rec.capitalUnits,
+            nextBar: (s) => feed.nextBar(s),
+            warmupCloses,
+            riskGate: makeRiskGate(rec.quoteSizeUnits),
+          });
+        };
+
+        // Persistence backend (restart-safe books): Postgres when MM_PERSIST is on
+        // AND a DB connection is present, else a no-op Null store (no-DB runs + tests
+        // behave exactly as before).
+        const store: IMmStateStore = mm.persist && db ? new PostgresMmStateStore(new MmStateRepository(db)) : new NullMmStateStore();
+        if (mm.persist && !db) new Logger('MarketMakingModule').warn('MM_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
+
+        return new MmPortfolioTrader(makeBook, mm.pollIntervalMs, mm.capitalUnits, {
+          store,
+          rebuildBook,
+          flattenOnShutdown: mm.flattenOnShutdown,
+        });
       },
     },
     // Spread-capture screener: ranks instruments by expected MM profit/day.

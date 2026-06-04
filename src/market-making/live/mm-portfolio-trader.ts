@@ -1,5 +1,7 @@
-import { Logger } from '@nestjs/common';
+import { Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { MmBook, MmBookSnapshot } from './mm-book';
+import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
+import { NullMmStateStore } from '../persistence/null-mm-state-store';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -34,6 +36,18 @@ export interface MmBookSpec {
 // A sync factory (the unit tests) still satisfies the union — addBook awaits either.
 export type MmBookFactory = (spec: MmBookSpec) => MmBook | Promise<MmBook>;
 
+// Rebuilds a book from a persisted record on boot (restart-safe books): the module
+// constructs the quoter/feed/risk gate from the record's CONFIG using its exact
+// resolved values (not re-derived), and the trader restores the P&L state onto it.
+export type MmBookRebuilder = (record: MmBookRecord) => Promise<MmBook>;
+
+export interface MmPortfolioPersistence {
+  store?: IMmStateStore;
+  rebuildBook?: MmBookRebuilder;
+  /** Close every book's inventory before the final checkpoint on shutdown. */
+  flattenOnShutdown?: boolean;
+}
+
 export interface MmPortfolioSnapshot {
   running: boolean;
   bookCount: number;
@@ -48,19 +62,57 @@ export interface MmPortfolioSnapshot {
   books: MmBookSnapshot[];
 }
 
-export class MmPortfolioTrader {
+export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(MmPortfolioTrader.name);
   private readonly books = new Map<string, MmBook>();
+  /** Per-book launch spec (source + params), kept so a book can be re-persisted. */
+  private readonly specs = new Map<string, MmBookSpec>();
   private capitalUnits: bigint;
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  private readonly store: IMmStateStore;
+  private readonly rebuildBook?: MmBookRebuilder;
+  private readonly flattenOnShutdown: boolean;
 
   constructor(
     private readonly makeBook: MmBookFactory,
     private readonly pollIntervalMs: number,
     initialCapitalUnits = 100_000_000_000n,
+    persistence: MmPortfolioPersistence = {},
   ) {
     this.capitalUnits = initialCapitalUnits;
+    this.store = persistence.store ?? new NullMmStateStore();
+    this.rebuildBook = persistence.rebuildBook;
+    this.flattenOnShutdown = persistence.flattenOnShutdown ?? false;
+  }
+
+  /** Boot: rehydrate persisted OPEN books (restart-safe). Stopped until start(). */
+  async onApplicationBootstrap(): Promise<void> {
+    if (!this.store.enabled || !this.rebuildBook) return;
+    const records = await this.store.loadOpen().catch((e) => {
+      this.logger.error(`mm rehydrate load failed: ${(e as Error).message}`);
+      return [] as MmBookRecord[];
+    });
+    for (const rec of records) {
+      try {
+        const book = await this.rebuildBook(rec);
+        book.restore(rec.state); // carry forward inventory + P&L
+        await book.warmup(); // re-seed σ from recent closes
+        book.setRunning(false);
+        this.books.set(rec.bookKey, book);
+        this.specs.set(rec.bookKey, { symbol: rec.symbol, strategyId: rec.strategyId, source: rec.source ?? undefined, params: rec.params ?? undefined });
+      } catch (e) {
+        this.logger.error(`mm rehydrate ${rec.bookKey} failed: ${(e as Error).message}`);
+      }
+    }
+    if (this.books.size) this.logger.log(`rehydrated ${this.books.size} mm book(s) from persistence — start the desk to resume quoting`);
+  }
+
+  /** Shutdown: optionally flatten, then checkpoint final state (a real company's books). */
+  async onApplicationShutdown(): Promise<void> {
+    this.stop();
+    if (this.flattenOnShutdown) await this.flattenAll();
+    await this.checkpointAll();
   }
 
   /**
@@ -76,15 +128,20 @@ export class MmPortfolioTrader {
     await book.warmup();
     book.setRunning(this.isRunning());
     this.books.set(spec.symbol, book);
+    this.specs.set(spec.symbol, spec);
+    await this.persist(spec.symbol); // durable from launch
     this.logger.log(`launched mm book ${spec.symbol} via ${spec.strategyId ?? 'default'} (capital=${capitalUnits})`);
   }
 
-  /** Stop + remove one book: flatten its inventory, then drop it. */
+  /** Stop + remove one book: flatten its inventory, then drop it (soft-close in the store). */
   async removeBook(symbol: string): Promise<boolean> {
     const b = this.books.get(symbol);
     if (!b) return false;
     await b.flatten().catch(() => undefined);
+    await this.persist(symbol); // checkpoint the flattened state before closing
     this.books.delete(symbol);
+    this.specs.delete(symbol);
+    if (this.store.enabled) await this.store.close(symbol).catch((e) => this.logger.error(`mm close ${symbol}: ${(e as Error).message}`));
     this.logger.log(`removed mm book ${symbol}`);
     if (this.books.size === 0) this.stop();
     return true;
@@ -120,9 +177,49 @@ export class MmPortfolioTrader {
       await Promise.all(
         [...this.books.values()].map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
       );
+      await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
     } finally {
       this.ticking = false;
     }
+  }
+
+  /** Build the durable record for one book (config + live P&L state). */
+  private recordFor(symbol: string): MmBookRecord | null {
+    const book = this.books.get(symbol);
+    const spec = this.specs.get(symbol);
+    if (!book || !spec) return null;
+    const c = book.config();
+    return {
+      bookKey: symbol,
+      symbol,
+      source: spec.source ?? null,
+      strategyId: c.strategyId,
+      params: spec.params ?? null,
+      gamma: c.gamma,
+      kappa: c.kappa,
+      horizonBars: c.horizonBars,
+      volWindowBars: c.volWindowBars,
+      volFloor: c.volFloor,
+      makerFeeBps: c.makerFeeBps,
+      fundingRatePerHour: c.fundingRatePerHour,
+      quoteSizeUnits: c.quoteSizeUnits,
+      capitalUnits: c.capitalUnits,
+      running: this.isRunning(),
+      state: book.serializeState(),
+    };
+  }
+
+  /** Checkpoint one book (no-op when persistence is off; never throws). */
+  private async persist(symbol: string): Promise<void> {
+    if (!this.store.enabled) return;
+    const rec = this.recordFor(symbol);
+    if (rec) await this.store.save(rec).catch((e) => this.logger.error(`mm persist ${symbol}: ${(e as Error).message}`));
+  }
+
+  /** Checkpoint every book (called each tick + on shutdown). */
+  private async checkpointAll(): Promise<void> {
+    if (!this.store.enabled) return;
+    await Promise.all([...this.books.keys()].map((s) => this.persist(s)));
   }
 
   snapshot(): MmPortfolioSnapshot {

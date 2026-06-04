@@ -2,6 +2,7 @@ import { MmPortfolioTrader, MmBookSpec } from './mm-portfolio-trader';
 import { MmBook } from './mm-book';
 import { Bar } from '../../stat-arb/backtest/bar';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
+import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
 
 function bars(symbol: string): Bar[] {
   return Array.from({ length: 6 }, (_, i) => ({
@@ -35,6 +36,42 @@ function makeBook(spec: MmBookSpec): MmBook {
   });
 }
 
+// An in-memory IMmStateStore for the restart-safe-books test.
+function makeFakeStore() {
+  const saved = new Map<string, MmBookRecord>();
+  const closed: string[] = [];
+  const store: IMmStateStore = {
+    enabled: true,
+    save: async (r) => void saved.set(r.bookKey, r),
+    loadOpen: async () => [...saved.values()].filter((r) => !closed.includes(r.bookKey)),
+    close: async (k) => void closed.push(k),
+  };
+  return { store, saved, closed };
+}
+
+function rebuildBook(rec: MmBookRecord): Promise<MmBook> {
+  const data = bars(rec.symbol);
+  let idx = 0;
+  return Promise.resolve(
+    new MmBook({
+      symbol: rec.symbol,
+      strategyId: rec.strategyId,
+      quoter: new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: rec.quoteSizeUnits }),
+      quoteSizeUnits: rec.quoteSizeUnits,
+      gamma: rec.gamma,
+      kappa: rec.kappa,
+      horizonBars: rec.horizonBars,
+      volWindowBars: rec.volWindowBars,
+      volFloor: rec.volFloor,
+      makerFeeBps: rec.makerFeeBps,
+      fundingRatePerHour: rec.fundingRatePerHour,
+      capitalUnits: rec.capitalUnits,
+      nextBar: async () => (idx < data.length ? data[idx++] : null),
+      now: () => new Date('2026-01-01T00:00:00Z'),
+    }),
+  );
+}
+
 describe('MmPortfolioTrader', () => {
   it('launches isolated books, ticks them, and aggregates a snapshot', async () => {
     const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n);
@@ -46,6 +83,35 @@ describe('MmPortfolioTrader', () => {
     expect(snap.bookCount).toBe(2);
     expect(snap.books.map((b) => b.symbol).sort()).toEqual(['FDUSD', 'USDC']);
     expect(snap.books.every((b) => b.fills > 0)).toBe(true);
+  });
+
+  it('checkpoints books and rehydrates inventory + P&L on a fresh trader (restart-safe)', async () => {
+    const { store, saved, closed } = makeFakeStore();
+    const a = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await a.addBook({ symbol: 'USDC', strategyId: 'mm-symmetric' }, 1_000_000_000n);
+    for (let i = 0; i < 6; i++) await a.tick();
+    expect(saved.has('USDC')).toBe(true);
+    const persistedFills = saved.get('USDC')!.state.fills;
+    expect(persistedFills).toBeGreaterThan(0); // real state was checkpointed
+
+    // Simulate a restart: a brand-new trader over the SAME store rehydrates on boot.
+    const b = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await b.onApplicationBootstrap();
+    const snap = b.snapshot();
+    expect(snap.bookCount).toBe(1);
+    expect(snap.books[0].symbol).toBe('USDC');
+    expect(snap.books[0].fills).toBe(persistedFills); // P&L state carried across restart
+
+    // removeBook soft-closes the row (kept, not deleted) so its final P&L survives.
+    await b.removeBook('USDC');
+    expect(closed).toContain('USDC');
+  });
+
+  it('does not persist when the store is disabled (default Null) — no behaviour change', async () => {
+    const pf = new MmPortfolioTrader(makeBook, 1000); // no persistence opts ⇒ NullStore
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);
+    await pf.tick();
+    expect(pf.snapshot().bookCount).toBe(1); // works exactly as before
   });
 
   it('removes one book and stops when the last is removed', async () => {

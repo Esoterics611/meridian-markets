@@ -243,6 +243,12 @@ priced at its OWN venue's maker fee (`venueFeeFor`), and an HL-source live book
 **auto-accrues the live HL funding** on held inventory. P&L accounting reference:
 [PNL_ACCOUNTING.md](./PNL_ACCOUNTING.md).
 
+**Restart-safe books** (the persistent research system): `MM_PERSIST=true` checkpoints
+every MM book to Postgres (`mm_book_state`) each tick and rehydrates OPEN books on boot
+— P&L, positions, and config survive a restart. `MM_FLATTEN_ON_SHUTDOWN=true` closes
+all MM inventory before the final checkpoint on SIGINT/SIGTERM. Needs Postgres +
+`npm run migration:run`. Default off ⇒ in-memory only (no DB dependency).
+
 ---
 
 ## 3. The UI — step by step (`/demo`)

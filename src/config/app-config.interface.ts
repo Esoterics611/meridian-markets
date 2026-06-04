@@ -167,6 +167,14 @@ export interface AppConfig {
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */
     maxDrawdownPct: number;
+    /**
+     * Persist live MM books to Postgres (restart-safe books): checkpoint each tick
+     * to mm_book_state, rehydrate OPEN books on boot. Off ⇒ in-memory only (the
+     * legacy behaviour; no DB dependency on the live MM path). Requires migrations run.
+     */
+    persist: boolean;
+    /** On graceful shutdown, flatten every MM book's inventory before the final checkpoint. */
+    flattenOnShutdown: boolean;
   };
 }
 

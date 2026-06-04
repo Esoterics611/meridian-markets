@@ -161,6 +161,33 @@ export class MmBook {
     this.cfg = { ...this.cfg, fundingRatePerHour: rate };
   }
 
+  /** The resolved numeric config needed to persist + rebuild this book on restart. */
+  config(): {
+    strategyId: string;
+    quoteSizeUnits: bigint;
+    gamma: number;
+    kappa: number;
+    horizonBars: number;
+    volWindowBars: number;
+    volFloor: number;
+    makerFeeBps: number;
+    fundingRatePerHour: number;
+    capitalUnits: bigint;
+  } {
+    return {
+      strategyId: this.cfg.strategyId,
+      quoteSizeUnits: this.cfg.quoteSizeUnits,
+      gamma: this.cfg.gamma,
+      kappa: this.cfg.kappa,
+      horizonBars: this.cfg.horizonBars,
+      volWindowBars: this.cfg.volWindowBars,
+      volFloor: this.cfg.volFloor,
+      makerFeeBps: this.cfg.makerFeeBps,
+      fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
+      capitalUnits: this.cfg.capitalUnits,
+    };
+  }
+
   /** Snapshot the evolving P&L state for persistence (restart-safe books). */
   serializeState(): MmBookState {
     return {
