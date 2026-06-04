@@ -355,11 +355,12 @@ async function main(): Promise<void> {
     const now = Date.now();
     const dtSec = polls === 0 ? POLL_S : Math.max(1, (now - lastPollAt) / 1000);
     lastPollAt = now;
-    const mids: string[] = [];
-    for (const s of states) {
-      const mid = await poll(client, s, dtSec, tradeStream);
-      mids.push(`${s.coin} ${mid ? (Number(mid) / 1e6).toFixed(2) : '—'} (d${s.tape[s.tape.length - 1]?.book.bids.length ?? 0}×${s.tape[s.tape.length - 1]?.book.asks.length ?? 0})`);
-    }
+    // Fetch every coin's L2 CONCURRENTLY so the poll cadence is bounded by a single
+    // fetch (~hundreds of ms), not the sum across coins — the finer cadence the
+    // adverse-selection edge needs (Journal #31). poll() is independent per coin
+    // (own state, own REST call, per-coin trade-stream drain), so this is race-free.
+    const polled = await Promise.all(states.map((s) => poll(client, s, dtSec, tradeStream).then((mid) => ({ s, mid }))));
+    const mids = polled.map(({ s, mid }) => `${s.coin} ${mid ? (Number(mid) / 1e6).toFixed(2) : '—'} (d${s.tape[s.tape.length - 1]?.book.bids.length ?? 0}×${s.tape[s.tape.length - 1]?.book.asks.length ?? 0})`);
     polls++;
     console.log(`  poll ${pad(polls, 3)} @ ${new Date(now).toISOString().slice(11, 19)}  ${mids.join('  ')}`);
     // Periodic crash-safe checkpoint: the tape files always hold the capture so far.
