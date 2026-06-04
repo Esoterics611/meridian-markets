@@ -1,6 +1,7 @@
 # Backend Telemetry — Requirements
 
-> **Status:** requirements (not yet implemented). **Owner:** platform. **Why now:** Meridian is no longer a demo — it is a **persistent paper-trading research system** meant to run unattended for hours and days, and the precursor to an agent-run quant group. A system you cannot *observe* is a system you cannot trust to run unattended, and "honesty about the numbers" extends to operational honesty: we must be able to prove the desk is healthy, the feeds are live, the P&L is real, and a restart lost nothing. This document specifies what the backend must emit and expose.
+> **Status:** **P1 shipped** (metrics + health; see §7/§8). P2–P4 remain
+> requirements. **Owner:** platform. **Why now:** Meridian is no longer a demo — it is a **persistent paper-trading research system** meant to run unattended for hours and days, and the precursor to an agent-run quant group. A system you cannot *observe* is a system you cannot trust to run unattended, and "honesty about the numbers" extends to operational honesty: we must be able to prove the desk is healthy, the feeds are live, the P&L is real, and a restart lost nothing. This document specifies what the backend must emit and expose.
 
 ## 1. Goals & non-goals
 
@@ -84,18 +85,18 @@
 
 ## 7. Suggested implementation phases
 
-1. **P1 — Metrics + health.** `ITelemetry` seam + Prometheus registry, `/metrics`, `/health` + `/health/ready`, operational + feed + desk metrics (§4.1/4.2/4.3) mapped from `snapshot()` and the tick loop. Config-gated.
+1. **P1 — Metrics + health.** ✅ **DONE** (`src/telemetry/`). `ITelemetry` seam (Null default + a dependency-free Prometheus registry) + `GET /metrics` + `GET /health` + `GET /health/ready`, config-gated (`TELEMETRY_ENABLED`, default off). Operational (§4.1: uptime, event-loop lag, rss/heap, http, db, tick count/duration/overrun), feed (§4.2: poll count/duration by source, **last-bar-age staleness**), desk/financial (§4.3: per-book + desk equity/net/realised/unrealised/fees/funding/inventory/maxDD/fills/blocked/risk-verdict/NAV) **mapped from `snapshot()` on scrape** (pull model, no parallel accounting), persistence (§4.4: checkpoint ok/error + duration + rehydrated-books). Uniform alert hook (FR-10) → `meridian_alerts_total{kind,severity}` + a structured log on tick-overrun / persist-failure. *Not yet in P1:* `ws_connected` + `feed_gaps` (the HL trades/WS path, not the bar loop) and a starter Grafana dashboard — tracked for a follow-up.
 2. **P2 — Structured logs.** Swap the boundary `Logger` calls for a structured (JSON) logger with context; keep the NestJS Logger interface so call sites barely change.
 3. **P3 — Durable NAV / equity-curve history.** `mm_nav` (or shared) table + a cron writing desk NAV + per-book equity per interval; query endpoint for the track record (ties into the persistence work).
 4. **P4 — Traces + alerting.** OpenTelemetry spans (tick/feed/DB/HTTP) with OTLP export; uniform alert events + a pluggable delivery sink.
 
 ## 8. Acceptance criteria
 
-- `GET /metrics` exposes every §4 metric with correct types/labels; a Prometheus scrape + a starter Grafana dashboard show desk equity, drawdown, fills, feed staleness, and tick health.
-- `GET /health/ready` flips to non-200 when the DB is down (under `MM_PERSIST`) or the feed has been stale beyond threshold.
-- A killed feed, a risk-gate `Pause`, and a forced persistence error each produce a structured log **and** a metric/alert event.
-- Desk NAV is queryable over a multi-day run and matches the ledger's equity to the unit.
-- With `TELEMETRY_ENABLED=false`, the full suite passes and there is no measurable overhead.
+- ✅ `GET /metrics` exposes every §4 metric with correct types/labels (verified by the catalog spec + the offline DI-compile spec). *Partial:* the Prometheus scrape is live; a **starter Grafana dashboard** is a follow-up (the metrics it needs — desk equity, drawdown, fills, feed staleness, tick health — are all emitted).
+- ✅ `GET /health/ready` flips to non-200 (503) when the DB is down under `MM_PERSIST`, the tick loop is stale (> N×poll), or every running feed is stale beyond threshold (`assessReadiness`, unit-tested; a warming book with no bar yet is *not* a failure).
+- ◑ A **persistence failure** and a **tick overrun** each produce a structured log **and** a `meridian_alerts_total` metric event today. A **killed feed** surfaces as a rising `feed_last_bar_age_seconds` gauge + a failing readiness check (a dedicated stale-feed *alert event* + a risk-gate `Pause`/`Deny` alert are P2/the deeper risk-gate instrumentation, since the verdict is computed inside `MmBook`).
+- ⏳ Desk NAV queryable over a multi-day run matching the ledger to the unit — **P3** (durable NAV table). The live `meridian_desk_nav_units` gauge already equals desk equity to the unit on scrape.
+- ✅ With `TELEMETRY_ENABLED=false`, the full suite passes (143 suites / 942 tests) and the no-op path adds no behaviour change (NullTelemetry; instrumentation is default-no-op).
 
 ---
 
