@@ -4,6 +4,7 @@ import { MmScreener } from './screen/mm-screener';
 import { mmStrategyRegistry } from './registry/mm-strategy-registry';
 import { listMmPresets, getMmPreset } from './markets/mm-market-presets';
 import { MmNavRepository, MmNavRow } from './persistence/mm-nav.repository';
+import { DeskEventLog } from './events/desk-event-log';
 
 // Control plane for the automated market-making books. Mirrors the stat-arb
 // LiveController's portfolio shape so the desk drives both the same way — launch
@@ -17,10 +18,13 @@ import { MmNavRepository, MmNavRow } from './persistence/mm-nav.repository';
 //   POST /api/market-making/flatten      — flatten every book
 //   GET  /api/market-making/snapshot     — desk + per-book quotes/inventory/PnL
 //   GET  /api/market-making/nav          — durable desk/per-book equity curve (P3)
+//   GET  /api/market-making/events       — live business-event tape (fills/verdict/lifecycle)
 
 const USDC = 1_000_000n;
 const DEFAULT_NAV_HOURS = 24;
 const MAX_NAV_HOURS = 24 * 365; // a year of curve — generous cap, bounds the scan
+const DEFAULT_EVENTS_LIMIT = 200;
+const MAX_EVENTS_LIMIT = 2000;
 
 @Controller('api/market-making')
 export class MmController {
@@ -31,6 +35,9 @@ export class MmController {
     // endpoint returns an empty curve with a note. @Optional so the isolated
     // controller spec (no DB) and a bare `new MmController(...)` both resolve.
     @Optional() @Inject(MmNavRepository) private readonly navRepo: MmNavRepository | null = null,
+    // Live business-event tape. @Optional so a bare `new MmController(...)` resolves;
+    // the module always provides the shared DeskEventLog.
+    @Optional() @Inject(DeskEventLog) private readonly eventLog: DeskEventLog | null = null,
   ) {}
 
   /**
@@ -182,6 +189,30 @@ export class MmController {
     const rows = await this.navRepo.navHistory(fromAsOf, bookKey);
     return { enabled: true, book: bookKey, hours: h, points: rows.map(serializeNavRow) };
   }
+
+  /**
+   * Live business-event tape — every trade enter/exit, risk-verdict change, and
+   * book lifecycle event, newest-last (feed order). The /demo activity feed
+   * long-polls this with `?since=<lastSeq>`; `cursor` in the response is the seq
+   * to pass next time (never miss or double-count an event).
+   *   GET /api/market-making/events                 — recent events (default 200)
+   *   GET /api/market-making/events?since=128        — only events after seq 128
+   *   GET /api/market-making/events?book=BTC&limit=50
+   */
+  @Get('events')
+  events(@Query('since') since?: string, @Query('limit') limit?: string, @Query('book') book?: string) {
+    if (!this.eventLog) return { events: [], cursor: 0 };
+    const sinceSeq = Number.isFinite(Number(since)) && since !== undefined && since !== '' ? Number(since) : undefined;
+    const events = this.eventLog.recent({ sinceSeq, limit: clampEventsLimit(limit), book: book || undefined });
+    return { events, cursor: this.eventLog.lastSeq() };
+  }
+}
+
+/** Parse + clamp the events `limit` query param. */
+function clampEventsLimit(raw?: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_EVENTS_LIMIT;
+  return Math.min(Math.floor(n), MAX_EVENTS_LIMIT);
 }
 
 /** Parse + clamp the `hours` query param to a sane, bounded window. */
