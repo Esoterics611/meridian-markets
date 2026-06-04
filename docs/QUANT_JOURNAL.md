@@ -1268,3 +1268,40 @@ aware, drawdown-first) → honest verdict, all on data we could have traded.
 
 **Tests:** 137 suites / 911 tests (the trades-WS, funding full-stack, and restart-safe-books work this
 session), tsc clean. See [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) §6 + [ROADMAP.md](ROADMAP.md).
+
+## 2026-06-04 — Entry #24: HL universe MM discovery — scanning all 230 perps for new markets to make markets in
+
+**The question.** We only ever quoted the BTC/ETH/SOL `hl-perps` preset, but HL lists **230 perps** and the
+mission's growth frontier is *market discovery* (CLAUDE.md §1). Which HL perp should the desk make markets in?
+Built a DB-free, server-free scan (`scripts/hl-universe-discovery.ts` + the pure, unit-tested
+`src/market-making/screen/hl-universe-discovery.ts`): ONE `metaAndAssetCtxs` call → the whole universe + per-
+coin funding + daily $ volume; shortlist by volume; per-coin HL klines → the SAME honest `scoreMmSuitability`
+the live screener uses (spread + rebate − adverse, fillability-weighted). Artifact:
+[docs/research/hl-universe/discovery-2026-06-04T13-26-25-849Z.json](research/hl-universe/discovery-2026-06-04T13-26-25-849Z.json);
+multi-hour follow-up runbook: [docs/research/hl-universe/RUNBOOK.md](research/hl-universe/RUNBOOK.md).
+
+**Finding 1 — a fixed-spread OHLCV scan nets NEGATIVE across every HL perp, and that's the honest, expected
+result.** At a fixed 1bps half-spread on 1m bars, the *least-bad* perp (ETH, σ 11.6bps) still nets −9.2bps/RT;
+the worst (WLD, σ 51bps) −49bps/RT. **QUOTABLE 0 / 230.** Why: the proxy charges full per-bar σ as adverse
+selection (`2·0.5·σ_bar`) against a fixed tiny spread — but the live GLFT book quotes a **σ-proportional**
+spread (σ-normalized since Entry #18). So a fixed-spread scan double-penalizes vol and structurally can't
+certify MM profitability. This **corroborates** Entry #23: the maker edge is the rebate + queue position at a
+σ-proportional spread — a fill/flow question only the L2 queue-aware harness resolves, never OHLCV.
+
+**Finding 2 — the actionable output is the σ-ranked liquid shortlist (lowest inventory risk), and it surfaces
+real non-major discoveries.** Ranked by 1m σ among liquid perps (≥$5M/day): **XRP 11.6bps**, DOGE 12.1, ASTER
+12.1, BNB 13.0 — non-majors sitting at **major-grade calm** (ETH 11.6, BTC 11.7, SOL 13.4). **XRP is the
+standout**: as calm as ETH, $96M/day, and funding **−19% APR** (longs are paid ⇒ a maker forced *short* earns
+carry). These four are now the `hl-discovery` MM preset — the next L2-capture targets beyond BTC/ETH/SOL.
+
+**Honest caveats (binding).** The shortlist ranks **inventory risk only** — *not* profitability. n=1 snapshot,
+one regime; funding is reported, never scored (it only helps when its sign aligns with the involuntary
+inventory). The verdict on these perps is the **L2 capture → γ/κ tune** pipeline (Entry #23 machinery) — the
+multi-hour run in RUNBOOK.md, not this scan.
+
+**Decision.** Discovery delivered a vetted, liquidity-filtered shortlist (XRP/DOGE/ASTER/BNB) and a launchable
+paper preset; the honest next step is a multi-hour L2 capture on it + the BTC/ETH/SOL controls, then the
+queue-aware tune — turning "230 perps" into "capture these, tune, and quote the winners."
+
+**Tests:** 147 suites / 976 tests (+ the `hl-universe-discovery` pure module/spec + the `hl-discovery` preset),
+tsc clean. See [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) §6/§7 + [ROADMAP.md](ROADMAP.md).
