@@ -6,6 +6,8 @@ import { attributeFill, PnlComponent, sumComponents, AttributionSummary } from '
 import { SimpleQueueModel, QueuePosition } from './queue-model';
 import { RiskGate, RiskState } from '../risk/risk-gate';
 import { OrderBook, OrderBookLevel, midMicros } from '../microstructure/order-book';
+import { MicroPriceCalculator } from '../microstructure/micro-price';
+import { crossVenueReference } from '../microstructure/cross-venue';
 import { L2TapeStep, cumulativeBidSizeToPrice, cumulativeAskSizeToPrice, bestBidMicros, bestAskMicros } from './l2-tape';
 
 // LobReplayHarness — the queue-aware market-making backtest (course A.10). It is
@@ -84,6 +86,34 @@ export interface LobReplayConfig {
    * no funding (back-compat). The rate is static over the run, like staticCarry.
    */
   fundingRatePerHour?: number;
+  /**
+   * Quote around the book-imbalance MICRO-PRICE over this many levels per side
+   * (FAIR_VALUE_AND_THESIS_DESIGN.md F1) instead of the raw mid — the adverse-
+   * selection fix. The quoter centers its reservation on the micro-price; the
+   * P&L attribution + drawdown + funding stay scored against the PLAIN mid (the
+   * true fair value), so this honestly measures whether quoting around the
+   * micro-price REDUCES adverse selection. 0/undefined ⇒ quote off the mid (legacy).
+   */
+  microDepth?: number;
+  /**
+   * F2 cross-venue fusion: a lead venue's mid (micros) per tape step (parallel to
+   * `tape`; undefined where unavailable). With `leadBeta`, the quote center is pulled
+   * toward the lead by β·(lead − hlMid) — a MEASURED fusion, not an assumption (HL is
+   * itself a price-discovery venue; β is fit per coin and may be ≈0). Undefined ⇒ no
+   * cross-venue term (unchanged).
+   */
+  leadMicros?: (bigint | undefined)[];
+  /** F2 error-correction coefficient β (per coin). 0/undefined ⇒ ignore the lead. */
+  leadBeta?: number;
+  /**
+   * F3 confidence-scaled spread: when true, the half-spread is scaled by current flow
+   * toxicity vs its rolling average — TIGHTEN on calm/benign flow (the rebate-farming
+   * regime), WIDEN on toxic one-sided flow (where adverse selection lives). Off ⇒
+   * spread unchanged. The scale is clamped to [f3MinScale, f3MaxScale].
+   */
+  f3Toxicity?: boolean;
+  f3MinScale?: number; // default 0.5 — how tight we dare quote when calm
+  f3MaxScale?: number; // default 3.0 — how wide we back off when toxic
 }
 
 export interface LobReplayMetrics {
@@ -116,6 +146,12 @@ export class LobReplayHarness {
   run(cfg: LobReplayConfig): LobReplayMetrics {
     const symbol = cfg.symbol ?? cfg.quoter.familyId;
     const vol = new RollingVolatility(cfg.volWindowBars);
+    // F1: optionally quote around the book-imbalance micro-price instead of the mid.
+    const microPrice = cfg.microDepth && cfg.microDepth > 0 ? new MicroPriceCalculator({ depth: cfg.microDepth }) : undefined;
+    // F3: rolling flow-toxicity for the confidence-scaled spread.
+    const tox: number[] = [];
+    const f3MinScale = cfg.f3MinScale ?? 0.5;
+    const f3MaxScale = cfg.f3MaxScale ?? 3.0;
     const book = new InventoryBook();
     const components: PnlComponent[] = [];
 
@@ -221,9 +257,31 @@ export class LobReplayHarness {
 
       // --- 2) re-quote off this book ---
       const inventoryBefore = book.inventoryUnits();
+      // The quote center: the micro-price when enabled (so we quote where price is
+      // GOING), else the mid; then F2 pulls it toward the lead venue by β·(lead−mid).
+      // Attribution below still uses the plain `mid`.
+      const microMicros = microPrice ? microPrice.compute(ob) : undefined;
+      let referenceMicros: bigint | undefined = microMicros !== undefined ? BigInt(Math.round(microMicros)) : undefined;
+      const lead = cfg.leadMicros?.[i];
+      if (lead !== undefined && cfg.leadBeta) {
+        referenceMicros = crossVenueReference(referenceMicros ?? mid, mid, lead, cfg.leadBeta);
+      }
+      // F3: spread scale from current flow toxicity vs its rolling average.
+      let spreadScale: number | undefined;
+      if (cfg.f3Toxicity) {
+        const flow = Number(step.aggressiveBuyUnits + step.aggressiveSellUnits);
+        const tau = flow > 0 ? Math.abs(Number(step.aggressiveBuyUnits - step.aggressiveSellUnits)) / flow : 0;
+        tox.push(tau);
+        if (tox.length > cfg.volWindowBars) tox.shift();
+        const avg = tox.reduce((a, b) => a + b, 0) / tox.length;
+        const raw = avg > 1e-9 ? tau / avg : 1;
+        spreadScale = Math.min(f3MaxScale, Math.max(f3MinScale, raw));
+      }
       const ctx: QuoteContext = {
         inventoryUnits: inventoryBefore,
         midMicros: mid,
+        referenceMicros,
+        spreadScale,
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
         arrivalDecay: cfg.kappa,

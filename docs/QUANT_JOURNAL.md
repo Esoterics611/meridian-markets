@@ -1335,3 +1335,147 @@ Entry #23 gave the first net-positive honest-fill MM read, but on **one coin, on
 **Honesty caveats (binding).** Funding-only; a 14-day window is **one regime**, not a forward track — re-run across regimes to build a distribution (the funding analogue of the γ/κ-distribution plan). `annNet%` over a short window is dominated by the one-time fee in the annualisation, so `breakeven` + `harvestableFundingPct` are the cleaner persistence signals (a +8% coin with a 6d breakeven is a real carry held past a week, even where `annNet%` reads slightly negative on a 14d window). The board is a **watchlist**, not a fill forecast: the deployable form (long Binance spot / short HL perp) and its real slippage/basis are the **live** verdict. **Corroborates** RESEARCH_FINDINGS' "funding carry real but modest (~3–8%/yr) on majors" — and shows the *fat* carry lives in the **non-major** perps.
 
 **Tests:** 153 suites / 1019 tests (+ the `funding-carry-discovery` module/spec), tsc clean. See [FUNDING_CARRY_DISCOVERY.md](FUNDING_CARRY_DISCOVERY.md) + [ROADMAP.md](ROADMAP.md).
+
+## 2026-06-05 — Entry #27: the 6h L2 harvest — MM has ~no clean spread edge; **inventory carry is the whole game** (→ a new directional strategy)
+
+The 20-perp / 6h / 10s real-WS L2 capture (Entry #25) finished (1168 polls, ~5.8h, finished 2026-06-04 00:14, 45% real WS aggressor flow). Two reads off the same tapes: the **single default-config replay** (the unbiased read) and the **γ/κ/floor sweep** (100 combos/coin — the in-sample optimum). Artifacts: `docs/research/l2-tapes/replay-20260604-default-config.txt`, `tune-20260604-0052.txt`, board in [TUNED_PARAMS.md](research/TUNED_PARAMS.md).
+
+**Read 1 — default config (unbiased): the desk LOSES.** Desk structural **−$7,355.97 / $20M (−3.7bps)**, rebate-net −$7,312, maxDD 0.72% (PASS) but net>0 **FAIL**. The loss is concentrated in a few high-σ, low-fill coins that **trended against forced inventory**: NEAR −$4,637 (4 fills), LIT −$3,371 (15), ZEC −$3,267 (17), HYPE −$2,586 (6), TON −$2,268 (49), XPL −$1,837 (18).
+
+**The decomposition is the headline.** `structural = spread_captured − adverse_selection + inventory_carry` ([pnl-attribution.ts](../src/market-making/backtest/pnl-attribution.ts); adverse is +=loss). Computing `spread − adverse` per coin at the default spread:
+- **spread − adverse ≤ 0 on 14 of 20 coins.** Adverse selection eats the **entire** half-spread. At naive params the maker has **no clean spread edge** — informed/aggressive flow fills us right before the move.
+- the *whole* per-coin P&L is then **inventory carry** — the mark-to-market on the position the flow forced us to hold — swinging from **−$4,755 (NEAR) to +$3,815 (WLD, on 1 fill)**. That is **~5× the spread term** and is **directional luck** over a single window, not a maker edge. The −$7.4k desk loss is "we happened to be carrying the wrong inventory on the coins that moved."
+
+**Read 2 — the γ/κ sweep: every coin "wins," and that's the trap.** Picking the best of 100 combos/coin flips all 20 positive (desk ≈ +$90k in-sample). But it is a textbook **overfit / multiple-testing** artifact: the eye-watering nets correlate with the **highest drawdowns and/or tiniest fill counts** — ZEC +$22,411 (maxDD 1.58%, 17 fills), WLD +$22,334 (1.80%, **1 fill**), ENA +$14,758 (1.69%), VVV +$11,120 (0.65%, 71). The optimizer simply found the (γ,κ,floor) that **best rode this window's drift** — i.e. it maximised inventory-carry luck. Tell: **every** winner chose **κ=0.5 (lowest)** + near-lowest γ ⇒ the widest spreads + strongest inventory skew. Read that as the data shouting *the default spread is too tight*. The sweep board is an **upper bound**, not a forecast.
+
+**The defensible signal (TIER A): MM edge is real but THIN, and lives in the liquid, low-σ coins.** Filtering for positive net **AND** low maxDD **AND** enough fills to be statistically real **AND** ideally spread−adverse>0: **BNB** (184 fills, maxDD 0.075%, spread−adverse **positive (+$9)** even at default — the model citizen), **DOGE** (303 fills, DD 0.027%), **ETH** (192, 0.098%), **SOL** (130, 0.092%), **XRP** (117, 0.121%), **ADA** (105, 0.105%), **SUI** (96, 0.090%). These are where fills recycle fast, adverse selection is controllable, and a *modestly wider* spread can push spread−adverse positive. The thin/volatile coins (NEAR/ZEC/LIT/HYPE/WLD/XPL/VVV) are **TIER C** — you either lose (tight spread) or win by luck (overfit). **Asset-class predictor: rank by σ (lower better) × fill-frequency/liquidity (higher better); the steady-income quadrant is low-σ + deep-book majors/large-caps.** Trim toward that quadrant across regimes → a short, durable list.
+
+**Answers to the operator's questions (recorded for the file):**
+- *What are the losses?* **Adverse selection** (fills right before the adverse move) **+ inventory carry** (held position marks against us when the coin trends). Mechanically: aggressive sellers hit our bid → we're long → price drops → carry bleeds. *(Initial fix hypothesis was "σ-proportional WIDER spreads + tighter inventory." **CORRECTED in Entry #28**: a clamped+widened test showed widening **alone does NOT** flip spread−adverse positive — adverse is a **fair-value** problem (stale-mid selection effect), not a width problem. Real fixes: **microprice/fast-requote** machinery + **intentional carry** + **cut the toxic coins**. Tighter inventory does still kill the carry variance.)*
+- *What does an MM watch to make money?* σ (sets spread), the **microprice/fair value** (quote off it, update fast — stale quotes are the #1 adverse-selection source), order-flow imbalance + queue position (fill prob + adverse direction), **inventory** (skew + size), toxicity/VPIN (when to widen/pause), funding (carry on inventory), fees/rebate (the structural floor). Perps have no option greeks; the analogues are σ (vega-like), microprice tracking (delta), inventory skew (the position greek), short-gamma awareness (lose on big moves).
+
+**THE KEY INSIGHT (Ronnie, 2026-06-05) — turn the dominant term into alpha.** If inventory carry is ~5× the spread term and is the thing that actually moves the needle, then on coins the desk has a **directional house view** on, **take the carry on purpose**: bias the maker to rest at a non-zero **target inventory** `q* = bias·Q_max` (skew the AS/GLFT reservation toward `q*` instead of 0). You then earn **spread + rebate + chosen directional carry (+ funding when aligned)** — and because you *accumulate at better-than-mid prices*, a wrong view is cushioned by the maker edge (a convex, maker-financed directional option). This is the real-dealer **"axe"**. Full requirement + math + the bias-signal seam (daily momentum / weekly funding-regime / long-term fundamental, blended) + 5 other ways to monetise a committed bias: **[DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)**. It synthesises directly with Entry #26 (funding-carry tells us which side is *paid* to hold). The `PnlAttributor` already measures the inventory-carry line, so the strategy's alpha is observable from day one.
+
+**Next (the operator's 8h re-run + the path).** Capture **8h on the TIER-A 10** (DOGE,BNB,ETH,SOL,XRP,ADA,SUI,ENA,PUMP,ONDO) at wider spreads + tighter inventory, re-tune with a **wider, inventory-clamped grid**, and compare — the test of whether a wider-spread/tight-inventory maker is **steadily** (not luckily) positive. Then build the directional-MM quoter + sweep (P1–P2 of the strategy doc). The honest goal stands: a short list of low-σ liquid coins where spread−adverse>0 at a defensible spread + low drawdown — *then* scale venues. **Verdict: neutral taker-tight MM is not a business; wider-spread maker on liquid coins is marginal-but-real; the edge that scales is intentional, validated directional carry layered on the maker.** No deployment on one window — the 8h re-run + multi-regime distribution is the gate.
+
+## 2026-06-05 — Entry #28 (BRIEF): can the spread alone make money? No — and which coins to cut
+
+**Question (Ronnie):** can we tweak the spread to make money, "pricing in" adverse selection? Is DEX/HL MM a losing business *purely on spread*? **Critically tested it** — re-ran the 6h tapes with **inventory CLAMPED to 2 lots** (so net ≈ spread − adverse + rebate, carry minimised) across a **wide spread ladder** (floor 2→20bps). Artifact: `docs/research/l2-tapes/tune-20260604-clamped-wide.txt`.
+
+**Result — spread − adverse is NEGATIVE at every width, on every liquid coin:**
+
+| coin | spread | adverse | spread−adv | | coin | spread | adverse | spread−adv |
+|---|---|---|---|---|---|---|---|---|
+| BNB | +40 | +53 | **−13** | | ADA | +15 | +32 | **−17** |
+| DOGE | +13 | +46 | **−34** | | SUI | +85 | +595 | **−510** |
+| SOL | +323 | +1274 | **−951** | | ETH | +33 | +123 | **−90** |
+| XRP | +33 | +67 | **−34** | | BTC | +101 | +112 | **−12** |
+
+(NEAR shows spread−adv +24 — but on **1 fill**; noise, and NEAR is otherwise the most toxic coin.) **Every positive NET in the whole study is inventory carry, never spread.**
+
+**Why widening the spread does NOT fix it (the key quant point).** Adverse selection is a **fair-value problem, not a width problem**. You get picked off because your quote is centred on a *stale mid* and is on the wrong side of where price is *going*. Widening the spread changes *which* fills you get — you trade benign flow for the toxic crossings that only happen on a real move (the **selection effect**) — so adverse rises with the spread and `spread − adverse` barely moves. Proof in the data: **BNB at floor 1bps had adverse +$1.39 (benign flow); widened to floor 2bps adverse jumped to +$53** — wider made it *worse*. So "don't chase fills, quote wider" does **not**, by itself, make money on this tape.
+
+**So is HL/DEX MM a losing business?** On the **naive** maker this sim models — quote a symmetric spread off the **mid**, hold to a markout, 10s re-quote — **yes, you lose to adverse selection at any spread.** Real professional MMs are **not** doing that; they win three ways the current sim doesn't model: (1) quote off the **microprice** (size-weighted fair value that *predicts* the next tick) not the mid; (2) **cancel/replace in milliseconds** so a stale quote never gets picked off (our full-markout adverse is an *upper bound* — it assumes you never re-quote); (3) **rebate at scale** — thousands of tiny fills, adverse engineered to ≈0, living on the −0.2bps. The sim is honestly telling us: **without the microprice + speed machinery, passive spread MM has no edge.** That machinery is a *code* investment, not a parameter — it's the real unlock.
+
+**Two real paths to edge (both honest):** **(A)** reduce adverse at the source — build a **microprice fair-value quoter + markout-aware re-quoting + flow-imbalance skew** (the next code milestone; it should flip `spread − adverse` positive on the liquid coins, which is the whole game). **(B)** stop fighting carry and make it **intentional** — the directional/axed maker ([DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)), since carry is the only reliably large term. Likely **both**: microprice for the steady spread floor, directional carry for the alpha.
+
+**Cut the junk now (conservative, defensible after 1 run).** You can't crown a *winner* from one window, but you can rule out coins that are **structurally untradeable** by *disqualifying* characteristics (illiquidity + drawdown, not edge):
+
+> **Exclusion rule:** drop a coin if (fills < ~30 / 6h) **OR** (default-config maxDD > 0.40%) **OR** (default net < −$1,500). All three are liquidity/risk disqualifiers, regime-robust.
+
+| CUT (toxic / junk) | fills/6h | maxDD | default net | why |
+|---|---|---|---|---|
+| **NEAR** | 4 | 0.65% | −$4,637 | thinnest, worst loss |
+| **HYPE** | 6 | 0.72% | −$2,586 | highest DD, 6 fills |
+| **WLD** | 1 | 0.46% | +$3,995* | 1 fill = pure noise (*carry) |
+| **LIT** | 15 | 0.69% | −$3,371 | thin + high DD |
+| **ZEC** | 17 | 0.53% | −$3,267 | high-σ $515 coin; spread−adv −352 even at 20bps |
+| **XPL** | 18 | 0.30% | −$1,837 | optimizer chose "stand aside" |
+| **TON** | 49 | 0.33% | −$2,268 | negative, mediocre |
+| **VVV** | 71 | 0.14% | +$2,126* | all carry (spread−adv −230); *carry-trap |
+
+**KEEP (clean substrate — liquid, low-σ, fills recycle, low DD):** DOGE (303 fills, DD 0.027%), BNB (184, 0.075% — the only default spread−adv≈+), ETH (192, 0.098%), SOL (130, 0.092%), XRP (117, 0.122%), ADA (105, 0.105%), SUI (96, 0.090%). Carry-watch but liquid: ENA (130, 0.080%), ONDO (65), PUMP (48). Benchmark: BTC (21 fills — control only). These are the coins to carry the **microprice** + **directional** work on, and the 8h re-run.
+
+**Verdict:** naive passive spread MM is **not** a business on HL at this fidelity — adverse selection wins at every width. The edge is **fair-value prediction (microprice + speed)** and/or **intentional carry**; the cheap immediate win is **coin selection** (cut the 8 above) + **inventory discipline**. The 8h re-run + the microprice quoter are the next two moves.
+
+## 2026-06-05 — Design note: the next focus is the FAIR-VALUE ENGINE (price, don't widen)
+
+Following #28 (spread can't beat adverse at any width — it's a fair-value problem), the next sessions' headline is the **theo engine**: quote around a real-time fused fair value `μ` + its uncertainty `Σ`, not the stale mid. Full design (grounded in Stoikov micro-price, HFT theo engines, dealer "axe", the CIO/house-view process, Grinold-Kahn alpha blending, Kalman fusion): **[FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md)**. Layers, cheapest-highest-IC first: **A micro-price** (book imbalance) → **B Binance→HL lead-lag** (our structural edge — a faster/deeper lead venue we already pull; *do this first*) → **C flow drift + confidence-scaled spread/size** (Kalman) → **D technical predictor** (OOS-gated) → **E directional thesis drift**. The view enters via a **Thesis Register** (the house view made durable + machine-usable + P&L-graded — research→quotes→accountability), feeding the directional-MM target inventory + spread asymmetry. Each signal earns its weight by OOS IC before it moves a live quote. **F1 = microprice quoter, F2 = Binance lead-lag** — both replayable on the 20 saved tapes, both the direct test of whether `spread − adverse` flips positive. This is the real unlock; the γ/κ tuning was rearranging deck chairs on the wrong price.
+
+## 2026-06-05 — Entry #29 (F1 built): micro-price quoting cuts adverse selection ~21% — real, partial, the right direction
+
+Built **F1** of the fair-value engine ([FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md)): an optional `referenceMicros` (the quote center / "theo") on `QuoteContext` that GLFT/AS straddle *instead of the raw mid*, fed by the book-imbalance micro-price (`MicroPriceCalculator`) the `LobReplayHarness` computes per step (`microDepth` config). **Attribution stays scored vs the plain mid**, so it honestly measures whether quoting around the micro-price reduces adverse selection. `referenceMicros=undefined` reproduces the mid-quoter bit-for-bit (swap-seam default; 153 suites/1021 tests green). Compare tool: `scripts/mm-microprice-compare.ts`.
+
+**Result — 6h keep-coin tapes, fixed γ=0.0025 κ=0.5 maxLots=2, mid vs micro (depth 5):**
+
+| floor | desk spread−adverse MID | MICRO | Δ |
+|---|---|---|---|
+| 5bps | −$1,020 | **−$801** | **+$219 (+21%)** ✅ |
+| 8bps | −$654 | −$557 | +$97 ✅ |
+| 1–2bps | −$474 / −602 | −607 / −616 | −133 / −14 (no help at tight floors) |
+
+**Read (honest):** the micro-price **reduces the adverse-selection bleed where adverse is worst** (wider floors, where you fill on real moves) — +21% at 5bps, 7/11 coins improved. It does **not** help at the tightest floors (1–2bps), where you're rebate-farming benign touch flow and the micro-shift just moves you off those benign fills (the tight-floor MID is the least-negative naive config, −$474 — the BNB rebate-farming regime). And it does **not** flip the spread edge positive on its own — spread−adverse stays negative desk-wide at every floor. So F1 is a **real, measurable, partial** fix — exactly as the layered design predicted: micro-price is Layer A; the bigger lever is **F2 (Binance→HL lead-lag)** — a faster/deeper fair value we uniquely already pull — plus **confidence-scaled spread/size** (F3). Two honesty caveats: it's one window (the 8h run gives a second), and the micro-shift drops some coins to 0 fills at wide floors (XRP/SUI) — a fast-requote/confidence refinement for F3. **Verdict: the theo direction is confirmed by data — keep building the stack; F2 next.**
+
+## 2026-06-05 — NEXT-SESSION HAND-OFF (do not lose): finish F2 + F3, then a NEW 8h proof run
+
+If this session runs out: the plan is locked. **Complete the fair-value stack and prove it measurably beats the baseline.**
+1. **F2 — CROSS-VENUE fair-value fusion** (the biggest loss-minimiser; in progress). **IMPORTANT (Ronnie): HL is ITSELF a lead/price-discovery venue, not just a Binance follower** — so do NOT assume Binance leads. **MEASURE who leads, per coin** (Binance may lead majors via its deeper book; HL may lead its native/dominant coins; some are contemporaneous), then fuse `μ = micro + β·(P_binance − P_hl_mid)` with **β fit per coin from the data — and β≈0 is a valid, expected outcome** (HL self-sufficient ⇒ the cross-venue term adds noise, skip it). Backtestable on the EXISTING 6h tapes — Binance **1s klines are available** for the window (15:14–21:14Z 2026-06-04) via `BinancePublicClient.historicalKlines(sym,'1s',start,end)`; align to HL steps by ts, compute the **two-sided** lead-lag cross-correlation (each venue's returns vs the other at ± lags → who leads, by how much, β, stability), then replay mid / micro / micro+fused and report adverse reduction **per coin** (adopt the cross-venue term only where it measurably helps). Wire `leadMicros[]`+`leadBeta` into `LobReplayHarness` (default off ⇒ unchanged) + **augment the capture to record the Binance mid per step** so future tapes + the live path carry both venues.
+2. **F3 — confidence-scaled spread/size** (Kalman v1): spread + size = f(fair-value uncertainty Σ, σ, VPIN) — quote tight+big only when certain. This is the lever expected to finally flip `spread − adverse` POSITIVE on the liquid coins.
+3. **THEN re-run a NEW 8h capture** on the keep coins WITH the full stack (micro + lead + confidence) and **compare to the 6h/8h baselines** — the honest, measurable proof that the theo engine improves the model (the quant's job: show the number moved). Record as Journal #30.
+
+Commits: F2a (math+wiring), F2b (measurement+backtest), F2c (capture records Binance), F3 (confidence-scaled) — **separate commits, ONE PR** (with F1). Honesty rails hold: each layer earns its weight by reducing adverse on the tapes before live; `referenceMicros=undefined`/no-lead reproduces today's quoter bit-for-bit. See [FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md) + Entry #29 (F1: micro-price −21% adverse, real+partial).
+
+## 2026-06-05 — Entry #30 (F2 verdict): HL self-discovers — cross-venue fusion is a NO-OP at our cadence (Ronnie was right)
+
+Built **F2** (cross-venue fair-value fusion) the honest way — *measure* who leads, don't assume — and the data delivered a clean negative result. Per coin, fetched Binance 1s klines over the 6h tape window, aligned the most recent fully-closed Binance price to each HL step (no lookahead), measured the two-sided lead-lag cross-correlation + the error-correction β, then replayed mid / micro / micro+fused (`scripts/mm-leadlag.ts`, harness `leadMicros[]`+`leadBeta`).
+
+| coin | leads | lag | peak corr | β | s−adv micro→fused | net micro→fused |
+|---|---|---|---|---|---|---|
+| BTC | **sync** | 0 | 0.982 | +0.004 | −340 → −334 | −1092 → −1161 |
+| ETH | sync | 0 | 0.982 | +0.005 | −72 → −72 | flat |
+| SOL | sync | 0 | 0.970 | −0.011 | −267 → −323 | worse |
+| BNB | sync | 0 | 0.974 | −0.017 | −4.2 → −4.8 | flat |
+| DOGE/XRP/ADA/SUI | sync | 0 | 0.92–0.97 | ≈0 (−0.00…−0.055) | ≈flat / mixed | mixed |
+
+**Verdict: HL is a price-discovery venue in its own right (Ronnie, 2026-06-05) — confirmed by data.** At the 18s decision cadence the book operates at, HL and Binance are **contemporaneous** (corr ~0.97) and HL shows **no error-correction toward Binance** (β≈0). The cross-venue term adds **nothing** (desk s−adv micro −683 → fused −800, slightly WORSE — the tiny βs are noise-fitting the perp-vs-spot basis). **Decision: skip the cross-venue fusion at our frequency; HL's own micro-price (F1) IS the fair value.** The machinery is built + tested (`cross-venue.ts`, 7 specs) and stays available behind the seam (β=0 default ⇒ off), but we do **not** adopt it and we do **not** augment the capture to record Binance (F2c cancelled — building plumbing for a confirmed no-op is the opposite of the doctrine).
+
+**Honest caveat (the one nuance):** the lead-lag was measured at **18s granularity** (the tape's poll cadence). A genuine CEX↔DEX lead almost certainly exists at the **millisecond–second** scale — but it's (a) invisible at 18s and (b) **un-exploitable by a 10–18s-polling book anyway** (capturing it is a latency game, a different project). So for *this* desk, at *this* speed, the finding stands: **don't chase Binance; HL self-prices.** The lever that remains is **F3 — confidence-scaled spread/size** (quote tight+big only when the HL micro-price uncertainty Σ is small), which is where the spread−adverse flip should come from. F2 spent its budget proving a no-op so we don't carry dead weight — exactly what the gates are for.
+
+## 2026-06-05 — Entry #31 (F3 + the unifying finding): cadence is the binding constraint → go millisecond
+
+Built **F3** (confidence-scaled spread): the half-spread scales with current flow toxicity vs its rolling average — TIGHTEN on calm/benign flow (the BNB rebate-farming regime), WIDEN on toxic one-sided flow. New `spreadScale` on `QuoteContext` (GLFT+AS apply it after the rails, 1-micro hard min; undefined⇒unchanged), driven by the harness from `|aggBuy−aggSell|/(aggBuy+aggSell)` (`f3Toxicity` config). Unit-tested; 154 suites/1029 tests green.
+
+**Result — micro vs micro+F3, 6h keep tapes:** desk spread−adverse **−$801 → −$1,252 (WORSE)**; net rose (+2213→+2685) but that's carry noise, not edge. F3 helped 6/11 coins on s−adv (BNB/DOGE/ENA/ONDO/PUMP/XRP) and hurt 5 (ETH/SOL/ADA/SUI/BTC). **Verdict: F3 v1 does NOT improve the spread edge at 18s** — the single-step toxicity signal is too noisy to time at this cadence. Kept behind the seam (off by default) for finer-cadence use.
+
+**THE UNIFYING FINDING (and why Ronnie's millisecond instinct is right).** Across the whole fair-value stack on the 6h tapes:
+- **F1 micro-price: confirmed −21% adverse** (real, the only clear win).
+- **F2 cross-venue: no-op** — at 18s, HL/Binance are synced (corr 0.97, β≈0); HL self-discovers.
+- **F3 confidence-scaled: inconclusive/slightly negative** — toxicity too noisy to time at 18s.
+The pattern is not three failures — it's **one root cause: our 18s poll cadence is far too coarse for the levers that actually beat adverse selection.** Adverse selection is a *sub-second* phenomenon (you get picked off in milliseconds), so: (a) the CEX↔DEX lead-lag lives below ~1s and is invisible/inactionable at 18s (F2); (b) flow toxicity must be timed tick-by-tick, not over 18s buckets (F3); (c) the markout adverse in the sim is an 18s window — a real book re-quoting every few ms holds far less stale-quote risk, so **the true adverse is much smaller than our 18s sim shows.** This is precisely why real MMs run microsecond loops.
+
+**→ NEXT MILESTONE (Ronnie, 2026-06-05): MILLISECOND cadence.** Move from 10–18s REST polling to **event-driven WS capture** — HL `l2Book` + trades WS, Binance depth + trade WS — reconstruct the book on every update, timestamp to the ms, and replay/quote on **every tick**. Then re-run the whole stack: F1/F2/F3 should come alive (the lead-lag becomes visible AND exploitable; toxicity becomes timeable; markout adverse collapses toward the true, much-smaller number). Prove it measurably on a ms tape (a few minutes is thousands of ticks), log + journal, then **scale on hardware/colocation when we move to big venues** — the latency game is exactly what justifies the infra spend. Plan + the honest mechanism in [FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md). The 18s tapes did their job: they proved the fair-value *direction* (F1) and that *cadence* — not parameters — is now the wall.
+
+## 2026-06-05 — Entry #32 (THE PROOF): sub-second cadence FLIPS the spread edge positive — carry is now the only loss
+
+Harvested the **8h sub-second** run (`hl-fine-20260605`, 5 coins BTC/ETH/SOL/BNB/DOGE, **46,788 steps/coin** at ~0.6s, F1 micro depth 5 + F3 + γ0.0025/κ0.5/floor5/maxLots2). Tools: `mm-microprice-compare`, `mm-leadlag`.
+
+**THE HEADLINE — cadence flipped the spread edge from losing to winning:**
+
+| metric (desk `spread − adverse`) | 18s run | **sub-second run** |
+|---|---|---|
+| MID quoter | **−$1,020** | **+$133** ✅ |
+| MICRO quoter | −$801 | **+$174** ✅ |
+
+A **7× swing** from deeply negative to positive. **Cadence is the dominant lever** — at ~0.6s you re-quote fast enough that stale-quote pick-offs collapse, so adverse selection no longer eats the spread. The micro-price (F1) adds a **consistent further +$42** (+133→+174), exactly as at 18s. Per coin, `spread − adverse` is now **positive on all 5** (BTC +25, ETH +130, SOL +107, BNB +28, DOGE +24); on ETH/DOGE the adverse term went **negative (a gain)** — fills land on the favourable side. **ETH (+$165) and DOGE (+$190/$278) are net-positive at low DD.** Ronnie's millisecond instinct is vindicated with a hard number.
+
+**What's still losing: inventory carry, not the spread.** Desk net is still **−$6.7k to −$7.5k** — but now *entirely* from carry on the coins that **trended** over the 8h (SOL −$1.8k, BNB −$2.3k, BTC −$1.2k; the 2-lot clamp bounds it but a one-sided 8h drift still bleeds a held book). The **spread business is now profitable; the directional exposure is the leak** → exactly the case the **directional/axed MM** converts from leak to chosen alpha (building it next).
+
+**F2 re-checked at sub-second: still a no-op.** Lead-lag is **sync (lag 0), β≈0** on all coins; HL self-prices even here. (Peak corr fell 0.97→~0.6 because Binance 1s klines can't resolve sub-second HL moves — a *true* sub-second cross-venue test needs Binance **WS depth**, §6b. The conclusion stands at our data resolution: don't bolt on Binance.)
+
+**Honesty caveats (binding):** (1) **88% of steps used the candle-volume flow ESTIMATE** — at ~0.6s the WS prints are sparse per interval, so most steps fall back to the tick-rule estimate; the *qualitative* flip (−1020→+133, a 7× swing) is robust, but the *exact* +$133 isn't gospel — a clean read needs dense **WS-event flow** (§6b, the true-ms milestone). Depth is always real L2. (2) queue-aware fills 3,350 vs touch 141,991 (42× overstatement) — at fine cadence you "touch" constantly but rarely reach the queue front; queueFills is the honest lower bound. (3) one 8h window, one regime. **Verdict: the fair-value direction (F1) + the cadence (Ronnie) together make the SPREAD edge real and positive. The remaining loss is carry — the next build (directional MM) is precisely aimed at it.**
+
+## 2026-06-05 — Entry #33 (build): the directional/axed MM quoter — mechanism works; it's a BET that needs a validated view
+
+Built `DirectionalGlftQuoter` (`mm-directional-glft` in the registry) per [DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md): GLFT that rests at a **target inventory q*=bias·maxLots** instead of 0, so where the desk holds a house view it accumulates the position via the maker (earning spread+rebate while building it — the dealer "axe"). Optional conviction drift nudges the center toward the view. **bias=0 reproduces neutral GLFT bit-for-bit**; F1 `referenceMicros` + F3 `spreadScale` honoured. 8 unit specs (skew toward target, rest-at-target, accumulate long/short, conviction drift, registry). 155 suites / 1037 tests.
+
+**Honest demo on the 8h fine tapes (which drifted +0.3–0.6%, choppy):** an arbitrary **long bias LOST** — desk net −$7.2k (bias 0) → −$12.9k (0.5) → −$15.1k (1.0). The mechanism is verified (net moves monotonically with bias — it really accumulates the position), but **blind bias on a weak/choppy window doubles the loss**: aggressive one-sided accumulation fills on the toxic side (s−adv fell +174→+103) and the held long bleeds through the chop, and the small net drift (+0.4%) is nowhere near enough to pay for it. **This is the result the design predicted, not a failure:** the directional MM is a *bet*, and an **unvalidated bias is leverage on noise**. The quoter is the engine; the **bias SIGNAL** (`IBiasSource` — daily momentum / weekly funding-regime / long-term house view, each OOS-gated for forward-return IC before it sizes carry) is the piece that decides *whether/when/how much* to lean, and it's the next build. **Takeaway:** carry is real and large (Entry #32), and we now have the tool to *choose* its sign — but only a validated view earns the right to use it. No bias goes live on conviction alone.

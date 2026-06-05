@@ -32,6 +32,11 @@ export interface GlftQuoterParams {
   steadyHorizonBars: number;
 }
 
+/** Floor a half-spread at 1 micro so a confidence-tightened quote never collapses to 0. */
+function bigMax1(x: bigint): bigint {
+  return x > 1n ? x : 1n;
+}
+
 export class GlftQuoter implements IQuoter {
   readonly familyId = 'glft';
   private tickSeq = 0;
@@ -46,16 +51,24 @@ export class GlftQuoter implements IQuoter {
 
   quote(ctx: QuoteContext, symbol: string): QuotePair {
     const s = Number(ctx.midMicros);
+    // Quote center = the supplied fair value (micro-price) when present, else the
+    // raw mid. Only the reservation center moves; spread width + rails stay scaled
+    // off the mid (so the spread is unchanged — we quote a better PRICE, not wider).
+    const center = Number(ctx.referenceMicros ?? ctx.midMicros);
     const sigmaRel = Math.max(ctx.volatility, 0);
     const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
     const T = this.p.steadyHorizonBars; // steady-state: NOT ctx.horizonBars
 
     // Same price-scale-invariant skew/spread as AS, with the steady-state horizon.
-    const reservation = asReservationMicros(s, qLots, this.p.gamma, sigmaRel, T);
+    const reservation = asReservationMicros(center, qLots, this.p.gamma, sigmaRel, T);
     const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
-    const halfSpreadMicros = railHalfSpread(halfRaw, minMicros, maxMicros);
+    const railed = railHalfSpread(halfRaw, minMicros, maxMicros);
+    // F3: confidence-scaled spread (tighten when calm, widen when toxic). Applied AFTER
+    // the rails so a confident book can quote inside the floor; hard min 1 micro.
+    const scale = ctx.spreadScale && ctx.spreadScale > 0 ? ctx.spreadScale : 1;
+    const halfSpreadMicros = scale === 1 ? railed : bigMax1(BigInt(Math.round(Number(railed) * scale)));
 
     return buildQuotePair({
       symbol,

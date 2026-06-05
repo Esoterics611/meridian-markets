@@ -30,6 +30,23 @@ export interface QuoteContext {
   readonly inventoryUnits: bigint;
   /** Reference mid in micros. */
   readonly midMicros: bigint;
+  /**
+   * Optional fair-value / quote center (the "theo") the quotes should straddle —
+   * e.g. the book-imbalance micro-price (FAIR_VALUE_AND_THESIS_DESIGN.md F1). When
+   * set, a quoter centers its reservation on THIS instead of the raw mid (the
+   * adverse-selection fix: quote where price is going, not where it is). Undefined
+   * ⇒ use midMicros (the legacy behaviour; nothing regresses). Spread width + rails
+   * stay scaled off midMicros so the spread is unchanged — only the center moves.
+   */
+  readonly referenceMicros?: bigint;
+  /**
+   * Optional confidence-scaled spread multiplier (FAIR_VALUE_AND_THESIS_DESIGN.md
+   * F3): the quoter multiplies its half-spread by this. < 1 ⇒ TIGHTEN (we're
+   * confident — calm/benign flow, the rebate-farming regime); > 1 ⇒ WIDEN (uncertain
+   * / toxic flow, where adverse selection lives). The driver (flow toxicity, fair-
+   * value uncertainty Σ) is computed by the runtime. Undefined/1 ⇒ unchanged.
+   */
+  readonly spreadScale?: number;
   /** Per-bar realised volatility as a fraction of price (e.g. 0.0004 = 4 bps/bar). */
   readonly volatility: number;
   /** γ — risk aversion. Larger = more inventory-averse = wider, more-skewed quotes. */

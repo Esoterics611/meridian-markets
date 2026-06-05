@@ -82,15 +82,21 @@ export class AvellanedaStoikovQuoter implements IQuoter {
 
   quote(ctx: QuoteContext, symbol: string): QuotePair {
     const s = Number(ctx.midMicros);
+    // Quote center = fair value (micro-price) when supplied, else the raw mid.
+    const center = Number(ctx.referenceMicros ?? ctx.midMicros);
     const sigmaRel = Math.max(ctx.volatility, 0);
     const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
     const T = Math.max(ctx.horizonBars, 0);
 
-    const reservation = asReservationMicros(s, qLots, this.p.gamma, sigmaRel, T);
+    const reservation = asReservationMicros(center, qLots, this.p.gamma, sigmaRel, T);
     const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
-    const halfSpreadMicros = railHalfSpread(halfRaw, minMicros, maxMicros);
+    const railed = railHalfSpread(halfRaw, minMicros, maxMicros);
+    // F3: confidence-scaled spread (tighten when calm, widen when toxic), after the rails.
+    const scale = ctx.spreadScale && ctx.spreadScale > 0 ? ctx.spreadScale : 1;
+    const scaled = scale === 1 ? railed : BigInt(Math.round(Number(railed) * scale));
+    const halfSpreadMicros = scaled > 1n ? scaled : 1n;
 
     return buildQuotePair({
       symbol,

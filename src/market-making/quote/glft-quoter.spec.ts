@@ -39,6 +39,38 @@ describe('GlftQuoter', () => {
     expect(a.reservationMicros).toBe(b.reservationMicros);
   });
 
+  it('centers the reservation on referenceMicros (the micro-price / theo) when supplied', () => {
+    const q = quoter();
+    // Flat inventory ⇒ reservation == the center. Mid 1.000000, micro-price 1.000500.
+    const onMid = q.quote(ctx({ inventoryUnits: 0n }), 'USDC');
+    const onMicro = q.quote(ctx({ inventoryUnits: 0n, referenceMicros: 1_000_500n }), 'USDC');
+    expect(onMid.reservationMicros).toBe(1_000_000n); // legacy: centered on the mid
+    expect(onMicro.reservationMicros).toBe(1_000_500n); // shifted to the micro-price
+    // Spread width unchanged — only the center moved (we quote a better price, not wider).
+    expect(onMicro.halfSpreadMicros).toBe(onMid.halfSpreadMicros);
+  });
+
+  it('F3: spreadScale tightens (<1) and widens (>1) the half-spread; 1/undefined unchanged', () => {
+    const q = quoter();
+    const base = q.quote(ctx({ inventoryUnits: 0n }), 'USDC');
+    const tight = q.quote(ctx({ inventoryUnits: 0n, spreadScale: 0.5 }), 'USDC');
+    const wide = q.quote(ctx({ inventoryUnits: 0n, spreadScale: 2 }), 'USDC');
+    expect(Number(tight.halfSpreadMicros)).toBeLessThan(Number(base.halfSpreadMicros));
+    expect(Number(wide.halfSpreadMicros)).toBeGreaterThan(Number(base.halfSpreadMicros));
+    // The center is untouched — only the spread scales.
+    expect(tight.reservationMicros).toBe(base.reservationMicros);
+    expect(q.quote(ctx({ inventoryUnits: 0n, spreadScale: 1 }), 'USDC').halfSpreadMicros).toBe(base.halfSpreadMicros);
+  });
+
+  it('referenceMicros === midMicros reproduces the mid-quoter exactly (swap-seam default)', () => {
+    const q = quoter();
+    const a = q.quote(ctx({ inventoryUnits: 3_000_000n }), 'USDC');
+    const b = q.quote(ctx({ inventoryUnits: 3_000_000n, referenceMicros: 1_000_000n }), 'USDC');
+    expect(b.reservationMicros).toBe(a.reservationMicros);
+    expect(b.bid.priceMicros).toBe(a.bid.priceMicros);
+    expect(b.ask.priceMicros).toBe(a.ask.priceMicros);
+  });
+
   it('is price-scale-invariant: same bps spread + skew at $1 and $1,900, no blow-up (Journal #17)', () => {
     const q = quoter();
     const lo = q.quote(ctx({ midMicros: 1_000_000n, inventoryUnits: 1_000_000n, volatility: 0.002 }), 'X');
