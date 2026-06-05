@@ -2,7 +2,7 @@
   "name": "meridian-markets",
   "version": "0.1.0",
   "private": true,
-  "description": "Meridian Markets — Phase 0 treasury yield service (sister entity to Lira-Bridge)",
+  "description": "A self-contained paper-trading quant desk — crypto market-making + equities stat-arb on real market data — engineered so the reported P&L stays honest: every edge is measured against adverse selection, fees, and out-of-sample gates before it counts.",
   "scripts": {
     "build": "nest build",
     "start": "nest start",
