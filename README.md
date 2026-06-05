@@ -12,6 +12,15 @@ It runs in three postures — engineering switches, no business gate (`EXECUTION
 
 Read [`CLAUDE.md`](CLAUDE.md) first — the authoritative architecture + session log.
 
+### What the research says (the honest read)
+
+The point of the desk is truthful numbers, so the findings — including the unflattering ones — are logged in full ([`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) for the chronological trail, [`docs/RESEARCH_FINDINGS.md`](docs/RESEARCH_FINDINGS.md) for the citable verdicts). The current read:
+
+- **Naive spread market-making loses** to adverse selection at every spread width — the edge is **fair-value prediction + speed**, not a wider spread. Quoting around the book-imbalance **micro-price** cuts adverse selection; at **sub-second** re-quote cadence the spread edge flips from losing to positive (the desk's spread-vs-adverse measure went −$1,020 → +$133 on one 8h window). The remaining loss is **inventory carry**, which the directional ("axed") maker is built to turn into a chosen, validated bet.
+- **Crypto taker stat-arb is killed** (a cointegration cliff); **equities sector stat-arb** is real but thin (~0.06 Sharpe) and survivorship-bound; **funding carry** is real but modest (fatter on non-major perps). Every one of these was measured against fees, adverse selection, and out-of-sample gates before it counted.
+
+See [`docs/WEEKLY_WRAP_2026-06-05.md`](docs/WEEKLY_WRAP_2026-06-05.md) for the latest summary.
+
 > **Legacy:** this repo began as a treasury/yield service that fed an external payments service over an HTTP contract. **That integration is retired** and the repo is now standalone. The `src/treasury/` + `src/yield/` code and the `treasury_*` tables remain as dormant legacy (CLAUDE.md §5); the historical spec is archived at [`docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md`](docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md).
 
 ## Run it locally
