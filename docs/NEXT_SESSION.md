@@ -1,83 +1,128 @@
-# Next-session kickoff brief — the FAIR-VALUE engine (price, don't widen)
+# Next-session kickoff — the validated BIAS SIGNAL → directional MM → trades
 
-> Paste the **Kickoff prompt** at the bottom to start. A fresh session auto-loads `CLAUDE.md` + the memory index; this brief points at the rest. Work autonomously — **do not ask for approval**; verify with `tsc` + `jest`, commit each item on `master` (CLAUDE.md §0), then push one feature branch + PR. `npm run start:dev` exits 144 in the sandbox, so any live run is a hand-off to the operator.
-
----
-
-## Where we are (2026-06-04 → 06-05)
-
-- **Engine gaps closed (PR #11, on `master`):** stat-arb business-event tape, restart-safe stat-arb books, HL funding-carry universe discovery. 153 suites / 1019 tests.
-- **The 6h MM harvest is done and it reframed the whole desk** ([QUANT_JOURNAL #27–#28](QUANT_JOURNAL.md)):
-  - Naive spread MM **loses to adverse selection at every spread width** — proven with an inventory-clamped + widened sweep. `spread − adverse < 0` on every liquid coin. The only positive P&L term is inventory carry.
-  - **Widening does not fix it** — adverse is a *fair-value* problem (stale-mid selection), not a width problem.
-  - **Toxic coins cut** (NEAR,HYPE,WLD,LIT,ZEC,XPL,TON,VVV) by a regime-robust disqualifier rule; **KEEP** the liquid low-σ set (DOGE,BNB,ETH,SOL,XRP,ADA,SUI,+ENA/ONDO/PUMP, BTC benchmark). Baked into the capture/tune script defaults.
-- **An 8h validation run is IN FLIGHT** (launched 2026-06-05 ~00:30, finishes ~08:30) — keep coins, wider 5bps floor + clamped 2-lot inventory + κ=0.5. Tapes: `docs/research/l2-tapes/hl-keep-20260605-*.json`; log: `docs/research/l2-tapes/capture-keep-20260605*.log`.
-- **Two design specs written:** [DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md) (intentional inventory carry / the "axe") and **[FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md) (the next headline — the theo engine + Thesis Register).**
+> Paste the **Kickoff prompt** below. A fresh session auto-loads `CLAUDE.md` + the memory index; this brief points at the rest. Work autonomously — verify `tsc` + `jest`, commit each phase on `master`, push one feature branch + PR. `npm run start:dev` exits 144 in the sandbox, so any live run is a hand-off to the operator.
 
 ---
 
-## ⏳ Priority 0 — harvest the 8h keep-coin run (perishable, offline)
+## Where we are (proven, on `master` / PR #12)
 
-When `hl-keep-20260605` has finished (~08:30; `ps aux | grep mm-l2-session` or just use the tapes):
-1. Read the end-of-run replay in the capture log (the wide-5bps + clamped-2-lot result).
-2. Compare disciplined vs full-carry: `DATE=20260605 LOTS=2 GAMMAS=0.0005,0.0025,0.01 KAPPAS=0.5,1 FLOORS=2,5,8,12,20 bash scripts/tune-hl-l2.sh` (clamped diagnostic) **and** `DATE=20260605 bash scripts/tune-hl-l2.sh` (full).
-3. Record in `TUNED_PARAMS.md` + **QUANT_JOURNAL #29**: over 8h on the liquid set, is the disciplined maker **steadily** positive (real, low-DD) or does net→0 (confirming it was carry)? Either way it sets the baseline the fair-value engine must beat.
+The fair-value engine + the directional quoter are built and the edge is **measured, not asserted** (QUANT_JOURNAL #27–#33):
+
+- **Naive spread MM loses** to adverse selection at every width (#28) — it's a fair-value problem, not a width problem.
+- **F1 micro-price** quoting cuts adverse ~21% (#29). **F2 cross-venue is a no-op** — HL self-prices (#30). **F3** inconclusive at 18s (#31).
+- **THE PROOF (#32):** at **sub-second cadence** the desk `spread − adverse` flipped **−$1,020 (18s) → +$133 (sub-second)** — a 7× swing, **positive on all 5 coins**; ETH/DOGE net-positive at low DD. **Cadence is the dominant lever; the spread business is now profitable.**
+- **The only remaining loss is inventory CARRY** on trending coins. The **`mm-directional-glft`** quoter (#33) rests at a target inventory `q*=bias·maxLots` to *choose* the carry's sign (the dealer "axe") — but a **blind bias loses** (leverage on noise). **It needs a VALIDATED bias signal.** ← the next build.
+
+Honest caveat carried forward: the sub-second flow was **88% estimated** (sparse WS prints/0.6s); the qualitative flip is robust, the exact number isn't gospel → a true-ms **WS-event capture** (§6b) is the parallel infra track.
 
 ---
 
-## 🎯 The headline — the FAIR-VALUE ("theo") engine
+## THE NEXT BUILD — `IBiasSource` (validated view → the directional quoter)
 
-The whole project's edge is **quoting around a better price, not a wider spread** (#28). Build it incrementally, each layer measurable on the 20 saved tapes before any live risk. Spec + math + best-practice grounding: **[FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md)**.
+Turn carry from a leak into **chosen, validated alpha**. Phases (each measurable on the saved tapes before live; honesty rail: **a bias may size carry only after it passes an OOS forward-return IC**):
 
-- **F1 — Microprice quoter** (book-imbalance fair value, `μ = mid + (spread/2)·g(imbalance)`) as a new `IQuoter` + an extended `QuoteContext(μ,Σ)`; replay on the saved tapes. **The test:** does `spread − adverse` rise on the liquid coins vs the mid-quoter? (Re-run the #28 diagnostic.)
-- **F2 — Binance→HL lead-lag** fair value (our structural edge: a faster/deeper lead venue we already pull via `BinancePublicClient`). Measure the HL-vs-Binance sub-minute lead; fold it into `μ`. **Likely the single biggest adverse-selection cut available — do F1+F2 first.**
-- **F3+** — flow drift + confidence-scaled spread/size (Kalman), the **Thesis Register** (the house view, durable + P&L-graded → feeds the directional MM), the technical predictor (OOS-gated). See the doc's phase table.
+- **B1 — `IBiasSource` seam** (`bias(symbol, ctx) → number ∈ [−1,1]`): `NullBiasSource` (0 ⇒ neutral GLFT, default), `MomentumBiasSource` (daily micro-trend of the underlying), `FundingBiasSource` (weekly funding-regime — reuse `funding-carry-discovery`: lean toward the funding-*paid* side), `ManualBiasSource` (the house-view override). Feed `q*` per tick.
+- **B2 — the OOS gate** (`scripts/mm-bias-validate.ts`): for each signal, measure its **forward-return IC** on the saved tapes / history (purged k-fold, the existing gates). Only signals with a positive, stable OOS IC are allowed to size carry. Output: per-coin per-signal IC + a verdict.
+- **B3 — `scripts/mm-directional-sweep.ts`**: replay `mm-directional-glft` at the **validated** bias per coin on the saved fine tapes; report carry-vs-bias curves + that the validated bias **beats neutral AND beats blind bias** (the #33 demo showed blind bias loses; this proves a *good* bias wins). The honest verdict on directional MM.
+- **B4 — the Thesis Register** (`docs/DIRECTIONAL_MM_STRATEGY.md` §4 / `FAIR_VALUE_AND_THESIS_DESIGN.md` §4): durable house-view table (asset, direction, conviction, horizon, invalidation, P&L-graded), feeding the long-term bias + a `/demo` panel. The research→quotes→accountability loop.
+- **B5 — wire it live**: the directional quoter + bias source in the live `MmBook`/`MmPortfolioTrader`; a **directional stop** in `CompositeRiskGate`; surface the directional-carry equity curve; run forward paper and watch the Activity feed.
+
+Parallel track (the other headline): **true-ms WS-event capture** (HL `l2Book` + trades WS, optionally Binance depth WS) → ms tapes with **real** flow (kills the 88%-estimate caveat) + realistic cancel/replace latency. See `FAIR_VALUE_AND_THESIS_DESIGN.md` §6b.
+
+---
+
+## END-TO-END RUNBOOK — from data → validated bias → directional MM → trades
+
+The whole pipeline, in order. (Offline analysis runs in this sandbox; the live paper desk is an operator hand-off — `start:dev` exits 144 here.)
+
+### 1. CAPTURE real market data (fine cadence)
+```bash
+# Sub-second, best coins, full stack baked into the end-replay (single killable process):
+DAY=$(date +%Y%m%d)
+MM_L2_COINS=BTC,ETH,SOL,BNB,DOGE MM_L2_POLL_S=0.2 MM_L2_DURATION_MIN=480 \
+MM_L2_MICRO_DEPTH=5 MM_L2_F3=true MM_L2_GAMMA=0.0025 MM_L2_KAPPA=0.5 MM_L2_MIN_BPS=5 MM_L2_MAX_LOTS=2 \
+MM_L2_TRADES_WS=true MM_L2_FUNDING=true MM_L2_CHECKPOINT_MIN=10 \
+MM_L2_SAVE_TAPE=docs/research/l2-tapes/hl-fine-$DAY \
+  nohup node -r ts-node/register -r tsconfig-paths/register scripts/mm-l2-session.ts \
+  > docs/research/l2-tapes/capture-fine-$DAY.log 2>&1 & echo $! > /tmp/fine-run.pid
+# watch:  tail -f docs/research/l2-tapes/capture-fine-$DAY.log     stop: kill $(cat /tmp/fine-run.pid)
+```
+
+### 2. FAIR VALUE + cadence — prove the spread edge (F1)
+```bash
+P=docs/research/l2-tapes/hl-fine-$DAY; C=BTC,ETH,SOL,BNB,DOGE
+MM_TUNE_TAPE_PREFIX=$P MM_TUNE_COINS=$C MICRO_DEPTH=5 GAMMA=0.0025 KAPPA=0.5 FLOOR=5 MAX_LOTS=2 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-microprice-compare.ts   # spread−adverse mid vs micro
+```
+
+### 3. BIAS SIGNAL — measure it, then VALIDATE it (B1–B2, to build)
+```bash
+# which way is each coin's persistent funding paying? (an input to the weekly bias)
+FCD_TOP=80 npx ts-node -r tsconfig-paths/register scripts/hl-funding-discovery.ts
+# OOS-validate every bias signal's forward-return IC — ONLY positive-IC signals may size carry:
+MM_TUNE_TAPE_PREFIX=$P MM_TUNE_COINS=$C \
+  npx ts-node -r tsconfig-paths/register scripts/mm-bias-validate.ts        # (B2 — to build)
+```
+
+### 4. DIRECTIONAL MM — prove the validated bias beats neutral (B3, to build)
+```bash
+# carry-vs-bias per coin at the VALIDATED bias; must beat neutral (bias=0) AND blind bias:
+MM_TUNE_TAPE_PREFIX=$P MM_TUNE_COINS=$C MICRO_DEPTH=5 GAMMA=0.0025 KAPPA=0.5 FLOOR=5 MAX_LOTS=2 \
+  npx ts-node -r tsconfig-paths/register scripts/mm-directional-sweep.ts    # (B3 — to build)
+# (today, blind bias on one window: STRATEGY=mm-directional-glft BIAS=0.5 in mm-microprice-compare.ts)
+```
+
+### 5. TRADES — run the live paper desk (operator hand-off; finest honest demo)
+```bash
+# boot the engine on REAL data in paper mode (operator's box — start:dev exits 144 in the sandbox):
+FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
+MM_PERSIST=true STAT_ARB_PERSIST=true TELEMETRY_ENABLED=true \
+  npm run start:dev
+# then launch a DIRECTIONAL MM book via the control plane (the quoter + the validated bias):
+curl -s localhost:3100/api/market-making/launch -H 'content-type: application/json' -d '{
+  "symbol":"DOGE","source":"hyperliquid","strategyId":"mm-directional-glft",
+  "capitalUsdc":1000000,"params":{"gamma":0.0025,"kappa":0.5,"bias":0.4}
+}'
+# WATCH THE TRADES (every enter/exit + the directional carry, live):
+#   • server log lines (the business-event tape)        • /demo → Market Making → "Activity — live trade tape"
+#   • GET /api/market-making/events?since=<seq>          • GET /api/market-making/nav  (durable equity curve)
+```
+
+> The honesty discipline runs through all five steps: fair value (not a wider spread), fine cadence (re-quote fast), a bias only after an OOS IC, a drawdown budget (2%), and every fill on the business-event tape. **We price better, and we bet only on a validated view.**
 
 ---
 
 ## Kickoff prompt
 
 ```
-GOAL (one session, autonomous — do NOT ask for approval; verify tsc+jest, commit each
-item on master, then push ONE feature branch + open a PR):
+GOAL (one session, autonomous — verify tsc+jest, commit each phase on master, push one PR):
 
-FIRST read: docs/NEXT_SESSION.md (this file), docs/FAIR_VALUE_AND_THESIS_DESIGN.md (the
-headline), docs/QUANT_JOURNAL.md (#27, #28, + the design note), docs/research/TUNED_PARAMS.md
-(KEEP/CUT list), docs/DIRECTIONAL_MM_STRATEGY.md, and the memory index
-([[project_mm_frontier_state]] + [[project_next_session_backlog]]).
+FIRST read: docs/NEXT_SESSION.md (this file — the runbook + phases), docs/QUANT_JOURNAL.md
+(#28, #32, #33), docs/DIRECTIONAL_MM_STRATEGY.md, docs/FAIR_VALUE_AND_THESIS_DESIGN.md
+(§4 Thesis Register, §6b ms-capture), docs/FUNDING_CARRY_DISCOVERY.md, and the memory index
+([[project_mm_frontier_state]], [[feedback_business_event_logging]]).
 
-PRIORITY 0 — harvest the 8h keep-coin run if it has finished (tapes
-docs/research/l2-tapes/hl-keep-20260605-*.json): read its end-replay, run the clamped
-vs full tune (commands in NEXT_SESSION.md), record TUNED_PARAMS + QUANT_JOURNAL #29.
-Pure offline analysis. If still running, note ETA and proceed to F1.
+BUILD the validated BIAS SIGNAL → directional MM pipeline (turn carry from leak to chosen alpha):
+  B1) IBiasSource seam (bias(symbol,ctx)→[-1,1]): NullBiasSource (default, ≡ neutral GLFT),
+      MomentumBiasSource, FundingBiasSource (reuse funding-carry-discovery — lean to the
+      funding-PAID side), ManualBiasSource. Feed q* into mm-directional-glft per tick.
+  B2) scripts/mm-bias-validate.ts — each signal's OOS forward-return IC on the saved tapes
+      (purged k-fold). HONESTY RAIL: a bias may size carry ONLY with a positive, stable OOS IC.
+  B3) scripts/mm-directional-sweep.ts — replay mm-directional-glft at the VALIDATED bias on the
+      fine tapes; prove it beats neutral (bias=0) AND beats blind bias (#33 showed blind loses).
+  B4) the Thesis Register (durable house view, P&L-graded) feeding the long-term bias + /demo panel.
+  B5) wire live: directional quoter + bias source in MmBook/MmPortfolioTrader; a directional stop
+      in CompositeRiskGate; surface the directional-carry equity curve; forward paper + Activity feed.
+  (Parallel headline if time: true-ms WS-event capture — §6b — for real, non-estimated flow.)
 
-THEN ship the FAIR-VALUE ENGINE, F1 first (the real unlock per #28):
-  F1) MICROPRICE QUOTER — a new IQuoter that quotes around the book-imbalance micro-price
-      μ = mid + (spread/2)·g(imbalance) (start g(I)=I), with an extended QuoteContext
-      carrying μ (and Σ later). Register in MmStrategyRegistry; replay on the 20 saved
-      tapes via the LobReplayHarness. PROVE IT: does spread−adverse rise on the liquid
-      coins (BNB,DOGE,ETH,SOL,XRP,ADA,SUI) vs the mid quoter? (re-run the #28 clamped test.)
-      b=0/μ=mid must reproduce today's quoter bit-for-bit (swap-seam default).
-  F2) BINANCE→HL LEAD-LAG — measure the HL-vs-Binance return lead at sub-minute lags
-      (we already pull both); fold the lead-corrected price into μ. Report its OOS IC +
-      the further spread−adverse improvement. This is our structural edge — prioritise it.
-
-CONSTRAINTS: paper-only; honesty is the whole game (each signal earns its weight by an OOS
-IC before it moves a live quote; interpretable before ML); modular monolith (CLAUDE.md §6);
-swap-seam discipline (§7); process.env only in app-config.factory.ts; append-only tables get
-SELECT,INSERT only (mutable caches +UPDATE, no DELETE); verify tsc+jest; commit on master with
-a Co-Authored-By trailer; hand any multi-hour live run to the operator. We price better, not
-bet bigger. Proceed autonomously to the end.
+CONSTRAINTS: paper-only; honesty is the whole game (no bias live without an OOS IC; interpretable
+before ML); modular monolith (§6); swap-seam discipline (§7); process.env only in app-config.factory.ts;
+append-only tables SELECT,INSERT only (mutable caches +UPDATE, no DELETE); verify tsc+jest; commit each
+phase on master with a Co-Authored-By trailer; hand any multi-hour live run to the operator. The arc:
+fair value + cadence made the SPREAD edge real; the validated bias makes the CARRY chosen alpha. GO.
 ```
 
----
-
-## Backlog (after the fair-value engine has a foothold)
-
-- **Directional / axed MM** ([DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)) — intentional inventory carry; q*=bias·Qmax; the Thesis Register feeds it. Carry is the dominant P&L term → make it chosen alpha.
-- **Funding-carry cross-venue live book** (short HL perp / long Binance spot) — the deployable form behind Entry #26.
-- **γ/κ distribution** across regimes; **capital allocator** across MM + stat-arb books → the **agentic layer**.
-
 ## State at hand-off
-- Tests 153 suites / 1019; tsc clean. PR #11 open (the 3 engine items). The MM-research docs (Journal #27–28, TUNED_PARAMS, the two design specs, script defaults) are committed on `master` after PR #11's branch point — fold them into the next PR or their own.
-- Restart-safe books + business-event tapes now cover BOTH desks. The 8h run is the last MM datapoint before the fair-value engine; the engine is the path to a desk that earns steady, low-drawdown income on a short list of liquid coins, then scales venues.
+- 155 suites / 1037 tests, tsc clean. PR #12 open (fair-value engine F1/F2/F3 + directional quoter + research).
+- The directional quoter (`mm-directional-glft`) is live in the registry; it just needs the validated signal (B1–B3) to be more than a bet.
+- Tapes: `docs/research/l2-tapes/hl-fine-20260605-*.json` (8h sub-second, the proof window).
