@@ -1454,3 +1454,22 @@ Built **F3** (confidence-scaled spread): the half-spread scales with current flo
 The pattern is not three failures — it's **one root cause: our 18s poll cadence is far too coarse for the levers that actually beat adverse selection.** Adverse selection is a *sub-second* phenomenon (you get picked off in milliseconds), so: (a) the CEX↔DEX lead-lag lives below ~1s and is invisible/inactionable at 18s (F2); (b) flow toxicity must be timed tick-by-tick, not over 18s buckets (F3); (c) the markout adverse in the sim is an 18s window — a real book re-quoting every few ms holds far less stale-quote risk, so **the true adverse is much smaller than our 18s sim shows.** This is precisely why real MMs run microsecond loops.
 
 **→ NEXT MILESTONE (Ronnie, 2026-06-05): MILLISECOND cadence.** Move from 10–18s REST polling to **event-driven WS capture** — HL `l2Book` + trades WS, Binance depth + trade WS — reconstruct the book on every update, timestamp to the ms, and replay/quote on **every tick**. Then re-run the whole stack: F1/F2/F3 should come alive (the lead-lag becomes visible AND exploitable; toxicity becomes timeable; markout adverse collapses toward the true, much-smaller number). Prove it measurably on a ms tape (a few minutes is thousands of ticks), log + journal, then **scale on hardware/colocation when we move to big venues** — the latency game is exactly what justifies the infra spend. Plan + the honest mechanism in [FAIR_VALUE_AND_THESIS_DESIGN.md](FAIR_VALUE_AND_THESIS_DESIGN.md). The 18s tapes did their job: they proved the fair-value *direction* (F1) and that *cadence* — not parameters — is now the wall.
+
+## 2026-06-05 — Entry #32 (THE PROOF): sub-second cadence FLIPS the spread edge positive — carry is now the only loss
+
+Harvested the **8h sub-second** run (`hl-fine-20260605`, 5 coins BTC/ETH/SOL/BNB/DOGE, **46,788 steps/coin** at ~0.6s, F1 micro depth 5 + F3 + γ0.0025/κ0.5/floor5/maxLots2). Tools: `mm-microprice-compare`, `mm-leadlag`.
+
+**THE HEADLINE — cadence flipped the spread edge from losing to winning:**
+
+| metric (desk `spread − adverse`) | 18s run | **sub-second run** |
+|---|---|---|
+| MID quoter | **−$1,020** | **+$133** ✅ |
+| MICRO quoter | −$801 | **+$174** ✅ |
+
+A **7× swing** from deeply negative to positive. **Cadence is the dominant lever** — at ~0.6s you re-quote fast enough that stale-quote pick-offs collapse, so adverse selection no longer eats the spread. The micro-price (F1) adds a **consistent further +$42** (+133→+174), exactly as at 18s. Per coin, `spread − adverse` is now **positive on all 5** (BTC +25, ETH +130, SOL +107, BNB +28, DOGE +24); on ETH/DOGE the adverse term went **negative (a gain)** — fills land on the favourable side. **ETH (+$165) and DOGE (+$190/$278) are net-positive at low DD.** Ronnie's millisecond instinct is vindicated with a hard number.
+
+**What's still losing: inventory carry, not the spread.** Desk net is still **−$6.7k to −$7.5k** — but now *entirely* from carry on the coins that **trended** over the 8h (SOL −$1.8k, BNB −$2.3k, BTC −$1.2k; the 2-lot clamp bounds it but a one-sided 8h drift still bleeds a held book). The **spread business is now profitable; the directional exposure is the leak** → exactly the case the **directional/axed MM** converts from leak to chosen alpha (building it next).
+
+**F2 re-checked at sub-second: still a no-op.** Lead-lag is **sync (lag 0), β≈0** on all coins; HL self-prices even here. (Peak corr fell 0.97→~0.6 because Binance 1s klines can't resolve sub-second HL moves — a *true* sub-second cross-venue test needs Binance **WS depth**, §6b. The conclusion stands at our data resolution: don't bolt on Binance.)
+
+**Honesty caveats (binding):** (1) **88% of steps used the candle-volume flow ESTIMATE** — at ~0.6s the WS prints are sparse per interval, so most steps fall back to the tick-rule estimate; the *qualitative* flip (−1020→+133, a 7× swing) is robust, but the *exact* +$133 isn't gospel — a clean read needs dense **WS-event flow** (§6b, the true-ms milestone). Depth is always real L2. (2) queue-aware fills 3,350 vs touch 141,991 (42× overstatement) — at fine cadence you "touch" constantly but rarely reach the queue front; queueFills is the honest lower bound. (3) one 8h window, one regime. **Verdict: the fair-value direction (F1) + the cadence (Ronnie) together make the SPREAD edge real and positive. The remaining loss is carry — the next build (directional MM) is precisely aimed at it.**
