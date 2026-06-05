@@ -27,6 +27,8 @@ Turn carry from a leak into **chosen, validated alpha**. Phases (each measurable
 - **B4 — the Thesis Register** (`docs/DIRECTIONAL_MM_STRATEGY.md` §4 / `FAIR_VALUE_AND_THESIS_DESIGN.md` §4): durable house-view table (asset, direction, conviction, horizon, invalidation, P&L-graded), feeding the long-term bias + a `/demo` panel. The research→quotes→accountability loop.
 - **B5 — wire it live**: the directional quoter + bias source in the live `MmBook`/`MmPortfolioTrader`; a **directional stop** in `CompositeRiskGate`; surface the directional-carry equity curve; run forward paper and watch the Activity feed.
 
+Parallel deliverable (system dev): **UI redesign** — replace the single `/demo` `index.html` with a role-scoped, light, terminal-aesthetic, **no-React** UI (one URL per role: `/exec /ops /desk/mm /desk/statarb /risk /research /pm`). Full design-session brief + the kickoff prompt + the critical stack review (htmx + server partials + Web Components + SSE; no embedded shell) in **[docs/UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md)**. Deliver `UI_ARCHITECTURE.md` + one thin vertical slice.
+
 Parallel track (the other headline): **true-ms WS-event capture** (HL `l2Book` + trades WS, optionally Binance depth WS) → ms tapes with **real** flow (kills the 88%-estimate caveat) + realistic cancel/replace latency. See `FAIR_VALUE_AND_THESIS_DESIGN.md` §6b.
 
 ---
