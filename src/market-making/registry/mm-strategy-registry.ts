@@ -2,6 +2,7 @@ import { IQuoter } from '../quote/quoter.interface';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
 import { AvellanedaStoikovQuoter } from '../quote/avellaneda-stoikov';
 import { GlftQuoter } from '../quote/glft-quoter';
+import { DirectionalGlftQuoter } from '../quote/directional-glft-quoter';
 
 // MmStrategyRegistry — the desk's catalogue of tradeable market-making
 // strategies, the direct analogue of stat-arb's StrategyRegistry. Each entry is
@@ -12,7 +13,7 @@ import { GlftQuoter } from '../quote/glft-quoter';
 // (MmBacktestRunner) AND the live paper book (MmBook) unchanged — the same swap
 // seam stat-arb is built around.
 
-export type MmFamily = 'symmetric' | 'avellaneda-stoikov' | 'glft';
+export type MmFamily = 'symmetric' | 'avellaneda-stoikov' | 'glft' | 'directional-glft';
 
 /** Book-level structure the desk supplies per deployment; `params` overrides frozen tuning. */
 export interface MmStrategyBuildOpts {
@@ -101,7 +102,32 @@ const GLFT: MmStrategyDefinition = {
   },
 };
 
-const DEFINITIONS: MmStrategyDefinition[] = [SYMMETRIC, AVELLANEDA_STOIKOV, GLFT];
+const DIRECTIONAL_GLFT: MmStrategyDefinition = {
+  id: 'mm-directional-glft',
+  family: 'directional-glft',
+  label: 'Directional GLFT — axed (intentional carry)',
+  description:
+    'GLFT that rests at a TARGET inventory q*=bias·maxLots instead of 0 (DIRECTIONAL_MM_STRATEGY.md): where the desk holds a house view, it accumulates the position via the maker, earning spread+rebate while building it — the dealer "axe". bias=0 ≡ neutral GLFT. Targets the inventory-carry term that is the only remaining loss once the spread edge goes positive at fine cadence (Journal #32).',
+  courseRef: 'Directional MM (axe)',
+  liveCapable: true,
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0 },
+  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, ...params };
+    return new DirectionalGlftQuoter({
+      gamma: p.gamma,
+      kappa: p.kappa,
+      quoteSizeUnits,
+      minHalfSpreadBps,
+      maxHalfSpreadBps,
+      maxInventoryLots,
+      steadyHorizonBars: p.steadyHorizonBars,
+      bias: p.bias,
+      convictionGain: p.convictionGain,
+    });
+  },
+};
+
+const DEFINITIONS: MmStrategyDefinition[] = [SYMMETRIC, AVELLANEDA_STOIKOV, GLFT, DIRECTIONAL_GLFT];
 
 export class MmStrategyRegistry {
   private readonly byId = new Map<string, MmStrategyDefinition>();
