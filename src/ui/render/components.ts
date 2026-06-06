@@ -27,6 +27,29 @@ export function deskControls(): SafeHtml {
   `;
 }
 
+/**
+ * The stat-arb desk control palette — Start / Stop / Flatten the portfolio loop.
+ * Same shape + safety as deskControls() (MM), pointed at the stat-arb control
+ * plane. Lives outside any SSE region. Shared by /desk/statarb (and a future
+ * cross-desk kill switch on /ops).
+ */
+export function statArbControls(): SafeHtml {
+  return html`
+    <section class="action-palette">
+      <span class="palette-label">stat-arb desk controls</span>
+      <desk-action endpoint="/api/stat-arb/live/portfolio/start" label="Start desk" variant="ok" title="Resume the portfolio loop"></desk-action>
+      <desk-action endpoint="/api/stat-arb/live/portfolio/stop" label="Stop desk" variant="warn" title="Halt the loop (positions are kept)"></desk-action>
+      <desk-action
+        endpoint="/api/stat-arb/live/portfolio/flatten"
+        label="Flatten desk"
+        variant="danger"
+        confirm="Flatten ALL stat-arb books? This closes every open pair position."
+        title="Kill switch: close every pair"
+      ></desk-action>
+    </section>
+  `;
+}
+
 // Colour class per event kind for the tape badge.
 function kindClass(kind: string): string {
   switch (kind) {

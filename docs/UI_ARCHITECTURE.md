@@ -1,13 +1,13 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + three slices shipped (2026-06-06): **`/exec`** (read-only),
-> **`/ops`** (first action page), and **`/desk/mm`** (the rich desk console — per-book
-> attribution, Activity tape, launch/stop/remove/reconfigure). This is the design the
-> [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for: the chosen stack
-> (with the trade-off recorded), the route map, the shared-component inventory, the
-> SSE feed list, the action⇄API map, and the module layout — plus the vertical slices
-> that prove the stack (read path, write path, forms + tape) end-to-end, and the
-> **migration plan** to retire the 100KB `/demo` `index.html`.
+> **Status:** decided + four slices shipped (2026-06-06): **`/exec`** (read-only),
+> **`/ops`** (first action page), **`/desk/mm`** and **`/desk/statarb`** (the two rich
+> desk consoles — per-book/-pair detail, Activity tape, launch/stop/remove/reconfigure).
+> This is the design the [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for:
+> the chosen stack (with the trade-off recorded), the route map, the shared-component
+> inventory, the SSE feed list, the action⇄API map, and the module layout — plus the
+> vertical slices that prove the stack (read path, write path, forms + tape + blotter)
+> end-to-end, and the **migration plan** to retire the 100KB `/demo` `index.html`.
 
 This document is the contract for the redesign. Read it before adding a role page.
 
@@ -88,7 +88,7 @@ call (see §6); read-only pages drive nothing.
 | `/exec` | Executive | `MmPortfolioTrader.snapshot()` | — (read-only) | **shipped** |
 | `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
 | `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
-| `/desk/statarb` | Stat-arb desk | `/api/stat-arb/live/*` | launch/stop/reconfigure pair | planned |
+| `/desk/statarb` | Stat-arb desk | `LivePortfolioTrader.snapshot()` + stat-arb `DeskEventLog` + `StatArbRepository` (per-pair z/β/regime/position, blotter, tape) | launch/stop/remove/reconfigure a pair | **shipped** |
 | `/risk` | Risk | snapshots (drawdown, verdicts, VPIN) | pause/deny book *(endpoint gap — §6)* | planned |
 | `/research` | Quant | research/journal endpoints + static findings | **no exec** — copy-runbook-command helper | planned |
 | `/pm` | PM / house view | Thesis Register *(not built — §6)* | add/edit/close a thesis | future |
@@ -110,7 +110,7 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | `html\`\`` + escaping | pure TS | `src/ui/render/html.ts` | **shipped** | every render fn |
 | `<desk-action>` | Web Component | `src/ui/public/desk-action.js` | **shipped** | the write path on ops/desk/risk/pm |
 | `<desk-form>` | Web Component | `src/ui/public/desk-form.js` | **shipped** | any input form (launch book, launch pair, add thesis) |
-| desk controls + Activity tape | server partials | `src/ui/render/components.ts` (`deskControls`, `activityTape`) | **shipped** | ops, desk/mm (+ statarb/risk next) |
+| desk controls + Activity tape | server partials | `src/ui/render/components.ts` (`deskControls`, `statArbControls`, `activityTape`) | **shipped** | ops, desk/mm, desk/statarb (+ risk next) |
 | `<nav-spark>` (equity sparkline) | Web Component | _planned_ | — | exec/ops/desk |
 
 **`<desk-feed src target>`** is the one live-update (read) primitive: it opens an SSE
@@ -143,7 +143,8 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 | `GET /exec/stream` | the `/exec` live region (NAV, P&L, drawdown, per-book table) | 2s | **shipped** |
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
 | `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards + Activity tape | 2s | **shipped** |
-| `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside `/desk/mm/stream`, full-replace) |
+| `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards + Activity tape (blotter is page-load only) | 2s | **shipped** |
+| `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside the desk streams, full-replace) |
 
 Frame shape (all feeds): `data: {"html":"<fragment>"}`. The HTML is sent **inside a
 JSON object on purpose** — `JSON.stringify` escapes newlines, so a multi-line
@@ -171,9 +172,11 @@ Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 | ✅ | launch a preset | `POST /api/market-making/launch-preset` `{presetId,capitalUsdcPerBook?}` |
 | ✅ | remove book (per-card) | `POST /api/market-making/remove` `{symbol}` (confirm-gated) |
 | | (read) catalogue | `GET /api/market-making/strategies`, `/markets`, `/screen` (strategies+presets feed the launch form) |
-| `/ops`, `/desk/statarb` | start/stop/kill | `POST /api/stat-arb/live/start|stop|kill` |
-| | flatten / flatten-all | `POST /api/stat-arb/live/flatten`, `/portfolio/flatten` |
-| `/desk/statarb` | launch/remove pair | `POST /api/stat-arb/live/portfolio/launch`, `/portfolio/remove` |
+| `/desk/statarb` ✅ | start / stop desk | `POST /api/stat-arb/live/portfolio/start|stop` |
+| ✅ | flatten (kill switch) | `POST /api/stat-arb/live/portfolio/flatten` (confirm-gated) |
+| ✅ | launch / reconfigure pair | `POST /api/stat-arb/live/portfolio/launch` `{symbolA,symbolB,beta?,strategyId?,source?,capitalUsdc?,notionalUsdc?}` |
+| ✅ | remove pair (per-card) | `POST /api/stat-arb/live/portfolio/remove` `{pair:"A/B"}` (confirm-gated) |
+| ✅ (read) | persisted blotter | `StatArbRepository.recentTrades('paper', n)` (page-load; needs Postgres) |
 | `/ops` | health / readiness / metrics | `GET /health`, `/health/ready`, `/metrics` |
 | `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` |
 | all | Activity tape | `GET /api/market-making/events?since=`, `GET /api/stat-arb/live/events?since=` |
@@ -204,6 +207,8 @@ src/ui/
   ops.controller.spec.ts       wiring + async SSE frame + DB-ping/readiness assembly
   mm-desk.controller.ts        GET /desk/mm (page) + @Sse GET /desk/mm/stream    [slice 3, console]
   mm-desk.controller.spec.ts   wiring + catalogue + tape-from-DeskEventLog + SSE frame
+  statarb-desk.controller.ts   GET /desk/statarb + @Sse /desk/statarb/stream    [slice 4; declared in StatArbModule]
+  statarb-desk.controller.spec.ts  wiring + catalogue + blotter try/catch + tape + SSE frame
   ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
@@ -217,6 +222,8 @@ src/ui/
     ops-view.spec.ts           render → assert HTML (panels, palette wiring, kill-switch confirm)
     mm-desk-view.ts            renderMmDeskLive (cards+tape) + renderLaunchForm + renderMmDeskPage
     mm-desk-view.spec.ts       render → assert HTML (cards, attribution, remove wiring, tape order, forms)
+    statarb-desk-view.ts       renderStatArbLive (pair cards+tape) + renderStatArbBlotter + renderStatArbLaunchForm + renderStatArbPage
+    statarb-desk-view.spec.ts  render → assert HTML (z/β/regime/position, remove wiring, blotter states, form)
   public/
     ui.css                     the terminal theme (shared)
     desk-feed.js               <desk-feed> Web Component (shared live-update / read primitive)
@@ -228,7 +235,18 @@ src/ui/
 - `nest-cli.json` copies `ui/public/**/*` into `dist` (so prod build serves the
   assets; dev/ts-node reads from `src/` via the same locate trick `/demo` uses).
 - **A new role page = a new controller + a `render/<role>-view.ts` + (maybe) a shared
-  WC.** It imports whatever engine module exports its data. No new providers/state.
+  WC.** No new providers/state.
+- **Where the controller is *declared* depends on its data source's module weight:**
+  - If the engine module's graph compiles light (e.g. `MarketMakingModule` resolves
+    under a ConfigModule-only test), `UiModule` **imports** it and declares the
+    controller (exec / ops / desk-mm).
+  - If the module's graph is heavy (e.g. `StatArbModule` — clients + a `StatArbRepository`
+    with a required `DbService`), declare the controller **in that module** instead, so
+    `UiModule` doesn't transitively pull the whole graph (which would break its offline
+    DI compile test). The **view + spec still live in `src/ui/render`**; only the
+    `@Controller` registration moves. `/desk/statarb` follows this — same precedent as
+    `TelemetryModule` declaring `HealthController` to read MM state. Such a controller's
+    DI is validated at app boot (like `LiveController`), not by the `UiModule` compile test.
 
 ---
 
@@ -330,6 +348,36 @@ The full operating surface for the market-making desk:
 | Activity tape (full-replace each tick, newest-first) | a dedicated **append-mode** `<activity-tape>` (cursor-based, preserves scroll) over `/events?since=` |
 | MM `DeskEventLog` tape | the stat-arb tape (its own `DeskEventLog`) → `/desk/statarb` |
 
+### 8d. `/desk/statarb` — Stat-arb desk console
+
+Mirrors `/desk/mm` for the stat-arb desk (declared in `StatArbModule` — §7):
+
+- **`GET /desk/statarb`** — desk summary (NAV, net = realised + unrealised, pairs,
+  loop) + **per-pair cards** (z-score, β, regime, position LONG/SHORT/FLAT badge,
+  equity, realised/unrealised, net + return, blocked entries, bars, a confirm-gated
+  **remove** → `POST …/portfolio/remove {pair}`) + the **Activity tape** (the stat-arb
+  `DeskEventLog`, verbatim messages) + the **persisted blotter** (closed trades from
+  `StatArbRepository`, rendered on page-load; degrades to a "needs Postgres" note if
+  the DB read throws).
+- **action surface** — `statArbControls()` (start/stop/flatten) + a `<desk-form>` to
+  launch/reconfigure a pair (symbolA, symbolB, β, strategy, venue, capital, per-leg
+  notional). Re-launching a pair **replaces** it (= reconfigure; no edit endpoint).
+- **`GET /desk/statarb/stream`** — SSE pushes the summary + cards + tape every 2s; the
+  durable blotter is **not** streamed (page-load only) so there's no Postgres query per
+  tick.
+- **Tests:** `statarb-desk-view.spec.ts` (z/β/regime, position-badge colours, remove→pair
+  wiring, blotter available/empty/off states, the form), `statarb-desk.controller.spec.ts`
+  (real catalogue, blotter from repo + the no-DB try/catch degrade, tape from the
+  injected stat-arb `DeskEventLog`, SSE frame excludes the blotter).
+
+**In the `/desk/statarb` slice vs deferred:**
+
+| In `/desk/statarb` now | Deferred (next) |
+|---|---|
+| per-pair z/β/regime/position + P&L, launch/remove/start/stop/flatten | a spread/z **sparkline** per pair (`<nav-spark>`) |
+| persisted blotter (page-load, `paper` venue, DB-guarded) | a **mode-aware** venue + live blotter refresh |
+| stat-arb tape (its own `DeskEventLog`) | one **cross-desk** kill switch on `/ops` (both flatten endpoints now exist — trivially addable) |
+
 ---
 
 ## 9. Migration plan — retire `/demo`
@@ -344,16 +392,19 @@ surface, not UI).
 | desk NAV / equity / P&L headline | `/exec` (✅ shipped), `/ops` |
 | MM book cards (quotes/inventory/attribution) | `/desk/mm` (✅ shipped) |
 | launch / remove book controls | `/desk/mm` (✅ shipped, `<desk-form>`/`<desk-action>`) |
-| stat-arb pair table (z/β/regime/blotter) | `/desk/statarb` |
-| Activity feed | shared `activityTape()` — ✅ on `/desk/mm`; statarb/risk next |
+| stat-arb pair table (z/β/regime/blotter) | `/desk/statarb` (✅ shipped) |
+| launch / remove pair controls | `/desk/statarb` (✅ shipped) |
+| Activity feed | shared `activityTape()` — ✅ on `/desk/mm` + `/desk/statarb`; risk next |
 | health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
 | desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
 | risk verdicts / drawdown | `/risk` (+ headline on `/exec`) |
 | research / findings / funding board | `/research` |
 
 **Retire criteria:** delete `/demo` once `/exec`, `/ops`, `/desk/mm`, `/desk/statarb`
-exist at parity for what the operator uses daily. Until then both run side by side
-(no behaviour change to `/demo`).
+exist at parity for what the operator uses daily. **All four now exist** — the
+remaining gaps before retiring are the deferred panels (NAV sparkline, a metrics
+panel, append-mode tape) and `/risk` + `/research` + `/pm` + the `/` launcher. Until
+then both run side by side (no behaviour change to `/demo`).
 
 ---
 
@@ -364,16 +415,18 @@ are in the session summary / commit message; the short version:
 
 ```
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run start:dev
-# → http://localhost:3100/desk/mm  (full MM console — launch books + watch attribution + tape)
-# → http://localhost:3100/ops      (operator console — start/stop/flatten + health)
-# → http://localhost:3100/exec     (executive overview — read-only)
+# → http://localhost:3100/desk/mm       (MM console — launch books + attribution + tape)
+# → http://localhost:3100/desk/statarb  (stat-arb console — launch pairs + z/β/regime + blotter)
+# → http://localhost:3100/ops           (operator console — start/stop/flatten + health)
+# → http://localhost:3100/exec          (executive overview — read-only)
 
-# Everything is now drivable from /desk/mm:
-#   • "Launch book": symbol=BTC, venue=hyperliquid, strategy=GLFT → Launch
-#       (or "Launch preset": hl-perps) → a card appears; the Activity tape logs it.
-#   • watch the card's quotes + spread/adverse/fees/funding attribution update each bar.
-#   • per-card "remove" (confirm) drops a book; "Flatten desk" is the kill switch.
-# (These wrap the same endpoints you can still curl, e.g.:)
+# /desk/mm: "Launch book" (symbol=BTC, venue=hyperliquid, strategy=GLFT) or
+#   "Launch preset" (hl-perps) → a card appears; watch quotes + spread/adverse/fees/
+#   funding attribution update each bar; per-card "remove"; "Flatten desk" kill switch.
+# /desk/statarb: "Launch pair" (symbolA=ETH, symbolB=BTC, β from discovery, strategy=
+#   pairs-zscore) → a card with z/β/regime/position; tape logs entries/exits; the
+#   blotter lists closed trades (with Postgres). Re-launching a pair reconfigures it.
+# (All wrap existing endpoints, still curl-able, e.g.:)
 curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: application/json' \
      -d '{"presetId":"hl-perps","capitalUsdcPerBook":1000000}'
 ```
