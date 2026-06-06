@@ -275,3 +275,73 @@ desk-form[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
 .tape--verdict .tape-kind { color: var(--warn); }
 .tape--up .tape-kind { color: var(--pos); }
 .tape--down .tape-kind { color: var(--neg); }
+
+/* ── research: findings board ────────────────────────────────────────── */
+.research-intro { margin: 0 0 16px; font-size: 12px; }
+.findings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+}
+.finding {
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 5px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+}
+.finding--keep { border-left-color: var(--pos); }
+.finding--cut { border-left-color: var(--neg); }
+.finding--reserve { border-left-color: var(--warn); }
+.finding-h { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.finding-title { font-weight: 600; }
+.finding-detail { margin: 0 0 8px; font-size: 12px; color: var(--fg); }
+.finding-ref { font-size: 11px; }
+.badge--verdict-keep { color: var(--pos); border-color: #1f5a2b; background: #0f2114; }
+.badge--verdict-cut { color: var(--neg); border-color: #5a1f1f; background: #210f0f; }
+.badge--verdict-reserve { color: var(--warn); border-color: #5a4a1f; background: #211c0f; }
+
+/* ── research: runbook command board ─────────────────────────────────── */
+.cmd-group { margin-bottom: 14px; }
+.cmd-group-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.cmd { margin-bottom: 10px; }
+.cmd-label { font-size: 12px; font-weight: 600; }
+copy-cmd {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin: 4px 0 3px;
+}
+.cmd-code {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-right: none;
+  border-radius: 5px 0 0 5px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  overflow-x: auto;
+  white-space: pre;
+}
+.copy-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 0 5px 5px 0;
+  padding: 0 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.copy-btn:hover { background: #1d2530; }
+copy-cmd[data-ok] .copy-btn { color: var(--pos); border-color: #1f5a2b; }
+copy-cmd[data-err] .copy-btn { color: var(--neg); border-color: #5a1f1f; }
+.cmd-note { margin: 0 0 2px; font-size: 11px; }
+
+/* ── research: doc list ──────────────────────────────────────────────── */
+.doc-list { list-style: none; margin: 0; padding: 0; }
+.doc-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
+.doc-title { flex: 0 0 auto; }

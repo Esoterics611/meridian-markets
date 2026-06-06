@@ -1,9 +1,10 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + five slices shipped (2026-06-06…07): **`/exec`** (read-only),
+> **Status:** decided + six slices shipped (2026-06-06…07): **`/exec`** (read-only),
 > **`/ops`** (first action page), **`/desk/mm`** and **`/desk/statarb`** (the two rich
-> desk consoles), and **`/risk`** (drawdown/exposure/verdicts + de-risk levers incl. the
-> cross-desk kill switch). This is the design the [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for:
+> desk consoles), **`/risk`** (drawdown/exposure/verdicts + cross-desk kill switch), and
+> **`/research`** (static findings/KEEP-CUT board + the copy-the-runbook-command helper,
+> no execution). This is the design the [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for:
 > the chosen stack (with the trade-off recorded), the route map, the shared-component
 > inventory, the SSE feed list, the action⇄API map, and the module layout — plus the
 > vertical slices that prove the stack (read path, write path, forms + tape + blotter)
@@ -90,7 +91,7 @@ call (see §6); read-only pages drive nothing.
 | `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
 | `/desk/statarb` | Stat-arb desk | `LivePortfolioTrader.snapshot()` + stat-arb `DeskEventLog` + `StatArbRepository` (per-pair z/β/regime/position, blotter, tape) | launch/stop/remove/reconfigure a pair | **shipped** |
 | `/risk` | Risk | `MmPortfolioTrader.snapshot()` + MM `DeskEventLog` (drawdown vs budget, exposure, adverse-selection toxicity, verdict transitions) | stop/flatten (per desk) + remove (per book); cross-desk kill switch | **shipped** (pause/deny + limits still an endpoint gap — §6) |
-| `/research` | Quant | research/journal endpoints + static findings | **no exec** — copy-runbook-command helper | planned |
+| `/research` | Quant | curated findings (from `docs/RESEARCH_FINDINGS.md` + CLAUDE.md §8) + doc links — static | **no exec** — copy-the-runbook-command helper (`<copy-cmd>`) | **shipped** (live funding board / screener deferred — no endpoint) |
 | `/pm` | PM / house view | Thesis Register *(not built — §6)* | add/edit/close a thesis | future |
 | `/` | launcher | static | — | planned |
 
@@ -110,6 +111,7 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | `html\`\`` + escaping | pure TS | `src/ui/render/html.ts` | **shipped** | every render fn |
 | `<desk-action>` | Web Component | `src/ui/public/desk-action.js` | **shipped** | the write path on ops/desk/risk/pm |
 | `<desk-form>` | Web Component | `src/ui/public/desk-form.js` | **shipped** | any input form (launch book, launch pair, add thesis) |
+| `<copy-cmd>` | Web Component | `src/ui/public/copy-cmd.js` | **shipped** | the runbook copy helper (research; any "copy a command" surface) |
 | desk controls + Activity tape | server partials | `src/ui/render/components.ts` (`deskControls`, `statArbControls`, `activityTape`) | **shipped** | ops, desk/mm, desk/statarb (+ risk next) |
 | `<nav-spark>` (equity sparkline) | Web Component | _planned_ | — | exec/ops/desk |
 
@@ -145,6 +147,7 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 | `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards + Activity tape | 2s | **shipped** |
 | `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards + Activity tape (blotter is page-load only) | 2s | **shipped** |
 | `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed | 2s | **shipped** |
+| _(none — `/research` is static)_ | `/research` is research artifacts + terminal commands, not live state — no stream by design | — | n/a |
 | `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside the desk streams, full-replace) |
 
 Frame shape (all feeds): `data: {"html":"<fragment>"}`. The HTML is sent **inside a
@@ -180,6 +183,7 @@ Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 | ✅ (read) | persisted blotter | `StatArbRepository.recentTrades('paper', n)` (page-load; needs Postgres) |
 | `/risk` ✅ | de-risk / cross-desk kill | `POST /api/market-making/{stop,flatten}` + `POST /api/stat-arb/live/portfolio/flatten` (both flatten = the cross-desk kill switch) |
 | ✅ | per-book risk lever | `POST /api/market-making/remove` `{symbol}` (flatten + drop) |
+| `/research` ✅ | copy a runbook command | **none** — `<copy-cmd>` copies the exact terminal command to the clipboard (the UI never executes; the operator runs it) |
 | `/ops` | health / readiness / metrics | `GET /health`, `/health/ready`, `/metrics` |
 | `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` |
 | all | Activity tape | `GET /api/market-making/events?since=`, `GET /api/stat-arb/live/events?since=` |
@@ -218,7 +222,9 @@ src/ui/
   statarb-desk.controller.spec.ts  wiring + catalogue + blotter try/catch + tape + SSE frame
   risk.controller.ts           GET /risk (page) + @Sse GET /risk/stream         [slice 5, risk console]
   risk.controller.spec.ts      wiring + verdict-only event filter + SSE frame
-  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js (allow-listed)
+  research.controller.ts       GET /research (static page, no deps)             [slice 6, research desk]
+  research.controller.spec.ts  renders board + runbook; asserts no execution surface
+  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js + copy-cmd.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
     html.ts                    auto-escaping html`` tagged template + escape/raw
@@ -235,11 +241,14 @@ src/ui/
     statarb-desk-view.spec.ts  render → assert HTML (z/β/regime/position, remove wiring, blotter states, form)
     risk-view.ts               renderRiskLive (drawdown/exposure + risk table + verdict feed) + renderRiskActions + renderRiskPage
     risk-view.spec.ts          render → assert HTML (breach flags, exposure, adverse/VPIN note, verdict feed)
+    research-view.ts           FINDINGS/RUNBOOK/RESEARCH_DOCS consts + renderFindingsBoard/renderRunbook/renderDocLinks/renderResearchPage
+    research-view.spec.ts      render → assert HTML (verdict cards, runbook in copy-cmd, no execution surface)
   public/
     ui.css                     the terminal theme (shared)
     desk-feed.js               <desk-feed> Web Component (shared live-update / read primitive)
     desk-action.js             <desk-action> Web Component (shared action / write primitive)
     desk-form.js               <desk-form> Web Component (shared input-form / write primitive)
+    copy-cmd.js                <copy-cmd> Web Component (clipboard copy; the research runbook helper)
 ```
 
 - Wired in `app.module.ts` (`UiModule` added to `imports`).
@@ -410,6 +419,29 @@ Where the desk's risk is read and reduced (MM-snapshot data, so in `UiModule`):
   wiring, verdict feed, empty states), `risk.controller.spec.ts` (verdict-only filter so
   fills don't leak into the risk feed, SSE frame), DI compile spec.
 
+### 8f. `/research` — Quant research desk (static; no execution)
+
+The one page with **no live feed and no write surface** — by design (§5):
+
+- **`GET /research`** — three static panels:
+  - **findings — KEEP / CUT / RESERVE** — curated verdict cards from
+    `docs/RESEARCH_FINDINGS.md` + CLAUDE.md §8 (MM rebate-CLOB = KEEP live earner;
+    micro-price + sub-second cadence = KEEP; funding carry = KEEP modest; options VRP =
+    RESERVE; crypto taker stat-arb = CUT; FX-stable-as-taker = CUT; equities = KEEP
+    forward-paper). Each card carries the one-line finding + the doc to read.
+  - **runbook** — the exact terminal commands (run-the-desk, the honesty gates, MM
+    capture/tune), each in a `<copy-cmd>` that copies to the clipboard. **The UI never
+    executes** — the operator runs them in their terminal (the "no embedded shell"
+    verdict, §5).
+  - **research docs** — the key doc paths to open in an editor.
+- **Honesty:** the board *tracks the docs* (it doesn't compute) and says so; a **live
+  funding board / MM screener are deferred** — funding has no serving endpoint yet, so
+  we show the funding *verdict* with that caveat rather than inventing rates. A spec
+  asserts there is **no `endpoint="`/`<desk-feed>`** on the page (no execution/stream).
+- **Tests:** `research-view.spec.ts` (verdict cards + colours, runbook commands verbatim
+  inside `<copy-cmd>` with no action endpoints, doc links, the no-fabricated-funding
+  guard), `research.controller.spec.ts` (no execution surface), DI compile spec (no deps).
+
 ---
 
 ## 9. Migration plan — retire `/demo`
@@ -430,13 +462,13 @@ surface, not UI).
 | health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
 | desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
 | risk verdicts / drawdown / exposure | `/risk` (✅ shipped; + headline on `/exec`) |
-| research / findings / funding board | `/research` |
+| research / findings / runbook | `/research` (✅ shipped; live funding board deferred) |
 
 **Retire criteria:** delete `/demo` once the daily-driver pages exist at parity.
-`/exec`, `/ops`, `/desk/mm`, `/desk/statarb`, `/risk` **now exist** — the remaining
-work before retiring is the deferred panels (NAV sparkline, a metrics panel,
-append-mode tape) and `/research` + `/pm` + the `/` launcher. Until then both run side
-by side (no behaviour change to `/demo`).
+`/exec`, `/ops`, `/desk/mm`, `/desk/statarb`, `/risk`, `/research` **now exist** — the
+remaining work before retiring is the deferred panels (NAV sparkline, a metrics panel,
+append-mode tape, live funding board) and `/pm` + the `/` launcher. Until then both run
+side by side (no behaviour change to `/demo`).
 
 ---
 
@@ -450,6 +482,7 @@ FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run star
 # → http://localhost:3100/desk/mm       (MM console — launch books + attribution + tape)
 # → http://localhost:3100/desk/statarb  (stat-arb console — launch pairs + z/β/regime + blotter)
 # → http://localhost:3100/risk          (drawdown vs 2% budget, exposure, verdicts + de-risk/kill switch)
+# → http://localhost:3100/research      (findings KEEP/CUT board + copy-the-runbook-command helper)
 # → http://localhost:3100/ops           (operator console — start/stop/flatten + health)
 # → http://localhost:3100/exec          (executive overview — read-only)
 

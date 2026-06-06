@@ -6,6 +6,7 @@ import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
 import { RiskController } from './risk.controller';
+import { ResearchPageController } from './research.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // Compiles the real DI graph (UiModule → MarketMakingModule, MmPortfolioTrader
@@ -17,6 +18,7 @@ describe('UiModule — offline DI compile', () => {
   let ops: OpsController;
   let mmDesk: MmDeskController;
   let risk: RiskController;
+  let research: ResearchPageController;
   let assets: UiAssetController;
 
   beforeAll(async () => {
@@ -27,6 +29,7 @@ describe('UiModule — offline DI compile', () => {
     ops = mod.get(OpsController);
     mmDesk = mod.get(MmDeskController);
     risk = mod.get(RiskController);
+    research = mod.get(ResearchPageController);
     assets = mod.get(UiAssetController);
   });
 
@@ -59,6 +62,11 @@ describe('UiModule — offline DI compile', () => {
     expect(html).toContain('max book drawdown');
   });
 
+  it('resolves ResearchPageController (no engine deps) and renders the static desk', () => {
+    expect(research).toBeInstanceOf(ResearchPageController);
+    expect(research.page()).toContain('findings — KEEP / CUT / RESERVE');
+  });
+
   it('serves the shared UI assets that the page references', () => {
     expect(assets).toBeInstanceOf(UiAssetController);
     const sent: { type?: string; body?: string } = {};
@@ -85,6 +93,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('desk-form.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain("customElements.define('desk-form'");
+
+    assets.serve('copy-cmd.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('copy-cmd'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {

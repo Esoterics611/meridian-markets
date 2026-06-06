@@ -21,7 +21,7 @@ export const ROLE_LINKS: RoleLink[] = [
   { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/statarb', label: 'desk·statarb', live: true },
   { href: '/risk', label: 'risk', live: true },
-  { href: '/research', label: 'research', live: false },
+  { href: '/research', label: 'research', live: true },
   { href: '/pm', label: 'pm', live: false },
 ];
 
@@ -72,6 +72,7 @@ export function pageShell(opts: ShellOpts): string {
           <script type="module" src="/ui/desk-feed.js"></script>
           <script type="module" src="/ui/desk-action.js"></script>
           <script type="module" src="/ui/desk-form.js"></script>
+          <script type="module" src="/ui/copy-cmd.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {
