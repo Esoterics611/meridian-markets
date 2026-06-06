@@ -11,10 +11,7 @@ import { fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { money, usd, pct, returnPct, signClass } from './format';
-
-// The desk's drawdown budget (the risk doctrine's 2% cap). The exec page flags a
-// breach but does not enforce — enforcement is the engine's risk gate, not the UI.
-const DRAWDOWN_BUDGET_PCT = 2.0;
+import { DRAWDOWN_BUDGET_PCT } from './components';
 
 /** Worst single-book max-drawdown — the desk's headline drawdown proxy. */
 function worstDrawdownPct(books: MmBookSnapshot[]): number {

@@ -5,6 +5,7 @@ import { UiModule } from './ui.module';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
+import { RiskController } from './risk.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // Compiles the real DI graph (UiModule → MarketMakingModule, MmPortfolioTrader
@@ -15,6 +16,7 @@ describe('UiModule — offline DI compile', () => {
   let exec: ExecController;
   let ops: OpsController;
   let mmDesk: MmDeskController;
+  let risk: RiskController;
   let assets: UiAssetController;
 
   beforeAll(async () => {
@@ -24,6 +26,7 @@ describe('UiModule — offline DI compile', () => {
     exec = mod.get(ExecController);
     ops = mod.get(OpsController);
     mmDesk = mod.get(MmDeskController);
+    risk = mod.get(RiskController);
     assets = mod.get(UiAssetController);
   });
 
@@ -47,6 +50,13 @@ describe('UiModule — offline DI compile', () => {
     const html = mmDesk.page();
     expect(html).toContain('id="mm-live"');
     expect(html).toContain('class="panel launch"');
+  });
+
+  it('resolves RiskController (MM trader + DeskEventLog) and renders', () => {
+    expect(risk).toBeInstanceOf(RiskController);
+    const html = risk.page();
+    expect(html).toContain('id="risk-live"');
+    expect(html).toContain('max book drawdown');
   });
 
   it('serves the shared UI assets that the page references', () => {

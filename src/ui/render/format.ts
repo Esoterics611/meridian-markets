@@ -28,6 +28,17 @@ export function signClass(unitsStr: string): string {
   return v > 0n ? 'pos' : v < 0n ? 'neg' : 'flat';
 }
 
+/** Signed notional exposure (6-dec units) from inventory (asset units) × mid (price micros). */
+export function notionalUnits(invUnitsStr: string, midMicrosStr: string): string {
+  return ((BigInt(invUnitsStr) * BigInt(midMicrosStr)) / 1_000_000n).toString();
+}
+
+/** Absolute value of a serialised-units string (for gross sums / unsigned display). */
+export function absUnits(unitsStr: string): string {
+  const v = BigInt(unitsStr);
+  return (v < 0n ? -v : v).toString();
+}
+
 /** Net P&L as a fraction of starting capital, signed, e.g. "+0.34%". */
 export function returnPct(netUnitsStr: string, capitalUnitsStr: string): string {
   const cap = Number(BigInt(capitalUnitsStr));

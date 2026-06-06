@@ -1,9 +1,9 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + four slices shipped (2026-06-06): **`/exec`** (read-only),
+> **Status:** decided + five slices shipped (2026-06-06…07): **`/exec`** (read-only),
 > **`/ops`** (first action page), **`/desk/mm`** and **`/desk/statarb`** (the two rich
-> desk consoles — per-book/-pair detail, Activity tape, launch/stop/remove/reconfigure).
-> This is the design the [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for:
+> desk consoles), and **`/risk`** (drawdown/exposure/verdicts + de-risk levers incl. the
+> cross-desk kill switch). This is the design the [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for:
 > the chosen stack (with the trade-off recorded), the route map, the shared-component
 > inventory, the SSE feed list, the action⇄API map, and the module layout — plus the
 > vertical slices that prove the stack (read path, write path, forms + tape + blotter)
@@ -89,7 +89,7 @@ call (see §6); read-only pages drive nothing.
 | `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
 | `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
 | `/desk/statarb` | Stat-arb desk | `LivePortfolioTrader.snapshot()` + stat-arb `DeskEventLog` + `StatArbRepository` (per-pair z/β/regime/position, blotter, tape) | launch/stop/remove/reconfigure a pair | **shipped** |
-| `/risk` | Risk | snapshots (drawdown, verdicts, VPIN) | pause/deny book *(endpoint gap — §6)* | planned |
+| `/risk` | Risk | `MmPortfolioTrader.snapshot()` + MM `DeskEventLog` (drawdown vs budget, exposure, adverse-selection toxicity, verdict transitions) | stop/flatten (per desk) + remove (per book); cross-desk kill switch | **shipped** (pause/deny + limits still an endpoint gap — §6) |
 | `/research` | Quant | research/journal endpoints + static findings | **no exec** — copy-runbook-command helper | planned |
 | `/pm` | PM / house view | Thesis Register *(not built — §6)* | add/edit/close a thesis | future |
 | `/` | launcher | static | — | planned |
@@ -144,6 +144,7 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
 | `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards + Activity tape | 2s | **shipped** |
 | `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards + Activity tape (blotter is page-load only) | 2s | **shipped** |
+| `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed | 2s | **shipped** |
 | `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside the desk streams, full-replace) |
 
 Frame shape (all feeds): `data: {"html":"<fragment>"}`. The HTML is sent **inside a
@@ -177,14 +178,20 @@ Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 | ✅ | launch / reconfigure pair | `POST /api/stat-arb/live/portfolio/launch` `{symbolA,symbolB,beta?,strategyId?,source?,capitalUsdc?,notionalUsdc?}` |
 | ✅ | remove pair (per-card) | `POST /api/stat-arb/live/portfolio/remove` `{pair:"A/B"}` (confirm-gated) |
 | ✅ (read) | persisted blotter | `StatArbRepository.recentTrades('paper', n)` (page-load; needs Postgres) |
+| `/risk` ✅ | de-risk / cross-desk kill | `POST /api/market-making/{stop,flatten}` + `POST /api/stat-arb/live/portfolio/flatten` (both flatten = the cross-desk kill switch) |
+| ✅ | per-book risk lever | `POST /api/market-making/remove` `{symbol}` (flatten + drop) |
 | `/ops` | health / readiness / metrics | `GET /health`, `/health/ready`, `/metrics` |
 | `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` |
 | all | Activity tape | `GET /api/market-making/events?since=`, `GET /api/stat-arb/live/events?since=` |
 
 **Known gaps to design (not faked in the UI):**
-- **`/risk` pause/deny + lower-limit** has no dedicated endpoint — the risk gate is
-  engine-internal. The risk page launches against `stop`/`flatten` for now; a proper
+- **`/risk` soft pause/deny + lower-limit** still has no dedicated endpoint — the risk
+  gate is engine-internal. `/risk` ships with the levers that *do* exist (stop / flatten
+  per desk + flatten-drop per book) and says so on the page; a proper
   `POST /api/market-making/risk/{pause,limit}` is a future engine task.
+- **VPIN is not surfaced live** — the MM gate currently passes `vpin=0` (`mm-book.ts`),
+  so `/risk` shows **adverse selection** as the live toxicity signal and notes VPIN is
+  computed-but-unwired. No fabricated VPIN number.
 - **`/pm` Thesis Register** endpoints don't exist yet (the register is "coming" per
   CLAUDE.md §8). `/pm` is **future** — it waits on the engine surface.
 - **`/research` copy-command** helper renders runbook strings client-side from the
@@ -209,6 +216,8 @@ src/ui/
   mm-desk.controller.spec.ts   wiring + catalogue + tape-from-DeskEventLog + SSE frame
   statarb-desk.controller.ts   GET /desk/statarb + @Sse /desk/statarb/stream    [slice 4; declared in StatArbModule]
   statarb-desk.controller.spec.ts  wiring + catalogue + blotter try/catch + tape + SSE frame
+  risk.controller.ts           GET /risk (page) + @Sse GET /risk/stream         [slice 5, risk console]
+  risk.controller.spec.ts      wiring + verdict-only event filter + SSE frame
   ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
@@ -224,6 +233,8 @@ src/ui/
     mm-desk-view.spec.ts       render → assert HTML (cards, attribution, remove wiring, tape order, forms)
     statarb-desk-view.ts       renderStatArbLive (pair cards+tape) + renderStatArbBlotter + renderStatArbLaunchForm + renderStatArbPage
     statarb-desk-view.spec.ts  render → assert HTML (z/β/regime/position, remove wiring, blotter states, form)
+    risk-view.ts               renderRiskLive (drawdown/exposure + risk table + verdict feed) + renderRiskActions + renderRiskPage
+    risk-view.spec.ts          render → assert HTML (breach flags, exposure, adverse/VPIN note, verdict feed)
   public/
     ui.css                     the terminal theme (shared)
     desk-feed.js               <desk-feed> Web Component (shared live-update / read primitive)
@@ -376,7 +387,28 @@ Mirrors `/desk/mm` for the stat-arb desk (declared in `StatArbModule` — §7):
 |---|---|
 | per-pair z/β/regime/position + P&L, launch/remove/start/stop/flatten | a spread/z **sparkline** per pair (`<nav-spark>`) |
 | persisted blotter (page-load, `paper` venue, DB-guarded) | a **mode-aware** venue + live blotter refresh |
-| stat-arb tape (its own `DeskEventLog`) | one **cross-desk** kill switch on `/ops` (both flatten endpoints now exist — trivially addable) |
+| stat-arb tape (its own `DeskEventLog`) | (cross-desk kill switch — now shipped on `/risk`, §8e) |
+
+### 8e. `/risk` — Risk console
+
+Where the desk's risk is read and reduced (MM-snapshot data, so in `UiModule`):
+
+- **`GET /risk`** — headline (worst-book drawdown vs the 2% budget, books over budget,
+  blocked books with a non-Allow verdict, **net / gross exposure** = Σ inventory × mid)
+  + a **per-book risk table** (verdict badge, max DD vs budget, signed exposure,
+  **adverse selection** as the live toxicity signal, blocked-quote count, and a per-book
+  **flatten + drop** action) + the **risk-verdict transition feed** (the MM `DeskEventLog`
+  filtered to `kind==='verdict'`, engine messages verbatim).
+- **de-risk palette** — `renderRiskActions()`: **Stop MM quoting**, **Flatten MM desk**,
+  **Flatten stat-arb desk** (all confirm-gated). The two flatten buttons together are the
+  **cross-desk kill switch**. The page states plainly that soft per-book pause/deny +
+  limit-lowering need an engine endpoint that doesn't exist yet.
+- **`GET /risk/stream`** — SSE pushes the headline + table + verdict feed every 2s.
+- **Honesty:** no VPIN number is shown (the gate passes `vpin=0`); adverse selection is
+  the real, surfaced toxicity signal, and the page says VPIN is computed-but-unwired.
+- **Tests:** `risk-view.spec.ts` (breach flags, exposure math, adverse/VPIN note, remove
+  wiring, verdict feed, empty states), `risk.controller.spec.ts` (verdict-only filter so
+  fills don't leak into the risk feed, SSE frame), DI compile spec.
 
 ---
 
@@ -397,14 +429,14 @@ surface, not UI).
 | Activity feed | shared `activityTape()` — ✅ on `/desk/mm` + `/desk/statarb`; risk next |
 | health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
 | desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
-| risk verdicts / drawdown | `/risk` (+ headline on `/exec`) |
+| risk verdicts / drawdown / exposure | `/risk` (✅ shipped; + headline on `/exec`) |
 | research / findings / funding board | `/research` |
 
-**Retire criteria:** delete `/demo` once `/exec`, `/ops`, `/desk/mm`, `/desk/statarb`
-exist at parity for what the operator uses daily. **All four now exist** — the
-remaining gaps before retiring are the deferred panels (NAV sparkline, a metrics
-panel, append-mode tape) and `/risk` + `/research` + `/pm` + the `/` launcher. Until
-then both run side by side (no behaviour change to `/demo`).
+**Retire criteria:** delete `/demo` once the daily-driver pages exist at parity.
+`/exec`, `/ops`, `/desk/mm`, `/desk/statarb`, `/risk` **now exist** — the remaining
+work before retiring is the deferred panels (NAV sparkline, a metrics panel,
+append-mode tape) and `/research` + `/pm` + the `/` launcher. Until then both run side
+by side (no behaviour change to `/demo`).
 
 ---
 
@@ -417,6 +449,7 @@ are in the session summary / commit message; the short version:
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run start:dev
 # → http://localhost:3100/desk/mm       (MM console — launch books + attribution + tape)
 # → http://localhost:3100/desk/statarb  (stat-arb console — launch pairs + z/β/regime + blotter)
+# → http://localhost:3100/risk          (drawdown vs 2% budget, exposure, verdicts + de-risk/kill switch)
 # → http://localhost:3100/ops           (operator console — start/stop/flatten + health)
 # → http://localhost:3100/exec          (executive overview — read-only)
 

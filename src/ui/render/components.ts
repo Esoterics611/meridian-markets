@@ -4,6 +4,10 @@
 import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, SafeHtml, raw } from './html';
 
+// The desk's drawdown budget (the risk doctrine's 2% cap) — shared by /exec + /risk.
+// The UI flags a breach; it never enforces (enforcement is the engine's risk gate).
+export const DRAWDOWN_BUDGET_PCT = 2.0;
+
 /**
  * The MM desk control palette — Start / Stop / Flatten (the kill switch). Each
  * `<desk-action>` POSTs an existing, validated control-plane endpoint; the flatten
@@ -80,9 +84,10 @@ function tapeRow(ev: DeskEvent): SafeHtml {
 /**
  * The Activity tape — the live business-event feed (fills / verdict changes / book
  * lifecycle). `events` arrive oldest-first (the log's feed order); we show them
- * newest-first, capped. Shared by mm/statarb/risk.
+ * newest-first, capped. Shared by mm/statarb/risk. `title` + `emptyNote` let the
+ * risk page reuse it as a verdict-transition feed.
  */
-export function activityTape(events: DeskEvent[]): SafeHtml {
+export function activityTape(events: DeskEvent[], title = 'activity', emptyNote = 'no activity yet — launch a book to start the tape'): SafeHtml {
   const rows = events.length
     ? raw(
         [...events]
@@ -90,10 +95,10 @@ export function activityTape(events: DeskEvent[]): SafeHtml {
           .map((e) => tapeRow(e).value)
           .join(''),
       )
-    : html`<li class="dim empty">no activity yet — launch a book to start the tape</li>`;
+    : html`<li class="dim empty">${emptyNote}</li>`;
   return html`
     <section class="panel activity">
-      <div class="panel-h">activity</div>
+      <div class="panel-h">${title}</div>
       <ul class="tape">${rows}</ul>
     </section>
   `;

@@ -20,7 +20,7 @@ export const ROLE_LINKS: RoleLink[] = [
   { href: '/ops', label: 'ops', live: true },
   { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/statarb', label: 'desk·statarb', live: true },
-  { href: '/risk', label: 'risk', live: false },
+  { href: '/risk', label: 'risk', live: true },
   { href: '/research', label: 'research', live: false },
   { href: '/pm', label: 'pm', live: false },
 ];
