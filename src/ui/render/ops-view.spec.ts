@@ -1,4 +1,5 @@
-import { renderOpsLive, renderActionPalette, renderOpsPage, OpsState } from './ops-view';
+import { renderOpsLive, renderOpsPage, OpsState } from './ops-view';
+import { deskControls } from './components';
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { ReadinessResult } from '../../telemetry/readiness';
 
@@ -90,16 +91,16 @@ describe('renderOpsLive', () => {
   });
 });
 
-describe('renderActionPalette', () => {
+describe('deskControls', () => {
   it('wires each button to the correct existing control-plane endpoint', () => {
-    const h = renderActionPalette().value;
+    const h = deskControls().value;
     expect(h).toContain('endpoint="/api/market-making/start"');
     expect(h).toContain('endpoint="/api/market-making/stop"');
     expect(h).toContain('endpoint="/api/market-making/flatten"');
   });
 
   it('guards the flatten kill switch with a confirm prompt', () => {
-    const h = renderActionPalette().value;
+    const h = deskControls().value;
     // the flatten button — and only it — carries a confirm attribute
     expect(h).toMatch(/endpoint="\/api\/market-making\/flatten"[\s\S]*confirm=/);
     expect((h.match(/confirm=/g) || []).length).toBe(1);

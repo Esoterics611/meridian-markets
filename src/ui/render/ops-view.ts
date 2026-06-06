@@ -13,6 +13,7 @@ import { ReadinessResult } from '../../telemetry/readiness';
 import { html, SafeHtml, raw } from './html';
 import { pageShell } from './layout';
 import { usd, money, duration, age } from './format';
+import { deskControls } from './components';
 
 export interface OpsState {
   uptimeSeconds: number;
@@ -78,34 +79,11 @@ export function renderOpsLive(state: OpsState): SafeHtml {
   `;
 }
 
-/**
- * The static action palette. Each button POSTs to an EXISTING control-plane
- * endpoint (curated + validated server-side); the live region above reflects the
- * result within one SSE tick (~2s). It lives OUTSIDE the live region so it isn't
- * re-created on every tick (which would drop an in-flight click).
- */
-export function renderActionPalette(): SafeHtml {
-  return html`
-    <section class="action-palette">
-      <span class="palette-label">MM desk controls</span>
-      <desk-action endpoint="/api/market-making/start" label="Start desk" variant="ok" title="Resume the quoting loop"></desk-action>
-      <desk-action endpoint="/api/market-making/stop" label="Stop desk" variant="warn" title="Halt quoting (positions are kept)"></desk-action>
-      <desk-action
-        endpoint="/api/market-making/flatten"
-        label="Flatten desk"
-        variant="danger"
-        confirm="Flatten ALL market-making books? This crosses the spread (taker fee) to force every book to zero inventory."
-        title="Kill switch: force every book flat"
-      ></desk-action>
-    </section>
-  `;
-}
-
-/** The full /ops document: shell + static action palette + the live status region. */
+/** The full /ops document: shell + the shared desk-control palette + the live status region. */
 export function renderOpsPage(state: OpsState): string {
   const body = html`
     <h1 class="page-title">Operator — desk controls &amp; health</h1>
-    ${renderActionPalette()}
+    ${deskControls()}
     <desk-feed src="/ops/stream" target="ops-live">
       <div id="ops-live">${renderOpsLive(state)}</div>
     </desk-feed>

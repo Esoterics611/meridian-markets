@@ -13,12 +13,14 @@ const ASSET_FILES: Record<string, string> = {
   'ui.css': 'ui.css',
   'desk-feed.js': 'desk-feed.js',
   'desk-action.js': 'desk-action.js',
+  'desk-form.js': 'desk-form.js',
 };
 
 const CONTENT_TYPES: Record<string, string> = {
   'ui.css': 'text/css; charset=utf-8',
   'desk-feed.js': 'application/javascript; charset=utf-8',
   'desk-action.js': 'application/javascript; charset=utf-8',
+  'desk-form.js': 'application/javascript; charset=utf-8',
 };
 
 function locate(file: string): string {

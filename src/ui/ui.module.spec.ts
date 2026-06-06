@@ -4,6 +4,7 @@ import { appConfigFactory } from '@config/app-config.factory';
 import { UiModule } from './ui.module';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
+import { MmDeskController } from './mm-desk.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // Compiles the real DI graph (UiModule → MarketMakingModule, MmPortfolioTrader
@@ -13,6 +14,7 @@ import { UiAssetController } from './ui-asset.controller';
 describe('UiModule — offline DI compile', () => {
   let exec: ExecController;
   let ops: OpsController;
+  let mmDesk: MmDeskController;
   let assets: UiAssetController;
 
   beforeAll(async () => {
@@ -21,6 +23,7 @@ describe('UiModule — offline DI compile', () => {
     }).compile();
     exec = mod.get(ExecController);
     ops = mod.get(OpsController);
+    mmDesk = mod.get(MmDeskController);
     assets = mod.get(UiAssetController);
   });
 
@@ -37,6 +40,13 @@ describe('UiModule — offline DI compile', () => {
     const html = await ops.page();
     expect(html).toContain('id="ops-live"');
     expect(html).toContain('class="action-palette"');
+  });
+
+  it('resolves MmDeskController with the MM trader + exported DeskEventLog injected', () => {
+    expect(mmDesk).toBeInstanceOf(MmDeskController);
+    const html = mmDesk.page();
+    expect(html).toContain('id="mm-live"');
+    expect(html).toContain('class="panel launch"');
   });
 
   it('serves the shared UI assets that the page references', () => {
@@ -61,6 +71,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('desk-action.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain("customElements.define('desk-action'");
+
+    assets.serve('desk-form.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('desk-form'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {

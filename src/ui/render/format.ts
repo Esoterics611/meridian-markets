@@ -22,6 +22,12 @@ export function pct(n: number, dp = 2): string {
   return `${n.toFixed(dp)}%`;
 }
 
+/** P&L cell colour class from serialised units: "pos" / "neg" / "flat". */
+export function signClass(unitsStr: string): string {
+  const v = BigInt(unitsStr);
+  return v > 0n ? 'pos' : v < 0n ? 'neg' : 'flat';
+}
+
 /** Net P&L as a fraction of starting capital, signed, e.g. "+0.34%". */
 export function returnPct(netUnitsStr: string, capitalUnitsStr: string): string {
   const cap = Number(BigInt(capitalUnitsStr));

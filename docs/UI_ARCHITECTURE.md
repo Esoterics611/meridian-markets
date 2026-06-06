@@ -1,11 +1,12 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + two slices shipped (2026-06-06): **`/exec`** (read-only) and
-> **`/ops`** (the first *action* page). This is the design the
+> **Status:** decided + three slices shipped (2026-06-06): **`/exec`** (read-only),
+> **`/ops`** (first action page), and **`/desk/mm`** (the rich desk console — per-book
+> attribution, Activity tape, launch/stop/remove/reconfigure). This is the design the
 > [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for: the chosen stack
 > (with the trade-off recorded), the route map, the shared-component inventory, the
-> SSE feed list, the action⇄API map, and the module layout — plus the two vertical
-> slices that prove the stack (read path + write path) end-to-end, and the
+> SSE feed list, the action⇄API map, and the module layout — plus the vertical slices
+> that prove the stack (read path, write path, forms + tape) end-to-end, and the
 > **migration plan** to retire the 100KB `/demo` `index.html`.
 
 This document is the contract for the redesign. Read it before adding a role page.
@@ -86,7 +87,7 @@ call (see §6); read-only pages drive nothing.
 |---|---|---|---|---|
 | `/exec` | Executive | `MmPortfolioTrader.snapshot()` | — (read-only) | **shipped** |
 | `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
-| `/desk/mm` | MM desk | `/api/market-making/*` | launch/stop/remove book, set params | planned |
+| `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
 | `/desk/statarb` | Stat-arb desk | `/api/stat-arb/live/*` | launch/stop/reconfigure pair | planned |
 | `/risk` | Risk | snapshots (drawdown, verdicts, VPIN) | pause/deny book *(endpoint gap — §6)* | planned |
 | `/research` | Quant | research/journal endpoints + static findings | **no exec** — copy-runbook-command helper | planned |
@@ -108,7 +109,8 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | money/pct/units formatters | pure TS | `src/ui/render/format.ts` | **shipped** | every page |
 | `html\`\`` + escaping | pure TS | `src/ui/render/html.ts` | **shipped** | every render fn |
 | `<desk-action>` | Web Component | `src/ui/public/desk-action.js` | **shipped** | the write path on ops/desk/risk/pm |
-| `<activity-tape>` | Web Component | _planned_ | — | mm/statarb/risk |
+| `<desk-form>` | Web Component | `src/ui/public/desk-form.js` | **shipped** | any input form (launch book, launch pair, add thesis) |
+| desk controls + Activity tape | server partials | `src/ui/render/components.ts` (`deskControls`, `activityTape`) | **shipped** | ops, desk/mm (+ statarb/risk next) |
 | `<nav-spark>` (equity sparkline) | Web Component | _planned_ | — | exec/ops/desk |
 
 **`<desk-feed src target>`** is the one live-update (read) primitive: it opens an SSE
@@ -116,12 +118,21 @@ connection to `src` and swaps each pushed HTML fragment into `#target`. The serv
 renders `#target` for a correct first paint, then `<desk-feed>` keeps it live. It
 holds no business logic — it only swaps server markup.
 
-**`<desk-action endpoint label variant confirm>`** is the one action (write)
+**`<desk-action endpoint label variant confirm body>`** is the one action (write)
 primitive: it renders a button that POSTs to an existing, validated control-plane
 endpoint, manages only button affordance (disable while in-flight, flash ok/err),
 and lets the `<desk-feed>` stream show the result. `confirm` gates destructive
-actions (the flatten kill switch) behind a browser confirm dialog. It lives
-**outside** the SSE region so a tick doesn't re-create it mid-click.
+actions (the flatten kill switch, a per-book remove) behind a browser confirm
+dialog; `body` carries a fixed JSON payload (e.g. the symbol to remove).
+
+**`<desk-form endpoint label>`** wraps server-rendered `[name]` inputs/selects: on
+submit it collects them into a JSON body (number inputs coerced, empty fields
+dropped), POSTs the endpoint, and **surfaces the engine's own `{error}`** (these
+endpoints answer `200 {error:"…"}` on bad input) so the operator sees *why* a launch
+was rejected. Both `<desk-action>` and `<desk-form>` live **outside** the SSE region
+so a tick doesn't re-create them mid-interaction (a per-book remove button is the one
+exception — it rides inside a card; the in-flight `fetch` still completes if the card
+re-renders, and the book vanishing from the cards is the real confirmation).
 
 ---
 
@@ -131,8 +142,8 @@ actions (the flatten kill switch) behind a browser confirm dialog. It lives
 |---|---|---|---|
 | `GET /exec/stream` | the `/exec` live region (NAV, P&L, drawdown, per-book table) | 2s | **shipped** |
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
-| `GET /desk/mm/stream` | per-book quotes/inventory/attribution | sub-2s | planned |
-| `GET /<page>/events/stream` | the Activity tape (fills/verdicts/lifecycle) from `…/events` | on event | planned |
+| `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards + Activity tape | 2s | **shipped** |
+| `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside `/desk/mm/stream`, full-replace) |
 
 Frame shape (all feeds): `data: {"html":"<fragment>"}`. The HTML is sent **inside a
 JSON object on purpose** — `JSON.stringify` escapes newlines, so a multi-line
@@ -149,17 +160,17 @@ runbook-command** helper for terminal-only jobs (capture/tune/sweep). A read-onl
 log pane is the optional later "watch it run" view. Never a free-form shell (it's an
 RCE surface and breaks the "research runs from the terminal" rule).
 
-Wired today on `/ops` (✅) via `<desk-action>`; the rest land with their page.
+Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 
 | Page | Action | Endpoint (exists today) |
 |---|---|---|
-| `/ops` ✅, `/desk/mm` | start desk | `POST /api/market-making/start` |
+| `/ops` ✅, `/desk/mm` ✅ | start desk | `POST /api/market-making/start` |
 | ✅ | stop desk | `POST /api/market-making/stop` |
 | ✅ | flatten (kill switch) | `POST /api/market-making/flatten` (confirm-gated) |
-| `/desk/mm` | launch book | `POST /api/market-making/launch` `{symbol,strategyId?,source?,capitalUsdc?,quoteNotionalUsd?}` |
-| | launch a preset | `POST /api/market-making/launch-preset` `{presetId,...}` |
-| | remove book | `POST /api/market-making/remove` `{symbol}` |
-| | (read) catalogue | `GET /api/market-making/strategies`, `/markets`, `/screen` |
+| `/desk/mm` ✅ | launch / reconfigure book | `POST /api/market-making/launch` `{symbol,strategyId?,source?,capitalUsdc?,quoteNotionalUsd?}` (re-launch replaces) |
+| ✅ | launch a preset | `POST /api/market-making/launch-preset` `{presetId,capitalUsdcPerBook?}` |
+| ✅ | remove book (per-card) | `POST /api/market-making/remove` `{symbol}` (confirm-gated) |
+| | (read) catalogue | `GET /api/market-making/strategies`, `/markets`, `/screen` (strategies+presets feed the launch form) |
 | `/ops`, `/desk/statarb` | start/stop/kill | `POST /api/stat-arb/live/start|stop|kill` |
 | | flatten / flatten-all | `POST /api/stat-arb/live/flatten`, `/portfolio/flatten` |
 | `/desk/statarb` | launch/remove pair | `POST /api/stat-arb/live/portfolio/launch`, `/portfolio/remove` |
@@ -191,20 +202,26 @@ src/ui/
   exec.controller.spec.ts      controller wiring + SSE frame shape
   ops.controller.ts            GET /ops (page) + @Sse GET /ops/stream            [slice 2, action]
   ops.controller.spec.ts       wiring + async SSE frame + DB-ping/readiness assembly
-  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-feed.js + desk-action.js (allow-listed)
+  mm-desk.controller.ts        GET /desk/mm (page) + @Sse GET /desk/mm/stream    [slice 3, console]
+  mm-desk.controller.spec.ts   wiring + catalogue + tape-from-DeskEventLog + SSE frame
+  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
     html.ts                    auto-escaping html`` tagged template + escape/raw
-    format.ts                  money/usd/pct/return + duration/age formatters (reuse desk-event money fmt)
+    format.ts                  money/usd/pct/return/signClass + duration/age formatters
     layout.ts                  pageShell + shared topBar + ROLE_LINKS launcher
+    components.ts              SHARED partials: deskControls (palette) + activityTape
     exec-view.ts               renderExecLive (live region) + renderExecPage (full doc)
     exec-view.spec.ts          render → assert HTML  (the brief's required fragment test)
-    ops-view.ts                renderOpsLive (panels) + renderActionPalette + renderOpsPage
+    ops-view.ts                renderOpsLive (panels) + renderOpsPage
     ops-view.spec.ts           render → assert HTML (panels, palette wiring, kill-switch confirm)
+    mm-desk-view.ts            renderMmDeskLive (cards+tape) + renderLaunchForm + renderMmDeskPage
+    mm-desk-view.spec.ts       render → assert HTML (cards, attribution, remove wiring, tape order, forms)
   public/
     ui.css                     the terminal theme (shared)
     desk-feed.js               <desk-feed> Web Component (shared live-update / read primitive)
     desk-action.js             <desk-action> Web Component (shared action / write primitive)
+    desk-form.js               <desk-form> Web Component (shared input-form / write primitive)
 ```
 
 - Wired in `app.module.ts` (`UiModule` added to `imports`).
@@ -277,6 +294,42 @@ The first page with a control surface. Read panels + a curated action palette:
 > not a whole-desk kill switch yet — that waits on the stat-arb panel. We don't ship a
 > button that claims more than it does.
 
+### 8c. `/desk/mm` — MM desk console (the rich page: forms + tape + attribution)
+
+The full operating surface for the market-making desk:
+
+- **`GET /desk/mm`** — server-rendered console:
+  - **desk summary** — NAV, net P&L + return, book count, loop RUNNING/STOPPED.
+  - **per-book cards** — for each book: quotes (bid / mid / ask / reservation /
+    ½-spread), inventory, the 4-component **PnL attribution** (spread captured /
+    adverse selection / fees / funding) + net, the risk verdict, fills (bid/ask) /
+    blocked / maxDD, a WARMING badge until σ is seeded, and a confirm-gated
+    **remove** button (`POST …/remove {symbol}`).
+  - **Activity tape** — the live business-event feed (fills / verdict changes /
+    lifecycle), newest-first, rendered server-side from the MM `DeskEventLog` (the
+    same sink the fills emit into; exported from `MarketMakingModule` for this). The
+    engine's pre-rendered `message` is shown **verbatim** — the UI never re-derives
+    business text.
+- **action surface** — the shared `deskControls()` (start/stop/flatten) **plus** two
+  `<desk-form>`s: launch a single book (symbol + strategy + venue + capital + quote
+  notional) and launch a whole preset. **Re-launching a symbol replaces its book —
+  that *is* "set params/lots"** (there's no separate edit endpoint; recorded in the
+  form's hint). Bad input is surfaced from the endpoint's `{error}`.
+- **`GET /desk/mm/stream`** — SSE pushes the summary + cards + tape every 2s.
+- **Tests:** `mm-desk-view.spec.ts` (cards, attribution money, remove→symbol wiring,
+  warming/empty/no-quote states, tape newest-first + verbatim message, the two
+  forms), `mm-desk.controller.spec.ts` (catalogue from the real registries, tape from
+  an injected `DeskEventLog`, optional-dep degrade, SSE frame), DI compile spec.
+
+**In the `/desk/mm` slice vs deferred (honest scoping):**
+
+| In `/desk/mm` now | Deferred (next) |
+|---|---|
+| quotes + inventory + 4-component attribution per book | a per-book **equity sparkline** (`<nav-spark>` over `/nav?book=`) |
+| launch (single + preset), remove, start/stop/flatten | per-field **param** controls (today = re-launch with new params) |
+| Activity tape (full-replace each tick, newest-first) | a dedicated **append-mode** `<activity-tape>` (cursor-based, preserves scroll) over `/events?since=` |
+| MM `DeskEventLog` tape | the stat-arb tape (its own `DeskEventLog`) → `/desk/statarb` |
+
 ---
 
 ## 9. Migration plan — retire `/demo`
@@ -289,9 +342,10 @@ surface, not UI).
 | `/demo` panel | → role page |
 |---|---|
 | desk NAV / equity / P&L headline | `/exec` (✅ shipped), `/ops` |
-| MM book cards (quotes/inventory/attribution) | `/desk/mm` |
+| MM book cards (quotes/inventory/attribution) | `/desk/mm` (✅ shipped) |
+| launch / remove book controls | `/desk/mm` (✅ shipped, `<desk-form>`/`<desk-action>`) |
 | stat-arb pair table (z/β/regime/blotter) | `/desk/statarb` |
-| Activity feed | shared `<activity-tape>` on mm/statarb/risk |
+| Activity feed | shared `activityTape()` — ✅ on `/desk/mm`; statarb/risk next |
 | health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
 | desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
 | risk verdicts / drawdown | `/risk` (+ headline on `/exec`) |
@@ -310,15 +364,18 @@ are in the session summary / commit message; the short version:
 
 ```
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run start:dev
-# → open http://localhost:3100/ops    (operator console — drive the desk here)
-# → open http://localhost:3100/exec   (executive overview — read-only)
+# → http://localhost:3100/desk/mm  (full MM console — launch books + watch attribution + tape)
+# → http://localhost:3100/ops      (operator console — start/stop/flatten + health)
+# → http://localhost:3100/exec     (executive overview — read-only)
 
-# /ops drives the desk directly via the action palette:
-#   Start desk / Stop desk / Flatten desk (kill switch, confirm-gated).
-# To have books to act on, launch a preset (the future /desk/mm will wrap this):
+# Everything is now drivable from /desk/mm:
+#   • "Launch book": symbol=BTC, venue=hyperliquid, strategy=GLFT → Launch
+#       (or "Launch preset": hl-perps) → a card appears; the Activity tape logs it.
+#   • watch the card's quotes + spread/adverse/fees/funding attribution update each bar.
+#   • per-card "remove" (confirm) drops a book; "Flatten desk" is the kill switch.
+# (These wrap the same endpoints you can still curl, e.g.:)
 curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: application/json' \
      -d '{"presetId":"hl-perps","capitalUsdcPerBook":1000000}'
-# then on /ops: Stop → panels show STOPPED within ~2s; Start → RUNNING; Flatten → inventory→0.
 ```
 
 Offline verification (what CI / the sandbox runs): `npx tsc -p tsconfig.build.json

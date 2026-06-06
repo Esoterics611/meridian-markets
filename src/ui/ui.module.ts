@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MarketMakingModule } from '../market-making/market-making.module';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
+import { MmDeskController } from './mm-desk.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // UiModule — the role-scoped, server-rendered UI (docs/UI_ARCHITECTURE.md). It
@@ -12,6 +13,6 @@ import { UiAssetController } from './ui-asset.controller';
 // controllers here, importing whatever engine module exports their data source.
 @Module({
   imports: [MarketMakingModule],
-  controllers: [ExecController, OpsController, UiAssetController],
+  controllers: [ExecController, OpsController, MmDeskController, UiAssetController],
 })
 export class UiModule {}

@@ -191,3 +191,87 @@ desk-action[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
 .check { padding: 2px 0; }
 .check--ok { color: var(--pos); }
 .check--fail { color: var(--neg); }
+
+/* ── desk/mm: launch forms ───────────────────────────────────────────── */
+.launch { margin-bottom: 18px; }
+desk-form.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fld {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 5px 9px;
+  min-width: 120px;
+}
+.fld::placeholder { color: var(--dim); }
+.fld:focus { outline: none; border-color: var(--accent); }
+desk-form[data-ok] .action-btn { box-shadow: 0 0 0 2px var(--pos) inset; }
+desk-form[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
+.hint { margin: 6px 0 0; font-size: 11px; }
+
+/* ── desk/mm: per-book cards ─────────────────────────────────────────── */
+.book-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.book-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+}
+.book-card-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.book-sym { font-size: 14px; font-weight: 600; }
+.quote-grid, .attr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.q, .attr { display: flex; flex-direction: column; gap: 1px; }
+.qk, .ak { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+.qv, .av { font-size: 13px; }
+.attr--net .ak { color: var(--fg); }
+.attr--net .av { font-weight: 600; }
+.book-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+}
+.book-foot .action-btn { padding: 3px 10px; font-size: 11px; }
+
+/* ── activity tape (shared) ──────────────────────────────────────────── */
+.activity { margin-top: 6px; }
+.tape { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; font-size: 12px; }
+.tape-row { display: flex; gap: 10px; padding: 3px 2px; border-bottom: 1px solid var(--panel-2); }
+.tape-row:last-child { border-bottom: none; }
+.tape-t { color: var(--dim); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.tape-kind {
+  flex: 0 0 58px;
+  color: var(--dim);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  align-self: center;
+}
+.tape-msg { flex: 1; color: var(--fg); }
+.tape--fill .tape-kind { color: var(--accent); }
+.tape--verdict .tape-kind { color: var(--warn); }
+.tape--up .tape-kind { color: var(--pos); }
+.tape--down .tape-kind { color: var(--neg); }

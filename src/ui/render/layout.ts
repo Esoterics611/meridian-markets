@@ -18,7 +18,7 @@ export interface RoleLink {
 export const ROLE_LINKS: RoleLink[] = [
   { href: '/exec', label: 'exec', live: true },
   { href: '/ops', label: 'ops', live: true },
-  { href: '/desk/mm', label: 'desk·mm', live: false },
+  { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/statarb', label: 'desk·statarb', live: false },
   { href: '/risk', label: 'risk', live: false },
   { href: '/research', label: 'research', live: false },
@@ -71,6 +71,7 @@ export function pageShell(opts: ShellOpts): string {
           <main class="page">${opts.body}</main>
           <script type="module" src="/ui/desk-feed.js"></script>
           <script type="module" src="/ui/desk-action.js"></script>
+          <script type="module" src="/ui/desk-form.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {

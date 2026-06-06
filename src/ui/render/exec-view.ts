@@ -10,7 +10,7 @@ import { MmBookSnapshot } from '../../market-making/live/mm-book';
 import { fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
-import { money, usd, pct, returnPct } from './format';
+import { money, usd, pct, returnPct, signClass } from './format';
 
 // The desk's drawdown budget (the risk doctrine's 2% cap). The exec page flags a
 // breach but does not enforce — enforcement is the engine's risk gate, not the UI.
@@ -19,12 +19,6 @@ const DRAWDOWN_BUDGET_PCT = 2.0;
 /** Worst single-book max-drawdown — the desk's headline drawdown proxy. */
 function worstDrawdownPct(books: MmBookSnapshot[]): number {
   return books.reduce((m, b) => Math.max(m, b.maxDrawdownPct), 0);
-}
-
-/** Sign class for a P&L cell ("pos" / "neg" / "flat"). */
-function signClass(unitsStr: string): string {
-  const v = BigInt(unitsStr);
-  return v > 0n ? 'pos' : v < 0n ? 'neg' : 'flat';
 }
 
 function verdictBadge(verdict: string): SafeHtml {
