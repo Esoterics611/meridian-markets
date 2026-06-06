@@ -690,3 +690,30 @@ Same day, evening. With the 20-perp L2 capture running all session (harvest is n
 
 ### Verification
 - `npx tsc --noEmit` clean; **153 suites / 1019 tests** (was 149/993 at session start — +4 suites/+26 tests across the event tape, persistence, and funding-carry discovery). Each item committed on master with a `Co-Authored-By` trailer.
+
+---
+
+## 20. Role-scoped UI redesign — design doc + six role pages (2026-06-06…07)
+
+Executed [docs/UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md): replace the 100KB `/demo` `index.html` with **role-scoped, server-rendered pages** served by the same Nest app — **no React, no build step, no new npm deps**, terminal aesthetic, thin read-only-over-the-engine doctrine (CLAUDE.md §1). New code lives in `src/ui/`; views are **pure functions → unit-tested** (render → assert HTML), so the UI rejoined the test discipline.
+
+### Stack decided (recorded in [docs/UI_ARCHITECTURE.md](UI_ARCHITECTURE.md))
+Server-rendered partials via a hand-rolled auto-escaping `html\`\`` tagged template (no template engine) + native **SSE** (`@Sse`) for live regions + vanilla **Web Components** for the shared client primitives + one terminal CSS. **htmx/Alpine were evaluated and not adopted** — the control plane returns JSON not HTML fragments, so htmx's swap model doesn't fit; a ~40-line `<desk-action>`/`<desk-form>` does the write path dependency-free. SPA rejected on doctrine.
+
+### Shipped — six role pages (each its own commit on master)
+1. **`/exec`** — read-only executive overview (desk NAV, net P&L, worst-book drawdown vs the 2% budget, per-book table) + the SSE spine + the `<desk-feed>` shared component + the offline DI-compile test (since `start:dev` exits 144 here).
+2. **`/ops`** — first action page: process/feed/DB health (reusing `assessReadiness`), MM desk status, persistence; **action palette** (Start/Stop/Flatten) via the new `<desk-action>`.
+3. **`/desk/mm`** — MM console: per-book quotes + 4-component PnL attribution + Activity tape (from the MM `DeskEventLog`, exported for this) + launch/preset/remove via `<desk-form>`/`<desk-action>` (re-launch = reconfigure).
+4. **`/desk/statarb`** — stat-arb console: per-pair z/β/regime/position + the persisted blotter (DB-guarded) + tape + launch/remove. **Controller declared in `StatArbModule`** (not UiModule) because that graph won't boot under the light DI test — recorded as the wiring rule (§7).
+5. **`/risk`** — drawdown vs budget, net/gross exposure, **adverse selection as the live toxicity signal (no fabricated VPIN — the gate passes vpin=0)**, verdict-transition feed, de-risk levers + the **cross-desk kill switch**.
+6. **`/research`** — static findings KEEP/CUT/RESERVE board (tracks `RESEARCH_FINDINGS.md`) + the **copy-the-runbook-command** helper (`<copy-cmd>`, no execution, §5). No live funding board — there is no funding endpoint, so it is shown as a verdict with that caveat, not invented rates.
+
+Shared widgets in `src/ui/render/components.ts` + `src/ui/public/*.js`: `topBar`/`pageShell`, `<desk-feed>` (SSE read), `<desk-action>` + `<desk-form>` (writes → existing control plane), `<copy-cmd>`, `activityTape`/`deskControls`/`statArbControls`. The top-bar nav marks unbuilt pages as disabled "soon" (no dead links). `/demo` is untouched and runs side-by-side until parity.
+
+### Deferred to next session
+- **`/pm`** (Thesis Register) — its engine endpoints don't exist yet (CLAUDE.md §8 "coming"); needs the engine surface first or an honest stub. The **`/` launcher** (role index) — trivial.
+- Deferred panels: a `<nav-spark>` equity sparkline (`/exec`,`/desk`), an `/ops` Prometheus-metrics panel, an append-mode cursor-based `<activity-tape>`, a **live funding board** + MM screener panel (need serving endpoints — funding has none), a mode-aware/live stat-arb blotter, and a real **per-book pause/deny + limit-lowering** risk endpoint (engine work).
+- Then: retire `/demo` on parity (keep the JSON `DemoController` endpoints).
+
+### Verification
+- `npx tsc -p tsconfig.build.json --noEmit` clean; **168 suites / 1116 tests** (was 149/993 at the start of the redesign — +19 suites / +123 tests, all in `src/ui/`). Zero regressions; each page committed on master with a `Co-Authored-By` trailer. `start:dev` exits 144 in the sandbox ⇒ all live runs handed to the operator (steps in [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10).
