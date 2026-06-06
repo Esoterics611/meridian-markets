@@ -1,0 +1,127 @@
+/* Meridian role-page terminal theme — light footprint, dark, dense, monospace.
+   Hand-rolled (no CSS framework): on-brand and small (UI_ARCHITECTURE.md §stack).
+   Shared by every role page; page-specific bits stay in the server-rendered markup. */
+
+:root {
+  --bg: #0b0e11;
+  --panel: #12161c;
+  --panel-2: #161b22;
+  --line: #232a33;
+  --fg: #c9d1d9;
+  --dim: #6e7681;
+  --accent: #58a6ff;
+  --pos: #3fb950;
+  --neg: #f85149;
+  --warn: #d29922;
+  --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── top bar (shared chrome) ─────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.brand { font-weight: 700; letter-spacing: 0.5px; color: var(--fg); }
+.brand-dim { color: var(--dim); font-weight: 400; }
+.nav { display: flex; gap: 4px; flex: 1; flex-wrap: wrap; }
+.nav-link {
+  color: var(--dim);
+  text-decoration: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.nav-link:hover { color: var(--fg); background: var(--panel-2); }
+.nav-link--active { color: var(--accent); border-color: var(--line); background: var(--panel-2); }
+.nav-link--soon { color: #3b424c; cursor: not-allowed; }
+.nav-link--soon:hover { background: transparent; color: #3b424c; }
+.clock { color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ── page ────────────────────────────────────────────────────────────── */
+.page { padding: 20px 16px; max-width: 1100px; margin: 0 auto; }
+.page-title { font-size: 15px; font-weight: 600; margin: 0 0 16px; color: var(--fg); }
+.dim { color: var(--dim); }
+.mono { font-variant-numeric: tabular-nums; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.flat { color: var(--fg); }
+code { color: var(--accent); background: var(--panel-2); padding: 1px 5px; border-radius: 3px; }
+
+/* desk-feed visually dims while the SSE connection is dropped. */
+desk-feed[data-stale] { opacity: 0.55; transition: opacity 0.2s; }
+
+/* ── stat grid ───────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-v { font-size: 17px; }
+.stat-sub { font-size: 11px; color: var(--dim); }
+
+/* ── badges ──────────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  border: 1px solid var(--line);
+}
+.badge--allow { color: var(--pos); border-color: #1f5a2b; background: #0f2114; }
+.badge--pause { color: var(--warn); border-color: #5a4a1f; background: #211c0f; }
+.badge--deny  { color: var(--neg); border-color: #5a1f1f; background: #210f0f; }
+.badge--paper { color: var(--accent); border-color: #1f3a5a; background: #0f1721; }
+
+/* ── book table ──────────────────────────────────────────────────────── */
+.book-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.book-table th, .book-table td {
+  padding: 7px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+.book-table th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+.book-table tbody tr:last-child td { border-bottom: none; }
+.book-table tbody tr:hover { background: var(--panel-2); }
+.book-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.book-table .empty { text-align: center; padding: 20px; }
+
+.asof { margin-top: 14px; font-size: 11px; }
