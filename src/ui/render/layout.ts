@@ -17,7 +17,7 @@ export interface RoleLink {
 // the truth about what exists today (no dead links pretending to work).
 export const ROLE_LINKS: RoleLink[] = [
   { href: '/exec', label: 'exec', live: true },
-  { href: '/ops', label: 'ops', live: false },
+  { href: '/ops', label: 'ops', live: true },
   { href: '/desk/mm', label: 'desk·mm', live: false },
   { href: '/desk/statarb', label: 'desk·statarb', live: false },
   { href: '/risk', label: 'risk', live: false },
@@ -70,6 +70,7 @@ export function pageShell(opts: ShellOpts): string {
           ${topBar(opts.activeHref)}
           <main class="page">${opts.body}</main>
           <script type="module" src="/ui/desk-feed.js"></script>
+          <script type="module" src="/ui/desk-action.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {

@@ -125,3 +125,69 @@ desk-feed[data-stale] { opacity: 0.55; transition: opacity 0.2s; }
 .book-table .empty { text-align: center; padding: 20px; }
 
 .asof { margin-top: 14px; font-size: 11px; }
+
+/* ── ops: action palette ─────────────────────────────────────────────── */
+.action-palette {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.palette-label { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+.action-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+}
+.action-btn:hover { background: #1d2530; }
+.action-btn:disabled { opacity: 0.5; cursor: progress; }
+.action-btn--ok { border-color: #1f5a2b; color: var(--pos); }
+.action-btn--ok:hover { background: #0f2114; }
+.action-btn--warn { border-color: #5a4a1f; color: var(--warn); }
+.action-btn--warn:hover { background: #211c0f; }
+.action-btn--danger { border-color: #5a1f1f; color: var(--neg); }
+.action-btn--danger:hover { background: #210f0f; }
+/* transient outcome flash, set by <desk-action> after the POST resolves */
+desk-action[data-ok] .action-btn { box-shadow: 0 0 0 2px var(--pos) inset; }
+desk-action[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
+
+/* ── ops: status panels ──────────────────────────────────────────────── */
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+.panel-h {
+  color: var(--dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 3px 0; }
+.kv .k { color: var(--dim); }
+.kv .v { font-variant-numeric: tabular-nums; }
+.checks { list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; }
+.check { padding: 2px 0; }
+.check--ok { color: var(--pos); }
+.check--fail { color: var(--neg); }

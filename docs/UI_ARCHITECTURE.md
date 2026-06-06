@@ -1,11 +1,12 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + first slice shipped (2026-06-06). This is the design the
+> **Status:** decided + two slices shipped (2026-06-06): **`/exec`** (read-only) and
+> **`/ops`** (the first *action* page). This is the design the
 > [UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md) brief asked for: the chosen stack
 > (with the trade-off recorded), the route map, the shared-component inventory, the
-> SSE feed list, the action⇄API map, and the module layout — plus the **`/exec`
-> vertical slice** that proves the stack end-to-end, and the **migration plan** to
-> retire the 100KB `/demo` `index.html`.
+> SSE feed list, the action⇄API map, and the module layout — plus the two vertical
+> slices that prove the stack (read path + write path) end-to-end, and the
+> **migration plan** to retire the 100KB `/demo` `index.html`.
 
 This document is the contract for the redesign. Read it before adding a role page.
 
@@ -36,7 +37,7 @@ From [CLAUDE.md](../CLAUDE.md) §1/§6/§10 and the brief's non-negotiables:
 | **Live transport** | **SSE** (`@Sse`), native `EventSource` on the client | The "E" choice — push, not 4s polling. The event tape / NAV / health are *streams*. |
 | **Shared widgets** | **Native Web Components** (vanilla custom elements), one file each | The "C" choice — real reuse across role pages, zero framework lock-in. First one: `<desk-feed>`. |
 | **Styling** | **One hand-rolled terminal CSS** (`src/ui/public/ui.css`) | The "F" choice — on-brand, small, no CSS framework. |
-| **Client interactivity** | **deferred** (see below) | The "B"/htmx pieces land with the first *action* page, not before. |
+| **Actions (write path)** | **vanilla `<desk-action>` Web Component** → POST existing control-plane endpoints | Decided at `/ops` (see below). Not htmx. |
 
 ### Why **no template engine** (Eta/Handlebars/EJS) and **no htmx/Alpine library yet**
 
@@ -48,12 +49,17 @@ none of those libraries.**
   and a tagged template keeps the render functions **pure TS** — directly
   unit-testable and type-checked against the engine's snapshot types. Adding a
   dependency would *reduce* testability and type-safety here. So: hand-rolled.
-- **htmx** earns its keep on the **action pages** (`hx-post` a launch/stop/flatten
-  button → swap the returned fragment). The read-only pages (`/exec`, `/ops`,
-  `/risk`, `/research`) have no client mutations, so htmx would be dead weight. We
-  **vendor htmx as a single static file when the first action page is built**
-  (`/desk/mm`), not before. The live-update need that *would* have used `hx-sse` is
-  met by `<desk-feed>` + native SSE in ~30 lines, with no dependency.
+- **htmx** was the brief's recommendation for the action pages. When we built the
+  first one (`/ops`) the test was concrete: htmx's value is `hx-post → server
+  returns an HTML fragment → swap it in`. But our **control-plane endpoints return
+  JSON** (a desk snapshot), not HTML fragments — so htmx doesn't fit without
+  inventing HTML-returning *wrapper* endpoints (more surface, duplicated render).
+  The better fit, given we already push the live region over SSE: an action button
+  just **POSTs to the existing validated endpoint**, and the page's `<desk-feed>`
+  stream reflects the new state within one tick. That's a ~40-line vanilla
+  `<desk-action>` Web Component — matches `<desk-feed>`, zero dependencies, fully
+  testable. So **htmx is not adopted**; the write path is `<desk-action>`. (If a
+  future page genuinely needs fragment-swap-on-post, revisit then.)
 - **Alpine** is for genuinely local interactivity (a thesis editor, a launch form).
   Same rule: add it (a single static file) when a page actually needs it, on a short
   leash, kept out of the read-only pages.
@@ -79,7 +85,7 @@ call (see §6); read-only pages drive nothing.
 | URL | Role | Data source(s) | Drives (curated actions) | Status |
 |---|---|---|---|---|
 | `/exec` | Executive | `MmPortfolioTrader.snapshot()` | — (read-only) | **shipped** |
-| `/ops` | Operator | `/health`, `/health/ready`, `/metrics`, both desks' snapshots | start/stop loops, flatten-all | planned |
+| `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
 | `/desk/mm` | MM desk | `/api/market-making/*` | launch/stop/remove book, set params | planned |
 | `/desk/statarb` | Stat-arb desk | `/api/stat-arb/live/*` | launch/stop/reconfigure pair | planned |
 | `/risk` | Risk | snapshots (drawdown, verdicts, VPIN) | pause/deny book *(endpoint gap — §6)* | planned |
@@ -101,14 +107,21 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | `<desk-feed>` | Web Component | `src/ui/public/desk-feed.js` | **shipped** | every page (point at its `/…/stream` + region) |
 | money/pct/units formatters | pure TS | `src/ui/render/format.ts` | **shipped** | every page |
 | `html\`\`` + escaping | pure TS | `src/ui/render/html.ts` | **shipped** | every render fn |
+| `<desk-action>` | Web Component | `src/ui/public/desk-action.js` | **shipped** | the write path on ops/desk/risk/pm |
 | `<activity-tape>` | Web Component | _planned_ | — | mm/statarb/risk |
 | `<nav-spark>` (equity sparkline) | Web Component | _planned_ | — | exec/ops/desk |
-| action palette (`<desk-action>`) | WC + vendored htmx | _planned_ | — | ops/desk/risk/pm |
 
-**`<desk-feed src target>`** is the one live-update primitive: it opens an SSE
+**`<desk-feed src target>`** is the one live-update (read) primitive: it opens an SSE
 connection to `src` and swaps each pushed HTML fragment into `#target`. The server
 renders `#target` for a correct first paint, then `<desk-feed>` keeps it live. It
 holds no business logic — it only swaps server markup.
+
+**`<desk-action endpoint label variant confirm>`** is the one action (write)
+primitive: it renders a button that POSTs to an existing, validated control-plane
+endpoint, manages only button affordance (disable while in-flight, flash ok/err),
+and lets the `<desk-feed>` stream show the result. `confirm` gates destructive
+actions (the flatten kill switch) behind a browser confirm dialog. It lives
+**outside** the SSE region so a tick doesn't re-create it mid-click.
 
 ---
 
@@ -117,7 +130,7 @@ holds no business logic — it only swaps server markup.
 | Endpoint | Pushes | Cadence | Status |
 |---|---|---|---|
 | `GET /exec/stream` | the `/exec` live region (NAV, P&L, drawdown, per-book table) | 2s | **shipped** |
-| `GET /ops/stream` | health/readiness/tick-freshness region | 2s | planned |
+| `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
 | `GET /desk/mm/stream` | per-book quotes/inventory/attribution | sub-2s | planned |
 | `GET /<page>/events/stream` | the Activity tape (fills/verdicts/lifecycle) from `…/events` | on event | planned |
 
@@ -136,11 +149,13 @@ runbook-command** helper for terminal-only jobs (capture/tune/sweep). A read-onl
 log pane is the optional later "watch it run" view. Never a free-form shell (it's an
 RCE surface and breaks the "research runs from the terminal" rule).
 
+Wired today on `/ops` (✅) via `<desk-action>`; the rest land with their page.
+
 | Page | Action | Endpoint (exists today) |
 |---|---|---|
-| `/ops`, `/desk/mm` | start desk | `POST /api/market-making/start` |
-| | stop desk | `POST /api/market-making/stop` |
-| | flatten all | `POST /api/market-making/flatten` |
+| `/ops` ✅, `/desk/mm` | start desk | `POST /api/market-making/start` |
+| ✅ | stop desk | `POST /api/market-making/stop` |
+| ✅ | flatten (kill switch) | `POST /api/market-making/flatten` (confirm-gated) |
 | `/desk/mm` | launch book | `POST /api/market-making/launch` `{symbol,strategyId?,source?,capitalUsdc?,quoteNotionalUsd?}` |
 | | launch a preset | `POST /api/market-making/launch-preset` `{presetId,...}` |
 | | remove book | `POST /api/market-making/remove` `{symbol}` |
@@ -172,19 +187,24 @@ the exported `MmPortfolioTrader` — read the ledger, don't duplicate it).
 ```
 src/ui/
   ui.module.ts                 UiModule — imports MarketMakingModule; declares the controllers
-  exec.controller.ts           GET /exec (page) + @Sse GET /exec/stream  [the shipped slice]
+  exec.controller.ts           GET /exec (page) + @Sse GET /exec/stream         [slice 1, read]
   exec.controller.spec.ts      controller wiring + SSE frame shape
-  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-feed.js (allow-listed)
+  ops.controller.ts            GET /ops (page) + @Sse GET /ops/stream            [slice 2, action]
+  ops.controller.spec.ts       wiring + async SSE frame + DB-ping/readiness assembly
+  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-feed.js + desk-action.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
     html.ts                    auto-escaping html`` tagged template + escape/raw
-    format.ts                  money/usd/pct/return formatters (reuse desk-event money fmt)
+    format.ts                  money/usd/pct/return + duration/age formatters (reuse desk-event money fmt)
     layout.ts                  pageShell + shared topBar + ROLE_LINKS launcher
     exec-view.ts               renderExecLive (live region) + renderExecPage (full doc)
     exec-view.spec.ts          render → assert HTML  (the brief's required fragment test)
+    ops-view.ts                renderOpsLive (panels) + renderActionPalette + renderOpsPage
+    ops-view.spec.ts           render → assert HTML (panels, palette wiring, kill-switch confirm)
   public/
     ui.css                     the terminal theme (shared)
-    desk-feed.js               <desk-feed> Web Component (shared live-update primitive)
+    desk-feed.js               <desk-feed> Web Component (shared live-update / read primitive)
+    desk-action.js             <desk-action> Web Component (shared action / write primitive)
 ```
 
 - Wired in `app.module.ts` (`UiModule` added to `imports`).
@@ -195,7 +215,9 @@ src/ui/
 
 ---
 
-## 8. The shipped vertical slice — `/exec`
+## 8. The shipped vertical slices — `/exec` (read) + `/ops` (action)
+
+### 8a. `/exec` — Executive (read path)
 
 Proves the stack end-to-end with the lowest-risk page (read-only, highest-value):
 
@@ -220,6 +242,41 @@ Proves the stack end-to-end with the lowest-risk page (read-only, highest-value)
 | **current** risk verdict per book | verdict **history** / Activity tape (`<activity-tape>` over `…/events`) |
 | live SSE refresh, paper badge | the stat-arb book's P&L (this slice reads the MM desk only) |
 
+### 8b. `/ops` — Operator (action path — proves the write path + `<desk-action>`)
+
+The first page with a control surface. Read panels + a curated action palette:
+
+- **`GET /ops`** — server-rendered operator console:
+  - **process** — readiness verdict (READY / NOT READY) + each readiness check
+    (database / tick_loop / feed) with its detail, and uptime. The readiness decision
+    reuses the engine's `assessReadiness()` (the same pure function behind
+    `/health/ready`), assembled from the live MM desk.
+  - **market-making desk** — loop RUNNING/STOPPED, book count, last-tick age, desk NAV,
+    net P&L.
+  - **persistence** — `MM_PERSIST` on/off + a live DB reachability ping.
+- **action palette** — `<desk-action>` buttons: **Start desk** → `POST …/start`,
+  **Stop desk** → `POST …/stop`, **Flatten desk (kill switch)** → `POST …/flatten`
+  (confirm-gated). Each POSTs the existing validated endpoint; the result shows in the
+  panels within one SSE tick.
+- **`GET /ops/stream`** — SSE pushes the status panels every 2s.
+- **Wiring guarantee:** the palette mutates the same singleton `MmPortfolioTrader` the
+  panels read, so an action is visibly reflected (no client-side optimism, no drift).
+- **Tests:** `ops-view.spec.ts` (panels, button→endpoint wiring, single confirm on the
+  kill switch, idle/empty states), `ops.controller.spec.ts` (page + async SSE frame +
+  DB-ping/readiness assembly, persist on/off), and the `ui.module.spec.ts` DI compile.
+
+**In the `/ops` slice vs deferred (honest scoping):**
+
+| In `/ops` now | Deferred (next) |
+|---|---|
+| process/feed/DB health, tick freshness, persistence | a Prometheus-metrics summary panel (`/metrics`) |
+| MM desk status + Start/Stop/**Flatten** kill switch | the **stat-arb desk** status + controls — wiring it pulls the whole `StatArbModule` into `UiModule` and would make the offline DI test fragile; do it when stat-arb runs in the demo |
+| confirm-gated flatten (MM scope) | a **cross-desk** kill switch (flatten MM **and** stat-arb) — needs the stat-arb panel first |
+
+> **Honest label:** the flatten button is scoped to the **MM desk** and says so. It is
+> not a whole-desk kill switch yet — that waits on the stat-arb panel. We don't ship a
+> button that claims more than it does.
+
 ---
 
 ## 9. Migration plan — retire `/demo`
@@ -235,7 +292,8 @@ surface, not UI).
 | MM book cards (quotes/inventory/attribution) | `/desk/mm` |
 | stat-arb pair table (z/β/regime/blotter) | `/desk/statarb` |
 | Activity feed | shared `<activity-tape>` on mm/statarb/risk |
-| health / metrics / persistence state | `/ops` |
+| health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
+| desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
 | risk verdicts / drawdown | `/risk` (+ headline on `/exec`) |
 | research / findings / funding board | `/research` |
 
@@ -245,17 +303,22 @@ exist at parity for what the operator uses daily. Until then both run side by si
 
 ---
 
-## 10. How to run + test the slice
+## 10. How to run + test the slices
 
 `start:dev` can't run in the build sandbox (exits 144) — the operator runs it. Steps
 are in the session summary / commit message; the short version:
 
 ```
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false npm run start:dev
-# → open http://localhost:3100/exec   (it streams live)
-# launch a book so there's something to see, e.g.:
+# → open http://localhost:3100/ops    (operator console — drive the desk here)
+# → open http://localhost:3100/exec   (executive overview — read-only)
+
+# /ops drives the desk directly via the action palette:
+#   Start desk / Stop desk / Flatten desk (kill switch, confirm-gated).
+# To have books to act on, launch a preset (the future /desk/mm will wrap this):
 curl -XPOST localhost:3100/api/market-making/launch-preset -H 'content-type: application/json' \
      -d '{"presetId":"hl-perps","capitalUsdcPerBook":1000000}'
+# then on /ops: Stop → panels show STOPPED within ~2s; Start → RUNNING; Flatten → inventory→0.
 ```
 
 Offline verification (what CI / the sandbox runs): `npx tsc -p tsconfig.build.json

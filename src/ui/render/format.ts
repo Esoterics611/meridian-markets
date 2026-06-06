@@ -30,3 +30,21 @@ export function returnPct(netUnitsStr: string, capitalUnitsStr: string): string 
   const sign = r < 0 ? '−' : '+';
   return `${sign}${Math.abs(r).toFixed(2)}%`;
 }
+
+/** A coarse human duration from seconds, e.g. 3723 → "1h 02m", 75 → "1m 15s", 8 → "8s". */
+export function duration(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h) return `${h}h ${String(m).padStart(2, '0')}m`;
+  if (m) return `${m}m ${String(sec).padStart(2, '0')}s`;
+  return `${sec}s`;
+}
+
+/** Age of a past event in ms → "never" / "850ms ago" / "1m 02s ago". */
+export function age(ms: number | null): string {
+  if (ms === null) return 'never';
+  if (ms < 1000) return `${Math.round(ms)}ms ago`;
+  return `${duration(ms / 1000)} ago`;
+}

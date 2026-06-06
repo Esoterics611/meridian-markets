@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { appConfigFactory } from '@config/app-config.factory';
 import { UiModule } from './ui.module';
 import { ExecController } from './exec.controller';
+import { OpsController } from './ops.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // Compiles the real DI graph (UiModule → MarketMakingModule, MmPortfolioTrader
@@ -11,6 +12,7 @@ import { UiAssetController } from './ui-asset.controller';
 // the read path renders MmPortfolioTrader.snapshot() and touches no Binance/DB.
 describe('UiModule — offline DI compile', () => {
   let exec: ExecController;
+  let ops: OpsController;
   let assets: UiAssetController;
 
   beforeAll(async () => {
@@ -18,6 +20,7 @@ describe('UiModule — offline DI compile', () => {
       imports: [ConfigModule.forRoot({ isGlobal: true, load: [appConfigFactory] }), UiModule],
     }).compile();
     exec = mod.get(ExecController);
+    ops = mod.get(OpsController);
     assets = mod.get(UiAssetController);
   });
 
@@ -27,6 +30,13 @@ describe('UiModule — offline DI compile', () => {
     const html = exec.page();
     expect(html).toContain('id="exec-live"');
     expect(html).toContain('Executive');
+  });
+
+  it('resolves OpsController (ConfigService + MM trader; DbService optional) and renders', async () => {
+    expect(ops).toBeInstanceOf(OpsController);
+    const html = await ops.page();
+    expect(html).toContain('id="ops-live"');
+    expect(html).toContain('class="action-palette"');
   });
 
   it('serves the shared UI assets that the page references', () => {
@@ -47,6 +57,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('desk-feed.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain('customElements.define');
+
+    assets.serve('desk-action.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('desk-action'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {
