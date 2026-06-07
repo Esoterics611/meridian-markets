@@ -51,6 +51,9 @@ where $C_{\text{loss}}$ is the maximum acceptable loss from a single inventory b
 
 The asymmetric rule composes with the [§3](03-avellaneda-stoikov.md) skew. The skew is the smooth response: as $q$ grows, the bid quote tightens (lower price, less attractive) and the ask quote loosens (lower price, more attractive). The skew is in continuous use; the asymmetric hard cap is a discrete fallback for when the skew has not been fast enough. In a well-tuned quoter the hard cap should fire rarely — daily-frequency rarely, not minute-frequency.
 
+!!! warning "What a live run taught us about this — [§11.6](11-directional-market-making.md#116-the-defensive-desk-the-fixes-that-actually-bind)"
+    "The hard cap should fire rarely" is true *only if the skew is strong enough to flatten*. On this desk a live run found the bare Avellaneda-Stoikov skew is just **~2 bps at full inventory** ($\gamma\sigma^2 T$ with $\sigma$ a per-bar fraction is tiny) — far too weak to mean-revert in a trend — and a book ran to *billions of units* one-sided because the clamp bounded the skew **math** but never the actual **fills**. Two fixes in [§11.6](11-directional-market-making.md#116-the-defensive-desk-the-fixes-that-actually-bind) make §5.2 bind in practice: an **inventory-skew multiplier** (scale the skew term so the reservation actually pulls inventory home) and a **hard cap that parks the accumulating side at the rail** (so *fills*, not just math, are bounded). Read §5.2 as the principle and §11.6 as the enforcement.
+
 ## 5.3 Inventory unwind policies — when soft thresholds trip
 
 Below the hard cap $Q_{\max}$ sits a *soft* threshold $Q_{\text{soft}} < Q_{\max}$. Above $Q_{\text{soft}}$ the quoter is in a degraded mode. There are three named policies, and most production desks blend them.

@@ -32,6 +32,24 @@ flowchart LR
     ME -->|"fills + book updates"| Tape["Public trade + book feed"]
 ```
 
+The same book, drawn as a **depth ladder** — the picture you should have in your head whenever the course says "the book." Bar length is resting size; price increases up the page; the maker's job is to post inside or near the touch and collect the spread:
+
+```
+   price       ask side — sellers (size →)
+   100.06   ████████████████████  40
+   100.05   ██████████            25
+   100.04   ████                   9
+   100.03   ██   ◄ best ask        4   ┐
+   ─────────────────────────────────── │ quoted spread = 0.01
+   100.02   ██   ◄ best bid        5   ┘   mid = 100.025
+   100.01   █████                 12
+   100.00   ████████████          30
+    99.99   ████████████████████  50
+   price       bid side — buyers (size →)
+```
+
+Notice the **top-of-book imbalance**: 5 resting on the best bid vs 4 on the best ask — slightly *bid-heavy*, so the next tick leans up and a size-weighted fair value sits just *above* the mid. That asymmetry is small here but it is the entire basis of the **micro-price** (below, and the load-bearing idea of [§9](09-the-fair-value-result.md)): the mid ignores the lean, and quoting around a price that ignores the lean is how you get picked off.
+
 A few quantities are constructed from the book and recur throughout the course. Let $L_b$ denote the set of price levels on the bid side and $L_a$ the set on the ask side. For a level $\ell \in L_b \cup L_a$, write $p_\ell$ for its price and $q_\ell$ for the total resting size at that level (summed across all orders in the queue at that level).
 
 **Best bid** $p^b$ is the highest price among $L_b$. **Best ask** $p^a$ is the lowest price among $L_a$. The pair $(p^b, p^a)$ is the **top of book (TOB)**, often called the **NBBO** in US equities ("National Best Bid and Offer").

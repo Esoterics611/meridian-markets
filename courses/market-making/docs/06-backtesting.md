@@ -2,7 +2,7 @@
 
 !!! abstract "Where this chapter fits"
     **Feeds in from:** [§2 microstructure](02-microstructure.md) (the LOB mechanics this chapter replays), [§3 Avellaneda-Stoikov](03-avellaneda-stoikov.md) (the quoting model whose fill rate we are trying to predict), and [§4 execution](04-execution.md) (the cancel-replace machinery whose costs we must charge against the backtest). Without §2's queue-priority rules and §3's reservation price, the harness in [§6.11](#611-code-shape-the-lobreplayharness-skeleton) has nothing to simulate.
-    **Feeds into:** [§7 production](07-production.md) — the shadow-mode loop in [§7.1](07-production.md#71-shadow-mode-the-honest-fill-rate-test) is the live extension of [§6.4](#64-calibrating-the-fill-model-against-shadow-mode)'s calibration discipline, and the deflated-Sharpe gate in [§6.8](#68-sharpe-ratio-for-market-making) is the only number worth promoting from backtest to capital.
+    **Feeds into:** [§7 production](07-production.md) — the shadow-mode loop in [§7.1](07-production.md#71-the-four-execution-postures) is the live extension of [§6.4](#64-calibrating-the-fill-model-against-shadow-mode)'s calibration discipline, and the deflated-Sharpe gate in [§6.8](#68-sharpe-ratio-for-market-making) is the only number worth promoting from backtest to capital.
     **Sister course:** read [stat-arb §6 backtesting](../../stat-arb/docs/06-backtesting.md) first if you have not — the look-ahead, multiple-testing, and purged-k-fold discipline there is the *minimum* baseline. Everything in this chapter is *more demanding* than the stat-arb version, for the reasons in [§6.1](#61-why-mm-backtesting-is-harder-than-stat-arb-backtesting).
     **Read alone if:** you already have a stat-arb backtest harness and want to know what extra discipline an MM harness needs. [§6.1](#61-why-mm-backtesting-is-harder-than-stat-arb-backtesting) + [§6.10](#610-the-three-pathologies-that-ship-undetected) + [§6.11](#611-code-shape-the-lobreplayharness-skeleton) is the minimum self-contained read.
 
@@ -31,6 +31,18 @@ The simplest MM backtest replays the *trade tape* (the public time-and-sales fee
 This is always wrong, in a direction that is always optimistic. The trade tape records *which* prices traded; it does not record whether the resting order at that price was *yours* or someone else's. If 100 orders were ahead of you at 64,990 and the incoming taker was for 10 BTC, none of them fills you — but the trade-tape backtest will book you 10 BTC of fills anyway. Worse, the directional bias is structural: the tape records fills *only* when there was enough flow to consume some resting depth, so the events the tape records are exactly the events where queue position matters most.
 
 A trade-tape backtest is useful for one thing and one thing only: it bounds the *upper limit* of what your fill rate could possibly be. If your strategy looks unprofitable in a trade-tape backtest, no amount of better queue modelling will save it. The reverse direction — strategy looks profitable in trade-tape, therefore worth a real backtest — is the use case. Anything beyond that is mis-using the tool.
+
+**How badly does fill-on-touch overstate, in practice?** This desk measured it directly against a real Hyperliquid L2 tape with real per-trade aggressor flow — the queue-aware harness ([§8.5](08-the-meridian-desk-stack.md#85-queue-aware-fills-stop-trusting-fill-on-touch)) reports `queueFills` (honest) vs `touchFills` (fill-on-touch). The overstatement depends *entirely on where you quote*:
+
+```
+   fill count:  queue-aware (honest)  vs  fill-on-touch (optimistic)
+
+   top-of-book quote,   2h capture     queue     3  ┆ touch       9     →  3× overstated
+   into the stack (5bps deep)          queue     0  ┆ touch      21     →  ∞  (never fills)
+   sub-second cadence,  8h             queue 3,350  ┆ touch 141,991     → 42× overstated
+```
+
+The pattern *is* the lesson: fill-on-touch lies **most exactly where you most want to believe it** — on the wide, "safe" quotes deep in the book, where the cumulative queue above you never clears in reality. A backtest that books those fills is inventing an edge. (Full read in [§8.5](08-the-meridian-desk-stack.md#85-queue-aware-fills-stop-trusting-fill-on-touch); the consequence for *strategy* design is [§9](09-the-fair-value-result.md).)
 
 ### 6.2.2 LOB-replay with queue model — the standard
 
@@ -251,7 +263,7 @@ Each term has a precise computation:
 | **$S_{\text{captured}}$ (gross spread)** | Sum over fills of $(p_{\text{fill}} - m_{t_{\text{fill}}}) \cdot \text{side}$, i.e. how much above mid you sold or below mid you bought, at the moment of fill | Positive (this is your gross revenue) |
 | **$A_{\text{adv}}$ (adverse selection)** | Sum over fills of $(m_{t_{\text{fill}} + \tau} - m_{t_{\text{fill}}}) \cdot \text{side}$ where $\tau$ is a horizon (e.g. 30 seconds) — i.e. how much the mid moved against your new position in the window after fill | Positive (it is a *cost*, subtracted from gross) |
 | **$C_{\text{inv}}$ (inventory carry)** | Time-weighted absolute inventory × an inventory cost-of-capital rate (basis points per hour) — i.e. the funding/borrow cost of carrying inventory | Small positive |
-| **$F_{\text{net}}$ (fees minus rebates)** | Sum of taker fees paid minus maker rebates earned, plus any post-only-reject costs ([§4.4](04-execution.md#44-post-only-and-the-cancel-replace-loop)) | Sign depends on the venue's rebate schedule; on rebate venues this is negative (you earn rebate) |
+| **$F_{\text{net}}$ (fees minus rebates)** | Sum of taker fees paid minus maker rebates earned, plus any post-only-reject costs ([§4.2](04-execution.md#42-post-only-orders-and-why-a-market-maker-uses-nothing-else)) | Sign depends on the venue's rebate schedule; on rebate venues this is negative (you earn rebate) |
 
 A worked example, on a hypothetical week of BTC/USDT quoting on a venue with a 1 bp maker rebate and a 5 bp taker fee:
 
@@ -263,7 +275,7 @@ A worked example, on a hypothetical week of BTC/USDT quoting on a venue with a 1
 | − Fees net of rebates | +$8,000 | +1.0 bps | Maker rebate on round trips |
 | **Net P&L** | **+$23,500** | **+2.9 bps** | The number to compare to the §6.8 Sharpe |
 
-The decomposition makes the strategy debuggable. If gross spread is high but adverse selection is higher, the strategy is quoting too tight and being picked off — widen the half-spread or shorten the cancel-replace latency ([§4.3](04-execution.md#43-the-cancel-replace-latency-budget)). If inventory carry is high, the inventory-skew term in §3 is under-weighting risk aversion — increase $\gamma$. If fees net is negative when it should be positive, the strategy is crossing the spread too often (using marketable orders instead of patient posts) — review the §4 execution policy. None of these diagnoses is available from the net-P&L number alone.
+The decomposition makes the strategy debuggable. If gross spread is high but adverse selection is higher, the strategy is quoting too tight and being picked off — widen the half-spread or shorten the cancel-replace latency ([§4.3](04-execution.md#43-the-cancel-replace-decision)). If inventory carry is high, the inventory-skew term in §3 is under-weighting risk aversion — increase $\gamma$. If fees net is negative when it should be positive, the strategy is crossing the spread too often (using marketable orders instead of patient posts) — review the §4 execution policy. None of these diagnoses is available from the net-P&L number alone.
 
 The honest reporting standard: every MM backtest reports all four terms, both in absolute dollars and in bps-per-fill, both in-sample and out-of-sample (walk-forward), and with the §6.8 standard errors. **CJP15** §10.4 has the canonical treatment.
 
@@ -287,13 +299,13 @@ A subtler pathology. The backtest needs a "mid-price at the moment of the decisi
 
 The third pathology. The backtest assumes that whenever the strategy wants to cancel and re-post, the cancel and the new post are both executed instantly. In live, every venue has a message-rate cap (Binance: 300 weight/second across endpoints; Coinbase: 50 requests/second per user; OKX: 60 requests/2 seconds per endpoint) and every cancel-replace is two messages, sometimes three (cancel + new + ack). A strategy that wants to refresh quotes 10 times per second across 5 price levels is asking for 100 messages per second, which on Binance is one-third of the budget — and one third is enough to start triggering rate-limit responses during flow bursts.
 
-**Diagnostic.** Add a message-rate accountant to the backtest. Every cancel, place, and modify the strategy issues consumes some weight from the venue's rate budget. When the budget is exhausted, the next message is delayed by the venue's recovery time (typically 1–10 seconds depending on venue and rule). The delay materially affects the cancel-replace latency budget ([§4.3](04-execution.md#43-the-cancel-replace-latency-budget)) and the adverse-selection cost — a stale quote that you wanted to cancel but couldn't is a stale option you wrote. Re-run the backtest with the rate-limit accountant and compare net P&L; if the gap is large, the strategy is over-quoting and §4's execution policy should be revisited.
+**Diagnostic.** Add a message-rate accountant to the backtest. Every cancel, place, and modify the strategy issues consumes some weight from the venue's rate budget. When the budget is exhausted, the next message is delayed by the venue's recovery time (typically 1–10 seconds depending on venue and rule). The delay materially affects the cancel-replace latency budget ([§4.3](04-execution.md#43-the-cancel-replace-decision)) and the adverse-selection cost — a stale quote that you wanted to cancel but couldn't is a stale option you wrote. Re-run the backtest with the rate-limit accountant and compare net P&L; if the gap is large, the strategy is over-quoting and §4's execution policy should be revisited.
 
 The honest summary of §6.10: a backtest that does not have all three diagnostics applied is a backtest that has not earned the right to promote to live capital. The sister course's [§6.10](../../stat-arb/docs/06-backtesting.md) version is shorter because stat arb's pathologies are gentler; the MM version is the load-bearing pre-flight checklist for the [§7 production](07-production.md) decision to deploy.
 
 ## 6.11 Code shape: the `LobReplayHarness` skeleton
 
-The TypeScript skeleton below is the shape of the LOB-replay harness used by the rest of the course. It is deliberately under-specified — the queue model implementation, the strategy implementation, and the venue-rate-limit model are all injected — but the orchestration loop is the load-bearing piece. The full implementation is in [Appendix A.6](appendix-a-code-shapes.md#a6-lob-replay-harness) (sister-course pattern); here we sketch the contract.
+The TypeScript skeleton below is the shape of the LOB-replay harness used by the rest of the course. It is deliberately under-specified — the queue model implementation, the strategy implementation, and the venue-rate-limit model are all injected — but the orchestration loop is the load-bearing piece. The full implementation is in [Appendix A.10](appendix-a-code-shapes.md#a10-lobreplayharness) (sister-course pattern); here we sketch the contract.
 
 ```typescript
 // backtest/lob-replay-harness.ts (sketch — ~80 lines)

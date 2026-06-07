@@ -83,6 +83,9 @@ If you find yourself wanting to deploy on a venue without post-only support, the
 
 The naive market-making loop is: every time the mid moves, cancel the existing quote and replace it at the new mid ± half-spread. The naive loop dies for two reasons in §4.11 (rate-limit ban and queue-position thrash). The serious question is *under what condition do you cancel-and-replace*, and the answer is one of three policies, each appropriate to a different rate-limit / latency regime.
 
+!!! note "Why this decision is a profit lever, not housekeeping — [§9](09-the-fair-value-result.md)"
+    Chapter 9 *measured* it: **cadence — how often you cancel-and-replace — is the single dominant lever over adverse selection**, flipping a desk's `spread − adverse` from **−\$1,020 to +\$133** with **no change to the quoter**, only to how fast it re-set its quotes. The policy you pick below is therefore the difference between a losing and a winning spread business. [§10.6](10-the-fair-value-engine.md#106-the-re-quote-loop-event-driven-with-a-latency-rail) adds the event-driven re-quote loop and the cancel/replace **latency rail** that keeps the fast-cadence benefit honest (no zero-latency free lunch).
+
 ### Policy 1 — always cancel-replace on mid move
 
 You re-quote on every mid update. This is the textbook A-S strategy and it is correct under exactly two conditions: (a) you are co-located with the venue and your REST cancel-replace round-trip is well under the typical inter-tick time; (b) the venue's rate limits comfortably exceed your update rate.
