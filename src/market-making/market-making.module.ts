@@ -24,6 +24,7 @@ import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmNavRepository } from './persistence/mm-nav.repository';
 import { MmNavCron } from './persistence/mm-nav.cron';
+import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
@@ -268,6 +269,24 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       inject: [ConfigService, MmPortfolioTrader, MmNavRepository],
       useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null): MmNavCron =>
         new MmNavCron(cfg, trader, repo),
+    },
+    // Perp funding-rate refresh: keeps each HL book's carry rate current over a
+    // multi-hour run (funding drifts hourly; launch only sets it once). Its own HL
+    // funding client (the launch path's is factory-scoped); non-perp books → null
+    // (left unchanged), and an HL fetch error → null (keep the last good rate, don't
+    // zero the carry). No-op when MM_FUNDING_REFRESH_MS=0 or in test.
+    {
+      provide: FundingRefreshCron,
+      inject: [ConfigService, MmPortfolioTrader],
+      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader): FundingRefreshCron => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const hlFunding = new HyperliquidFundingClient({ baseUrl: app.feed.hyperliquidBaseUrl });
+        const rateFor = async (symbol: string, source: string | undefined): Promise<number | null> =>
+          source === 'hyperliquid'
+            ? hlFunding.currentFunding(symbol).then((f) => f.lastFundingRate).catch(() => null)
+            : null;
+        return new FundingRefreshCron(cfg, trader, rateFor);
+      },
     },
     // Spread-capture screener: ranks instruments by expected MM profit/day.
     {

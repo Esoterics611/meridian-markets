@@ -85,6 +85,35 @@ describe('MmPortfolioTrader', () => {
     expect(snap.books.every((b) => b.fills > 0)).toBe(true);
   });
 
+  it('refreshFunding drives the source per (symbol, source) and counts only updated books', async () => {
+    const pf = new MmPortfolioTrader(makeBook, 1000, 3_000_000_000n);
+    await pf.addBook({ symbol: 'BTC', source: 'hyperliquid' }, 1_000_000_000n);
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n); // no source ⇒ spot, returns null (unchanged)
+
+    const calls: Array<[string, string | undefined]> = [];
+    const updated = await pf.refreshFunding(async (symbol, source) => {
+      calls.push([symbol, source]);
+      return source === 'hyperliquid' ? 0.0000125 : null; // perp → rate; spot → leave as-is
+    });
+
+    expect(calls).toContainEqual(['BTC', 'hyperliquid']);
+    expect(calls).toContainEqual(['USDC', undefined]);
+    expect(updated).toBe(1); // only the HL book got a (non-null) rate
+  });
+
+  it('refreshFunding is best-effort: one book throwing does not abort the sweep', async () => {
+    const pf = new MmPortfolioTrader(makeBook, 1000, 3_000_000_000n);
+    await pf.addBook({ symbol: 'BTC', source: 'hyperliquid' }, 1_000_000_000n);
+    await pf.addBook({ symbol: 'ETH', source: 'hyperliquid' }, 1_000_000_000n);
+
+    const updated = await pf.refreshFunding(async (symbol) => {
+      if (symbol === 'BTC') throw new Error('HL down');
+      return 0.00002;
+    });
+
+    expect(updated).toBe(1); // ETH still updated despite BTC throwing
+  });
+
   it('checkpoints books and rehydrates inventory + P&L on a fresh trader (restart-safe)', async () => {
     const { store, saved, closed } = makeFakeStore();
     const a = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });

@@ -205,6 +205,31 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     return this.timer !== null;
   }
 
+  /**
+   * Refresh each book's perp funding rate from a source fn `(symbol, source) → rate`
+   * (signed fraction/hour) or `null` to leave a book unchanged (e.g. a spot/AMM book
+   * with no funding). Lets the FundingRefreshCron keep the static-at-launch carry
+   * rate current as funding drifts over a multi-hour run (mm-book.setFundingRatePerHour
+   * is the per-book hook). Best-effort: a single book's refresh error never aborts the
+   * sweep. Returns the number of books actually updated. (MM course §8.10.)
+   */
+  async refreshFunding(rateFor: (symbol: string, source: string | undefined) => Promise<number | null>): Promise<number> {
+    let updated = 0;
+    for (const [key, book] of this.books) {
+      const spec = this.specs.get(key);
+      try {
+        const rate = await rateFor(spec?.symbol ?? key, spec?.source);
+        if (rate !== null && Number.isFinite(rate)) {
+          book.setFundingRatePerHour(rate);
+          updated += 1;
+        }
+      } catch (e) {
+        this.logger.warn(`funding refresh failed for ${key}: ${(e as Error).message}`);
+      }
+    }
+    return updated;
+  }
+
   /** One iteration: tick every book. Never throws — a single book's error is logged. */
   async tick(): Promise<void> {
     if (this.ticking) return;

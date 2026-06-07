@@ -191,6 +191,14 @@ export interface AppConfig {
      * otherwise the cron no-ops (no DB dependency on the live MM path). Default 60s.
      */
     navIntervalMs: number;
+    /**
+     * Perp funding-rate refresh cadence (ms). Each interval the FundingRefreshCron
+     * re-reads each HL book's live funding rate and updates the book's carry accrual
+     * (mm-book.setFundingRatePerHour), so the static-at-launch rate stays current as
+     * funding drifts over a multi-hour run (the carry leg, MM course §8.10). HL funds
+     * hourly, so a sub-hour cadence keeps it fresh; 0 disables the refresh. Default 10m.
+     */
+    fundingRefreshMs: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
