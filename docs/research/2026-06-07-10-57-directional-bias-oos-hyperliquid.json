@@ -1,0 +1,3665 @@
+{
+  "generatedAt": "2026-06-07T10:57:49.960Z",
+  "source": "hyperliquid",
+  "days": 180,
+  "interval": "1h",
+  "fwdHours": [
+    8,
+    24,
+    72,
+    168
+  ],
+  "momLookbackHours": [
+    24,
+    72
+  ],
+  "fundingWindowHours": 24,
+  "folds": 5,
+  "embargoFrac": 0.01,
+  "majors": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "XRP"
+  ],
+  "alts": [
+    "AVAX",
+    "LINK",
+    "ARB",
+    "DOGE"
+  ],
+  "coins": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "XRP",
+    "AVAX",
+    "LINK",
+    "ARB",
+    "DOGE"
+  ],
+  "trials": 88,
+  "sigmaSR": 0.06755951755091419,
+  "perTrial": [
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.06785168645065566,
+        "spearmanIc": -0.08046115239120888,
+        "hitRate": 0.47397899649941655,
+        "meanDirectionPnl": -0.0008380929222945621,
+        "stats": {
+          "sharpe": -0.03333432982047193,
+          "skew": 0.2789096522988884,
+          "kurtosis": 5.818993626071808,
+          "n": 4285
+        },
+        "deflated": {
+          "psr": 0.01499213965623264,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4285,
+        "foldSpearmanIc": [
+          -0.1582874106803647,
+          -0.06691011830374205,
+          -0.11282915322774775,
+          -0.15452506250115822,
+          -0.10935424405036942
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.030446226016599947,
+        "spearmanIc": -0.023352176322841558,
+        "hitRate": 0.4933239634574842,
+        "meanDirectionPnl": 0.00021166043244228894,
+        "stats": {
+          "sharpe": 0.0050728047064762475,
+          "skew": 0.15794382260040976,
+          "kurtosis": 4.339391585977498,
+          "n": 4269
+        },
+        "deflated": {
+          "psr": 0.6298798282718645,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4269,
+        "foldSpearmanIc": [
+          -0.13988253165152037,
+          -0.05403408199548706,
+          -0.10139947335330428,
+          -0.18577656063360987,
+          0.015906385210345347
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.03920543067314265,
+        "spearmanIc": 0.031985909608937366,
+        "hitRate": 0.5072257758824923,
+        "meanDirectionPnl": 0.0025287016905041707,
+        "stats": {
+          "sharpe": 0.03488332712083619,
+          "skew": 0.004859966861790586,
+          "kurtosis": 3.202293261370145,
+          "n": 4221
+        },
+        "deflated": {
+          "psr": 0.9882592555983357,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4221,
+        "foldSpearmanIc": [
+          -0.08996598791667089,
+          -0.2266423384252916,
+          -0.20986035384128543,
+          -0.09059645586469292,
+          0.12114226701938159
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.06374937620635632,
+        "spearmanIc": 0.05935711534079716,
+        "hitRate": 0.5103030303030303,
+        "meanDirectionPnl": 0.006732964609995445,
+        "stats": {
+          "sharpe": 0.05629929427281455,
+          "skew": 0.03831858467863326,
+          "kurtosis": 2.744631061301037,
+          "n": 4125
+        },
+        "deflated": {
+          "psr": 0.9998508595453026,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 3.7780889527994077e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4125,
+        "foldSpearmanIc": [
+          -0.09689784133917753,
+          -0.138664754695691,
+          -0.18289815335232482,
+          -0.023774055465679622,
+          -0.016228081610671706
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.014819400864539438,
+        "spearmanIc": -0.0022287916185661466,
+        "hitRate": 0.5169891458235016,
+        "meanDirectionPnl": 0.0006389138481635321,
+        "stats": {
+          "sharpe": 0.02554933297481995,
+          "skew": 0.01107710411916101,
+          "kurtosis": 5.823483616882975,
+          "n": 4238
+        },
+        "deflated": {
+          "psr": 0.9518081920783976,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4238,
+        "foldSpearmanIc": [
+          -0.10642226653373835,
+          -0.07486538210901157,
+          -0.17505252539423113,
+          -0.07357227854198768,
+          0.0317659117885387
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.04336077595429238,
+        "spearmanIc": 0.048736678163165056,
+        "hitRate": 0.5409758408337281,
+        "meanDirectionPnl": 0.004824061889419538,
+        "stats": {
+          "sharpe": 0.11631463121976807,
+          "skew": 0.2637895745719483,
+          "kurtosis": 4.276684495951237,
+          "n": 4222
+        },
+        "deflated": {
+          "psr": 0.9999999999999883,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.0003557555800482448,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4222,
+        "foldSpearmanIc": [
+          -0.06606878511766001,
+          -0.1712905478389767,
+          -0.15682683990389212,
+          -0.1031841047949343,
+          0.10419390711483298
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.1443253337481166,
+        "spearmanIc": 0.1608794539601159,
+        "hitRate": 0.562050790608529,
+        "meanDirectionPnl": 0.013432665300477748,
+        "stats": {
+          "sharpe": 0.18750860937857422,
+          "skew": 0.10936831479209867,
+          "kurtosis": 3.109153548732892,
+          "n": 4174
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.8975288981578937,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4174,
+        "foldSpearmanIc": [
+          -0.030930737746564633,
+          -0.14612641777819185,
+          -0.18640606831230386,
+          -0.1625927836725749,
+          0.1964820805330705
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ARB",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.13356423284892024,
+        "spearmanIc": 0.15333248163224827,
+        "hitRate": 0.5684158901422266,
+        "meanDirectionPnl": 0.02059559314661772,
+        "stats": {
+          "sharpe": 0.17503685202582447,
+          "skew": 0.028239222788542392,
+          "kurtosis": 2.7554571299692325,
+          "n": 4078
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.6748821126873845,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4078,
+        "foldSpearmanIc": [
+          -0.07982322153692709,
+          -0.3079196053548136,
+          -0.20103141494455942,
+          0.06962228131481109,
+          -0.06129287894895979
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.0020977578101107597,
+        "spearmanIc": 0.01374782824782224,
+        "hitRate": 0.5186731616794247,
+        "meanDirectionPnl": 0.0008886251157806275,
+        "stats": {
+          "sharpe": 0.042787985994691004,
+          "skew": -0.346980079516478,
+          "kurtosis": 6.860936707571919,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9973215349800979,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 2.220446049250313e-16,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.04294408538401055,
+          -0.05563354437716222,
+          0.11123386879603842,
+          0.1620928817292934,
+          -0.10056078750585726
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.009174458409256908,
+        "spearmanIc": 0.011105580517261878,
+        "hitRate": 0.5233993015133876,
+        "meanDirectionPnl": 0.0032683293795246985,
+        "stats": {
+          "sharpe": 0.09279099905601405,
+          "skew": 0.37011213142176436,
+          "kurtosis": 4.934273593732104,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.9999999996364128,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 3.0697344904906387e-7,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          0.0016408374145346653,
+          -0.10590805544728564,
+          0.3183284460794103,
+          0.12119285310574002,
+          -0.15473849042888033
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.12950637602019982,
+        "spearmanIc": 0.011446037635048258,
+        "hitRate": 0.5271956675300212,
+        "meanDirectionPnl": 0.002184654149404729,
+        "stats": {
+          "sharpe": 0.03807285270009571,
+          "skew": 0.09034849446952102,
+          "kurtosis": 4.398306442678551,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 0.9934972974606273,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          -0.17157567268245388,
+          -0.3012520399365215,
+          0.5292968853161891,
+          0.2773184228263506,
+          -0.08823884711218927
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": -0.32795147351580267,
+        "spearmanIc": -0.1496509742214304,
+        "hitRate": 0.47217537942664417,
+        "meanDirectionPnl": -0.005633203660943976,
+        "stats": {
+          "sharpe": -0.06834430474051313,
+          "skew": 0.2010632061876719,
+          "kurtosis": 4.300564089491483,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 0.000006374409792120339,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          -0.3440302505302438,
+          -0.5012818548991563,
+          0.32321181573896707,
+          0.2096147672978608,
+          0.003579564342755736
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.06935070325978002,
+        "spearmanIc": -0.079844322959984,
+        "hitRate": 0.4708216619981326,
+        "meanDirectionPnl": -0.0005326981665858251,
+        "stats": {
+          "sharpe": -0.025695581771478897,
+          "skew": 0.3600989584529593,
+          "kurtosis": 6.84786031814926,
+          "n": 4284
+        },
+        "deflated": {
+          "psr": 0.047152649554834,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4284,
+        "foldSpearmanIc": [
+          -0.10050162598718199,
+          -0.08222125653186284,
+          0.027565655099761253,
+          -0.3553248134650331,
+          -0.0382571659412766
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.08312705967831434,
+        "spearmanIc": -0.06165755702163847,
+        "hitRate": 0.47914714151827553,
+        "meanDirectionPnl": -0.0014628829498460776,
+        "stats": {
+          "sharpe": -0.04160014029678063,
+          "skew": 0.11499656670129096,
+          "kurtosis": 5.112103794582211,
+          "n": 4268
+        },
+        "deflated": {
+          "psr": 0.003379023780616275,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4268,
+        "foldSpearmanIc": [
+          -0.09299405998224503,
+          -0.051998454865270605,
+          0.017597170717811767,
+          -0.479047153986514,
+          0.09078316302983855
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.10145672450652345,
+        "spearmanIc": -0.12814148243059675,
+        "hitRate": 0.4447867298578199,
+        "meanDirectionPnl": -0.0052297931548689796,
+        "stats": {
+          "sharpe": -0.09186106465616906,
+          "skew": 0.3668057821881837,
+          "kurtosis": 4.624112272697612,
+          "n": 4220
+        },
+        "deflated": {
+          "psr": 2.509269736439279e-9,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4220,
+        "foldSpearmanIc": [
+          -0.013930310027395719,
+          -0.2087173492609264,
+          -0.42396013085195383,
+          -0.3713269393690472,
+          0.14072249607516993
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.0022094455351579184,
+        "spearmanIc": -0.02791841449572196,
+        "hitRate": 0.463627546071775,
+        "meanDirectionPnl": -0.00013761902327432126,
+        "stats": {
+          "sharpe": -0.001679956489887255,
+          "skew": 0.06252696366053116,
+          "kurtosis": 4.306965440963608,
+          "n": 4124
+        },
+        "deflated": {
+          "psr": 0.4570512560208945,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4124,
+        "foldSpearmanIc": [
+          -0.006736556186942891,
+          -0.0046780173915273475,
+          -0.21320794394021314,
+          -0.2862882616807251,
+          -0.024118958581556937
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.07187412605429692,
+        "spearmanIc": -0.08419983248620708,
+        "hitRate": 0.47534795942439256,
+        "meanDirectionPnl": -0.0013975355928201654,
+        "stats": {
+          "sharpe": -0.068199188538787,
+          "skew": -0.2193074221333837,
+          "kurtosis": 6.8552701578108595,
+          "n": 4239
+        },
+        "deflated": {
+          "psr": 0.000004140764988169732,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4239,
+        "foldSpearmanIc": [
+          -0.03021325009926503,
+          -0.11233588560244603,
+          -0.23033337995850647,
+          -0.31904653541247496,
+          0.08341363027323394
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.08234279275870404,
+        "spearmanIc": -0.08688656595622812,
+        "hitRate": 0.4754913568553161,
+        "meanDirectionPnl": -0.002346169985539342,
+        "stats": {
+          "sharpe": -0.0670503705986488,
+          "skew": 0.013806427394328467,
+          "kurtosis": 5.151158260011285,
+          "n": 4223
+        },
+        "deflated": {
+          "psr": 0.000006981865369459772,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4223,
+        "foldSpearmanIc": [
+          0.05810126445007002,
+          -0.18522843240527756,
+          -0.3279140137301337,
+          -0.4051845580802499,
+          0.18666502863870996
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.04602584907429768,
+        "spearmanIc": -0.08755636794810462,
+        "hitRate": 0.4622754491017964,
+        "meanDirectionPnl": -0.002805995744258372,
+        "stats": {
+          "sharpe": -0.049034684632492706,
+          "skew": 0.47023374788981087,
+          "kurtosis": 4.565067957282914,
+          "n": 4175
+        },
+        "deflated": {
+          "psr": 0.0008777327986245753,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4175,
+        "foldSpearmanIc": [
+          -0.05090381008661827,
+          -0.18842114744728297,
+          -0.45682000083685165,
+          -0.4070055613532839,
+          0.2468040202682996
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "AVAX",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.05826885643317626,
+        "spearmanIc": 0.04167373569037489,
+        "hitRate": 0.4991419465555283,
+        "meanDirectionPnl": 0.006323052748137303,
+        "stats": {
+          "sharpe": 0.07850603872562391,
+          "skew": 0.38562513552359123,
+          "kurtosis": 4.342484581043381,
+          "n": 4079
+        },
+        "deflated": {
+          "psr": 0.9999998084810808,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 3.700799722228254e-9,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4079,
+        "foldSpearmanIc": [
+          0.024112827956272054,
+          -0.07468449454858349,
+          -0.16641341715892038,
+          -0.350386279118356,
+          0.010243576636575553
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.03189324658761117,
+        "spearmanIc": 0.06237526458969749,
+        "hitRate": 0.5170494084899095,
+        "meanDirectionPnl": 0.0007930147124562481,
+        "stats": {
+          "sharpe": 0.05713480659515192,
+          "skew": 0.20008944950437726,
+          "kurtosis": 7.905053771894558,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9999156438596785,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.5232259897857148e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.02473507273514971,
+          0.023128719954580185,
+          0.2164569814689289,
+          0.10503119204335727,
+          0.13083811071784304
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.07734922731060313,
+        "spearmanIc": 0.0809077675286313,
+        "hitRate": 0.5210710128055879,
+        "meanDirectionPnl": 0.0027531617390163152,
+        "stats": {
+          "sharpe": 0.11076458492434274,
+          "skew": 0.6707898005446342,
+          "kurtosis": 6.843677746335247,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.9999999999999601,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.00005798510075022412,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          0.039231830647431305,
+          0.048622551009665047,
+          0.3148520135206276,
+          0.03978413647350241,
+          0.18585214062815902
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.010583426478256337,
+        "spearmanIc": 0.015252577851409677,
+        "hitRate": 0.5041205556863668,
+        "meanDirectionPnl": 0.003740641924844754,
+        "stats": {
+          "sharpe": 0.08350485334536237,
+          "skew": 0.07636263331779931,
+          "kurtosis": 7.184896101399707,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 0.999999971653121,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 2.0424391955486954e-8,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          -0.014229594633641048,
+          -0.041994918901973606,
+          0.07776722399728364,
+          0.1053711500488882,
+          0.29711710885639786
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": -0.18942508815438597,
+        "spearmanIc": -0.16809809281363314,
+        "hitRate": 0.463743676222597,
+        "meanDirectionPnl": -0.0040818661110897615,
+        "stats": {
+          "sharpe": -0.06090778517904472,
+          "skew": 0.09174594248603836,
+          "kurtosis": 8.396318959028681,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 0.00004821204523225431,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          -0.24800672560911555,
+          0.027761490803518637,
+          -0.049555306821026664,
+          -0.1708669061379545,
+          0.05372177755231791
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.04898116389730898,
+        "spearmanIc": -0.01189324467170299,
+        "hitRate": 0.4976679104477612,
+        "meanDirectionPnl": 0.0007530115382950156,
+        "stats": {
+          "sharpe": 0.05429432028960763,
+          "skew": 0.8592881642250512,
+          "kurtosis": 7.8055603919246765,
+          "n": 4288
+        },
+        "deflated": {
+          "psr": 0.9998589867605028,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.509903313490213e-14,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4288,
+        "foldSpearmanIc": [
+          -0.12575746540778743,
+          -0.0354111964162999,
+          0.0010555297645249192,
+          -0.1734880050319695,
+          0.14044135887885548
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.05691271655357534,
+        "spearmanIc": -0.014757929862242808,
+        "hitRate": 0.48197565543071164,
+        "meanDirectionPnl": 0.0015303590900807077,
+        "stats": {
+          "sharpe": 0.06125622538406862,
+          "skew": 0.8592851904947394,
+          "kurtosis": 6.870078228100428,
+          "n": 4272
+        },
+        "deflated": {
+          "psr": 0.9999794274567451,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 4.695133171139787e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4272,
+        "foldSpearmanIc": [
+          -0.15802162446103002,
+          -0.08515286223832909,
+          0.017507541844829822,
+          -0.23485950476675999,
+          0.21492750383444245
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.017490636458653824,
+        "spearmanIc": -0.07101583916096173,
+        "hitRate": 0.4822443181818182,
+        "meanDirectionPnl": -0.0012733770999941887,
+        "stats": {
+          "sharpe": -0.02828433227117847,
+          "skew": -0.008055221825877243,
+          "kurtosis": 7.1400004358174805,
+          "n": 4224
+        },
+        "deflated": {
+          "psr": 0.033095448627894875,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4224,
+        "foldSpearmanIc": [
+          -0.11219575192140005,
+          -0.1148560269169014,
+          -0.3355994796256662,
+          -0.09011859578485652,
+          0.05921536930627686
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.04642516944034081,
+        "spearmanIc": -0.03345998848263362,
+        "hitRate": 0.49055232558139533,
+        "meanDirectionPnl": 0.001486608890609028,
+        "stats": {
+          "sharpe": 0.022103458127011522,
+          "skew": 0.573537447444374,
+          "kurtosis": 8.268997022715963,
+          "n": 4128
+        },
+        "deflated": {
+          "psr": 0.9234129186247315,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4128,
+        "foldSpearmanIc": [
+          -0.056513524800369225,
+          0.029949484450744877,
+          -0.22759735868009595,
+          -0.04049412432491962,
+          -0.13586943745739205
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.0022582347461656523,
+        "spearmanIc": -0.06530143753625502,
+        "hitRate": 0.4729761623790418,
+        "meanDirectionPnl": -0.0002529142769702488,
+        "stats": {
+          "sharpe": -0.01826067786346033,
+          "skew": 0.6985122709757424,
+          "kurtosis": 8.133500809407822,
+          "n": 4237
+        },
+        "deflated": {
+          "psr": 0.1188742165870702,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4237,
+        "foldSpearmanIc": [
+          -0.13484045401747982,
+          -0.038166712098004485,
+          -0.20951784156138012,
+          -0.14157174012197551,
+          0.005457328397184606
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.012329056953781123,
+        "spearmanIc": -0.0805861828392043,
+        "hitRate": 0.47619047619047616,
+        "meanDirectionPnl": -0.00044337746038255435,
+        "stats": {
+          "sharpe": -0.017672474065468118,
+          "skew": 0.5609014311893704,
+          "kurtosis": 7.0986147987112505,
+          "n": 4221
+        },
+        "deflated": {
+          "psr": 0.1267034361095507,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4221,
+        "foldSpearmanIc": [
+          -0.12529788231123992,
+          -0.08078169062648481,
+          -0.24989028639109143,
+          -0.1655395976459103,
+          -0.032478561510727505
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.01608225754371228,
+        "spearmanIc": -0.08882936231973428,
+        "hitRate": 0.4778336927869638,
+        "meanDirectionPnl": -0.0026572940146980173,
+        "stats": {
+          "sharpe": -0.058801674301533435,
+          "skew": 0.372754868708121,
+          "kurtosis": 7.19083455757758,
+          "n": 4173
+        },
+        "deflated": {
+          "psr": 0.00008939830817772387,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4173,
+        "foldSpearmanIc": [
+          -0.05954059379304034,
+          -0.023585303318529028,
+          -0.3434969309599451,
+          -0.23397332568490284,
+          -0.27020152480067544
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BNB",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.1514850188899417,
+        "spearmanIc": 0.04924730325168242,
+        "hitRate": 0.5106696100073583,
+        "meanDirectionPnl": 0.0060747593011521855,
+        "stats": {
+          "sharpe": 0.09042311975865575,
+          "skew": 0.7439119873625062,
+          "kurtosis": 8.141034747855212,
+          "n": 4077
+        },
+        "deflated": {
+          "psr": 0.9999999984916423,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.8667231799218698e-7,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4077,
+        "foldSpearmanIc": [
+          -0.01907321070981058,
+          0.0068228288529519985,
+          -0.18379236245530003,
+          -0.014340579545457758,
+          -0.11663951934612346
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.06867917736746881,
+        "spearmanIc": 0.049642531499979,
+        "hitRate": 0.510786360473208,
+        "meanDirectionPnl": 0.0008629648420048837,
+        "stats": {
+          "sharpe": 0.06295078806684672,
+          "skew": 0.39899764184191744,
+          "kurtosis": 7.242651374496252,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9999849233640827,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.7553181130836037e-12,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.08075118513991067,
+          0.06485829121836514,
+          0.04426962805478571,
+          0.04403198793093292,
+          0.08203807747995584
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.10768755165780731,
+        "spearmanIc": 0.07730828839816471,
+        "hitRate": 0.5252619324796275,
+        "meanDirectionPnl": 0.002780733219444507,
+        "stats": {
+          "sharpe": 0.11807388733773744,
+          "skew": 0.4261448503743942,
+          "kurtosis": 5.875282941739105,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.9999999999999982,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.0004482260682491246,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          0.05830817116192134,
+          0.09601450156934598,
+          0.053880381007016594,
+          0.07106719089489931,
+          0.11004049634841287
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.12883328228921764,
+        "spearmanIc": 0.15042894829821393,
+        "hitRate": 0.5646338591947256,
+        "meanDirectionPnl": 0.007410308651406729,
+        "stats": {
+          "sharpe": 0.18385771233525433,
+          "skew": -0.2058677239764297,
+          "kurtosis": 6.006172132227422,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.841385095679478,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          -0.12894111386947155,
+          0.24110116734065143,
+          0.08000373946608731,
+          0.24911217569101188,
+          0.1698615613594247
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.13287610248033874,
+        "spearmanIc": 0.09806925646247139,
+        "hitRate": 0.5422789689231511,
+        "meanDirectionPnl": 0.012171931826449522,
+        "stats": {
+          "sharpe": 0.2015669709517567,
+          "skew": 0.8500925329943226,
+          "kurtosis": 4.99713964116189,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.9899875382388619,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          -0.5277375877353652,
+          0.27343401365211817,
+          -0.02545934362610165,
+          0.36239905566119524,
+          0.1656783345026776
+        ]
+      },
+      "verdict": "VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0.39227702584988555
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.019690109453452075,
+        "spearmanIc": -0.022540588043028997,
+        "hitRate": 0.49101936085840914,
+        "meanDirectionPnl": -0.00009555923031225666,
+        "stats": {
+          "sharpe": -0.006953694952160556,
+          "skew": 0.18475565323760978,
+          "kurtosis": 7.328180992831016,
+          "n": 4287
+        },
+        "deflated": {
+          "psr": 0.3245791613886566,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4287,
+        "foldSpearmanIc": [
+          -0.11319493573123013,
+          -0.09002866108561451,
+          0.024970778902119482,
+          -0.19337943760511073,
+          0.11099380559243807
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.011624986218225178,
+        "spearmanIc": -0.0048455422375341065,
+        "hitRate": 0.49379536408335284,
+        "meanDirectionPnl": 0.0005727150522556626,
+        "stats": {
+          "sharpe": 0.024132825856772965,
+          "skew": 0.33451547733221276,
+          "kurtosis": 5.968765486897003,
+          "n": 4271
+        },
+        "deflated": {
+          "psr": 0.9432655782444153,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4271,
+        "foldSpearmanIc": [
+          -0.047506348220789446,
+          -0.09981376287758775,
+          -0.001560288012711424,
+          -0.3039078776255689,
+          0.21759111132818304
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.049171410532811384,
+        "spearmanIc": -0.05607100250383728,
+        "hitRate": 0.47572815533980584,
+        "meanDirectionPnl": -0.001597015965406231,
+        "stats": {
+          "sharpe": -0.038942047222835535,
+          "skew": -0.13592727317525102,
+          "kurtosis": 5.65269192322264,
+          "n": 4223
+        },
+        "deflated": {
+          "psr": 0.005625417062138982,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4223,
+        "foldSpearmanIc": [
+          0.06179242346585138,
+          -0.1711256287143846,
+          -0.33932268996378023,
+          -0.18769642737919154,
+          0.13782364566541178
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.06563021710053422,
+        "spearmanIc": -0.012021087656666886,
+        "hitRate": 0.4867942815604555,
+        "meanDirectionPnl": 0.001112179882818216,
+        "stats": {
+          "sharpe": 0.01807105816337892,
+          "skew": 0.37198209815942,
+          "kurtosis": 5.47537481662779,
+          "n": 4127
+        },
+        "deflated": {
+          "psr": 0.8778856657489544,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4127,
+        "foldSpearmanIc": [
+          -0.24020333979139546,
+          -0.026993535638628174,
+          -0.20060387366459442,
+          -0.17101727062768748,
+          0.03909473445757797
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.03456024760476423,
+        "spearmanIc": -0.054189369351836575,
+        "hitRate": 0.47971698113207545,
+        "meanDirectionPnl": -0.00022604509475734837,
+        "stats": {
+          "sharpe": -0.016486087107179144,
+          "skew": 0.3949999720368999,
+          "kurtosis": 7.442842092081152,
+          "n": 4240
+        },
+        "deflated": {
+          "psr": 0.14238642492530307,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4240,
+        "foldSpearmanIc": [
+          -0.06456816751463167,
+          -0.07150171680079735,
+          -0.21301103269143562,
+          -0.21110724579592202,
+          0.05634562965354715
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.04469662415201367,
+        "spearmanIc": -0.05817826286083905,
+        "hitRate": 0.4543087121212121,
+        "meanDirectionPnl": -0.0005021868756070542,
+        "stats": {
+          "sharpe": -0.02113608360669653,
+          "skew": 0.5226847273429125,
+          "kurtosis": 6.075117203244862,
+          "n": 4224
+        },
+        "deflated": {
+          "psr": 0.08603032565046997,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4224,
+        "foldSpearmanIc": [
+          0.025035526626423377,
+          -0.1529862354584471,
+          -0.3152322660727032,
+          -0.2779740087300531,
+          0.10496527058049562
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.017521752203584096,
+        "spearmanIc": -0.045395400740048636,
+        "hitRate": 0.46479885057471265,
+        "meanDirectionPnl": 0.0005769163665957732,
+        "stats": {
+          "sharpe": 0.014006269355801727,
+          "skew": 0.5355366666594937,
+          "kurtosis": 5.6134688202145835,
+          "n": 4176
+        },
+        "deflated": {
+          "psr": 0.8181439298650925,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4176,
+        "foldSpearmanIc": [
+          -0.10838234011988371,
+          -0.20247516395387258,
+          -0.4408792548804838,
+          -0.24867933060937433,
+          0.19598212270512502
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "BTC",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.1367024387589331,
+        "spearmanIc": 0.08956592203910631,
+        "hitRate": 0.5193627450980393,
+        "meanDirectionPnl": 0.0077234630828177135,
+        "stats": {
+          "sharpe": 0.1262197426861202,
+          "skew": 0.5711554516560976,
+          "kurtosis": 5.319325012180207,
+          "n": 4080
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.0030855756927837263,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4080,
+        "foldSpearmanIc": [
+          -0.39237656405497223,
+          -0.06730413395956636,
+          -0.1952644918717951,
+          -0.03273342297592957,
+          0.11904636542048767
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.051365312655335824,
+        "spearmanIc": 0.048534417718589545,
+        "hitRate": 0.4975643702157272,
+        "meanDirectionPnl": 0.0010810677180338396,
+        "stats": {
+          "sharpe": 0.058039404597854484,
+          "skew": 0.2626949195656565,
+          "kurtosis": 6.54250172558299,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9999360714104382,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 2.0805579481475434e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.08782135875522352,
+          0.059893771688476406,
+          0.09478437618232798,
+          0.0162861303869456,
+          -0.006850590507129001
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.054148366428773034,
+        "spearmanIc": 0.08627084646249245,
+        "hitRate": 0.5187427240977881,
+        "meanDirectionPnl": 0.0031511794622881843,
+        "stats": {
+          "sharpe": 0.09732830492088318,
+          "skew": 0.04625810773774469,
+          "kurtosis": 4.805891429866103,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.9999999999009186,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.000001973064941873659,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          0.22453310590758785,
+          0.11914113374585601,
+          0.11980229735566222,
+          -0.06951970439619862,
+          0.007174579736608225
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.0032258336320880434,
+        "spearmanIc": 0.112409681097312,
+        "hitRate": 0.5660466211443371,
+        "meanDirectionPnl": 0.007440478279664489,
+        "stats": {
+          "sharpe": 0.13331525736827649,
+          "skew": 0.37935669020366425,
+          "kurtosis": 5.182053014213114,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.010985218894961624,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          0.2695134719148175,
+          0.060823653237378844,
+          0.08111237399013267,
+          -0.22837192470600876,
+          0.24058782669357703
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.05932370636180515,
+        "spearmanIc": 0.09967791727358583,
+        "hitRate": 0.5417971573114913,
+        "meanDirectionPnl": 0.014717347990084367,
+        "stats": {
+          "sharpe": 0.174052488667344,
+          "skew": 1.0983622537435538,
+          "kurtosis": 6.562901575135566,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.6661418814685989,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          0.23800187498322545,
+          0.13451968187661867,
+          0.0050262001247091005,
+          -0.33470992728644083,
+          0.4082966533775711
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.007299948500682205,
+        "spearmanIc": -0.03764657457172109,
+        "hitRate": 0.48097128181181414,
+        "meanDirectionPnl": -0.0002832085246482723,
+        "stats": {
+          "sharpe": -0.015202857188459323,
+          "skew": 0.3116242182204852,
+          "kurtosis": 6.60118558484605,
+          "n": 4283
+        },
+        "deflated": {
+          "psr": 0.16052042903379132,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4283,
+        "foldSpearmanIc": [
+          -0.09589068178797011,
+          -0.007606331661119609,
+          0.017943330868960997,
+          -0.21038904665381736,
+          -0.02053365713363989
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.011621377167587696,
+        "spearmanIc": -0.025588680516677956,
+        "hitRate": 0.4820717131474104,
+        "meanDirectionPnl": 0.00007366741800067888,
+        "stats": {
+          "sharpe": 0.0022639556433427226,
+          "skew": 0.44779611692358534,
+          "kurtosis": 4.7975749723403345,
+          "n": 4267
+        },
+        "deflated": {
+          "psr": 0.5588065613891281,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4267,
+        "foldSpearmanIc": [
+          -0.053313477288215436,
+          0.0649389217860441,
+          -0.014781586476381269,
+          -0.41169885571379966,
+          0.11418151498395904
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.03112733128848812,
+        "spearmanIc": -0.08126173951522828,
+        "hitRate": 0.4531879592320455,
+        "meanDirectionPnl": -0.0018732353301476774,
+        "stats": {
+          "sharpe": -0.03332538419746238,
+          "skew": 0.44792934545684693,
+          "kurtosis": 5.409437693377415,
+          "n": 4219
+        },
+        "deflated": {
+          "psr": 0.015893211821260966,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4219,
+        "foldSpearmanIc": [
+          0.056875071792629656,
+          -0.12469657478174791,
+          -0.3410606653886156,
+          -0.2461464810159579,
+          0.06151754995921521
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.04660780672371841,
+        "spearmanIc": -0.03517679080039245,
+        "hitRate": 0.46325491147222897,
+        "meanDirectionPnl": 0.0003777060351550549,
+        "stats": {
+          "sharpe": 0.004410285627918438,
+          "skew": 0.504371787536418,
+          "kurtosis": 7.154204878605687,
+          "n": 4123
+        },
+        "deflated": {
+          "psr": 0.611589310143444,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4123,
+        "foldSpearmanIc": [
+          -0.1868497998627997,
+          -0.038957940200329534,
+          -0.21976229534568595,
+          -0.18500294382916568,
+          -0.04207867584526505
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.0274801175568444,
+        "spearmanIc": -0.05817651676343477,
+        "hitRate": 0.4653138272770175,
+        "meanDirectionPnl": -0.0006476938572119788,
+        "stats": {
+          "sharpe": -0.0349714514970776,
+          "skew": 0.27472756218299843,
+          "kurtosis": 6.696750785511022,
+          "n": 4238
+        },
+        "deflated": {
+          "psr": 0.011800516231240177,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4238,
+        "foldSpearmanIc": [
+          -0.010085707898882633,
+          -0.005690206186905967,
+          -0.23872522354857711,
+          -0.2300132329002792,
+          -0.04529881057242537
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.02179364394824427,
+        "spearmanIc": -0.07018244824336474,
+        "hitRate": 0.4592610137375651,
+        "meanDirectionPnl": -0.00001122258192167211,
+        "stats": {
+          "sharpe": -0.00034566557376728275,
+          "skew": 0.48498397310214864,
+          "kurtosis": 4.865823526591609,
+          "n": 4222
+        },
+        "deflated": {
+          "psr": 0.4910421645772148,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4222,
+        "foldSpearmanIc": [
+          0.06447564123683994,
+          -0.07579032237686369,
+          -0.3405136574905498,
+          -0.3376157451877856,
+          0.0008955129488979835
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.02586850920274777,
+        "spearmanIc": -0.05657116514939855,
+        "hitRate": 0.4930522280785817,
+        "meanDirectionPnl": 0.0031410069571225904,
+        "stats": {
+          "sharpe": 0.055868420898337344,
+          "skew": 0.48594259859630445,
+          "kurtosis": 5.271913228375331,
+          "n": 4174
+        },
+        "deflated": {
+          "psr": 0.9998702628956553,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.201816424156732e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4174,
+        "foldSpearmanIc": [
+          -0.01276128683049034,
+          -0.133490514410235,
+          -0.39349859023476574,
+          -0.3190276979344811,
+          -0.016511104506421532
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "ETH",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.10650811525464018,
+        "spearmanIc": 0.07115340527260844,
+        "hitRate": 0.5274644433545855,
+        "meanDirectionPnl": 0.011220664297781771,
+        "stats": {
+          "sharpe": 0.13315878969871586,
+          "skew": 0.34088826669825323,
+          "kurtosis": 7.364429074377577,
+          "n": 4078
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.012613062505488437,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4078,
+        "foldSpearmanIc": [
+          -0.27784798580507064,
+          -0.19405706594838038,
+          -0.1354528152848859,
+          -0.05684396216695026,
+          0.03017101038573431
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.07979984279063414,
+        "spearmanIc": -0.08407114948481548,
+        "hitRate": 0.4678021465235651,
+        "meanDirectionPnl": -0.0008935420493737888,
+        "stats": {
+          "sharpe": -0.045379825101723455,
+          "skew": 0.3216995408228324,
+          "kurtosis": 5.983114892140054,
+          "n": 4286
+        },
+        "deflated": {
+          "psr": 0.0016128109576392657,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4286,
+        "foldSpearmanIc": [
+          -0.10813220029714368,
+          -0.1134777138438231,
+          -0.012331181288858035,
+          -0.2652344166155658,
+          -0.047114163494931006
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.06785238267255851,
+        "spearmanIc": -0.06359550542187269,
+        "hitRate": 0.46159250585480094,
+        "meanDirectionPnl": -0.001795128287461934,
+        "stats": {
+          "sharpe": -0.054609260609239235,
+          "skew": 0.20547791668095022,
+          "kurtosis": 4.5025275796955,
+          "n": 4270
+        },
+        "deflated": {
+          "psr": 0.0001973830238182206,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4270,
+        "foldSpearmanIc": [
+          -0.10839116124830556,
+          -0.034038057687219604,
+          -0.030528524721177765,
+          -0.4114384032458291,
+          0.06478862194981622
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.09744816941402218,
+        "spearmanIc": -0.11418160925366616,
+        "hitRate": 0.44860255802937,
+        "meanDirectionPnl": -0.0036823090245499484,
+        "stats": {
+          "sharpe": -0.06869637495672032,
+          "skew": 0.27210316538409474,
+          "kurtosis": 3.926386673566859,
+          "n": 4222
+        },
+        "deflated": {
+          "psr": 0.000005065502316270454,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4222,
+        "foldSpearmanIc": [
+          0.005806656789817019,
+          -0.15818934235018503,
+          -0.4487362950302584,
+          -0.369037778666429,
+          0.13997428588850558
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.011282992740161075,
+        "spearmanIc": -0.048971808884939266,
+        "hitRate": 0.43746970431410565,
+        "meanDirectionPnl": -0.0005954101137219919,
+        "stats": {
+          "sharpe": -0.007449253776075423,
+          "skew": 0.4110269373113031,
+          "kurtosis": 4.549997874425825,
+          "n": 4126
+        },
+        "deflated": {
+          "psr": 0.3164338447581612,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4126,
+        "foldSpearmanIc": [
+          -0.06363805112560057,
+          0.02245022214908672,
+          -0.36072506726447817,
+          -0.2986669558843329,
+          -0.02810496891622447
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.0810506836641161,
+        "spearmanIc": -0.08064894637530605,
+        "hitRate": 0.4733490566037736,
+        "meanDirectionPnl": -0.0009687472402541995,
+        "stats": {
+          "sharpe": -0.04947942927736975,
+          "skew": 0.00045157443780752607,
+          "kurtosis": 6.001132451053482,
+          "n": 4240
+        },
+        "deflated": {
+          "psr": 0.000648813431747608,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4240,
+        "foldSpearmanIc": [
+          -0.03710303525112604,
+          -0.05429965526971601,
+          -0.2754914278818903,
+          -0.2785283481708698,
+          0.0475321141047341
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.09322600553700121,
+        "spearmanIc": -0.08118997512219475,
+        "hitRate": 0.4812973484848485,
+        "meanDirectionPnl": -0.0004750025647312046,
+        "stats": {
+          "sharpe": -0.014422938438211248,
+          "skew": 0.08963090910915233,
+          "kurtosis": 4.479116102789906,
+          "n": 4224
+        },
+        "deflated": {
+          "psr": 0.17448750513511174,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4224,
+        "foldSpearmanIc": [
+          0.022306385604064026,
+          -0.11950260137444538,
+          -0.39069798061583727,
+          -0.3287002038020103,
+          0.12410576697282553
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.027079280228460626,
+        "spearmanIc": -0.06660747915477278,
+        "hitRate": 0.46910919540229884,
+        "meanDirectionPnl": 0.0008128138383825322,
+        "stats": {
+          "sharpe": 0.015073146320279876,
+          "skew": 0.45018613172374583,
+          "kurtosis": 3.798994051812517,
+          "n": 4176
+        },
+        "deflated": {
+          "psr": 0.8357607283115315,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4176,
+        "foldSpearmanIc": [
+          -0.018727888668821743,
+          -0.10464988579860691,
+          -0.510576423827846,
+          -0.46098739837457026,
+          0.23628394994802657
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "LINK",
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.09316549640319347,
+        "spearmanIc": 0.04258963384425029,
+        "hitRate": 0.4997549019607843,
+        "meanDirectionPnl": 0.009839084214381804,
+        "stats": {
+          "sharpe": 0.12520677329135246,
+          "skew": 0.7031501671912287,
+          "kurtosis": 4.369342926405925,
+          "n": 4080
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.0022900817771151494,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4080,
+        "foldSpearmanIc": [
+          -0.0805038148651866,
+          -0.024485303504075035,
+          -0.2604512243656652,
+          -0.3582276347924186,
+          0.06635990347660041
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": 0.034661726644942006,
+        "spearmanIc": 0.01530136710865971,
+        "hitRate": 0.5140338668522385,
+        "meanDirectionPnl": 0.0011416777590243256,
+        "stats": {
+          "sharpe": 0.05658597474888149,
+          "skew": 0.24273696507234238,
+          "kurtosis": 7.421338701269478,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9999046001664158,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.078026556911027e-13,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.036536180658073424,
+          0.027975709928135608,
+          0.13705104739618176,
+          0.16638770934457284,
+          -0.049655205981519165
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": 0.006391180631110964,
+        "spearmanIc": 0.0012030311073068557,
+        "hitRate": 0.489871944121071,
+        "meanDirectionPnl": 0.00038394893653057716,
+        "stats": {
+          "sharpe": 0.011106208274904378,
+          "skew": -0.1521279171657124,
+          "kurtosis": 5.11508226622454,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.7664221334566359,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          -0.015206925526486724,
+          0.028926635806226664,
+          0.330133294673668,
+          0.1281529875556011,
+          -0.16568670331838584
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.04785582613074258,
+        "spearmanIc": 0.01735682536226473,
+        "hitRate": 0.4935248410642807,
+        "meanDirectionPnl": 0.0010985108717786322,
+        "stats": {
+          "sharpe": 0.018761411400362367,
+          "skew": -0.2497258204345698,
+          "kurtosis": 5.550055121522689,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 0.8886578743491385,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          -0.11598325154951655,
+          -0.03499333610433342,
+          0.48360604637382815,
+          -0.09241113285139814,
+          0.11646234158539497
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": -0.062451724080265524,
+        "spearmanIc": -0.02964731099317133,
+        "hitRate": 0.4736208142616237,
+        "meanDirectionPnl": -0.0018672210258785286,
+        "stats": {
+          "sharpe": -0.020627461052583798,
+          "skew": 0.14168700088580352,
+          "kurtosis": 5.776877102468111,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 0.09232759845783711,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          -0.3878594844277251,
+          0.20470109264631126,
+          0.1867160700304245,
+          -0.23920458253333832,
+          0.26653170149585065
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.03938450759632275,
+        "spearmanIc": -0.04041543002963009,
+        "hitRate": 0.47585724282715186,
+        "meanDirectionPnl": -0.00040174326570016904,
+        "stats": {
+          "sharpe": -0.01990779000552899,
+          "skew": 0.29659235310257637,
+          "kurtosis": 7.520614256530759,
+          "n": 4287
+        },
+        "deflated": {
+          "psr": 0.09696064609379629,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4287,
+        "foldSpearmanIc": [
+          -0.16951950397766738,
+          -0.05965454490384719,
+          0.02244162014715674,
+          -0.21184956604372301,
+          0.05876430083618821
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.02681107867922626,
+        "spearmanIc": -0.04396319501861863,
+        "hitRate": 0.4694450948255678,
+        "meanDirectionPnl": -0.0008901447719256352,
+        "stats": {
+          "sharpe": -0.025821986607290095,
+          "skew": 0.2473917184126214,
+          "kurtosis": 5.175533989090613,
+          "n": 4271
+        },
+        "deflated": {
+          "psr": 0.04634272660011507,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4271,
+        "foldSpearmanIc": [
+          -0.21545525373107965,
+          -0.0639569352142578,
+          -0.017123941057841305,
+          -0.38616976589032787,
+          0.2275104381174719
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.043577844106422195,
+        "spearmanIc": -0.06000278288617785,
+        "hitRate": 0.46554582050674875,
+        "meanDirectionPnl": -0.001908287311737031,
+        "stats": {
+          "sharpe": -0.032593816180325114,
+          "skew": 0.059062281802463125,
+          "kurtosis": 5.558844822206419,
+          "n": 4223
+        },
+        "deflated": {
+          "psr": 0.01723482708306745,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4223,
+        "foldSpearmanIc": [
+          0.07769039238698953,
+          -0.12519635919550592,
+          -0.45140142472462264,
+          -0.2291005990466867,
+          0.2895897368699701
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.062230625716231114,
+        "spearmanIc": -0.008247249499459161,
+        "hitRate": 0.4882481221226072,
+        "meanDirectionPnl": 0.0018108921298431984,
+        "stats": {
+          "sharpe": 0.020018551035262015,
+          "skew": 0.2649550692550428,
+          "kurtosis": 5.756748608707909,
+          "n": 4127
+        },
+        "deflated": {
+          "psr": 0.9012983819023161,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4127,
+        "foldSpearmanIc": [
+          0.034891368545786186,
+          0.04379980012994093,
+          -0.30422064031081636,
+          -0.1357667509387108,
+          -0.02466162601591267
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.04297936444952498,
+        "spearmanIc": -0.05547872173755988,
+        "hitRate": 0.47462827472268115,
+        "meanDirectionPnl": -0.0008410713021624379,
+        "stats": {
+          "sharpe": -0.041928705060824745,
+          "skew": 0.3531027173052947,
+          "kurtosis": 7.704309269483567,
+          "n": 4237
+        },
+        "deflated": {
+          "psr": 0.0034151904175219183,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4237,
+        "foldSpearmanIc": [
+          -0.04650376950800936,
+          -0.07598647072339258,
+          -0.2774082328021965,
+          -0.2521399944167361,
+          0.1736461414575352
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.028770204033825804,
+        "spearmanIc": -0.020505186052195156,
+        "hitRate": 0.48756218905472637,
+        "meanDirectionPnl": 0.000030230586251926718,
+        "stats": {
+          "sharpe": 0.0008772373873083857,
+          "skew": 0.3063589915874608,
+          "kurtosis": 5.210509468572184,
+          "n": 4221
+        },
+        "deflated": {
+          "psr": 0.5227252077546733,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4221,
+        "foldSpearmanIc": [
+          0.1290252892350955,
+          -0.09805437607451922,
+          -0.408362505300554,
+          -0.3238257919344555,
+          0.3345428260313513
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": 0.02870689256584475,
+        "spearmanIc": -0.0037102320559485136,
+        "hitRate": 0.5044332614426073,
+        "meanDirectionPnl": 0.003944213403394692,
+        "stats": {
+          "sharpe": 0.0671686832144089,
+          "skew": 0.6274339290317748,
+          "kurtosis": 5.3648098241434585,
+          "n": 4173
+        },
+        "deflated": {
+          "psr": 0.9999950963833072,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 1.6729895246925253e-11,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4173,
+        "foldSpearmanIc": [
+          0.1020102372103406,
+          -0.1952057882101619,
+          -0.46401276136927894,
+          -0.22476193626424992,
+          0.35668872468644547
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "SOL",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.1322639011033788,
+        "spearmanIc": 0.08841827345142106,
+        "hitRate": 0.5445180279617365,
+        "meanDirectionPnl": 0.012778521379671831,
+        "stats": {
+          "sharpe": 0.14255880164759346,
+          "skew": 0.49622394095174005,
+          "kurtosis": 5.674969263987448,
+          "n": 4077
+        },
+        "deflated": {
+          "psr": 1,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.04869655718397797,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4077,
+        "foldSpearmanIc": [
+          0.10590130248283167,
+          -0.005693498010298126,
+          -0.2734177338652257,
+          -0.10723663035102948,
+          0.001022524443672044
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.006912621819912744,
+        "spearmanIc": 0.005760823264417274,
+        "hitRate": 0.5075388540941776,
+        "meanDirectionPnl": 0.00045765835545306965,
+        "stats": {
+          "sharpe": 0.02412526111230874,
+          "skew": 0.6089563600201648,
+          "kurtosis": 10.471533819602483,
+          "n": 4311
+        },
+        "deflated": {
+          "psr": 0.9445864920865827,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4311,
+        "foldSpearmanIc": [
+          0.09224266819488515,
+          0.036391531333357825,
+          -0.0027087846057882456,
+          0.1475870736294823,
+          -0.07170880012773456
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.006663521565427634,
+        "spearmanIc": 0.00901470108218479,
+        "hitRate": 0.5159487776484284,
+        "meanDirectionPnl": 0.0006600281789517133,
+        "stats": {
+          "sharpe": 0.020283371726350297,
+          "skew": 0.23550452275084546,
+          "kurtosis": 11.277665323986522,
+          "n": 4295
+        },
+        "deflated": {
+          "psr": 0.9085074381689231,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4295,
+        "foldSpearmanIc": [
+          0.052889291339311466,
+          0.08433949383455575,
+          0.11632897345385527,
+          0.10610972101233557,
+          -0.08766755358826994
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.054817659695543655,
+        "spearmanIc": 0.06052526996275821,
+        "hitRate": 0.5618083352955027,
+        "meanDirectionPnl": 0.000955371384269901,
+        "stats": {
+          "sharpe": 0.018549446890920314,
+          "skew": -0.7589629915868636,
+          "kurtosis": 6.475152179609826,
+          "n": 4247
+        },
+        "deflated": {
+          "psr": 0.8849319450978005,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4247,
+        "foldSpearmanIc": [
+          0.05607070894913522,
+          0.09806151762417872,
+          0.34795568133746496,
+          0.09374949766850237,
+          0.0021424856971306474
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": -0.00784822895958224,
+        "spearmanIc": 0.1111382920125596,
+        "hitRate": 0.5890146952541556,
+        "meanDirectionPnl": 0.0039052067227521563,
+        "stats": {
+          "sharpe": 0.05115365758167098,
+          "skew": -0.08907754744546931,
+          "kurtosis": 5.942945581884406,
+          "n": 4151
+        },
+        "deflated": {
+          "psr": 0.9994856364481122,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 3.419486915845482e-14,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4151,
+        "foldSpearmanIc": [
+          0.12048732749688966,
+          0.2607234466736316,
+          0.13133721264224626,
+          -0.024045745346774037,
+          0.13866964039386467
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.08382677505015437,
+        "spearmanIc": -0.07320497309779757,
+        "hitRate": 0.47316845543630426,
+        "meanDirectionPnl": -0.00014006469491059537,
+        "stats": {
+          "sharpe": -0.007374875533363533,
+          "skew": 0.24007934883964646,
+          "kurtosis": 10.545592316052307,
+          "n": 4286
+        },
+        "deflated": {
+          "psr": 0.3147962020470958,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4286,
+        "foldSpearmanIc": [
+          0.016696363505282426,
+          -0.1494602635653626,
+          -0.053319553578181376,
+          -0.22943122460738422,
+          -0.0378573272780629
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.11973763080434406,
+        "spearmanIc": -0.06599375482055721,
+        "hitRate": 0.47306791569086654,
+        "meanDirectionPnl": 0.0003843397967021885,
+        "stats": {
+          "sharpe": 0.011806387236965638,
+          "skew": 0.6952406162115077,
+          "kurtosis": 11.306673855096411,
+          "n": 4270
+        },
+        "deflated": {
+          "psr": 0.7806665715564607,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4270,
+        "foldSpearmanIc": [
+          0.048259859380737125,
+          -0.1367674081134264,
+          -0.10056846033751378,
+          -0.35814461682235876,
+          0.06619476641173398
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.09491866521123103,
+        "spearmanIc": -0.07115388661861516,
+        "hitRate": 0.48128848886783515,
+        "meanDirectionPnl": 0.000180535389283058,
+        "stats": {
+          "sharpe": 0.0035021410440312295,
+          "skew": -0.23677674193422293,
+          "kurtosis": 6.4327970476100695,
+          "n": 4222
+        },
+        "deflated": {
+          "psr": 0.5899572857111377,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4222,
+        "foldSpearmanIc": [
+          0.07714506775638723,
+          -0.16236798961956228,
+          -0.31294744335405583,
+          -0.17702761597372663,
+          0.05917690691952709
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": -0.03575095123692295,
+        "spearmanIc": -0.030154529112545764,
+        "hitRate": 0.5036354823073195,
+        "meanDirectionPnl": 0.003925438621597397,
+        "stats": {
+          "sharpe": 0.05146094850722622,
+          "skew": 0.4442667309806399,
+          "kurtosis": 5.877679455600483,
+          "n": 4126
+        },
+        "deflated": {
+          "psr": 0.9995781316334432,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 2.142730437526552e-14,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4126,
+        "foldSpearmanIc": [
+          -0.006341712379348777,
+          -0.02246486112209331,
+          -0.1795563439087786,
+          -0.11094324198192056,
+          -0.07333422378181305
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 8,
+      "report": {
+        "pearsonIc": -0.07003397921114721,
+        "spearmanIc": -0.05972721064745311,
+        "hitRate": 0.4747522416234073,
+        "meanDirectionPnl": -0.0004685341489231221,
+        "stats": {
+          "sharpe": -0.024614493869094596,
+          "skew": 0.15588497383400077,
+          "kurtosis": 10.564965569439883,
+          "n": 4238
+        },
+        "deflated": {
+          "psr": 0.055022066497201094,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4238,
+        "foldSpearmanIc": [
+          -0.05173203159624353,
+          -0.016454087968586373,
+          -0.22737966528307058,
+          -0.1542239670866264,
+          -0.01980742459362387
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 24,
+      "report": {
+        "pearsonIc": -0.0913898935107087,
+        "spearmanIc": -0.07426092053728435,
+        "hitRate": 0.4708668877309332,
+        "meanDirectionPnl": -0.0003073577959208569,
+        "stats": {
+          "sharpe": -0.009404027332955256,
+          "skew": 0.7309983831874047,
+          "kurtosis": 11.312247971568038,
+          "n": 4222
+        },
+        "deflated": {
+          "psr": 0.2713237551856599,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4222,
+        "foldSpearmanIc": [
+          -0.041095451423816945,
+          -0.10278278150463442,
+          -0.30958916003396747,
+          -0.16892955704683518,
+          0.020793660472532477
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "−",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 72,
+      "report": {
+        "pearsonIc": -0.0512892453409891,
+        "spearmanIc": -0.0597246316021509,
+        "hitRate": 0.48754192620987064,
+        "meanDirectionPnl": 0.0017605813947648545,
+        "stats": {
+          "sharpe": 0.03399113463639032,
+          "skew": 0.672746497920993,
+          "kurtosis": 6.283011937308172,
+          "n": 4174
+        },
+        "deflated": {
+          "psr": 0.9867769975919012,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4174,
+        "foldSpearmanIc": [
+          -0.08944504460609995,
+          -0.15452945954842578,
+          -0.2754568107253875,
+          -0.17805521448239797,
+          0.08122241185277798
+        ]
+      },
+      "verdict": "NOT_VALIDATED",
+      "recommendedSign": "+",
+      "biasCap": 0
+    },
+    {
+      "coin": "XRP",
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fwdHours": 168,
+      "report": {
+        "pearsonIc": 0.025808242800885218,
+        "spearmanIc": 0.050748241731479474,
+        "hitRate": 0.5492888670917117,
+        "meanDirectionPnl": 0.009099324121862602,
+        "stats": {
+          "sharpe": 0.12025002409689362,
+          "skew": 0.4811509811642197,
+          "kurtosis": 5.906663394836238,
+          "n": 4078
+        },
+        "deflated": {
+          "psr": 0.9999999999999977,
+          "expectedMaxSharpe": 0.16790531691908364,
+          "dsr": 0.00094889965510081,
+          "trials": 88,
+          "sigmaSR": 0.06755951755091419
+        },
+        "n": 4078,
+        "foldSpearmanIc": [
+          -0.08997644437223398,
+          -0.04504588748566085,
+          -0.06019385988577413,
+          0.015391743900895639,
+          -0.04665232306877922
+        ]
+      },
+      "verdict": "INCONCLUSIVE",
+      "recommendedSign": "+",
+      "biasCap": 0
+    }
+  ],
+  "perClass": [
+    {
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fhHours": 168,
+      "coins": [
+        "AVAX"
+      ],
+      "nTot": 4151,
+      "spearmanIc": -0.1496509742214304,
+      "meanDirectionPnl": -0.005633203660943976,
+      "hitRate": 0.47217537942664417,
+      "pooledSharpeWeighted": -0.06834430474051313,
+      "validatedCoins": 0,
+      "totalCoins": 1,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fhHours": 24,
+      "coins": [
+        "AVAX"
+      ],
+      "nTot": 4295,
+      "spearmanIc": 0.011105580517261878,
+      "meanDirectionPnl": 0.0032683293795246985,
+      "hitRate": 0.5233993015133876,
+      "pooledSharpeWeighted": 0.09279099905601405,
+      "validatedCoins": 0,
+      "totalCoins": 1,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fhHours": 72,
+      "coins": [
+        "AVAX"
+      ],
+      "nTot": 4247,
+      "spearmanIc": 0.011446037635048258,
+      "meanDirectionPnl": 0.002184654149404729,
+      "hitRate": 0.5271956675300212,
+      "pooledSharpeWeighted": 0.03807285270009571,
+      "validatedCoins": 0,
+      "totalCoins": 1,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "alts",
+      "signal": "funding-paid-side",
+      "fhHours": 8,
+      "coins": [
+        "AVAX"
+      ],
+      "nTot": 4311,
+      "spearmanIc": 0.01374782824782224,
+      "meanDirectionPnl": 0.0008886251157806275,
+      "hitRate": 0.5186731616794247,
+      "pooledSharpeWeighted": 0.042787985994691004,
+      "validatedCoins": 0,
+      "totalCoins": 1,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fhHours": 168,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12375,
+      "spearmanIc": -0.005846070631016442,
+      "meanDirectionPnl": 0.001999941497780281,
+      "hitRate": 0.4704646464646465,
+      "pooledSharpeWeighted": 0.015722895129775982,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fhHours": 24,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12807,
+      "spearmanIc": -0.049535230908250176,
+      "meanDirectionPnl": -0.001015476210768282,
+      "hitRate": 0.47801983290388067,
+      "pooledSharpeWeighted": -0.03037988118186649,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fhHours": 72,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12663,
+      "spearmanIc": -0.07011129161073776,
+      "meanDirectionPnl": -0.0021276779577966416,
+      "hitRate": 0.46687198926004897,
+      "pooledSharpeWeighted": -0.04188954150985209,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-24h",
+      "fhHours": 8,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12855,
+      "spearmanIc": -0.0814592037533116,
+      "meanDirectionPnl": -0.0007548057830651056,
+      "hitRate": 0.4708673667833528,
+      "pooledSharpeWeighted": -0.034804776816470206,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fhHours": 168,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12237,
+      "spearmanIc": 0.079189567219244,
+      "meanDirectionPnl": 0.012251697687851342,
+      "hitRate": 0.5224319686197597,
+      "pooledSharpeWeighted": 0.12624581593134349,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fhHours": 24,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12669,
+      "spearmanIc": -0.039790209783283535,
+      "meanDirectionPnl": 0.0006672115095723452,
+      "hitRate": 0.4992501381324493,
+      "pooledSharpeWeighted": 0.011603454574849046,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fhHours": 72,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12525,
+      "spearmanIc": 0.0022203729896890937,
+      "meanDirectionPnl": 0.003812153558562944,
+      "hitRate": 0.49780439121756487,
+      "pooledSharpeWeighted": 0.05116858971968068,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "alts",
+      "signal": "momentum-72h",
+      "fhHours": 8,
+      "coins": [
+        "ARB",
+        "AVAX",
+        "LINK"
+      ],
+      "nTot": 12717,
+      "spearmanIc": -0.055698690054243355,
+      "meanDirectionPnl": -0.0005759160799029204,
+      "hitRate": 0.4885586223165841,
+      "pooledSharpeWeighted": -0.03071566149285829,
+      "validatedCoins": 0,
+      "totalCoins": 3,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fhHours": 168,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 20755,
+      "spearmanIc": 0.022228012388362473,
+      "meanDirectionPnl": 0.004969079880463551,
+      "hitRate": 0.5220910623946037,
+      "pooledSharpeWeighted": 0.06904757419382863,
+      "validatedCoins": 1,
+      "totalCoins": 5,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fhHours": 24,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21475,
+      "spearmanIc": 0.05094092691575602,
+      "meanDirectionPnl": 0.0019458103072462593,
+      "hitRate": 0.5141792782305006,
+      "pooledSharpeWeighted": 0.07151127143684359,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fhHours": 72,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21235,
+      "spearmanIc": 0.07119466051439172,
+      "meanDirectionPnl": 0.0041290622223929,
+      "hitRate": 0.5380268424770426,
+      "pooledSharpeWeighted": 0.08759773626803517,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "majors",
+      "signal": "funding-paid-side",
+      "fhHours": 8,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21555,
+      "spearmanIc": 0.036322880836268605,
+      "meanDirectionPnl": 0.0008672766773944735,
+      "hitRate": 0.5093945720250522,
+      "pooledSharpeWeighted": 0.051767247024208665,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fhHours": 168,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 20631,
+      "spearmanIc": -0.023809885875043655,
+      "meanDirectionPnl": 0.0017427115230644597,
+      "hitRate": 0.48650089670883623,
+      "pooledSharpeWeighted": 0.023215082812070076,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fhHours": 24,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21351,
+      "spearmanIc": -0.03102844016865598,
+      "meanDirectionPnl": 0.0003342897992900366,
+      "hitRate": 0.4800711910449159,
+      "pooledSharpeWeighted": 0.014732132523407295,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fhHours": 72,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21111,
+      "spearmanIc": -0.0678985120854757,
+      "meanDirectionPnl": -0.0012942352353792538,
+      "hitRate": 0.47160248211832695,
+      "pooledSharpeWeighted": -0.025928791961830285,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-24h",
+      "fhHours": 8,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21431,
+      "spearmanIc": -0.03713720667339806,
+      "meanDirectionPnl": -0.000033424558707088065,
+      "hitRate": 0.48373850963557463,
+      "pooledSharpeWeighted": 0.000976916873410248,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fhHours": 168,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 20390,
+      "spearmanIc": 0.0698286628063157,
+      "meanDirectionPnl": 0.009379179376602528,
+      "hitRate": 0.5302599313388916,
+      "pooledSharpeWeighted": 0.12252304984753035,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "INCONCLUSIVE"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fhHours": 24,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21110,
+      "spearmanIc": -0.06074332323101287,
+      "meanDirectionPnl": -0.0002468108324737439,
+      "hitRate": 0.46963524396020845,
+      "pooledSharpeWeighted": -0.009537409503807718,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fhHours": 72,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 20870,
+      "spearmanIc": -0.05084607457887565,
+      "meanDirectionPnl": 0.0013530784444999219,
+      "hitRate": 0.4855294681360805,
+      "pooledSharpeWeighted": 0.022447508089372813,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    },
+    {
+      "klass": "majors",
+      "signal": "momentum-72h",
+      "fhHours": 8,
+      "coins": [
+        "BNB",
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "nTot": 21190,
+      "spearmanIc": -0.058574065958578746,
+      "meanDirectionPnl": -0.00048722144363175587,
+      "hitRate": 0.47347805568664464,
+      "pooledSharpeWeighted": -0.027250998643061502,
+      "validatedCoins": 0,
+      "totalCoins": 5,
+      "verdict": "NOT_VALIDATED"
+    }
+  ]
+}

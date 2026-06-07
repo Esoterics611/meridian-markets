@@ -224,6 +224,18 @@ export interface AppConfig {
      * A fixed set so the trade-stream WS can be opened once at boot. Default BTC/ETH/SOL.
      */
     fastSymbols: string[];
+    /**
+     * Coins where the funding-paid-side directional signal is OOS-VALIDATED (the #1
+     * sweep gate, DSR≥0.95) and so may size live carry on the axed maker. A
+     * mm-directional-glft book on one of these gets a validated FundingBiasSource;
+     * every other directional book stays neutral (b=0). Default ['BTC'] — the only
+     * signal that cleared the gate (2026-06-07 sweep: BTC funding 168h, DSR 99%).
+     */
+    fundingBiasSymbols: string[];
+    /** Magnitude cap |b| for the funding bias (the sweep's 4·|IC| ≤ 0.5). Default 0.39 (BTC). */
+    fundingBiasMax: number;
+    /** Funding/hr that maps to full pre-cap bias (|raw|=1). Default 0.0000125 (~11%/yr). */
+    fundingBiasFullRate: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

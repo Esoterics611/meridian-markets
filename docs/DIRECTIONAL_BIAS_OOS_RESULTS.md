@@ -175,3 +175,24 @@ per-class tables into §3 / §4 and flip the verdict cells.
 - **This is signal validation, not a P&L backtest.** A `VALIDATED` licenses a sized,
   stop-gated directional tilt; it does **not** claim the live MM engine is profitable.
   The spread/rebate/adverse terms are judged elsewhere (the MM tape + γ/κ sweep).
+
+---
+
+## DECISION — 2026-06-07 (real HL sweep, 180d×1h, 88 trials, σ_SR=0.068)
+
+**Run:** `docs/research/2026-06-07-10-57-directional-bias-oos-hyperliquid.json` (BTC/ETH/SOL/BNB/XRP majors + AVAX/LINK/ARB alts; DOGE skipped — no data).
+
+**One trial cleared the gate (DSR ≥ 0.95) out of 88:**
+
+| coin | class | signal | fwdH | n | pearsonIC | spearIC | hit | meanPnL | dsr | verdict | cap |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| **BTC** | majors | **funding-paid-side** | **168h** | 4151 | 0.133 | 0.098 | 54% | +121.7bp | **99%** | **VALIDATED** | **+0.39** |
+
+**Decision (by asset class):**
+- **BTC → funding-paid-side bias ON, |b| ≤ 0.39** (weekly/168h carry-regime tilt). The only signal that survived the multiple-testing haircut; corroborated by a coherent positive (sub-threshold) funding pattern across majors (BTC 72h DSR 84%, ETH 168h 67%).
+- **ETH / SOL / BNB / XRP / all alts → NEUTRAL.** Funding leans positive on majors but none cleared DSR≥95%; alt funding data is thin.
+- **Momentum → unused.** Not validated anywhere; short-horizon ICs are negative (reversal, not trend) — the prior "momentum on majors" was wrong.
+
+**Encoded in the system:** `MM_FUNDING_BIAS_SYMBOLS=BTC` (default), `MM_FUNDING_BIAS_MAX=0.39`. A `mm-directional-glft` book on BTC auto-gets a validated `FundingBiasSource`; every other directional book stays neutral by construction. Re-run the sweep periodically — a regime shift can validate/retire a coin.
+
+**Caveat:** this licenses a *sized, stop-gated* carry tilt; it is signal validation, not a P&L backtest. Forward paper is the verdict.

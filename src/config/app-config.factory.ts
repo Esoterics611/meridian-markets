@@ -130,6 +130,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
     cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
     fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    fundingBiasSymbols: (process.env['MM_FUNDING_BIAS_SYMBOLS'] ?? 'BTC').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    fundingBiasMax: parseFloat(process.env['MM_FUNDING_BIAS_MAX'] ?? '0.39'),
+    fundingBiasFullRate: parseFloat(process.env['MM_FUNDING_BIAS_FULL_RATE'] ?? '0.0000125'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

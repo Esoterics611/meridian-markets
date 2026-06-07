@@ -15,6 +15,7 @@ import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/refe
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { L2PollDriver } from './live/l2-poll-driver';
+import { FundingBiasSource } from './bias/funding-bias-source';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -193,6 +194,16 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             params: spec.params,
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
+          // Directional bias (the axe): only a mm-directional-glft book on an
+          // OOS-VALIDATED coin gets a live funding-paid-side bias (the #1 gate —
+          // 2026-06-07 sweep validated BTC funding, cap 0.39); every other book stays
+          // neutral. effectiveBias() still zeroes it if the source isn't validated, so
+          // this is honest by construction. Bar-path books read ctx.bias (the weekly
+          // carry tilt doesn't need sub-second cadence).
+          const biasSource =
+            quoter.familyId === 'directional-glft' && mm.fundingBiasSymbols.includes(spec.symbol.toUpperCase())
+              ? new FundingBiasSource({ fullBiasRatePerHour: mm.fundingBiasFullRate, maxBias: mm.fundingBiasMax, validated: true })
+              : undefined;
           // C2 fast path: an L2 book on a streamed HL symbol gets a queue-aware engine
           // (the trader drives it via the poll driver, NOT the bar tick). Same quoter +
           // risk gate + sizing as the bar book; the engine owns the InventoryBook the
@@ -235,6 +246,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
             fastEngine,
+            biasSource,
             riskGate: makeRiskGate(quoteSizeUnits),
             events: deskEvents,
           });
