@@ -19,7 +19,9 @@
 > a live funding board / MM screener (no serving endpoint), a real per-book pause/deny +
 > limit risk lever (engine work), a mode-aware/live blotter, and per-book-in-card sparklines.
 
-This document is the contract for the redesign. Read it before adding a role page.
+This document is the contract for the redesign (the *design* — stack, components,
+wiring). Read it before adding a role page. For the **operator's driver's manual** —
+how to *use* each page, role by role — see [UI_ROLE_GUIDE.md](UI_ROLE_GUIDE.md).
 
 ---
 
