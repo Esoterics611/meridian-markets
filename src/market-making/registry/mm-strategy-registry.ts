@@ -110,9 +110,9 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
     'GLFT that rests at a TARGET inventory q*=bias·maxLots instead of 0 (DIRECTIONAL_MM_STRATEGY.md): where the desk holds a house view, it accumulates the position via the maker, earning spread+rebate while building it — the dealer "axe". bias=0 ≡ neutral GLFT. Targets the inventory-carry term that is the only remaining loss once the spread edge goes positive at fine cadence (Journal #32).',
   courseRef: 'Directional MM (axe)',
   liveCapable: true,
-  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0 },
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0 },
   build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
-    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, ...params };
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0, ...params };
     return new DirectionalGlftQuoter({
       gamma: p.gamma,
       kappa: p.kappa,
@@ -123,6 +123,8 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
       steadyHorizonBars: p.steadyHorizonBars,
       bias: p.bias,
       convictionGain: p.convictionGain,
+      spreadSkewIntensity: p.spreadSkewIntensity,
+      singleSideBias: p.singleSideBias,
     });
   },
 };

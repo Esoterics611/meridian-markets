@@ -141,6 +141,8 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     flowBiasLive: (process.env['MM_FLOW_BIAS_LIVE'] ?? 'false').toLowerCase() === 'true',
     flowBiasHorizonMs: parseInt(process.env['MM_FLOW_BIAS_HORIZON_MS'] ?? '60000', 10),
     flowBiasMinIc: parseFloat(process.env['MM_FLOW_BIAS_MIN_IC'] ?? '0.05'),
+    dirSpreadSkew: parseFloat(process.env['MM_DIR_SPREAD_SKEW'] ?? '0.5'),
+    dirSingleSideBias: parseFloat(process.env['MM_DIR_SINGLE_SIDE_BIAS'] ?? '0.6'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

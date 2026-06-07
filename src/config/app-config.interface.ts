@@ -263,6 +263,12 @@ export interface AppConfig {
     flowBiasHorizonMs: number;
     /** Min trailing Spearman IC to keep the live flow bias validated (else stand aside). Default 0.05. */
     flowBiasMinIc: number;
+    /** Directional-quoter spread-skew intensity λ∈[0,1]: tighten the accumulation side +
+     *  widen the offload side ∝ bias. 0 = symmetric. Default 0.5. */
+    dirSpreadSkew: number;
+    /** |bias| at/above which the directional quoter goes SINGLE-SIDED (parks the offload
+     *  side) while accumulating toward target. 0 ⇒ never. Default 0.6. */
+    dirSingleSideBias: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

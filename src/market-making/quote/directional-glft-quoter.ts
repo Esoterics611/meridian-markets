@@ -26,6 +26,12 @@ export interface DirectionalGlftParams extends GlftQuoterParams {
   bias: number;
   /** Conviction-to-edge gain: extra outright center drift = bias·gain·σ·price. Default 0. */
   convictionGain?: number;
+  /** Asymmetric spread-skew intensity λ∈[0,1]: TIGHTEN the side we want to accumulate +
+   *  WIDEN the offload side, ∝ bias. 0 = symmetric (off, reproduces neutral GLFT). Default 0. */
+  spreadSkewIntensity?: number;
+  /** |bias| at/above which we quote SINGLE-SIDED (park the offload side at the max rail)
+   *  while still accumulating toward target. 0 ⇒ never single-side. Default 0. */
+  singleSideBias?: number;
 }
 
 function bigMax1(x: bigint): bigint {
@@ -38,6 +44,8 @@ export class DirectionalGlftQuoter implements IQuoter {
   private readonly lotUnits: bigint;
   private readonly bias: number;
   private readonly convictionGain: number;
+  private readonly spreadSkewIntensity: number;
+  private readonly singleSideBias: number;
 
   constructor(
     private readonly p: DirectionalGlftParams,
@@ -46,6 +54,8 @@ export class DirectionalGlftQuoter implements IQuoter {
     this.lotUnits = p.inventoryLotUnits && p.inventoryLotUnits > 0n ? p.inventoryLotUnits : p.quoteSizeUnits;
     this.bias = clamp(p.bias ?? 0, -1, 1);
     this.convictionGain = p.convictionGain ?? 0;
+    this.spreadSkewIntensity = clamp(p.spreadSkewIntensity ?? 0, 0, 1);
+    this.singleSideBias = clamp(p.singleSideBias ?? 0, 0, 1);
   }
 
   quote(ctx: QuoteContext, symbol: string): QuotePair {
@@ -80,10 +90,28 @@ export class DirectionalGlftQuoter implements IQuoter {
     const scale = ctx.spreadScale && ctx.spreadScale > 0 ? ctx.spreadScale : 1; // F3
     const halfSpreadMicros = scale === 1 ? railed : bigMax1(BigInt(Math.round(Number(railed) * scale)));
 
+    // #2 Asymmetric, view-driven spread skew: TIGHTEN the side we want to accumulate so it
+    // fills, WIDEN the offload side so we don't feed the move. b>0 (long) ⇒ bid tighter,
+    // ask wider; b<0 mirrors; b=0 ⇒ symmetric (reproduces neutral GLFT exactly).
+    const baseHalf = Number(halfSpreadMicros);
+    const skew = this.spreadSkewIntensity * bias;
+    let bidHalf = baseHalf * (1 - skew);
+    let askHalf = baseHalf * (1 + skew);
+    // #3 Single-sided on a STRONG view: park the OFFLOAD side at the max rail (≈pulled)
+    // while inventory is still short of target on the wanted side — quote only the side
+    // that builds the position. Resume two-sided once at/over target (recycle spread).
+    const wantsMore = bias !== 0 && Math.sign(bias) === Math.sign(targetLots - qLots);
+    if (this.singleSideBias > 0 && Math.abs(bias) >= this.singleSideBias && wantsMore) {
+      if (bias > 0) askHalf = Number(maxMicros);
+      else bidHalf = Number(maxMicros);
+    }
+
     return buildQuotePair({
       symbol,
       reservationMicros: BigInt(Math.round(reservation)),
       halfSpreadMicros,
+      bidHalfSpreadMicros: railHalfSpread(Math.round(bidHalf), minMicros, maxMicros),
+      askHalfSpreadMicros: railHalfSpread(Math.round(askHalf), minMicros, maxMicros),
       sizeUnits: this.p.quoteSizeUnits,
       ctx,
       strategyId: this.familyId,

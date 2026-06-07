@@ -204,7 +204,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
-            params: spec.params,
+            // Desk-wide directional-quote defaults (skew + single-siding); a per-book
+            // spec.params still overrides. Ignored by non-directional families.
+            params: { spreadSkewIntensity: mm.dirSpreadSkew, singleSideBias: mm.dirSingleSideBias, ...spec.params },
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
           // Directional bias (the axe): only a mm-directional-glft book on an
