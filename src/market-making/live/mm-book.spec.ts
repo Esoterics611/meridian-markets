@@ -202,6 +202,33 @@ describe('MmBook', () => {
     });
   });
 
+  describe('fast L2 path — directional bias', () => {
+    it('the fast engine applies a VALIDATED bias to its quote center (BTC funding tilt on C2)', async () => {
+      const { L2LiveFillEngine } = await import('./l2-live-fill-engine');
+      const capture = new CapturingQuoter();
+      const eng = new L2LiveFillEngine({
+        symbol: 'BTC',
+        quoter: capture,
+        quoteSizeUnits: 1_000_000n,
+        gamma: 0.0025,
+        kappa: 2,
+        horizonBars: 1,
+        volWindowBars: 2,
+        volFloor: 0.0001,
+        makerFeeBps: -0.2,
+        capitalUnits: 1_000_000_000n,
+        biasSource: { bias: () => ({ bias: 0.39, validated: true, reason: 'funding' }) },
+      });
+      const lvl = (p: bigint, s: bigint) => ({ priceMicros: p, sizeUnits: s, orderCount: 1 });
+      const snap = (ts: number) => ({ snapshot: { symbol: 'BTC', ts: new Date(ts), bids: [lvl(100_000_000n, 5_000_000n)], asks: [lvl(100_100_000n, 5_000_000n)] } });
+      // warm the engine (volWindowBars=2) then one more snapshot to quote
+      eng.onSnapshot(snap(0));
+      eng.onSnapshot(snap(1000));
+      eng.onSnapshot(snap(2000));
+      expect(capture.lastCtx?.bias).toBeCloseTo(0.39);
+    });
+  });
+
   describe('directional bias (the axe) — ctx.bias from the bias source', () => {
     const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
 

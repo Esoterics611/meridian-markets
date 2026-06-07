@@ -8,6 +8,7 @@ import { OrderBook, midMicros } from '../microstructure/order-book';
 import { microPriceMicrosFromL2 } from '../microstructure/l2-microprice';
 import { l2SnapshotToOrderBook } from '../backtest/l2-tape';
 import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } from '../backtest/queue-fill';
+import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { LiveTick } from './l2-fill-engine-types';
 
 // L2LiveFillEngine — the LIVE, queue-aware, fast-cadence MM fill engine. It is the
@@ -89,6 +90,15 @@ export interface L2LiveFillEngineConfig {
    */
   cancelReplaceLatencyMs?: number;
   riskGate?: RiskGate;
+  /**
+   * Optional directional bias source (the axe, on the fast path). Each snapshot the
+   * engine reads `effectiveBias(biasSource.bias(...))` (0 unless OOS-validated) and
+   * passes it as `ctx.bias` so the directional quoter rests at q*=bias·Q_max. The
+   * bias's funding input is the live rate below (kept current by the refresh cron).
+   */
+  biasSource?: IBiasSource;
+  /** Live signed perp funding rate per hour (the FundingBiasSource input); refreshable. */
+  fundingRatePerHour?: number;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -131,12 +141,20 @@ export class L2LiveFillEngine {
   private peakEquity: bigint;
   private maxDrawdownPct = 0;
   private lastMidMicros: bigint | undefined;
+  private fundingRatePerHour: number;
 
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
     this.vol = new RollingVolatility(cfg.volWindowBars);
     this.latencyMs = Math.max(0, cfg.cancelReplaceLatencyMs ?? 100);
     this.peakEquity = cfg.capitalUnits;
+    this.fundingRatePerHour = cfg.fundingRatePerHour ?? 0;
+  }
+
+  /** Keep the funding input current (the FundingBiasSource reads it) — called by the
+   *  funding refresh cron via the MmBook so the fast-path tilt tracks the live rate. */
+  setFundingRatePerHour(rate: number): void {
+    this.fundingRatePerHour = rate;
   }
 
   /** Seed the σ window from recent mids/closes so the engine can quote on its first live tick. */
@@ -185,10 +203,16 @@ export class L2LiveFillEngine {
       const mp = microPriceMicrosFromL2(snap, this.cfg.microDepth);
       if (mp !== null && mp > 0n) referenceMicros = mp;
     }
+    // Directional bias (the axe) on the fast path — OOS-gated (effectiveBias zeroes an
+    // unvalidated reading). The funding input is the live, refreshed rate.
+    const bias = this.cfg.biasSource
+      ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs }))
+      : undefined;
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros: mid,
       referenceMicros,
+      bias,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,

@@ -209,6 +209,8 @@ export class MmBook {
    *  the static-per-run rate current as funding drifts over a multi-hour session. */
   setFundingRatePerHour(rate: number): void {
     this.cfg = { ...this.cfg, fundingRatePerHour: rate };
+    // On the fast path the engine holds the funding input the bias reads — keep it live.
+    this.cfg.fastEngine?.setFundingRatePerHour(rate);
   }
 
   /** The resolved numeric config needed to persist + rebuild this book on restart. */

@@ -208,6 +208,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           // (the trader drives it via the poll driver, NOT the bar tick). Same quoter +
           // risk gate + sizing as the bar book; the engine owns the InventoryBook the
           // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
+          const fundingRate = await fundingRateFor(srcId, spec.symbol);
           const useFast = mm.fastRequoteEnabled && srcId === 'hyperliquid' && mm.fastSymbols.includes(spec.symbol.toUpperCase());
           const fastEngine = useFast
             ? new L2LiveFillEngine({
@@ -224,6 +225,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 microDepth: mm.microPriceDepth,
                 cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
                 riskGate: makeRiskGate(quoteSizeUnits),
+                // The directional axe on the fast path: the same validated bias source the
+                // bar path uses, with the live funding rate as its input (kept current by
+                // the refresh cron via MmBook.setFundingRatePerHour → engine).
+                biasSource,
+                fundingRatePerHour: fundingRate,
               })
             : undefined;
           return new MmBook({
@@ -240,7 +246,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
             // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics.
             makerFeeBps: venueFeeFor(srcId).makerBps,
-            fundingRatePerHour: await fundingRateFor(srcId, spec.symbol),
+            fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             nextBar,
             warmupCloses,
