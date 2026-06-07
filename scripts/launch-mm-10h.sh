@@ -2,12 +2,13 @@
 #
 # launch-mm-10h.sh — fire the 10h paper-run book set against a live server.
 #
-#   Liquid substrate  → NEUTRAL  (mm-glft)            : the steady-curve / spread-engine demo
-#   BTC               → DIRECTIONAL (mm-directional-glft): the funding "axe" forward-data book
+#   ALL books → mm-directional-glft, driven by the SELF-VALIDATING rolling-IC flow bias.
 #
-# The funding bias attaches ONLY to a mm-directional-glft book whose symbol is in
-# MM_FUNDING_BIAS_SYMBOLS (default BTC) — effectiveBias() zeroes anything unvalidated,
-# so the neutral books stay neutral by construction. See docs/QUANT_JOURNAL.md #36.
+# With MM_FLOW_BIAS_LIVE the flow bias is live + self-gating: it re-checks its own forward-
+# return IC every minute and sizes carry ONLY on coins where it stays predictive (BTC/ETH/
+# XRP in the last read), and STANDS ASIDE on reversal coins (ADA/DOGE) — those quote
+# symmetric-neutral automatically (bias→0). On a live view the quoter SKEWS its spread and
+# can go SINGLE-SIDED (MM_DIR_SPREAD_SKEW / MM_DIR_SINGLE_SIDE_BIAS). See QUANT_JOURNAL #38.
 #
 # Prereqs — start the server FIRST with persistence + the fast fair-value path on EVERY market:
 #   FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
@@ -16,7 +17,8 @@
 #   MM_CANCEL_REPLACE_LATENCY_MS=30 \
 #   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 #   MM_MICROPRICE_DEPTH=5 \
-#   MM_FUNDING_BIAS_SYMBOLS=BTC MM_FUNDING_BIAS_MAX=0.39 MM_FUNDING_REFRESH_MS=120000 \
+#   MM_FLOW_BIAS_LIVE=true MM_FLOW_BIAS_HORIZON_MS=60000 MM_FLOW_BIAS_MIN_IC=0.05 \
+#   MM_DIR_SPREAD_SKEW=0.5 MM_DIR_SINGLE_SIDE_BIAS=0.6 \
 #   MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 #   TELEMETRY_ENABLED=true \
 #   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm10h.log
@@ -43,8 +45,9 @@ SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
 CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"      # $1M/book — the established desk scale (journal #23/#27)
 NOTIONAL="${MM_BOOK_NOTIONAL_USD:-100000}"  # $100k/quote → 8-lot cap ≈ $800k inventory on $1M
 
-NEUTRAL=(DOGE BNB ETH SOL XRP ADA SUI)      # Entry #28 KEEP list: liquid, low-σ, fills recycle, low DD
-DIRECTIONAL=(BTC)                           # the only (marginally) validated funding tilt
+# ALL books run mm-directional-glft + the self-validating flow bias; each self-gates per
+# coin (reversal coins fall back to symmetric-neutral). Entry #28 KEEP list + BTC.
+BOOKS=(BTC ETH SOL DOGE BNB XRP ADA SUI)
 
 launch () {
   local sym="$1" strat="$2"
@@ -61,10 +64,8 @@ launch () {
   fi
 }
 
-echo "=== launching neutral substrate (mm-glft) ==="
-for s in "${NEUTRAL[@]}"; do launch "$s" "mm-glft"; done
-echo "=== launching BTC axe (mm-directional-glft) ==="
-for s in "${DIRECTIONAL[@]}"; do launch "$s" "mm-directional-glft"; done
+echo "=== launching all books (mm-directional-glft, self-gating flow bias) ==="
+for s in "${BOOKS[@]}"; do launch "$s" "mm-directional-glft"; done
 
 echo
 echo "=== verify ==="
