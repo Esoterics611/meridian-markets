@@ -107,6 +107,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('copy-cmd.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain("customElements.define('copy-cmd'");
+
+    assets.serve('nav-spark.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('nav-spark'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {

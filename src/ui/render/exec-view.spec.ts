@@ -116,4 +116,12 @@ describe('renderExecPage', () => {
     // the active role is highlighted in the shared top bar
     expect(html).toContain('nav-link--active');
   });
+
+  it('renders the desk-aggregate equity sparkline OUTSIDE the SSE live region', () => {
+    const html = renderExecPage(snapshot());
+    // desk aggregate = empty book key; placed after the live region so an SSE tick
+    // never recreates it (it self-fetches /api/market-making/nav on its own timer).
+    expect(html).toContain('<nav-spark book="" hours="24"');
+    expect(html.indexOf('id="exec-live"')).toBeLessThan(html.indexOf('<nav-spark'));
+  });
 });

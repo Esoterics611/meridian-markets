@@ -54,6 +54,26 @@ export function statArbControls(): SafeHtml {
   `;
 }
 
+/**
+ * The durable equity-curve sparkline panel (Telemetry P3). Wraps the shared
+ * <nav-spark> Web Component, which self-fetches `/api/market-making/nav` and draws
+ * the equity history as an inline SVG. MUST be placed OUTSIDE any SSE region — it
+ * self-refreshes on its own timer, so an SSE tick recreating it would restart its
+ * fetch. Shared by /exec (desk aggregate) + /desk/mm. Degrades honestly when
+ * MM_PERSIST is off (the endpoint says so; the component shows it).
+ */
+export function navSparkPanel(opts: { book?: string; hours?: number; label?: string } = {}): SafeHtml {
+  const book = opts.book ?? '';
+  const hours = opts.hours ?? 24;
+  const label = opts.label ?? (book ? `${book} equity` : 'desk equity');
+  return html`
+    <section class="panel nav-spark-panel">
+      <div class="panel-h">equity curve · durable NAV (${hours}h)</div>
+      <nav-spark book="${book}" hours="${hours}" label="${label}"></nav-spark>
+    </section>
+  `;
+}
+
 // Colour class per event kind for the tape badge.
 function kindClass(kind: string): string {
   switch (kind) {

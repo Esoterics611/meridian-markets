@@ -13,7 +13,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, activityTape } from './components';
+import { deskControls, activityTape, navSparkPanel } from './components';
 
 export interface StrategyOption {
   id: string;
@@ -147,6 +147,7 @@ export function renderMmDeskPage(state: MmDeskState): string {
   const body = html`
     <h1 class="page-title">Market-making desk</h1>
     ${deskControls()}
+    ${navSparkPanel({ label: 'desk equity' })}
     ${renderLaunchForm(state.strategies, state.presets)}
     <desk-feed src="/desk/mm/stream" target="mm-live">
       <div id="mm-live">${renderMmDeskLive(state.snap, state.events)}</div>

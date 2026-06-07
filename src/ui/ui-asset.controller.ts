@@ -15,6 +15,7 @@ const ASSET_FILES: Record<string, string> = {
   'desk-action.js': 'desk-action.js',
   'desk-form.js': 'desk-form.js',
   'copy-cmd.js': 'copy-cmd.js',
+  'nav-spark.js': 'nav-spark.js',
 };
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -23,6 +24,7 @@ const CONTENT_TYPES: Record<string, string> = {
   'desk-action.js': 'application/javascript; charset=utf-8',
   'desk-form.js': 'application/javascript; charset=utf-8',
   'copy-cmd.js': 'application/javascript; charset=utf-8',
+  'nav-spark.js': 'application/javascript; charset=utf-8',
 };
 
 function locate(file: string): string {

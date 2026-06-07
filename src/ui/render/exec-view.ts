@@ -11,7 +11,7 @@ import { fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { money, usd, pct, returnPct, signClass } from './format';
-import { DRAWDOWN_BUDGET_PCT } from './components';
+import { DRAWDOWN_BUDGET_PCT, navSparkPanel } from './components';
 
 /** Worst single-book max-drawdown — the desk's headline drawdown proxy. */
 function worstDrawdownPct(books: MmBookSnapshot[]): number {
@@ -103,6 +103,7 @@ export function renderExecPage(snap: MmPortfolioSnapshot): string {
     <desk-feed src="/exec/stream" target="exec-live">
       <div id="exec-live">${renderExecLive(snap)}</div>
     </desk-feed>
+    ${navSparkPanel({ label: 'desk equity' })}
   `;
   return pageShell({ title: 'Meridian · exec', activeHref: '/exec', body: raw(body.value) });
 }

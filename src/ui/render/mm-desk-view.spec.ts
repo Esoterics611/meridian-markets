@@ -153,4 +153,12 @@ describe('renderMmDeskPage', () => {
     expect(html).toContain('src="/ui/desk-form.js"');
     expect(html).toContain('nav-link--active');
   });
+
+  it('renders the desk equity sparkline OUTSIDE the SSE live region', () => {
+    const state: MmDeskState = { snap: snap(), events: [], strategies: [], presets: [] };
+    const html = renderMmDeskPage(state);
+    expect(html).toContain('<nav-spark book="" hours="24"');
+    // it must sit before the live region so an SSE tick can't recreate it mid-fetch
+    expect(html.indexOf('<nav-spark')).toBeLessThan(html.indexOf('id="mm-live"'));
+  });
 });

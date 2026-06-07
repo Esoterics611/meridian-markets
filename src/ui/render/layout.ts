@@ -73,6 +73,7 @@ export function pageShell(opts: ShellOpts): string {
           <script type="module" src="/ui/desk-action.js"></script>
           <script type="module" src="/ui/desk-form.js"></script>
           <script type="module" src="/ui/copy-cmd.js"></script>
+          <script type="module" src="/ui/nav-spark.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {
