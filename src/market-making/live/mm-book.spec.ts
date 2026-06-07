@@ -171,4 +171,37 @@ describe('MmBook', () => {
       expect(book.snapshot().barsSeen).toBe(4); // ticks still ran
     });
   });
+
+  describe('directional bias (the axe) — ctx.bias from the bias source', () => {
+    const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
+
+    it('passes a VALIDATED bias into the context', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({
+        ...cfg(flatBars),
+        quoter: q,
+        biasSource: { bias: () => ({ bias: 0.6, validated: true, reason: 'view' }) },
+      });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBeCloseTo(0.6);
+    });
+
+    it('ZEROES an UNVALIDATED bias before it reaches the quoter (the OOS gate)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({
+        ...cfg(flatBars),
+        quoter: q,
+        biasSource: { bias: () => ({ bias: 0.9, validated: false, reason: 'unproven' }) },
+      });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBe(0);
+    });
+
+    it('leaves ctx.bias undefined when no bias source is wired (neutral; nothing regresses)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBeUndefined();
+    });
+  });
 });

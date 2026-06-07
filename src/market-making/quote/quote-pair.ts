@@ -55,6 +55,14 @@ export interface QuoteContext {
   readonly arrivalDecay: number;
   /** (T−t): horizon in bars. AS shrinks the spread as this → 0; GLFT ignores it. */
   readonly horizonBars: number;
+  /**
+   * Optional directional bias in [−1, +1] (DIRECTIONAL_MM_STRATEGY.md): the axed
+   * maker rests at a TARGET inventory q* = bias·Q_max instead of 0. +1 = max long,
+   * −1 = max short, 0 = neutral. Already OOS-gated by the runtime — an unvalidated
+   * view arrives here as 0, so a quoter may use it directly. Only the directional
+   * quoter reads it; every other quoter ignores it (b=0 ⇒ today's neutral book).
+   */
+  readonly bias?: number;
   readonly schemaVersion: 1;
 }
 

@@ -7,6 +7,7 @@ import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
+import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
 
@@ -65,6 +66,14 @@ export interface MmBookConfig {
    * the bar mid (legacy). Wired for L2-capable venues (HL); omit for the rest.
    */
   referenceMicros?: (symbol: string) => Promise<bigint | null>;
+  /**
+   * Optional directional bias source (the axed maker's "house view" — DIRECTIONAL_MM
+   * _STRATEGY.md). Each tick the book reads `biasSource.bias(symbol, ctx)` and passes
+   * the OOS-GATED bias (0 unless the reading is validated) into the quote context as
+   * `ctx.bias`, so the directional quoter rests at q* = bias·Q_max. Omit ⇒ no view
+   * (neutral; every non-directional quoter ignores ctx.bias anyway).
+   */
+  biasSource?: IBiasSource;
   /** Optional σ warmup: recent closes so the book quotes on its first live bar. */
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
@@ -305,10 +314,23 @@ export class MmBook {
       const ref = await this.cfg.referenceMicros(this.cfg.symbol).catch(() => null);
       if (ref !== null && ref > 0n) referenceMicros = ref;
     }
+    // Directional bias (the axe): an OOS-gated per-tick view from the bias source.
+    // effectiveBias() returns 0 for an unvalidated reading, so a blind/unproven view
+    // never sizes carry — the honesty gate. Only the directional quoter reads ctx.bias.
+    let bias: number | undefined;
+    if (this.cfg.biasSource) {
+      bias = effectiveBias(
+        this.cfg.biasSource.bias(this.cfg.symbol, {
+          fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
+          nowMs: this.now().getTime(),
+        }),
+      );
+    }
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros,
       referenceMicros,
+      bias,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,
