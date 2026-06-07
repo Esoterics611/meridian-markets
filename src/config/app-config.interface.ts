@@ -236,6 +236,22 @@ export interface AppConfig {
     fundingBiasMax: number;
     /** Funding/hr that maps to full pre-cap bias (|raw|=1). Default 0.0000125 (~11%/yr). */
     fundingBiasFullRate: number;
+    /**
+     * SHADOW flow-imbalance signal (measure-only): when on, every fast (L2) book runs a
+     * book-imbalance directional source that is RECORDED but never quoted (zero P&L
+     * impact). The collect-then-validate path for a fast directional bias on ALL markets
+     * — scripts/flow-bias-markout.ts scores its forward-return IC; enable live only if it
+     * clears. Default OFF.
+     */
+    flowShadow: boolean;
+    /** Book imbalance that maps to full pre-cap shadow bias (|raw|=1). Default 0.6. */
+    flowFullImbalance: number;
+    /** Magnitude cap |b| the shadow flow source emits. Default 0.5. */
+    flowMaxBias: number;
+    /** Per-symbol min ms between recorded shadow obs (bounds the JSONL). Default 1000. */
+    flowShadowMinMs: number;
+    /** JSONL output path; empty ⇒ docs/research/flow-shadow-<ts>.jsonl. Default ''. */
+    flowShadowPath: string;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

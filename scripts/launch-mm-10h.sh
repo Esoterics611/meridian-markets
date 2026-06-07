@@ -17,8 +17,14 @@
 #   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 #   MM_MICROPRICE_DEPTH=5 \
 #   MM_FUNDING_BIAS_SYMBOLS=BTC MM_FUNDING_BIAS_MAX=0.39 MM_FUNDING_REFRESH_MS=120000 \
+#   MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 #   TELEMETRY_ENABLED=true \
 #   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm10h.log
+#
+# MM_FLOW_SHADOW=true records the fast book-imbalance directional signal on EVERY fast
+# market to docs/research/flow-shadow-<ts>.jsonl — measured but NEVER quoted (zero P&L
+# impact). After the run, score it: npx ts-node -r tsconfig-paths/register \
+#   scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 60,300,900
 #
 # Cadence note: 100ms re-quote with a 30ms cancel/replace latency is the internally
 # CONSISTENT low-latency-maker assumption (a desk re-quoting at 100ms is colocated, so

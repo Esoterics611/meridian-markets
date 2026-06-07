@@ -16,6 +16,9 @@ import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { L2PollDriver } from './live/l2-poll-driver';
 import { FundingBiasSource } from './bias/funding-bias-source';
+import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
+import { IFlowShadowRecorder, NoopFlowShadowRecorder } from './bias/flow-shadow-recorder';
+import { JsonlFlowShadowRecorder } from './persistence/jsonl-flow-shadow-recorder';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -168,6 +171,15 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             adversePauseMs: 30_000,
           });
 
+        // One durable shadow-flow recorder for the whole desk (all fast books append to
+        // a single JSONL). Only when MM_FLOW_SHADOW is on; else a no-op (engine stays
+        // pure). The flow signal is measured + recorded but never quoted (zero impact).
+        const flowShadowRecorder: IFlowShadowRecorder = mm.flowShadow
+          ? new JsonlFlowShadowRecorder(
+              mm.flowShadowPath || `docs/research/flow-shadow-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`,
+            )
+          : new NoopFlowShadowRecorder();
+
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
           const srcId = spec.source ?? mm.defaultSource;
@@ -230,6 +242,14 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // the refresh cron via MmBook.setFundingRatePerHour → engine).
                 biasSource,
                 fundingRatePerHour: fundingRate,
+                // F1b shadow: the book-imbalance directional signal on EVERY fast market,
+                // measured + recorded but never quoted (zero impact). Off ⇒ no shadow source.
+                shadowBiasSource: mm.flowShadow
+                  ? new FlowImbalanceBiasSource({ fullBiasImbalance: mm.flowFullImbalance, maxBias: mm.flowMaxBias, validated: false })
+                  : undefined,
+                shadowRecorder: flowShadowRecorder,
+                shadowMinIntervalMs: mm.flowShadowMinMs,
+                imbalanceDepth: mm.microPriceDepth,
               })
             : undefined;
           return new MmBook({

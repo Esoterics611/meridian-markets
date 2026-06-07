@@ -25,6 +25,11 @@ export interface BiasContext {
   readonly recentReturns?: readonly number[];
   /** Current time (ms) — for decay/expiry of a time-stamped manual view. */
   readonly nowMs: number;
+  /**
+   * Signed top-N L2 book imbalance ∈ [−1,+1] (bid-heavy > 0). The fast microstructure
+   * input for a flow-based directional source; undefined off the L2/fast path.
+   */
+  readonly bookImbalance?: number;
 }
 
 export interface BiasReading {

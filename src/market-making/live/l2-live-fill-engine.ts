@@ -9,6 +9,8 @@ import { microPriceMicrosFromL2 } from '../microstructure/l2-microprice';
 import { l2SnapshotToOrderBook } from '../backtest/l2-tape';
 import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } from '../backtest/queue-fill';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
+import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
+import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
 
 // L2LiveFillEngine — the LIVE, queue-aware, fast-cadence MM fill engine. It is the
@@ -99,6 +101,19 @@ export interface L2LiveFillEngineConfig {
   biasSource?: IBiasSource;
   /** Live signed perp funding rate per hour (the FundingBiasSource input); refreshable. */
   fundingRatePerHour?: number;
+  /**
+   * SHADOW directional signal — read + recorded each (throttled) snapshot but NEVER fed
+   * to the quoter (a separate field from `biasSource` ⇒ zero quote impact by
+   * construction). The honest collect-then-validate path: measure its forward-return IC
+   * live, enable it as a real bias only once it clears the markout gate.
+   */
+  shadowBiasSource?: IBiasSource;
+  /** Durable sink for the shadow observations (default no-op ⇒ engine stays pure). */
+  shadowRecorder?: IFlowShadowRecorder;
+  /** Min ms between recorded shadow obs (per-symbol throttle to bound the file). Default 1000. */
+  shadowMinIntervalMs?: number;
+  /** Levels/side for the book-imbalance signal. Default = microDepth ?? 5. */
+  imbalanceDepth?: number;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -142,6 +157,8 @@ export class L2LiveFillEngine {
   private maxDrawdownPct = 0;
   private lastMidMicros: bigint | undefined;
   private fundingRatePerHour: number;
+  private shadowObservations = 0;
+  private lastShadowMs = 0;
 
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
@@ -155,6 +172,11 @@ export class L2LiveFillEngine {
    *  funding refresh cron via the MmBook so the fast-path tilt tracks the live rate. */
   setFundingRatePerHour(rate: number): void {
     this.fundingRatePerHour = rate;
+  }
+
+  /** Count of shadow observations recorded (verification/telemetry). */
+  shadowObsCount(): number {
+    return this.shadowObservations;
   }
 
   /** Seed the σ window from recent mids/closes so the engine can quote on its first live tick. */
@@ -203,11 +225,34 @@ export class L2LiveFillEngine {
       const mp = microPriceMicrosFromL2(snap, this.cfg.microDepth);
       if (mp !== null && mp > 0n) referenceMicros = mp;
     }
+    // F1b: signed top-N book imbalance — the fast directional input on EVERY market
+    // (book pressure leads the next mid move). Feeds the live bias ctx AND the shadow.
+    const imbalanceDepth = this.cfg.imbalanceDepth ?? this.cfg.microDepth ?? 5;
+    const bookImbalance = bookImbalanceFromL2(snap, imbalanceDepth) ?? 0;
     // Directional bias (the axe) on the fast path — OOS-gated (effectiveBias zeroes an
     // unvalidated reading). The funding input is the live, refreshed rate.
     const bias = this.cfg.biasSource
-      ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs }))
+      ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance }))
       : undefined;
+    // SHADOW flow signal: read + recorded, NEVER fed to the quoter (it's `shadowBiasSource`,
+    // not `biasSource`) ⇒ zero quote impact by construction. Throttled to bound the file;
+    // the offline gate (scripts/flow-bias-markout.ts) scores its forward-return IC.
+    if (this.cfg.shadowBiasSource && nowMs - this.lastShadowMs >= (this.cfg.shadowMinIntervalMs ?? 1000)) {
+      const sr = this.cfg.shadowBiasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance });
+      const fb = Number(flow.aggressiveBuyUnits);
+      const fa = Number(flow.aggressiveSellUnits);
+      this.cfg.shadowRecorder?.record({
+        tsMs: nowMs,
+        symbol: this.cfg.symbol,
+        signal: sr.bias,
+        bookImbalance,
+        tradeFlowImbalance: fb + fa > 0 ? (fb - fa) / (fb + fa) : 0,
+        midMicros: mid.toString(),
+        microMicros: referenceMicros !== undefined ? referenceMicros.toString() : null,
+      });
+      this.shadowObservations += 1;
+      this.lastShadowMs = nowMs;
+    }
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros: mid,
