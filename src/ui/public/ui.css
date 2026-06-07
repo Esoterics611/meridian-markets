@@ -231,6 +231,8 @@ desk-action[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
 .check { padding: 2px 0; }
 .check--ok { color: var(--pos); }
 .check--fail { color: var(--neg); }
+.metrics-link { color: var(--accent); text-decoration: none; }
+.metrics-link:hover { text-decoration: underline; }
 
 /* ── desk/mm: launch forms ───────────────────────────────────────────── */
 .launch { margin-bottom: 18px; }

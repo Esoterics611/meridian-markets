@@ -59,6 +59,11 @@ export function duration(seconds: number): string {
   return `${sec}s`;
 }
 
+/** Bytes → a coarse MB string, e.g. 134217728 → "128.0 MB" (process memory panels). */
+export function mb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 /** Age of a past event in ms → "never" / "850ms ago" / "1m 02s ago". */
 export function age(ms: number | null): string {
   if (ms === null) return 'never';

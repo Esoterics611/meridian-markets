@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { OpsController } from './ops.controller';
 import { MmPortfolioTrader, MmPortfolioSnapshot } from '../market-making/live/mm-portfolio-trader';
 import { DbService } from '@database/db.service';
+import { PrometheusRegistry } from '../telemetry/prometheus-registry';
+import { PrometheusTelemetry } from '../telemetry/prometheus-telemetry';
+import { M } from '../telemetry/metric-catalog';
 
 function mmSnap(over: Partial<MmPortfolioSnapshot> = {}): MmPortfolioSnapshot {
   return {
@@ -61,6 +64,21 @@ describe('OpsController', () => {
     const c = new OpsController(fakeCfg(true), fakeTrader());
     const html = await c.page();
     expect(html).toContain('unreachable');
+  });
+
+  it('renders the telemetry panel from the live registry when telemetry is wired', async () => {
+    const registry = new PrometheusRegistry();
+    const telemetry = new PrometheusTelemetry(registry); // registers the catalog; enabled=true
+    telemetry.counter(M.tick, { loop: 'mm' }, 42);
+    telemetry.counter(M.tickOverrun, { loop: 'mm' }, 1);
+    telemetry.histogram(M.tickDuration, 0.004, { loop: 'mm' });
+    telemetry.counter(M.persistCheckpoints, { result: 'ok' }, 7);
+    const c = new OpsController(fakeCfg(false), fakeTrader(), undefined, telemetry, registry);
+    const html = await c.page();
+    expect(html).toContain('telemetry / runtime');
+    expect(html).toContain('>ENABLED<');
+    expect(html).toContain('42'); // mm ticks read from the registry
+    expect(html).toContain('href="/metrics"');
   });
 
   it('GET /ops/stream emits an { html } status frame (not a full doc) on subscribe', async () => {

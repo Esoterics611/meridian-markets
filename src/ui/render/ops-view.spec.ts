@@ -1,4 +1,4 @@
-import { renderOpsLive, renderOpsPage, OpsState } from './ops-view';
+import { renderOpsLive, renderOpsPage, OpsState, OpsTelemetry } from './ops-view';
 import { deskControls } from './components';
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { ReadinessResult } from '../../telemetry/readiness';
@@ -30,6 +30,22 @@ function ready(over: Partial<ReadinessResult> = {}): ReadinessResult {
   };
 }
 
+function telemetry(over: Partial<OpsTelemetry> = {}): OpsTelemetry {
+  return {
+    enabled: true,
+    rssBytes: 134217728, // 128.0 MB
+    heapUsedBytes: 67108864, // 64.0 MB
+    heapTotalBytes: 100663296, // 96.0 MB
+    eventLoopLagSec: 0.0021,
+    ticks: 1200,
+    tickOverruns: 0,
+    meanTickMs: 4.2,
+    persistOk: 30,
+    persistErrors: 0,
+    ...over,
+  };
+}
+
 function state(over: Partial<OpsState> = {}): OpsState {
   return {
     uptimeSeconds: 3723,
@@ -38,6 +54,7 @@ function state(over: Partial<OpsState> = {}): OpsState {
     dbReachable: true,
     mm: mmSnap(),
     lastTickAgeMs: 800,
+    telemetry: telemetry(),
     ...over,
   };
 }
@@ -88,6 +105,28 @@ describe('renderOpsLive', () => {
     expect(h).toContain('>OFF<');
     expect(h).toContain('n/a (persistence off)');
     expect(h).toContain('idle — nothing running'); // empty checks → honest idle line
+  });
+
+  it('renders the telemetry/runtime panel: memory + live loop counters + scrape link', () => {
+    const h = renderOpsLive(state()).value;
+    expect(h).toContain('telemetry / runtime');
+    expect(h).toContain('>ENABLED<');
+    expect(h).toContain('128.0 MB'); // rss
+    expect(h).toContain('64.0 MB / 96.0 MB'); // heap used / total
+    expect(h).toContain('1200'); // mm ticks
+    expect(h).toContain('mean 4.2 ms');
+    expect(h).toContain('2.1 ms'); // event-loop lag (0.0021s)
+    expect(h).toContain('30 / '); // persist ok / err
+    expect(h).toContain('href="/metrics"');
+  });
+
+  it('does not fabricate loop counters when telemetry is OFF (only memory + the enable hint)', () => {
+    const h = renderOpsLive(state({ telemetry: telemetry({ enabled: false, ticks: 0, meanTickMs: null, eventLoopLagSec: null }) })).value;
+    expect(h).toContain('telemetry / runtime');
+    // the telemetry status badge reads OFF (so does MM_PERSIST=OFF — assert via the hint)
+    expect(h).toContain('set TELEMETRY_ENABLED=true');
+    expect(h).not.toContain('mm ticks'); // no counter rows when off
+    expect(h).toContain('128.0 MB'); // memory still shown (a process stat, not a metric)
   });
 });
 
