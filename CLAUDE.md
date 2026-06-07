@@ -151,3 +151,15 @@ docker-compose.yml                     Postgres 16 on :5433
 ## 11. SecretProvider Contract
 
 `SecretProvider` interface is the Vault swap point. `EnvSecretProvider` reads `process.env`. No other module may access `process.env` directly — all secret reads go through `ISecretProvider.get()`. The `SECRET_PROVIDER` token is provided globally by `SecretsModule` (imported in `AppModule`).
+
+## 12. Context & token discipline (binding — READ before reading anything large)
+
+This repo carries **large research artifacts** — `docs/research/*.json` (OOS sweeps run thousands of trials), `docs/research/l2-tapes/*`, replay/tune dumps, long server logs, and the multi-thousand-line `docs/QUANT_JOURNAL.md`. Reading one whole to answer a question is the #1 way to burn the session. Rules:
+
+1. **Never `Read` a big data artifact end-to-end to answer a question.** Query it first: `jq` to pull only the fields you need, `grep -n`/`rg` to find the lines, then `Read` a *narrow* slice if still needed. A full-file `Read` of a >~500-line JSON/CSV/log is almost always wrong.
+2. **Never dump a whole array/object** (e.g. `jq '.perClass'`, `jq '.perTrial'`). `select()` the rows and project the handful of fields into a compact TSV/table (`jq -r '... | @tsv'`, sorted/filtered server-side). Summaries, not raw dumps.
+3. **Plan the few reads you need, fire them in one parallel batch, then think.** Do not iteratively dig — read → reason → conclude. Re-reading a file you already pulled, or paging a file the harness already tracks, is wasted.
+4. **One consolidated answer beats many exploratory round-trips.** When several user messages stack up, address them together.
+5. The journal/findings docs are the index — cite the relevant entry, don't re-derive by re-reading the whole engine.
+
+If a task genuinely needs broad fan-out search, that is what the `Explore`/`general-purpose` sub-agents are for — but only when the user asks; otherwise stay surgical.

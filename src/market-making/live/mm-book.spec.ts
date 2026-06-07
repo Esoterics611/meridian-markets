@@ -1,8 +1,22 @@
 import { MmBook, MmBookConfig } from './mm-book';
 import { Bar } from '../../stat-arb/backtest/bar';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
+import { IQuoter } from '../quote/quoter.interface';
+import { QuoteContext, QuotePair } from '../quote/quote-pair';
 import { IDeskEventSink } from '../events/desk-event-sink';
 import { DeskEventInput } from '../events/desk-event';
+
+// Records the QuoteContext it was handed (delegates the actual quote to a symmetric
+// quoter so the return value is valid) — lets us assert what MmBook puts in the ctx.
+class CapturingQuoter implements IQuoter {
+  readonly familyId = 'capture';
+  lastCtx?: QuoteContext;
+  private readonly inner = new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: 1_000_000n });
+  quote(ctx: QuoteContext, symbol: string): QuotePair {
+    this.lastCtx = ctx;
+    return this.inner.quote(ctx, symbol);
+  }
+}
 
 class CapturingSink implements IDeskEventSink {
   readonly events: DeskEventInput[] = [];
@@ -127,5 +141,124 @@ describe('MmBook', () => {
     const book = new MmBook(cfg([]));
     await book.tick();
     expect(book.snapshot().barsSeen).toBe(0);
+  });
+
+  describe('F1 micro-price quote center', () => {
+    const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
+
+    it('passes the reference micro-price into the quote context as the center (F1 live)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q, referenceMicros: async () => 1_002_000n });
+      await tickAll(book, 4);
+      // mid is 1.0 (1_000_000) but the L2 micro-price is 1.002 — the book hands the
+      // quoter the micro-price as the center, the mid only for spread width.
+      expect(q.lastCtx?.referenceMicros).toBe(1_002_000n);
+      expect(q.lastCtx?.midMicros).toBe(1_000_000n);
+    });
+
+    it('falls back to the bar mid (no referenceMicros) when no fair-value source is wired', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.referenceMicros).toBeUndefined();
+    });
+
+    it('falls back to the mid when the L2 fetch fails or returns null (best-effort, never skips the tick)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q, referenceMicros: async () => null });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.referenceMicros).toBeUndefined();
+      expect(book.snapshot().barsSeen).toBe(4); // ticks still ran
+    });
+  });
+
+  describe('fast L2 path coexistence (C2)', () => {
+    it('a fast-path book IGNORES the bar tick (no double-counting) and reports isFastPath', async () => {
+      const { L2LiveFillEngine } = await import('./l2-live-fill-engine');
+      const eng = new L2LiveFillEngine({
+        symbol: 'BTC',
+        quoter: new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: 1_000_000n }),
+        quoteSizeUnits: 1_000_000n,
+        gamma: 0.0025,
+        kappa: 2,
+        horizonBars: 1,
+        volWindowBars: 2,
+        volFloor: 0.0001,
+        makerFeeBps: -0.2,
+        capitalUnits: 1_000_000_000n,
+        microDepth: 5,
+        cancelReplaceLatencyMs: 100,
+      });
+      const book = new MmBook({ ...cfg([bar(0, 1, 1, 1), bar(1, 1, 1, 1)]), symbol: 'BTC', fastEngine: eng });
+      book.setRunning(true);
+      expect(book.isFastPath()).toBe(true);
+      // bars are queued, but the fast path must never consume them (the trader skips
+      // fast-path books in the bar loop; tick() is also a self-guarded no-op).
+      await book.tick();
+      await book.tick();
+      const snap = book.snapshot();
+      expect(snap.barsSeen).toBe(0); // no bar consumed; snapshot reads the engine (0 L2 snapshots)
+      expect(snap.fundingUnits).toBe('0');
+    });
+  });
+
+  describe('fast L2 path — directional bias', () => {
+    it('the fast engine applies a VALIDATED bias to its quote center (BTC funding tilt on C2)', async () => {
+      const { L2LiveFillEngine } = await import('./l2-live-fill-engine');
+      const capture = new CapturingQuoter();
+      const eng = new L2LiveFillEngine({
+        symbol: 'BTC',
+        quoter: capture,
+        quoteSizeUnits: 1_000_000n,
+        gamma: 0.0025,
+        kappa: 2,
+        horizonBars: 1,
+        volWindowBars: 2,
+        volFloor: 0.0001,
+        makerFeeBps: -0.2,
+        capitalUnits: 1_000_000_000n,
+        biasSource: { bias: () => ({ bias: 0.39, validated: true, reason: 'funding' }) },
+      });
+      const lvl = (p: bigint, s: bigint) => ({ priceMicros: p, sizeUnits: s, orderCount: 1 });
+      const snap = (ts: number) => ({ snapshot: { symbol: 'BTC', ts: new Date(ts), bids: [lvl(100_000_000n, 5_000_000n)], asks: [lvl(100_100_000n, 5_000_000n)] } });
+      // warm the engine (volWindowBars=2) then one more snapshot to quote
+      eng.onSnapshot(snap(0));
+      eng.onSnapshot(snap(1000));
+      eng.onSnapshot(snap(2000));
+      expect(capture.lastCtx?.bias).toBeCloseTo(0.39);
+    });
+  });
+
+  describe('directional bias (the axe) — ctx.bias from the bias source', () => {
+    const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
+
+    it('passes a VALIDATED bias into the context', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({
+        ...cfg(flatBars),
+        quoter: q,
+        biasSource: { bias: () => ({ bias: 0.6, validated: true, reason: 'view' }) },
+      });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBeCloseTo(0.6);
+    });
+
+    it('ZEROES an UNVALIDATED bias before it reaches the quoter (the OOS gate)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({
+        ...cfg(flatBars),
+        quoter: q,
+        biasSource: { bias: () => ({ bias: 0.9, validated: false, reason: 'unproven' }) },
+      });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBe(0);
+    });
+
+    it('leaves ctx.bias undefined when no bias source is wired (neutral; nothing regresses)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.bias).toBeUndefined();
+    });
   });
 });

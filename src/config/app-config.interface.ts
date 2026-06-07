@@ -191,6 +191,78 @@ export interface AppConfig {
      * otherwise the cron no-ops (no DB dependency on the live MM path). Default 60s.
      */
     navIntervalMs: number;
+    /**
+     * Perp funding-rate refresh cadence (ms). Each interval the FundingRefreshCron
+     * re-reads each HL book's live funding rate and updates the book's carry accrual
+     * (mm-book.setFundingRatePerHour), so the static-at-launch rate stays current as
+     * funding drifts over a multi-hour run (the carry leg, MM course §8.10). HL funds
+     * hourly, so a sub-hour cadence keeps it fresh; 0 disables the refresh. Default 10m.
+     */
+    fundingRefreshMs: number;
+    /**
+     * Micro-price quote-center depth (F1 live): levels per side of the L2 book to
+     * size-weight into the fair value the quoter centers on (instead of the stale bar
+     * mid) — the biggest adverse-selection cut (FAIR_VALUE_AND_THESIS_DESIGN.md). Only
+     * takes effect on L2-capable venues (Hyperliquid); other books keep the mid. 0
+     * disables it everywhere (legacy mid-center). Default 5.
+     */
+    microPriceDepth: number;
+    /**
+     * Fast-requote path (C2 — CADENCE_LIVE_LOOP_PLAN.md): the master switch for the
+     * queue-aware, sub-second L2 fill path. Off ⇒ today's bar loop (nothing changes);
+     * on ⇒ L2-capable (Hyperliquid) books are driven by the L2 poll driver + the
+     * L2LiveFillEngine instead of the 15s bar tick. Default OFF.
+     */
+    fastRequoteEnabled: boolean;
+    /** Fast-path poll cadence (ms, sub-second 250–1000). Default 750. */
+    fastRequoteMs: number;
+    /** Cancel/replace round-trip the fast engine charges (the §6b honesty rail, 50–250ms). Default 100. */
+    cancelReplaceLatencyMs: number;
+    /**
+     * The HL symbol universe the fast path covers: only these get an L2 engine + the
+     * real trades-WS aggressor flow (a book outside this set stays on the bar path).
+     * A fixed set so the trade-stream WS can be opened once at boot. Default BTC/ETH/SOL.
+     */
+    fastSymbols: string[];
+    /**
+     * Coins where the funding-paid-side directional signal is OOS-VALIDATED (the #1
+     * sweep gate, DSR≥0.95) and so may size live carry on the axed maker. A
+     * mm-directional-glft book on one of these gets a validated FundingBiasSource;
+     * every other directional book stays neutral (b=0). Default ['BTC'] — the only
+     * signal that cleared the gate (2026-06-07 sweep: BTC funding 168h, DSR 99%).
+     */
+    fundingBiasSymbols: string[];
+    /** Magnitude cap |b| for the funding bias (the sweep's 4·|IC| ≤ 0.5). Default 0.39 (BTC). */
+    fundingBiasMax: number;
+    /** Funding/hr that maps to full pre-cap bias (|raw|=1). Default 0.0000125 (~11%/yr). */
+    fundingBiasFullRate: number;
+    /**
+     * SHADOW flow-imbalance signal (measure-only): when on, every fast (L2) book runs a
+     * book-imbalance directional source that is RECORDED but never quoted (zero P&L
+     * impact). The collect-then-validate path for a fast directional bias on ALL markets
+     * — scripts/flow-bias-markout.ts scores its forward-return IC; enable live only if it
+     * clears. Default OFF.
+     */
+    flowShadow: boolean;
+    /** Book imbalance that maps to full pre-cap shadow bias (|raw|=1). Default 0.6. */
+    flowFullImbalance: number;
+    /** Magnitude cap |b| the shadow flow source emits. Default 0.5. */
+    flowMaxBias: number;
+    /** Per-symbol min ms between recorded shadow obs (bounds the JSONL). Default 1000. */
+    flowShadowMinMs: number;
+    /** JSONL output path; empty ⇒ docs/research/flow-shadow-<ts>.jsonl. Default ''. */
+    flowShadowPath: string;
+    /**
+     * Promote the flow signal to a LIVE, self-validating directional bias (the rolling-IC
+     * gate: re-checks its own trailing forward-return IC every horizon and only sizes
+     * carry while it stays predictive, per coin — reversal coins auto-disable). Drives
+     * directional-glft books on fast symbols. Default OFF.
+     */
+    flowBiasLive: boolean;
+    /** Forward-return horizon (ms) the rolling-IC gate scores + its re-eval cadence. Default 60000. */
+    flowBiasHorizonMs: number;
+    /** Min trailing Spearman IC to keep the live flow bias validated (else stand aside). Default 0.05. */
+    flowBiasMinIc: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

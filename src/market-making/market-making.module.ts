@@ -11,6 +11,15 @@ import {
   buildReferenceSources,
 } from '../market-data/reference/reference-bar-loader';
 import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
+import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
+import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
+import { L2LiveFillEngine } from './live/l2-live-fill-engine';
+import { L2PollDriver } from './live/l2-poll-driver';
+import { FundingBiasSource } from './bias/funding-bias-source';
+import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
+import { RollingIcFlowBiasSource } from './bias/rolling-ic-flow-bias-source';
+import { IFlowShadowRecorder, NoopFlowShadowRecorder } from './bias/flow-shadow-recorder';
+import { JsonlFlowShadowRecorder } from './persistence/jsonl-flow-shadow-recorder';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -24,6 +33,7 @@ import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmNavRepository } from './persistence/mm-nav.repository';
 import { MmNavCron } from './persistence/mm-nav.cron';
+import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
@@ -133,6 +143,25 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               : undefined;
           return { nextBar: instrumentedNextBar(srcId, feed), warmupCloses };
         };
+
+        // F1 live quote center: for an L2-capable venue (HL), a fast fair-value source
+        // that fetches the depth snapshot and returns the micro-price; the quoter then
+        // centers on it instead of the stale bar mid (the biggest adverse-selection
+        // cut — FAIR_VALUE_AND_THESIS_DESIGN.md §Layer A). Other venues / depth=0 ⇒
+        // undefined (the book keeps the mid; nothing regresses).
+        const resolveReferenceMicros = (srcId: string): ((s: string) => Promise<bigint | null>) | undefined => {
+          if (mm.microPriceDepth <= 0) return undefined;
+          const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
+          const l2 = refSource as Partial<IL2BookSource> | undefined;
+          if (!l2 || typeof l2.l2Snapshot !== 'function') return undefined;
+          return async (s: string): Promise<bigint | null> => {
+            try {
+              return microPriceMicrosFromL2(await l2.l2Snapshot!(s), mm.microPriceDepth);
+            } catch {
+              return null;
+            }
+          };
+        };
         const makeRiskGate = (quoteSizeUnits: bigint): CompositeRiskGate =>
           new CompositeRiskGate({
             maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
@@ -142,6 +171,15 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             maxAdverseUnits: mm.capitalUnits, // generous; the tick-data path tightens this
             adversePauseMs: 30_000,
           });
+
+        // One durable shadow-flow recorder for the whole desk (all fast books append to
+        // a single JSONL). Only when MM_FLOW_SHADOW is on; else a no-op (engine stays
+        // pure). The flow signal is measured + recorded but never quoted (zero impact).
+        const flowShadowRecorder: IFlowShadowRecorder = mm.flowShadow
+          ? new JsonlFlowShadowRecorder(
+              mm.flowShadowPath || `docs/research/flow-shadow-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`,
+            )
+          : new NoopFlowShadowRecorder();
 
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
@@ -169,6 +207,67 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             params: spec.params,
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
+          // Directional bias (the axe): only a mm-directional-glft book on an
+          // OOS-VALIDATED coin gets a live funding-paid-side bias (the #1 gate —
+          // 2026-06-07 sweep validated BTC funding, cap 0.39); every other book stays
+          // neutral. effectiveBias() still zeroes it if the source isn't validated, so
+          // this is honest by construction. Bar-path books read ctx.bias (the weekly
+          // carry tilt doesn't need sub-second cadence).
+          const biasSource =
+            quoter.familyId === 'directional-glft' && mm.fundingBiasSymbols.includes(spec.symbol.toUpperCase())
+              ? new FundingBiasSource({ fullBiasRatePerHour: mm.fundingBiasFullRate, maxBias: mm.fundingBiasMax, validated: true })
+              : undefined;
+          // C2 fast path: an L2 book on a streamed HL symbol gets a queue-aware engine
+          // (the trader drives it via the poll driver, NOT the bar tick). Same quoter +
+          // risk gate + sizing as the bar book; the engine owns the InventoryBook the
+          // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
+          const fundingRate = await fundingRateFor(srcId, spec.symbol);
+          const useFast = mm.fastRequoteEnabled && srcId === 'hyperliquid' && mm.fastSymbols.includes(spec.symbol.toUpperCase());
+          // The LIVE directional bias driving the fast engine: when MM_FLOW_BIAS_LIVE is on,
+          // a self-validating rolling-IC flow source (re-checks its own forward-return IC
+          // every horizon; sizes carry only while predictive, per coin — reversal coins
+          // self-disable). Else the static funding axe. directional-glft books act on it;
+          // neutral mm-glft ignores bias, so attaching it desk-wide is safe.
+          const liveBiasSource =
+            mm.flowBiasLive && useFast
+              ? new RollingIcFlowBiasSource({
+                  fullBiasImbalance: mm.flowFullImbalance,
+                  maxBias: mm.flowMaxBias,
+                  horizonMs: mm.flowBiasHorizonMs,
+                  evalEveryMs: mm.flowBiasHorizonMs,
+                  icThreshold: mm.flowBiasMinIc,
+                })
+              : biasSource;
+          const fastEngine = useFast
+            ? new L2LiveFillEngine({
+                symbol: spec.symbol,
+                quoter,
+                quoteSizeUnits,
+                gamma: spec.params?.['gamma'] ?? mm.gamma,
+                kappa: spec.params?.['kappa'] ?? mm.kappa,
+                horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,
+                volWindowBars: mm.volWindowBars,
+                volFloor: mm.volFloor,
+                makerFeeBps: venueFeeFor(srcId).makerBps,
+                capitalUnits: mm.capitalUnits,
+                microDepth: mm.microPriceDepth,
+                cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
+                riskGate: makeRiskGate(quoteSizeUnits),
+                // The directional axe on the fast path: the same validated bias source the
+                // bar path uses, with the live funding rate as its input (kept current by
+                // the refresh cron via MmBook.setFundingRatePerHour → engine).
+                biasSource: liveBiasSource,
+                fundingRatePerHour: fundingRate,
+                // F1b shadow: the book-imbalance directional signal on EVERY fast market,
+                // measured + recorded but never quoted (zero impact). Off ⇒ no shadow source.
+                shadowBiasSource: mm.flowShadow
+                  ? new FlowImbalanceBiasSource({ fullBiasImbalance: mm.flowFullImbalance, maxBias: mm.flowMaxBias, validated: false })
+                  : undefined,
+                shadowRecorder: flowShadowRecorder,
+                shadowMinIntervalMs: mm.flowShadowMinMs,
+                imbalanceDepth: mm.microPriceDepth,
+              })
+            : undefined;
           return new MmBook({
             symbol: spec.symbol,
             strategyId,
@@ -183,10 +282,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
             // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics.
             makerFeeBps: venueFeeFor(srcId).makerBps,
-            fundingRatePerHour: await fundingRateFor(srcId, spec.symbol),
+            fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             nextBar,
             warmupCloses,
+            referenceMicros: resolveReferenceMicros(srcId),
+            fastEngine,
+            biasSource,
             riskGate: makeRiskGate(quoteSizeUnits),
             events: deskEvents,
           });
@@ -221,6 +323,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             capitalUnits: rec.capitalUnits,
             nextBar,
             warmupCloses,
+            referenceMicros: resolveReferenceMicros(srcId),
             riskGate: makeRiskGate(rec.quoteSizeUnits),
             events: deskEvents,
           });
@@ -232,7 +335,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const store: IMmStateStore = mm.persist && db ? new PostgresMmStateStore(new MmStateRepository(db)) : new NullMmStateStore();
         if (mm.persist && !db) new Logger('MarketMakingModule').warn('MM_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
 
-        return new MmPortfolioTrader(
+        const trader = new MmPortfolioTrader(
           makeBook,
           mm.pollIntervalMs,
           mm.capitalUnits,
@@ -240,6 +343,29 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           tele,
           deskEvents,
         );
+
+        // C2 fast path: build the sub-second L2 poll driver + the real HL trades-WS
+        // aggressor flow, and hand it to the trader (start/stop with the loop). The
+        // driver resolves its symbols from the trader each cycle (dynamic books), and
+        // routes each snapshot+flow back to the matching book's onL2Snapshot. Off ⇒
+        // no driver, no WS, no behaviour change (today's bar loop).
+        if (mm.fastRequoteEnabled) {
+          const hl = refRegistry.get('hyperliquid') as Partial<IL2BookSource & ITradeStreamSource> | undefined;
+          if (hl && typeof hl.l2Snapshot === 'function') {
+            const tradeStream = typeof hl.openTradeStream === 'function' ? hl.openTradeStream(mm.fastSymbols) : undefined;
+            const driver = new L2PollDriver({
+              source: hl as IL2BookSource,
+              symbols: () => trader.fastPathSymbols(),
+              pollIntervalMs: mm.fastRequoteMs,
+              sink: (symbol, t) => trader.routeL2Snapshot(symbol, t),
+              tradeStream,
+            });
+            trader.setFastDriver(driver);
+          } else {
+            new Logger('MarketMakingModule').warn('MM_FAST_REQUOTE_ENABLED=true but no L2 source — fast path inactive');
+          }
+        }
+        return trader;
       },
     },
     // Live business-event tape (fills enter/exit, verdict changes, lifecycle). A
@@ -268,6 +394,24 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       inject: [ConfigService, MmPortfolioTrader, MmNavRepository],
       useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null): MmNavCron =>
         new MmNavCron(cfg, trader, repo),
+    },
+    // Perp funding-rate refresh: keeps each HL book's carry rate current over a
+    // multi-hour run (funding drifts hourly; launch only sets it once). Its own HL
+    // funding client (the launch path's is factory-scoped); non-perp books → null
+    // (left unchanged), and an HL fetch error → null (keep the last good rate, don't
+    // zero the carry). No-op when MM_FUNDING_REFRESH_MS=0 or in test.
+    {
+      provide: FundingRefreshCron,
+      inject: [ConfigService, MmPortfolioTrader],
+      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader): FundingRefreshCron => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        const hlFunding = new HyperliquidFundingClient({ baseUrl: app.feed.hyperliquidBaseUrl });
+        const rateFor = async (symbol: string, source: string | undefined): Promise<number | null> =>
+          source === 'hyperliquid'
+            ? hlFunding.currentFunding(symbol).then((f) => f.lastFundingRate).catch(() => null)
+            : null;
+        return new FundingRefreshCron(cfg, trader, rateFor);
+      },
     },
     // Spread-capture screener: ranks instruments by expected MM profit/day.
     {

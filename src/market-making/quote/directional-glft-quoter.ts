@@ -55,16 +55,22 @@ export class DirectionalGlftQuoter implements IQuoter {
     const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
     const T = this.p.steadyHorizonBars;
 
+    // The bias: a live, per-tick view from the runtime's IBiasSource (ctx.bias —
+    // already OOS-gated upstream, so an unvalidated view arrives as 0) overrides the
+    // static construction-time default. This is what makes the axe DATA-DRIVEN and
+    // re-assessed every tick rather than a frozen number.
+    const bias = clamp(ctx.bias ?? this.bias, -1, 1);
+
     // The axe: skew toward the TARGET inventory q* (= bias·maxLots), not toward 0.
     // effectiveQ = how far we are from where the VIEW wants us; the skew works that
     // off, so the book rests at q* and recycles spread around the held position.
-    const targetLots = this.bias * this.p.maxInventoryLots;
+    const targetLots = bias * this.p.maxInventoryLots;
     const effectiveQ = qLots - targetLots;
     let reservation = asReservationMicros(center, effectiveQ, this.p.gamma, sigmaRel, T);
     // Optional conviction drift: nudge the center toward the view (small) so we fill
     // a touch more on the view side even at target — captures momentum while it lasts.
-    if (this.convictionGain !== 0 && this.bias !== 0) {
-      reservation += this.bias * this.convictionGain * sigmaRel * center;
+    if (this.convictionGain !== 0 && bias !== 0) {
+      reservation += bias * this.convictionGain * sigmaRel * center;
     }
 
     const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);

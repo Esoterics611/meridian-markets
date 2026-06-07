@@ -124,6 +124,23 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     persist: (process.env['MM_PERSIST'] ?? 'false').toLowerCase() === 'true',
     flattenOnShutdown: (process.env['MM_FLATTEN_ON_SHUTDOWN'] ?? 'false').toLowerCase() === 'true',
     navIntervalMs: parseInt(process.env['MM_NAV_INTERVAL_MS'] ?? '60000', 10),
+    fundingRefreshMs: parseInt(process.env['MM_FUNDING_REFRESH_MS'] ?? '600000', 10), // 10m; HL funds hourly
+    microPriceDepth: parseInt(process.env['MM_MICROPRICE_DEPTH'] ?? '5', 10), // F1 quote center off N L2 levels; 0 = off (mid)
+    fastRequoteEnabled: (process.env['MM_FAST_REQUOTE_ENABLED'] ?? 'false').toLowerCase() === 'true',
+    fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
+    cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
+    fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    fundingBiasSymbols: (process.env['MM_FUNDING_BIAS_SYMBOLS'] ?? 'BTC').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    fundingBiasMax: parseFloat(process.env['MM_FUNDING_BIAS_MAX'] ?? '0.39'),
+    fundingBiasFullRate: parseFloat(process.env['MM_FUNDING_BIAS_FULL_RATE'] ?? '0.0000125'),
+    flowShadow: (process.env['MM_FLOW_SHADOW'] ?? 'false').toLowerCase() === 'true',
+    flowFullImbalance: parseFloat(process.env['MM_FLOW_FULL_IMBALANCE'] ?? '0.6'),
+    flowMaxBias: parseFloat(process.env['MM_FLOW_MAX_BIAS'] ?? '0.5'),
+    flowShadowMinMs: parseInt(process.env['MM_FLOW_SHADOW_MIN_MS'] ?? '1000', 10),
+    flowShadowPath: process.env['MM_FLOW_SHADOW_PATH'] ?? '',
+    flowBiasLive: (process.env['MM_FLOW_BIAS_LIVE'] ?? 'false').toLowerCase() === 'true',
+    flowBiasHorizonMs: parseInt(process.env['MM_FLOW_BIAS_HORIZON_MS'] ?? '60000', 10),
+    flowBiasMinIc: parseFloat(process.env['MM_FLOW_BIAS_MIN_IC'] ?? '0.05'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

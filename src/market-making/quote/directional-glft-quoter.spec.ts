@@ -63,6 +63,19 @@ describe('DirectionalGlftQuoter', () => {
     expect(Number(drift.reservationMicros)).toBeGreaterThan(Number(noDrift.reservationMicros));
   });
 
+  it('ctx.bias (the live OOS-gated view) OVERRIDES the static construction-time bias', () => {
+    // built neutral, but the runtime supplies a live long view ⇒ quotes skew up.
+    const q = new DirectionalGlftQuoter({ ...base, bias: 0 }, CLOCK);
+    const neutral = q.quote(ctx({ inventoryUnits: 0n }), 'X');
+    const liveLong = q.quote(ctx({ inventoryUnits: 0n, bias: 0.5 }), 'X');
+    const liveShort = q.quote(ctx({ inventoryUnits: 0n, bias: -0.5 }), 'X');
+    expect(liveLong.reservationMicros).toBeGreaterThan(neutral.reservationMicros);
+    expect(liveShort.reservationMicros).toBeLessThan(neutral.reservationMicros);
+    // and ctx.bias=0 with a static long bias ⇒ the live (0) wins (neutral)
+    const staticLong = new DirectionalGlftQuoter({ ...base, bias: 0.5 }, CLOCK);
+    expect(staticLong.quote(ctx({ inventoryUnits: 0n, bias: 0 }), 'X').reservationMicros).toBe(neutral.reservationMicros);
+  });
+
   it('still honours referenceMicros (F1) + spreadScale (F3)', () => {
     const q = new DirectionalGlftQuoter({ ...base, bias: 0 }, CLOCK);
     const onMicro = q.quote(ctx({ inventoryUnits: 0n, referenceMicros: 1_000_500n }), 'X');
