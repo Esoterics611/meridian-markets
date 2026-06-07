@@ -31,6 +31,19 @@ export interface L2TapeStep {
   readonly tradedLowMicros?: bigint;
 }
 
+/**
+ * The aggressive-flow-only fields of an L2TapeStep — the flow + traded extremes over
+ * one interval, decoupled from the depth book. The live queue-aware engine
+ * (live/l2-live-fill-engine.ts) accepts this alongside a live L2 snapshot so a tape
+ * step and a live tick carry the same flow shape (the queue-fill rule is identical).
+ */
+export interface IntervalFlowLike {
+  readonly aggressiveBuyUnits: bigint;
+  readonly aggressiveSellUnits: bigint;
+  readonly tradedHighMicros?: bigint;
+  readonly tradedLowMicros?: bigint;
+}
+
 /** Convert a reference-module L2Snapshot to a microstructure OrderBook. */
 export function l2SnapshotToOrderBook(snap: L2Snapshot): OrderBook {
   const map = (l: { priceMicros: bigint; sizeUnits: bigint; orderCount: number }): OrderBookLevel => ({

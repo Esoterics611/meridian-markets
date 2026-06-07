@@ -3,12 +3,13 @@ import { QuoteContext } from '../quote/quote-pair';
 import { RollingVolatility } from '../quote/volatility';
 import { InventoryBook, FillSide } from '../inventory/inventory-book';
 import { attributeFill, PnlComponent, sumComponents, AttributionSummary } from './pnl-attribution';
-import { SimpleQueueModel, QueuePosition } from './queue-model';
+import { QueuePosition } from './queue-model';
 import { RiskGate, RiskState } from '../risk/risk-gate';
-import { OrderBook, OrderBookLevel, midMicros } from '../microstructure/order-book';
+import { OrderBook, midMicros } from '../microstructure/order-book';
 import { MicroPriceCalculator } from '../microstructure/micro-price';
 import { crossVenueReference } from '../microstructure/cross-venue';
-import { L2TapeStep, cumulativeBidSizeToPrice, cumulativeAskSizeToPrice, bestBidMicros, bestAskMicros } from './l2-tape';
+import { L2TapeStep, bestBidMicros, bestAskMicros } from './l2-tape';
+import { RestingQuote, settleRestingOrder, placeRestingOrder } from './queue-fill';
 
 // LobReplayHarness — the queue-aware market-making backtest (course A.10). It is
 // the honest counterpart to MmBacktestRunner: where the bar runner fills on touch
@@ -44,14 +45,6 @@ import { L2TapeStep, cumulativeBidSizeToPrice, cumulativeAskSizeToPrice, bestBid
 // upper bound; the maker-rebate-CLOB verdict is the structural net at queueFills.
 
 const MICROS = 1_000_000n;
-
-function bigMax0(x: bigint): bigint {
-  return x > 0n ? x : 0n;
-}
-
-function bigMin(a: bigint, b: bigint): bigint {
-  return a < b ? a : b;
-}
 
 interface RestingOrder {
   side: FillSide;
@@ -141,8 +134,6 @@ export interface LobReplayMetrics {
 }
 
 export class LobReplayHarness {
-  private readonly queue = new SimpleQueueModel();
-
   run(cfg: LobReplayConfig): LobReplayMetrics {
     const symbol = cfg.symbol ?? cfg.quoter.familyId;
     const vol = new RollingVolatility(cfg.volWindowBars);
@@ -218,39 +209,36 @@ export class LobReplayHarness {
       prevMid = mid;
 
       // --- 1) settle orders resting since the previous step against THIS flow ---
+      // The single-side FIFO fill rule is the SHARED `settleRestingOrder` (queue-fill.ts),
+      // so the offline replay and the live engine (live/l2-live-fill-engine.ts) cannot
+      // drift. The harness keeps the fairMid wrapper; the mechanics live in one place.
+      const flow = {
+        aggressiveBuyUnits: step.aggressiveBuyUnits,
+        aggressiveSellUnits: step.aggressiveSellUnits,
+        tradedHighMicros: step.tradedHighMicros,
+        tradedLowMicros: step.tradedLowMicros,
+      };
       if (restingBid) {
-        const lvlAfter: OrderBookLevel = { priceMicros: restingBid.priceMicros, sizeUnits: cumulativeBidSizeToPrice(ob, restingBid.priceMicros), orderCount: 0 };
-        const aheadStart = restingBid.pos.aheadUnits;
-        const lowMicros = step.tradedLowMicros ?? bestBidMicros(ob) ?? restingBid.priceMicros + 1n;
-        const reached = restingBid.priceMicros >= lowMicros; // a sell traded down to/through our bid
-        const volToUs = reached ? bigMax0(step.aggressiveSellUnits - aheadStart) : 0n;
-        const fillQty = bigMin(volToUs, restingBid.sizeUnits);
-        if (reached) touchFills += 1;
-        if (fillQty > 0n) {
-          applyFill('BUY', restingBid.priceMicros, fillQty, restingBid.fairMidMicros, mid);
+        const fairMid = restingBid.fairMidMicros;
+        const out = settleRestingOrder(restingBid, ob, flow);
+        if (out.touched) touchFills += 1;
+        if (out.filledUnits > 0n) {
+          applyFill('BUY', restingBid.priceMicros, out.filledUnits, fairMid, mid);
           queueFills += 1;
           bidFills += 1;
         }
-        const pos2 = this.queue.decay(restingBid.pos, lvlAfter, step.aggressiveSellUnits, ob.ts);
-        const remaining = restingBid.sizeUnits - fillQty;
-        restingBid = remaining > 0n ? { ...restingBid, sizeUnits: remaining, pos: pos2 } : undefined;
+        restingBid = out.remaining ? { ...out.remaining, fairMidMicros: fairMid } : undefined;
       }
       if (restingAsk) {
-        const lvlAfter: OrderBookLevel = { priceMicros: restingAsk.priceMicros, sizeUnits: cumulativeAskSizeToPrice(ob, restingAsk.priceMicros), orderCount: 0 };
-        const aheadStart = restingAsk.pos.aheadUnits;
-        const highMicros = step.tradedHighMicros ?? bestAskMicros(ob) ?? restingAsk.priceMicros - 1n;
-        const reached = restingAsk.priceMicros <= highMicros; // a buy traded up to/through our ask
-        const volToUs = reached ? bigMax0(step.aggressiveBuyUnits - aheadStart) : 0n;
-        const fillQty = bigMin(volToUs, restingAsk.sizeUnits);
-        if (reached) touchFills += 1;
-        if (fillQty > 0n) {
-          applyFill('SELL', restingAsk.priceMicros, fillQty, restingAsk.fairMidMicros, mid);
+        const fairMid = restingAsk.fairMidMicros;
+        const out = settleRestingOrder(restingAsk, ob, flow);
+        if (out.touched) touchFills += 1;
+        if (out.filledUnits > 0n) {
+          applyFill('SELL', restingAsk.priceMicros, out.filledUnits, fairMid, mid);
           queueFills += 1;
           askFills += 1;
         }
-        const pos2 = this.queue.decay(restingAsk.pos, lvlAfter, step.aggressiveBuyUnits, ob.ts);
-        const remaining = restingAsk.sizeUnits - fillQty;
-        restingAsk = remaining > 0n ? { ...restingAsk, sizeUnits: remaining, pos: pos2 } : undefined;
+        restingAsk = out.remaining ? { ...out.remaining, fairMidMicros: fairMid } : undefined;
       }
 
       if (!vol.ready()) continue; // warmup: don't quote yet
@@ -338,7 +326,9 @@ export class LobReplayHarness {
     };
   }
 
-  /** Place or persist a resting order. Same price ⇒ keep queue progress; new price ⇒ rejoin at back. */
+  /** Place or persist a resting order. Same price ⇒ keep queue progress; new price ⇒ rejoin at back.
+   *  Delegates the post-only + queue-join mechanics to the SHARED `placeRestingOrder` (queue-fill.ts)
+   *  so the harness and the live engine place identically; the harness just adds the fairMid stamp. */
   private place(
     current: RestingOrder | undefined,
     side: FillSide,
@@ -348,25 +338,11 @@ export class LobReplayHarness {
     mid: bigint,
     onNewPlacement: (aheadUnits: bigint) => void,
   ): RestingOrder | undefined {
-    // Post-only: a maker quote that would cross the opposite best is rejected.
-    if (side === 'BUY') {
-      const ba = bestAskMicros(ob);
-      if (ba !== undefined && priceMicros >= ba) return undefined;
-    } else {
-      const bb = bestBidMicros(ob);
-      if (bb !== undefined && priceMicros <= bb) return undefined;
-    }
-    if (current && current.priceMicros === priceMicros) {
-      // Hold our price: retain queue position + remaining size, refresh fair mid.
-      return { ...current, fairMidMicros: mid };
-    }
-    // New price level: join the back of the queue. Price-time priority ⇒ everything
-    // resting at OUR price and better is ahead of us (cumulative, not just our level).
-    const aheadThere = side === 'BUY' ? cumulativeBidSizeToPrice(ob, priceMicros) : cumulativeAskSizeToPrice(ob, priceMicros);
-    const level: OrderBookLevel = { priceMicros, sizeUnits: aheadThere, orderCount: 0 };
-    const pos = this.queue.enqueue(level, sizeUnits, ob.ts);
-    onNewPlacement(pos.aheadUnits);
-    return { side, priceMicros, sizeUnits, pos, fairMidMicros: mid };
+    const res = placeRestingOrder(current as RestingQuote | undefined, side, priceMicros, sizeUnits, ob);
+    if (!res.order) return undefined; // post-only rejected
+    if (res.aheadUnitsAtPlacement !== undefined) onNewPlacement(res.aheadUnitsAtPlacement);
+    // Same price held ⇒ keep queue progress, refresh fair mid; new price ⇒ fresh order + fair mid.
+    return { ...res.order, fairMidMicros: mid };
   }
 }
 
