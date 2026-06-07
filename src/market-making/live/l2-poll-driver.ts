@@ -53,7 +53,12 @@ export const REAL_POLL_SCHEDULER: PollScheduler = {
 
 export interface L2PollDriverConfig {
   source: IL2BookSource;
-  symbols: string[];
+  /**
+   * Symbols to poll: a fixed list, or a provider resolved fresh each cycle so the
+   * driver tracks books launched/removed at runtime (the live desk's books are
+   * dynamic). The provider form is what the portfolio trader passes.
+   */
+  symbols: string[] | (() => string[]);
   /** Poll cadence in ms (sub-second — ~250–1000ms). The §6b fast-requote lever. */
   pollIntervalMs: number;
   /** Where each fresh snapshot + flow is delivered (the live engine's onSnapshot). */
@@ -106,9 +111,10 @@ export class L2PollDriver {
     if (this.polling) return;
     this.polling = true;
     this.lastPollAtMs = this.scheduler.now();
+    const symbols = typeof this.cfg.symbols === 'function' ? this.cfg.symbols() : this.cfg.symbols;
     try {
       await Promise.all(
-        this.cfg.symbols.map(async (symbol) => {
+        symbols.map(async (symbol) => {
           const snap = await this.cfg.source.l2Snapshot(symbol).catch(() => undefined);
           if (!snap) {
             this.failedPolls += 1;

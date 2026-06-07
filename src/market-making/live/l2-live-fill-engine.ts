@@ -298,8 +298,18 @@ export class L2LiveFillEngine {
     };
   }
 
-  /** The live inventory book (read-only access for the live MmBook integration). */
+  /** The live inventory book (shared by reference with the MmBook — one source of truth). */
   inventory(): InventoryBook {
     return this.book;
+  }
+
+  /** Mid at the most recent snapshot (price-micros), or undefined before the first tick. */
+  lastMid(): bigint | undefined {
+    return this.lastMidMicros;
+  }
+
+  /** True once σ is warmed and the engine is quoting (the fast-path "warm" signal). */
+  isQuoting(): boolean {
+    return this.quotingSteps > 0;
   }
 }

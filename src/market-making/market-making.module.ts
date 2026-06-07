@@ -11,8 +11,10 @@ import {
   buildReferenceSources,
 } from '../market-data/reference/reference-bar-loader';
 import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
-import { IL2BookSource } from '../market-data/reference/reference-source.interface';
+import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
+import { L2LiveFillEngine } from './live/l2-live-fill-engine';
+import { L2PollDriver } from './live/l2-poll-driver';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -191,6 +193,28 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             params: spec.params,
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
+          // C2 fast path: an L2 book on a streamed HL symbol gets a queue-aware engine
+          // (the trader drives it via the poll driver, NOT the bar tick). Same quoter +
+          // risk gate + sizing as the bar book; the engine owns the InventoryBook the
+          // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
+          const useFast = mm.fastRequoteEnabled && srcId === 'hyperliquid' && mm.fastSymbols.includes(spec.symbol.toUpperCase());
+          const fastEngine = useFast
+            ? new L2LiveFillEngine({
+                symbol: spec.symbol,
+                quoter,
+                quoteSizeUnits,
+                gamma: spec.params?.['gamma'] ?? mm.gamma,
+                kappa: spec.params?.['kappa'] ?? mm.kappa,
+                horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,
+                volWindowBars: mm.volWindowBars,
+                volFloor: mm.volFloor,
+                makerFeeBps: venueFeeFor(srcId).makerBps,
+                capitalUnits: mm.capitalUnits,
+                microDepth: mm.microPriceDepth,
+                cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
+                riskGate: makeRiskGate(quoteSizeUnits),
+              })
+            : undefined;
           return new MmBook({
             symbol: spec.symbol,
             strategyId,
@@ -210,6 +234,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
+            fastEngine,
             riskGate: makeRiskGate(quoteSizeUnits),
             events: deskEvents,
           });
@@ -256,7 +281,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const store: IMmStateStore = mm.persist && db ? new PostgresMmStateStore(new MmStateRepository(db)) : new NullMmStateStore();
         if (mm.persist && !db) new Logger('MarketMakingModule').warn('MM_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
 
-        return new MmPortfolioTrader(
+        const trader = new MmPortfolioTrader(
           makeBook,
           mm.pollIntervalMs,
           mm.capitalUnits,
@@ -264,6 +289,29 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           tele,
           deskEvents,
         );
+
+        // C2 fast path: build the sub-second L2 poll driver + the real HL trades-WS
+        // aggressor flow, and hand it to the trader (start/stop with the loop). The
+        // driver resolves its symbols from the trader each cycle (dynamic books), and
+        // routes each snapshot+flow back to the matching book's onL2Snapshot. Off ⇒
+        // no driver, no WS, no behaviour change (today's bar loop).
+        if (mm.fastRequoteEnabled) {
+          const hl = refRegistry.get('hyperliquid') as Partial<IL2BookSource & ITradeStreamSource> | undefined;
+          if (hl && typeof hl.l2Snapshot === 'function') {
+            const tradeStream = typeof hl.openTradeStream === 'function' ? hl.openTradeStream(mm.fastSymbols) : undefined;
+            const driver = new L2PollDriver({
+              source: hl as IL2BookSource,
+              symbols: () => trader.fastPathSymbols(),
+              pollIntervalMs: mm.fastRequoteMs,
+              sink: (symbol, t) => trader.routeL2Snapshot(symbol, t),
+              tradeStream,
+            });
+            trader.setFastDriver(driver);
+          } else {
+            new Logger('MarketMakingModule').warn('MM_FAST_REQUOTE_ENABLED=true but no L2 source — fast path inactive');
+          }
+        }
+        return trader;
       },
     },
     // Live business-event tape (fills enter/exit, verdict changes, lifecycle). A

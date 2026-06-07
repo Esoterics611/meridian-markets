@@ -74,6 +74,8 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   private readonly specs = new Map<string, MmBookSpec>();
   private capitalUnits: bigint;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** The fast-path L2 poll driver (C2), wired post-construction via setFastDriver. */
+  private fastDriver: { start(): void; stop(): void } | null = null;
   private ticking = false;
   /** Epoch ms of the last completed tick (readiness probe); null until first tick. */
   private lastTickAtMs: number | null = null;
@@ -188,6 +190,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     if (this.timer || this.books.size === 0) return;
     for (const b of this.books.values()) b.setRunning(true);
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
+    this.fastDriver?.start(); // the sub-second L2 poll loop for fast-path books (C2)
     this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'start', message: `desk loop started — ${this.books.size} book(s) quoting every ${this.pollIntervalMs}ms` }));
   }
 
@@ -197,12 +200,39 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       clearInterval(this.timer);
       this.timer = null;
     }
+    this.fastDriver?.stop();
     for (const b of this.books.values()) b.setRunning(false);
     if (wasRunning) this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'stop', message: 'desk loop stopped' }));
   }
 
   isRunning(): boolean {
     return this.timer !== null;
+  }
+
+  /** Wire the fast-path L2 poll driver (C2). The module builds it after the trader (the
+   *  driver's sink routes back here), then hands it over; start()/stop() drive it. */
+  setFastDriver(driver: { start(): void; stop(): void } | null): void {
+    this.fastDriver = driver;
+  }
+
+  /** Symbols of the live fast-path books — the driver polls these (resolved each cycle
+   *  so books launched/removed at runtime are tracked). */
+  fastPathSymbols(): string[] {
+    const out: string[] = [];
+    for (const [key, b] of this.books) if (b.isFastPath()) out.push(this.specs.get(key)?.symbol ?? key);
+    return out;
+  }
+
+  /** The poll driver's sink: route one symbol's L2 snapshot to its book. Best-effort —
+   *  one book's error never sinks the loop (mirrors the bar tick's per-book guard). */
+  routeL2Snapshot(symbol: string, tick: import('./l2-fill-engine-types').LiveTick): void {
+    const book = this.books.get(symbol);
+    if (!book) return;
+    try {
+      book.onL2Snapshot(tick);
+    } catch (e) {
+      this.logger.error(`mm fast-path error for ${symbol}: ${(e as Error).message}`);
+    }
   }
 
   /**
@@ -237,7 +267,11 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     const startMs = Date.now();
     try {
       await Promise.all(
-        [...this.books.values()].map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
+        // Coexistence rule: fast-path (L2) books are driven by the poll driver via
+        // routeL2Snapshot(), NOT the bar timer — never tick a book on both paths.
+        [...this.books.values()]
+          .filter((b) => !b.isFastPath())
+          .map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
       );
       await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
     } finally {

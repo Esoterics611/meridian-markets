@@ -172,6 +172,36 @@ describe('MmBook', () => {
     });
   });
 
+  describe('fast L2 path coexistence (C2)', () => {
+    it('a fast-path book IGNORES the bar tick (no double-counting) and reports isFastPath', async () => {
+      const { L2LiveFillEngine } = await import('./l2-live-fill-engine');
+      const eng = new L2LiveFillEngine({
+        symbol: 'BTC',
+        quoter: new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: 1_000_000n }),
+        quoteSizeUnits: 1_000_000n,
+        gamma: 0.0025,
+        kappa: 2,
+        horizonBars: 1,
+        volWindowBars: 2,
+        volFloor: 0.0001,
+        makerFeeBps: -0.2,
+        capitalUnits: 1_000_000_000n,
+        microDepth: 5,
+        cancelReplaceLatencyMs: 100,
+      });
+      const book = new MmBook({ ...cfg([bar(0, 1, 1, 1), bar(1, 1, 1, 1)]), symbol: 'BTC', fastEngine: eng });
+      book.setRunning(true);
+      expect(book.isFastPath()).toBe(true);
+      // bars are queued, but the fast path must never consume them (the trader skips
+      // fast-path books in the bar loop; tick() is also a self-guarded no-op).
+      await book.tick();
+      await book.tick();
+      const snap = book.snapshot();
+      expect(snap.barsSeen).toBe(0); // no bar consumed; snapshot reads the engine (0 L2 snapshots)
+      expect(snap.fundingUnits).toBe('0');
+    });
+  });
+
   describe('directional bias (the axe) — ctx.bias from the bias source', () => {
     const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
 

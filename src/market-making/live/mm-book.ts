@@ -8,6 +8,8 @@ import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
+import { L2LiveFillEngine } from './l2-live-fill-engine';
+import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
 
@@ -74,6 +76,15 @@ export interface MmBookConfig {
    * (neutral; every non-directional quoter ignores ctx.bias anyway).
    */
   biasSource?: IBiasSource;
+  /**
+   * Optional fast L2 fill engine (C2 — CADENCE_LIVE_LOOP_PLAN.md). When present this
+   * book is on the FAST path: it is driven by L2 snapshots via onL2Snapshot() (the
+   * poll driver), NOT by the bar tick (the trader skips it — the coexistence rule, so
+   * a book is never on both paths). The book shares the engine's InventoryBook, and
+   * snapshot() reads the engine's metrics. Wired only for L2-capable (HL) venues when
+   * MM_FAST_REQUOTE_ENABLED.
+   */
+  fastEngine?: L2LiveFillEngine;
   /** Optional σ warmup: recent closes so the book quotes on its first live bar. */
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
@@ -145,7 +156,9 @@ export interface MmBookSnapshot {
 export class MmBook {
   private readonly logger = new Logger(MmBook.name);
   private readonly vol: RollingVolatility;
-  private readonly book = new InventoryBook();
+  // On the fast L2 path the book is SHARED with the fill engine (one source of truth —
+  // the engine fills into it, snapshot() reads it). On the bar path it's our own.
+  private readonly book: InventoryBook;
   private readonly now: () => Date;
   private readonly events: IDeskEventSink;
 
@@ -156,6 +169,9 @@ export class MmBook {
   private fills = 0;
   private bidFills = 0;
   private askFills = 0;
+  // Fast-path fill-count cursors (for emitting one DeskEvent per new engine fill).
+  private _fastBidFills = 0;
+  private _fastAskFills = 0;
   private blockedQuotes = 0;
   private spreadCaptured = 0n;
   private adverse = 0n;
@@ -173,6 +189,7 @@ export class MmBook {
 
   constructor(private cfg: MmBookConfig) {
     this.vol = new RollingVolatility(cfg.volWindowBars);
+    this.book = cfg.fastEngine ? cfg.fastEngine.inventory() : new InventoryBook();
     this.now = cfg.now ?? (() => new Date());
     this.events = cfg.events ?? NULL_DESK_EVENT_SINK;
     this.peakEquity = cfg.capitalUnits;
@@ -263,14 +280,62 @@ export class MmBook {
         this.vol.push(c);
         this.seededBars += 1;
       }
+      // On the fast path the engine owns the σ window it quotes off — seed it too.
+      if (this.cfg.fastEngine) this.cfg.fastEngine.warmup(closes);
       this.warmedUp = true;
     } catch (e) {
       this.logger.warn(`warmup failed for ${this.cfg.symbol}: ${(e as Error).message}`);
     }
   }
 
+  /** True when this book is on the fast L2 path (driven by onL2Snapshot, not the bar tick). */
+  isFastPath(): boolean {
+    return !!this.cfg.fastEngine;
+  }
+
+  /**
+   * Fast-path drive (C2): feed one live L2 snapshot to the engine and surface the new
+   * resting quote + fills. Fills land in the SHARED InventoryBook; a fill-count delta
+   * emits the same fill DeskEvent the bar path emits, so the Activity tape + NAV show
+   * fast-path trades identically. No-op when this book is not on the fast path.
+   */
+  onL2Snapshot(tick: LiveTick): void {
+    const eng = this.cfg.fastEngine;
+    if (!eng || !this.running) return;
+    const beforeBid = this._fastBidFills;
+    const beforeAsk = this._fastAskFills;
+    const quote = eng.onSnapshot(tick);
+    if (quote) this.lastQuote = quote;
+    const m = eng.metrics();
+    this._fastBidFills = m.bidFills;
+    this._fastAskFills = m.askFills;
+    // Emit a fill event per new fill (side from the count delta, price from the resting
+    // quote on that side). The realised P&L is read from the shared book.
+    const mid = eng.lastMid() ?? MICROS;
+    for (let i = beforeBid; i < m.bidFills && quote; i++) this.emitFastFill('BUY', quote.bid.priceMicros, mid);
+    for (let i = beforeAsk; i < m.askFills && quote; i++) this.emitFastFill('SELL', quote.ask.priceMicros, mid);
+  }
+
+  private emitFastFill(side: 'BUY' | 'SELL', priceMicros: bigint, _mid: bigint): void {
+    this.events.emit(
+      fillEvent({
+        ts: this.now().getTime(),
+        book: this.cfg.symbol,
+        source: this.cfg.source ?? '',
+        side,
+        action: classifyFill(0n, this.book.inventoryUnits()),
+        sizeUnits: this.cfg.quoteSizeUnits,
+        priceMicros,
+        inventoryUnits: this.book.inventoryUnits(),
+        realisedDeltaUnits: 0n,
+        feeUnits: 0n,
+      }),
+    );
+  }
+
   /** One iteration: pull the latest closed bar and act on it. No-op if none new. */
   async tick(): Promise<void> {
+    if (this.cfg.fastEngine) return; // fast-path books are driven by onL2Snapshot, never the bar tick
     const bar = await this.cfg.nextBar(this.cfg.symbol);
     if (!bar) return;
     this.barsSeen += 1;
@@ -425,6 +490,7 @@ export class MmBook {
   }
 
   snapshot(): MmBookSnapshot {
+    if (this.cfg.fastEngine) return this.fastSnapshot(this.cfg.fastEngine);
     const midMicros = this.lastBar ? toMicros(this.lastBar.close) : MICROS;
     const q = this.lastQuote;
     return {
@@ -458,6 +524,47 @@ export class MmBook {
       blockedQuotes: this.blockedQuotes,
       lastVerdict: this.lastVerdict,
       maxDrawdownPct: this.maxDrawdownPct,
+    };
+  }
+
+  /** The snapshot for a fast-path book — read from the engine (the single source of
+   *  truth for that book's queue-aware P&L). No funding line (the fast path doesn't
+   *  accrue it); attribution is the engine's markout-based spread/adverse/fees. */
+  private fastSnapshot(eng: L2LiveFillEngine): MmBookSnapshot {
+    const m = eng.metrics();
+    const mid = eng.lastMid() ?? MICROS;
+    const q = this.lastQuote;
+    return {
+      symbol: this.cfg.symbol,
+      strategyId: this.cfg.strategyId,
+      source: this.cfg.source ?? '',
+      family: this.cfg.quoter.familyId,
+      running: this.running,
+      warm: eng.isQuoting(),
+      barsSeen: m.snapshots,
+      seededBars: this.seededBars,
+      lastBarAt: null,
+      midMicros: mid.toString(),
+      bidMicros: q ? q.bid.priceMicros.toString() : null,
+      askMicros: q ? q.ask.priceMicros.toString() : null,
+      reservationMicros: q ? q.reservationMicros.toString() : null,
+      halfSpreadMicros: q ? q.halfSpreadMicros.toString() : null,
+      inventoryUnits: m.finalInventoryUnits.toString(),
+      capitalUnits: this.cfg.capitalUnits.toString(),
+      equityUnits: (this.cfg.capitalUnits + m.netPnlUnits).toString(),
+      realisedPnlUnits: m.realisedPnlUnits.toString(),
+      unrealisedPnlUnits: m.unrealisedPnlUnits.toString(),
+      feesUnits: m.feesUnits.toString(),
+      fundingUnits: '0',
+      netPnlUnits: m.netPnlUnits.toString(),
+      spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
+      adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
+      fills: m.queueFills,
+      bidFills: m.bidFills,
+      askFills: m.askFills,
+      blockedQuotes: this.blockedQuotes,
+      lastVerdict: this.lastVerdict,
+      maxDrawdownPct: m.maxDrawdownPct,
     };
   }
 }

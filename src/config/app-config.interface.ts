@@ -207,6 +207,23 @@ export interface AppConfig {
      * disables it everywhere (legacy mid-center). Default 5.
      */
     microPriceDepth: number;
+    /**
+     * Fast-requote path (C2 — CADENCE_LIVE_LOOP_PLAN.md): the master switch for the
+     * queue-aware, sub-second L2 fill path. Off ⇒ today's bar loop (nothing changes);
+     * on ⇒ L2-capable (Hyperliquid) books are driven by the L2 poll driver + the
+     * L2LiveFillEngine instead of the 15s bar tick. Default OFF.
+     */
+    fastRequoteEnabled: boolean;
+    /** Fast-path poll cadence (ms, sub-second 250–1000). Default 750. */
+    fastRequoteMs: number;
+    /** Cancel/replace round-trip the fast engine charges (the §6b honesty rail, 50–250ms). Default 100. */
+    cancelReplaceLatencyMs: number;
+    /**
+     * The HL symbol universe the fast path covers: only these get an L2 engine + the
+     * real trades-WS aggressor flow (a book outside this set stays on the bar path).
+     * A fixed set so the trade-stream WS can be opened once at boot. Default BTC/ETH/SOL.
+     */
+    fastSymbols: string[];
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
