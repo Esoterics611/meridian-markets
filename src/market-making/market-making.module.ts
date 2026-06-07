@@ -11,6 +11,8 @@ import {
   buildReferenceSources,
 } from '../market-data/reference/reference-bar-loader';
 import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
+import { IL2BookSource } from '../market-data/reference/reference-source.interface';
+import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
@@ -134,6 +136,25 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               : undefined;
           return { nextBar: instrumentedNextBar(srcId, feed), warmupCloses };
         };
+
+        // F1 live quote center: for an L2-capable venue (HL), a fast fair-value source
+        // that fetches the depth snapshot and returns the micro-price; the quoter then
+        // centers on it instead of the stale bar mid (the biggest adverse-selection
+        // cut — FAIR_VALUE_AND_THESIS_DESIGN.md §Layer A). Other venues / depth=0 ⇒
+        // undefined (the book keeps the mid; nothing regresses).
+        const resolveReferenceMicros = (srcId: string): ((s: string) => Promise<bigint | null>) | undefined => {
+          if (mm.microPriceDepth <= 0) return undefined;
+          const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
+          const l2 = refSource as Partial<IL2BookSource> | undefined;
+          if (!l2 || typeof l2.l2Snapshot !== 'function') return undefined;
+          return async (s: string): Promise<bigint | null> => {
+            try {
+              return microPriceMicrosFromL2(await l2.l2Snapshot!(s), mm.microPriceDepth);
+            } catch {
+              return null;
+            }
+          };
+        };
         const makeRiskGate = (quoteSizeUnits: bigint): CompositeRiskGate =>
           new CompositeRiskGate({
             maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
@@ -188,6 +209,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             capitalUnits: mm.capitalUnits,
             nextBar,
             warmupCloses,
+            referenceMicros: resolveReferenceMicros(srcId),
             riskGate: makeRiskGate(quoteSizeUnits),
             events: deskEvents,
           });
@@ -222,6 +244,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             capitalUnits: rec.capitalUnits,
             nextBar,
             warmupCloses,
+            referenceMicros: resolveReferenceMicros(srcId),
             riskGate: makeRiskGate(rec.quoteSizeUnits),
             events: deskEvents,
           });

@@ -56,6 +56,15 @@ export interface MmBookConfig {
   capitalUnits: bigint;
   /** Latest-closed-bar source (one bar per call, null when none new). */
   nextBar: (symbol: string) => Promise<Bar | null>;
+  /**
+   * Optional fast fair-value source (price-micros) for the quote CENTER — the live
+   * F1 micro-price lever (FAIR_VALUE_AND_THESIS_DESIGN.md §Layer A). When set, each
+   * tick passes it as `QuoteContext.referenceMicros` so the quoter centers on the
+   * book-imbalance micro-price instead of the stale bar mid (spread width stays off
+   * the mid — only the center moves), cutting adverse selection. null ⇒ fall back to
+   * the bar mid (legacy). Wired for L2-capable venues (HL); omit for the rest.
+   */
+  referenceMicros?: (symbol: string) => Promise<bigint | null>;
   /** Optional σ warmup: recent closes so the book quotes on its first live bar. */
   warmupCloses?: (symbol: string) => Promise<number[]>;
   riskGate?: RiskGate;
@@ -287,9 +296,19 @@ export class MmBook {
     if (!this.vol.ready()) return; // warming
 
     const inventoryBefore = this.book.inventoryUnits();
+    // F1 live: center the quote on the order-book micro-price when a fast fair-value
+    // source is wired (HL L2), else on the bar mid (legacy). Best-effort — a failed
+    // L2 fetch falls back to the mid, never skips the tick. Only the CENTER moves;
+    // the spread width + rails stay scaled off midMicros inside the quoter.
+    let referenceMicros: bigint | undefined;
+    if (this.cfg.referenceMicros) {
+      const ref = await this.cfg.referenceMicros(this.cfg.symbol).catch(() => null);
+      if (ref !== null && ref > 0n) referenceMicros = ref;
+    }
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros,
+      referenceMicros,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,

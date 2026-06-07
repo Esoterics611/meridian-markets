@@ -1,8 +1,22 @@
 import { MmBook, MmBookConfig } from './mm-book';
 import { Bar } from '../../stat-arb/backtest/bar';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
+import { IQuoter } from '../quote/quoter.interface';
+import { QuoteContext, QuotePair } from '../quote/quote-pair';
 import { IDeskEventSink } from '../events/desk-event-sink';
 import { DeskEventInput } from '../events/desk-event';
+
+// Records the QuoteContext it was handed (delegates the actual quote to a symmetric
+// quoter so the return value is valid) — lets us assert what MmBook puts in the ctx.
+class CapturingQuoter implements IQuoter {
+  readonly familyId = 'capture';
+  lastCtx?: QuoteContext;
+  private readonly inner = new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: 1_000_000n });
+  quote(ctx: QuoteContext, symbol: string): QuotePair {
+    this.lastCtx = ctx;
+    return this.inner.quote(ctx, symbol);
+  }
+}
 
 class CapturingSink implements IDeskEventSink {
   readonly events: DeskEventInput[] = [];
@@ -127,5 +141,34 @@ describe('MmBook', () => {
     const book = new MmBook(cfg([]));
     await book.tick();
     expect(book.snapshot().barsSeen).toBe(0);
+  });
+
+  describe('F1 micro-price quote center', () => {
+    const flatBars = [bar(0, 1.0, 1.0, 1.0), bar(1, 1.0, 1.0, 1.0), bar(2, 1.0, 1.0, 1.0), bar(3, 1.0, 1.0, 1.0)];
+
+    it('passes the reference micro-price into the quote context as the center (F1 live)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q, referenceMicros: async () => 1_002_000n });
+      await tickAll(book, 4);
+      // mid is 1.0 (1_000_000) but the L2 micro-price is 1.002 — the book hands the
+      // quoter the micro-price as the center, the mid only for spread width.
+      expect(q.lastCtx?.referenceMicros).toBe(1_002_000n);
+      expect(q.lastCtx?.midMicros).toBe(1_000_000n);
+    });
+
+    it('falls back to the bar mid (no referenceMicros) when no fair-value source is wired', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.referenceMicros).toBeUndefined();
+    });
+
+    it('falls back to the mid when the L2 fetch fails or returns null (best-effort, never skips the tick)', async () => {
+      const q = new CapturingQuoter();
+      const book = new MmBook({ ...cfg(flatBars), quoter: q, referenceMicros: async () => null });
+      await tickAll(book, 4);
+      expect(q.lastCtx?.referenceMicros).toBeUndefined();
+      expect(book.snapshot().barsSeen).toBe(4); // ticks still ran
+    });
   });
 });

@@ -199,6 +199,14 @@ export interface AppConfig {
      * hourly, so a sub-hour cadence keeps it fresh; 0 disables the refresh. Default 10m.
      */
     fundingRefreshMs: number;
+    /**
+     * Micro-price quote-center depth (F1 live): levels per side of the L2 book to
+     * size-weight into the fair value the quoter centers on (instead of the stale bar
+     * mid) — the biggest adverse-selection cut (FAIR_VALUE_AND_THESIS_DESIGN.md). Only
+     * takes effect on L2-capable venues (Hyperliquid); other books keep the mid. 0
+     * disables it everywhere (legacy mid-center). Default 5.
+     */
+    microPriceDepth: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
