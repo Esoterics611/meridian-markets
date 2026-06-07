@@ -717,3 +717,52 @@ Shared widgets in `src/ui/render/components.ts` + `src/ui/public/*.js`: `topBar`
 
 ### Verification
 - `npx tsc -p tsconfig.build.json --noEmit` clean; **168 suites / 1116 tests** (was 149/993 at the start of the redesign — +19 suites / +123 tests, all in `src/ui/`). Zero regressions; each page committed on master with a `Co-Authored-By` trailer. `start:dev` exits 144 in the sandbox ⇒ all live runs handed to the operator (steps in [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10).
+
+---
+
+## 21. UI rebuild — the deferred-panel pass (2026-06-07)
+
+Continued the role-scoped UI rebuild (§20) by working the **buildable** deferred
+panels from [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §9 — the ones with an existing
+serving endpoint, so nothing is faked. Four commits on master, each tsc-clean +
+spec'd (render → assert HTML, plus the offline DI-compile test):
+
+### Shipped (each its own commit on master)
+1. **`/` role launcher** — the missing entry point. A static role-card index
+   (`LandingController` in `UiModule` + `renderLandingPage`/`LAUNCHER_ENTRIES`)
+   replaces the old `AppController` root→`/demo` redirect (deleted). Live cards link;
+   the unbuilt `/pm` renders as a disabled "soon" card (honest nav). The top-bar brand
+   now links back to `/`.
+2. **`<nav-spark>` equity sparkline** — a shared Web Component that self-fetches
+   `GET /api/market-making/nav` (durable NAV, Telemetry P3) and draws the equity curve
+   as an inline SVG. On `/exec` + `/desk/mm` (desk-aggregate), placed **outside** the
+   SSE region so a tick can't recreate it. **Honest:** when `MM_PERSIST` is off the
+   endpoint says `enabled:false` and the component shows that, not a fake flat line.
+3. **`/ops` telemetry/runtime panel** — process memory (RSS, heap) + the live loop
+   counters (mm ticks + mean tick duration, overruns, event-loop lag, persist ok/err)
+   read straight from the `PrometheusRegistry` (the metrics ledger). Injected
+   `@Optional` (TelemetryModule is `@Global`) so the offline DI test still resolves.
+   **Honest:** telemetry OFF ⇒ the panel shows OFF + the enable hint and still shows
+   memory (a process stat), but does **not** print 0-counters as if measured.
+4. **Append-mode `<activity-tape>`** — a cursor-based Web Component that polls
+   `…/events?since=<cursor>` and **prepends only new events**, preserving the
+   operator's scroll into history (the old full-replace tape reset scroll every 2s).
+   On `/desk/mm` + `/desk/statarb`: the tape moved **out** of the SSE live region onto
+   the static page; the streams now carry only summary + cards; controllers supply
+   `cursor = DeskEventLog.lastSeq()`. `/risk`'s short verdict feed kept the in-stream
+   full-replace `activityTape()`.
+
+### Deferred (endpoint-blocked, not page-blocked) — the only thing between here and `/demo` retirement
+- **`/pm`** Thesis Register (no thesis endpoints), a **live funding board / MM screener**
+  (no serving endpoint — funding has none), a real **per-book pause/deny + limit** risk
+  lever (engine work), a **mode-aware/live blotter**, and **per-book-in-card sparklines**
+  (the cards live in the SSE region — needs the persistent/append placement pattern).
+- **`/demo` is ready to retire pending a deliberate call** — it's a large, working,
+  pre-existing console, so it was left in place (both run side by side, no behaviour
+  change). Not deleted unilaterally.
+
+### Verification
+- `npx tsc --noEmit -p tsconfig.json` clean (full project, incl. specs); **169 suites /
+  1128 tests** (was 168/1116 at §20 — +1 suite / +12 tests, all in `src/ui/`). Zero
+  regressions. `start:dev` exits 144 in the sandbox ⇒ live runs handed to the operator
+  (same steps, [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10; now also `/` for the launcher).

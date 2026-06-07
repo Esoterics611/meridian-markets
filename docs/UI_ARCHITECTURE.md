@@ -1,6 +1,6 @@
 # UI Architecture — role-scoped, server-rendered desk
 
-> **Status:** decided + six slices shipped (2026-06-06…07): **`/exec`** (read-only),
+> **Status:** decided + six role pages shipped (2026-06-06…07): **`/exec`** (read-only),
 > **`/ops`** (first action page), **`/desk/mm`** and **`/desk/statarb`** (the two rich
 > desk consoles), **`/risk`** (drawdown/exposure/verdicts + cross-desk kill switch), and
 > **`/research`** (static findings/KEEP-CUT board + the copy-the-runbook-command helper,
@@ -9,6 +9,15 @@
 > inventory, the SSE feed list, the action⇄API map, and the module layout — plus the
 > vertical slices that prove the stack (read path, write path, forms + tape + blotter)
 > end-to-end, and the **migration plan** to retire the 100KB `/demo` `index.html`.
+>
+> **Deferred-panel pass shipped (2026-06-07):** the **`/` launcher** (role index, replaces
+> the old root→/demo redirect); the **`<nav-spark>`** durable-NAV equity sparkline on
+> `/exec` + `/desk/mm`; the **`/ops` telemetry/runtime panel** (process memory + live loop
+> counters read from the Prometheus registry); and the **append-mode `<activity-tape>`**
+> (cursor-based, scroll-preserving) on `/desk/mm` + `/desk/statarb`. What's left before
+> `/demo` can retire is **endpoint-blocked, not page-blocked**: `/pm` (no thesis endpoints),
+> a live funding board / MM screener (no serving endpoint), a real per-book pause/deny +
+> limit risk lever (engine work), a mode-aware/live blotter, and per-book-in-card sparklines.
 
 This document is the contract for the redesign. Read it before adding a role page.
 
@@ -93,7 +102,7 @@ call (see §6); read-only pages drive nothing.
 | `/risk` | Risk | `MmPortfolioTrader.snapshot()` + MM `DeskEventLog` (drawdown vs budget, exposure, adverse-selection toxicity, verdict transitions) | stop/flatten (per desk) + remove (per book); cross-desk kill switch | **shipped** (pause/deny + limits still an endpoint gap — §6) |
 | `/research` | Quant | curated findings (from `docs/RESEARCH_FINDINGS.md` + CLAUDE.md §8) + doc links — static | **no exec** — copy-the-runbook-command helper (`<copy-cmd>`) | **shipped** (live funding board / screener deferred — no endpoint) |
 | `/pm` | PM / house view | Thesis Register *(not built — §6)* | add/edit/close a thesis | future |
-| `/` | launcher | static | — | planned |
+| `/` | launcher | static (role index) | — (read-only) | **shipped** |
 
 A shared **top bar** (brand, role launcher, clock) is on every page; the live numbers
 live in each page's SSE-refreshed region. A shared **Activity tape** component
@@ -112,8 +121,10 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | `<desk-action>` | Web Component | `src/ui/public/desk-action.js` | **shipped** | the write path on ops/desk/risk/pm |
 | `<desk-form>` | Web Component | `src/ui/public/desk-form.js` | **shipped** | any input form (launch book, launch pair, add thesis) |
 | `<copy-cmd>` | Web Component | `src/ui/public/copy-cmd.js` | **shipped** | the runbook copy helper (research; any "copy a command" surface) |
-| desk controls + Activity tape | server partials | `src/ui/render/components.ts` (`deskControls`, `statArbControls`, `activityTape`) | **shipped** | ops, desk/mm, desk/statarb (+ risk next) |
-| `<nav-spark>` (equity sparkline) | Web Component | _planned_ | — | exec/ops/desk |
+| desk controls + tapes + nav panel | server partials | `src/ui/render/components.ts` (`deskControls`, `statArbControls`, `activityTape`, `appendActivityTape`, `navSparkPanel`) | **shipped** | ops, desk/mm, desk/statarb, risk, exec |
+| top bar brand link + role launcher | server partial | `src/ui/render/landing-view.ts` (`renderLandingPage`, `LAUNCHER_ENTRIES`) | **shipped** | `/` (the role index) |
+| `<nav-spark>` (equity sparkline) | Web Component | `src/ui/public/nav-spark.js` | **shipped** | exec + desk/mm (desk-aggregate; self-fetches `/nav`) |
+| `<activity-tape>` (append-mode feed) | Web Component | `src/ui/public/activity-tape.js` | **shipped** | desk/mm + desk/statarb (cursor-poll `…/events?since=`) |
 
 **`<desk-feed src target>`** is the one live-update (read) primitive: it opens an SSE
 connection to `src` and swaps each pushed HTML fragment into `#target`. The server
@@ -144,11 +155,11 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 |---|---|---|---|
 | `GET /exec/stream` | the `/exec` live region (NAV, P&L, drawdown, per-book table) | 2s | **shipped** |
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
-| `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards + Activity tape | 2s | **shipped** |
-| `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards + Activity tape (blotter is page-load only) | 2s | **shipped** |
-| `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed | 2s | **shipped** |
+| `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards (tape is the static append component now) | 2s | **shipped** |
+| `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards (tape append-mode; blotter is page-load only) | 2s | **shipped** |
+| `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed (full-replace tape) | 2s | **shipped** |
 | _(none — `/research` is static)_ | `/research` is research artifacts + terminal commands, not live state — no stream by design | — | n/a |
-| `GET /<page>/events/stream` | a dedicated, append-mode Activity tape (cursor-based) | on event | planned (tape ships today inside the desk streams, full-replace) |
+| _(REST poll, not SSE)_ `<activity-tape>` → `GET …/events?since=<cursor>` | the append-mode Activity tape: prepends only new events, preserving scroll | 2s poll | **shipped** (desk/mm + desk/statarb; /risk still uses the in-stream full-replace verdict feed) |
 
 Frame shape (all feeds): `data: {"html":"<fragment>"}`. The HTML is sent **inside a
 JSON object on purpose** — `JSON.stringify` escapes newlines, so a multi-line
@@ -212,6 +223,7 @@ the exported `MmPortfolioTrader` — read the ledger, don't duplicate it).
 ```
 src/ui/
   ui.module.ts                 UiModule — imports MarketMakingModule; declares the controllers
+  landing.controller.ts        GET / (static role launcher; replaced the root→/demo redirect)
   exec.controller.ts           GET /exec (page) + @Sse GET /exec/stream         [slice 1, read]
   exec.controller.spec.ts      controller wiring + SSE frame shape
   ops.controller.ts            GET /ops (page) + @Sse GET /ops/stream            [slice 2, action]
@@ -224,13 +236,14 @@ src/ui/
   risk.controller.spec.ts      wiring + verdict-only event filter + SSE frame
   research.controller.ts       GET /research (static page, no deps)             [slice 6, research desk]
   research.controller.spec.ts  renders board + runbook; asserts no execution surface
-  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js + copy-cmd.js (allow-listed)
+  ui-asset.controller.ts       GET /ui/:file — serves ui.css + desk-{feed,action,form}.js + copy-cmd.js + nav-spark.js + activity-tape.js (allow-listed)
   ui.module.spec.ts            offline DI compile — proves the graph resolves (start:dev can't run here)
   render/
     html.ts                    auto-escaping html`` tagged template + escape/raw
-    format.ts                  money/usd/pct/return/signClass + duration/age formatters
-    layout.ts                  pageShell + shared topBar + ROLE_LINKS launcher
-    components.ts              SHARED partials: deskControls (palette) + activityTape
+    format.ts                  money/usd/pct/return/signClass + duration/age/mb formatters
+    layout.ts                  pageShell + shared topBar (brand links to /) + ROLE_LINKS launcher
+    landing-view.ts            renderLandingPage + LAUNCHER_ENTRIES (the / role index)
+    components.ts              SHARED partials: deskControls/statArbControls + activityTape + appendActivityTape + navSparkPanel
     exec-view.ts               renderExecLive (live region) + renderExecPage (full doc)
     exec-view.spec.ts          render → assert HTML  (the brief's required fragment test)
     ops-view.ts                renderOpsLive (panels) + renderOpsPage
@@ -249,7 +262,13 @@ src/ui/
     desk-action.js             <desk-action> Web Component (shared action / write primitive)
     desk-form.js               <desk-form> Web Component (shared input-form / write primitive)
     copy-cmd.js                <copy-cmd> Web Component (clipboard copy; the research runbook helper)
+    nav-spark.js               <nav-spark> Web Component (equity sparkline; self-fetches /api/market-making/nav)
+    activity-tape.js           <activity-tape> Web Component (append-mode tape; cursor-polls …/events?since=)
 ```
+
+> **Note:** `landing.controller.ts` lives in `src/ui/`; `landing-view.ts` +
+> `landing-view.spec.ts` live in `src/ui/render/`. The old `src/app.controller.ts`
+> (root → `/demo` redirect) was deleted — the `/` launcher owns root now.
 
 - Wired in `app.module.ts` (`UiModule` added to `imports`).
 - `nest-cli.json` copies `ui/public/**/*` into `dist` (so prod build serves the
@@ -458,17 +477,23 @@ surface, not UI).
 | launch / remove book controls | `/desk/mm` (✅ shipped, `<desk-form>`/`<desk-action>`) |
 | stat-arb pair table (z/β/regime/blotter) | `/desk/statarb` (✅ shipped) |
 | launch / remove pair controls | `/desk/statarb` (✅ shipped) |
-| Activity feed | shared `activityTape()` — ✅ on `/desk/mm` + `/desk/statarb`; risk next |
-| health / metrics / persistence state | `/ops` (✅ shipped; metrics panel pending) |
+| Activity feed | `appendActivityTape()` ✅ on `/desk/mm` + `/desk/statarb` (append-mode `<activity-tape>`); `/risk` uses the full-replace verdict feed |
+| health / metrics / persistence state | `/ops` (✅ shipped, incl. the telemetry/runtime metrics panel) |
 | desk start/stop/flatten controls | `/ops` (✅ shipped, MM scope) |
 | risk verdicts / drawdown / exposure | `/risk` (✅ shipped; + headline on `/exec`) |
-| research / findings / runbook | `/research` (✅ shipped; live funding board deferred) |
+| research / findings / runbook | `/research` (✅ shipped; live funding board deferred — no endpoint) |
+| durable equity curve | `<nav-spark>` ✅ on `/exec` + `/desk/mm` (desk-aggregate; per-book-in-card deferred) |
+| landing / launcher | `/` (✅ shipped — role index, replaced the root→/demo redirect) |
 
 **Retire criteria:** delete `/demo` once the daily-driver pages exist at parity.
-`/exec`, `/ops`, `/desk/mm`, `/desk/statarb`, `/risk`, `/research` **now exist** — the
-remaining work before retiring is the deferred panels (NAV sparkline, a metrics panel,
-append-mode tape, live funding board) and `/pm` + the `/` launcher. Until then both run
-side by side (no behaviour change to `/demo`).
+`/exec`, `/ops`, `/desk/mm`, `/desk/statarb`, `/risk`, `/research`, and the `/` launcher
+**now exist**, and the deferred panels that were buildable (NAV sparkline, the `/ops`
+metrics panel, the append-mode tape) **shipped 2026-06-07**. What's left is all
+**endpoint-blocked**, not page-blocked: `/pm` (no thesis endpoints), a live funding
+board / MM screener (no serving endpoint), a real per-book pause/deny + limit risk lever
+(engine work), a mode-aware/live blotter, and per-book-in-card sparklines. `/demo` is
+**ready to retire pending a deliberate call** (it is a large, working, pre-existing
+console — left in place, both run side by side, no behaviour change to `/demo`).
 
 ---
 
