@@ -82,4 +82,46 @@ describe('GlftQuoter', () => {
     expect(Number(hi.reservationMicros)).toBeGreaterThan(Number(hi.context.midMicros) * 0.5);
     expect(Number(hi.reservationMicros)).toBeLessThan(Number(hi.context.midMicros) * 1.5);
   });
+
+  // The inventory governor (Journal #39): the bare A-S skew was ~2 bps at full inventory,
+  // and nothing stopped the book breaching its cap — inventory carry was the whole loss.
+  describe('inventory governor', () => {
+    const P = { gamma: 0.0025, kappa: 2, quoteSizeUnits: 1_000_000n, minHalfSpreadBps: 0, steadyHorizonBars: 1 };
+    const capped = (over: Record<string, unknown> = {}) =>
+      new GlftQuoter({ ...P, maxHalfSpreadBps: 200, maxInventoryLots: 2, hardInventoryCap: true, ...over }, CLOCK);
+
+    it('inventorySkewMult pushes the reservation further from flat WITHOUT widening the spread', () => {
+      const base = new GlftQuoter({ ...P, maxHalfSpreadBps: 10_000, maxInventoryLots: 50 }, CLOCK);
+      const strong = new GlftQuoter({ ...P, maxHalfSpreadBps: 10_000, maxInventoryLots: 50, inventorySkewMult: 10 }, CLOCK);
+      const c = ctx({ inventoryUnits: 3_000_000n }); // long
+      const b = base.quote(c, 'X');
+      const s = strong.quote(c, 'X');
+      expect(Number(s.reservationMicros)).toBeLessThan(Number(b.reservationMicros)); // skews harder toward flat
+      expect(s.halfSpreadMicros).toBe(b.halfSpreadMicros); // spread untouched
+    });
+
+    it('hardInventoryCap parks the BID at the rail over the long cap (cannot add to a long)', () => {
+      const over = capped().quote(ctx({ inventoryUnits: 3_000_000n }), 'X'); // 3 lots > 2-lot cap
+      const resv = Number(over.reservationMicros);
+      const maxMicros = (Number(over.context.midMicros) * 200) / 10_000;
+      expect(resv - Number(over.bid.priceMicros)).toBe(maxMicros); // bid pushed out to the max rail
+      expect(resv - Number(over.bid.priceMicros)).toBeGreaterThan(Number(over.ask.priceMicros) - resv); // ask still sheds
+    });
+
+    it('hardInventoryCap parks the ASK at the rail over the short cap (cannot add to a short)', () => {
+      const over = capped().quote(ctx({ inventoryUnits: -3_000_000n }), 'X');
+      const resv = Number(over.reservationMicros);
+      const maxMicros = (Number(over.context.midMicros) * 200) / 10_000;
+      expect(Number(over.ask.priceMicros) - resv).toBe(maxMicros);
+      expect(Number(over.ask.priceMicros) - resv).toBeGreaterThan(resv - Number(over.bid.priceMicros));
+    });
+
+    it('defaults (mult 1, cap off) reproduce the legacy quoter bit-for-bit', () => {
+      const legacy = quoter();
+      const same = new GlftQuoter({ ...P, maxHalfSpreadBps: 10_000, maxInventoryLots: 50, inventorySkewMult: 1, hardInventoryCap: false }, CLOCK);
+      const c = ctx({ inventoryUnits: 5_000_000n });
+      expect(same.quote(c, 'X').bid.priceMicros).toBe(legacy.quote(c, 'X').bid.priceMicros);
+      expect(same.quote(c, 'X').ask.priceMicros).toBe(legacy.quote(c, 'X').ask.priceMicros);
+    });
+  });
 });

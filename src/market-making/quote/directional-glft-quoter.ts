@@ -62,7 +62,9 @@ export class DirectionalGlftQuoter implements IQuoter {
     const s = Number(ctx.midMicros);
     const center = Number(ctx.referenceMicros ?? ctx.midMicros); // F1 micro-price compatible
     const sigmaRel = Math.max(ctx.volatility, 0);
-    const qLots = clamp(Number(ctx.inventoryUnits) / Number(this.lotUnits), -this.p.maxInventoryLots, this.p.maxInventoryLots);
+    const rawQLots = Number(ctx.inventoryUnits) / Number(this.lotUnits);
+    const qLots = clamp(rawQLots, -this.p.maxInventoryLots, this.p.maxInventoryLots);
+    const skewMult = this.p.inventorySkewMult && this.p.inventorySkewMult > 0 ? this.p.inventorySkewMult : 1;
     const T = this.p.steadyHorizonBars;
 
     // The bias: a live, per-tick view from the runtime's IBiasSource (ctx.bias —
@@ -76,7 +78,9 @@ export class DirectionalGlftQuoter implements IQuoter {
     // off, so the book rests at q* and recycles spread around the held position.
     const targetLots = bias * this.p.maxInventoryLots;
     const effectiveQ = qLots - targetLots;
-    let reservation = asReservationMicros(center, effectiveQ, this.p.gamma, sigmaRel, T);
+    // inventorySkewMult strengthens the pull toward the TARGET q* (sheds any excess beyond
+    // the chosen carry faster), the same #39 fix the neutral book gets toward 0.
+    let reservation = asReservationMicros(center, effectiveQ * skewMult, this.p.gamma, sigmaRel, T);
     // Optional conviction drift: nudge the center toward the view (small) so we fill
     // a touch more on the view side even at target — captures momentum while it lasts.
     if (this.convictionGain !== 0 && bias !== 0) {
@@ -104,6 +108,13 @@ export class DirectionalGlftQuoter implements IQuoter {
     if (this.singleSideBias > 0 && Math.abs(bias) >= this.singleSideBias && wantsMore) {
       if (bias > 0) askHalf = Number(maxMicros);
       else bidHalf = Number(maxMicros);
+    }
+    // Hard inventory cap (backstop) — OVERRIDES the directional axe: even a high-conviction
+    // book must not breach maxInventoryLots. Park whichever side would add to the position
+    // at the rail (Journal #39: an axed book ran 100×+ past its target and that was the loss).
+    if (this.p.hardInventoryCap) {
+      if (rawQLots >= this.p.maxInventoryLots) bidHalf = Number(maxMicros); // max long ⇒ stop buying
+      else if (rawQLots <= -this.p.maxInventoryLots) askHalf = Number(maxMicros); // max short ⇒ stop selling
     }
 
     return buildQuotePair({

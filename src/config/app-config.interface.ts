@@ -172,6 +172,12 @@ export interface AppConfig {
     maxHalfSpreadBps: number;
     /** Saturation cap on |inventory| in lots (one lot = one quote size). */
     maxInventoryLots: number;
+    /** Multiplier on the inventory-skew term (Journal #39): >1 mean-reverts inventory to
+     *  flat/target harder without widening the spread. 1 = standard A-S. */
+    inventorySkewMult: number;
+    /** Hard inventory backstop: park the accumulating side at the rail when |inventory| ≥
+     *  maxInventoryLots so the book physically cannot breach the cap. */
+    hardInventoryCap: boolean;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

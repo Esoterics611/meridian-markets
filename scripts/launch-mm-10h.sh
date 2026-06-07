@@ -1,41 +1,47 @@
 #!/usr/bin/env bash
 #
-# launch-mm-10h.sh — fire the 10h paper-run book set against a live server.
+# launch-mm-10h.sh — fire the paper-run book set against a live server.
 #
-#   ALL books → mm-directional-glft, driven by the SELF-VALIDATING rolling-IC flow bias.
+#   ALL books → mm-glft (NEUTRAL spread-capture) + the INVENTORY GOVERNOR.
 #
-# With MM_FLOW_BIAS_LIVE the flow bias is live + self-gating: it re-checks its own forward-
-# return IC every minute and sizes carry ONLY on coins where it stays predictive (BTC/ETH/
-# XRP in the last read), and STANDS ASIDE on reversal coins (ADA/DOGE) — those quote
-# symmetric-neutral automatically (bias→0). On a live view the quoter SKEWS its spread and
-# can go SINGLE-SIDED (MM_DIR_SPREAD_SKEW / MM_DIR_SINGLE_SIDE_BIAS). See QUANT_JOURNAL #38.
+# Why neutral (Journal #39): the all-directional run lost −$11.6k/$8M in ~90min, and the
+# split was unambiguous — realised ≈ flat, UNREALISED −$10.5k = open inventory marked
+# underwater. The 3 books that stayed flat (ETH/DOGE/XRP) made money; the 5 that
+# accumulated a one-sided position and held it lost it. The spread engine is fine; the
+# position is the bleed. So this run isolates ONE change — the inventory governor — and
+# asks the single question that matters: does unrealised stop being the loss column?
 #
-# Prereqs — start the server FIRST with persistence + the fast fair-value path on EVERY market:
+# The governor (built this session, behind config, defaults are no-ops):
+#   MM_HARD_INVENTORY_CAP=true  — park the accumulating side at the rail at |q|≥cap, so a
+#                                 book PHYSICALLY cannot run inventory the way SOL did (6.2B long).
+#   MM_INVENTORY_SKEW_MULT=10   — the bare A-S skew is ~2 bps at full inventory (negligible);
+#                                 ×10 makes the reservation actively mean-revert toward flat.
+#   MM_MAX_INVENTORY_LOTS=4     — halve the inventory bound vs the prior run (was 8 ≈ $800k/$1M).
+#
+# Directional is DELIBERATELY OFF this run (no mm-directional-glft, MM_FLOW_BIAS_LIVE unset).
+# It returns in the NEXT run together with the inventory TIME-STOP + hedge leg (phase B) and
+# only on the pre-registered BTC/ETH/XRP at a ~60s horizon — see docs/NEXT_RUN_PREREG.md.
+# MM_FLOW_SHADOW stays ON: it keeps recording the fast signal (zero P&L impact) so the
+# directional validation set keeps growing for when the time-stopped lean comes back.
+#
+# Prereqs — start the server FIRST with persistence + the fast fair-value path + the governor:
 #   FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 #   MM_PERSIST=true \
 #   MM_FAST_REQUOTE_ENABLED=true MM_FAST_REQUOTE_MS=100 \
 #   MM_CANCEL_REPLACE_LATENCY_MS=30 \
 #   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 #   MM_MICROPRICE_DEPTH=5 \
-#   MM_FLOW_BIAS_LIVE=true MM_FLOW_BIAS_HORIZON_MS=60000 MM_FLOW_BIAS_MIN_IC=0.05 \
-#   MM_DIR_SPREAD_SKEW=0.5 MM_DIR_SINGLE_SIDE_BIAS=0.6 \
+#   MM_HARD_INVENTORY_CAP=true MM_INVENTORY_SKEW_MULT=10 MM_MAX_INVENTORY_LOTS=4 \
 #   MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 #   TELEMETRY_ENABLED=true \
-#   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm10h.log
+#   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm-governed.log
 #
-# MM_FLOW_SHADOW=true records the fast book-imbalance directional signal on EVERY fast
-# market to docs/research/flow-shadow-<ts>.jsonl — measured but NEVER quoted (zero P&L
-# impact). After the run, score it: npx ts-node -r tsconfig-paths/register \
-#   scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 60,300,900
+# After the run, score the captured signal (still measure-only, never quoted):
+#   npx ts-node -r tsconfig-paths/register scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 30,60,300,900
 #
 # Cadence note: 100ms re-quote with a 30ms cancel/replace latency is the internally
-# CONSISTENT low-latency-maker assumption (a desk re-quoting at 100ms is colocated, so
-# its round-trip is tens of ms, not the retail ~100ms). 100ms > 30ms leaves a ~70ms
-# live window for queue maturation. The micro-price center (layer-1 fast fair value)
-# is on EVERY book and refreshes each re-quote — that is the fresh directional input on
-# all markets. The weekly funding axe (layer-2 alpha) stays BTC-only + OOS-gated.
-# Honesty caveat: real HL rate-limits order actions; paper does not — so 100ms is a
-# clean upper bound on cadence, not a claim a live account could sustain it unthrottled.
+# CONSISTENT low-latency-maker assumption. Honesty caveat: real HL rate-limits order
+# actions; paper does not — so 100ms is a clean upper bound, not a sustainable live claim.
 #
 # Then run this script. Override any knob via env, e.g. MM_BOOK_NOTIONAL_USD=50000 bash scripts/launch-mm-10h.sh
 set -euo pipefail
@@ -43,11 +49,11 @@ set -euo pipefail
 HOST="${MM_HOST:-http://localhost:3100}"
 SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
 CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"      # $1M/book — the established desk scale (journal #23/#27)
-NOTIONAL="${MM_BOOK_NOTIONAL_USD:-100000}"  # $100k/quote → 8-lot cap ≈ $800k inventory on $1M
+NOTIONAL="${MM_BOOK_NOTIONAL_USD:-100000}"  # $100k/quote → 4-lot cap ≈ $400k max inventory on $1M
 
-# ALL books run mm-directional-glft + the self-validating flow bias; each self-gates per
-# coin (reversal coins fall back to symmetric-neutral). Entry #28 KEEP list + BTC.
+# ALL books run mm-glft (neutral spread-capture) + the inventory governor. Entry #28 KEEP set + BTC.
 BOOKS=(BTC ETH SOL DOGE BNB XRP ADA SUI)
+STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
 launch () {
   local sym="$1" strat="$2"
@@ -69,8 +75,8 @@ launch () {
   fi
 }
 
-echo "=== launching all books (mm-directional-glft, self-gating flow bias) ==="
-for s in "${BOOKS[@]}"; do launch "$s" "mm-directional-glft"; done
+echo "=== launching all books ($STRATEGY, neutral + inventory governor) ==="
+for s in "${BOOKS[@]}"; do launch "$s" "$STRATEGY"; done
 
 echo
 echo "=== verify ==="
@@ -78,3 +84,4 @@ echo "  snapshot : curl -s $HOST/api/market-making/snapshot | jq ."
 echo "  nav curve: curl -s $HOST/api/market-making/nav | jq ."
 echo "  fills    : curl -s '$HOST/api/market-making/events?since=0' | jq ."
 echo "  (NAV persists to mm_nav when MM_PERSIST=true; fills are log-only — keep the tee'd logfile.)"
+echo "  JUDGE BY: desk UNREALISED stays small (inventory controlled) + steady low-DD NAV curve."
