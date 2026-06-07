@@ -10,14 +10,14 @@ import { ExecutionModule } from './execution/execution.module';
 import { MarketMakingModule } from './market-making/market-making.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { UiModule } from './ui/ui.module';
-import { AppController } from './app.controller';
 
+// The role launcher now owns `/` (LandingController in UiModule, UI_ARCHITECTURE.md
+// §3) — the old AppController root→/demo redirect is retired.
 @Module({
   imports: [
     ConfigModule, SecretsModule, DatabaseModule,
     TreasuryModule, HedgeModule, StatArbModule, MarketDataModule, ExecutionModule,
     MarketMakingModule, TelemetryModule, UiModule,
   ],
-  controllers: [AppController],
 })
 export class AppModule {}

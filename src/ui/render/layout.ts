@@ -39,7 +39,7 @@ function navItems(active: string): SafeHtml[] {
 export function topBar(active: string): SafeHtml {
   return html`
     <header class="topbar">
-      <span class="brand">MERIDIAN<span class="brand-dim"> // paper desk</span></span>
+      <a class="brand" href="/" title="role launcher">MERIDIAN<span class="brand-dim"> // paper desk</span></a>
       <nav class="nav">${navItems(active)}</nav>
       <span class="clock" id="clock" data-clock>--:--:--</span>
     </header>

@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import { appConfigFactory } from '@config/app-config.factory';
 import { UiModule } from './ui.module';
+import { LandingController } from './landing.controller';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
@@ -14,6 +15,7 @@ import { UiAssetController } from './ui-asset.controller';
 // `npm run start:dev` can't run in this sandbox. Construction is lazy + offline:
 // the read path renders MmPortfolioTrader.snapshot() and touches no Binance/DB.
 describe('UiModule — offline DI compile', () => {
+  let landing: LandingController;
   let exec: ExecController;
   let ops: OpsController;
   let mmDesk: MmDeskController;
@@ -25,12 +27,20 @@ describe('UiModule — offline DI compile', () => {
     const mod = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, load: [appConfigFactory] }), UiModule],
     }).compile();
+    landing = mod.get(LandingController);
     exec = mod.get(ExecController);
     ops = mod.get(OpsController);
     mmDesk = mod.get(MmDeskController);
     risk = mod.get(RiskController);
     research = mod.get(ResearchPageController);
     assets = mod.get(UiAssetController);
+  });
+
+  it('resolves LandingController and renders the static role launcher at /', () => {
+    expect(landing).toBeInstanceOf(LandingController);
+    const html = landing.page();
+    expect(html).toContain('Meridian — paper desk');
+    expect(html).toContain('class="launcher-grid"');
   });
 
   it('resolves ExecController with the live MM trader injected', () => {
