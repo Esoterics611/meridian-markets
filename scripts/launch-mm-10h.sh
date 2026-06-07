@@ -53,6 +53,11 @@ launch () {
   local sym="$1" strat="$2"
   local resp
   printf '%-22s ' "launch $sym ($strat)"
+  # Reset: drop any rehydrated/old book for this symbol (MM_PERSIST restores the prior
+  # run's books on boot) so we relaunch it CLEAN — flat, fresh capital, the new strategy.
+  # No-op if no such book exists.
+  curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \
+    -d "{\"symbol\":\"$sym\"}" >/dev/null 2>&1 || true
   resp=$(curl -s -X POST "$HOST/api/market-making/launch" \
     -H 'content-type: application/json' \
     -d "{\"symbol\":\"$sym\",\"strategyId\":\"$strat\",\"source\":\"$SOURCE\",\"capitalUsdc\":$CAP,\"quoteNotionalUsd\":$NOTIONAL}") || {
