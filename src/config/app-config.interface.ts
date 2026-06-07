@@ -252,6 +252,17 @@ export interface AppConfig {
     flowShadowMinMs: number;
     /** JSONL output path; empty ⇒ docs/research/flow-shadow-<ts>.jsonl. Default ''. */
     flowShadowPath: string;
+    /**
+     * Promote the flow signal to a LIVE, self-validating directional bias (the rolling-IC
+     * gate: re-checks its own trailing forward-return IC every horizon and only sizes
+     * carry while it stays predictive, per coin — reversal coins auto-disable). Drives
+     * directional-glft books on fast symbols. Default OFF.
+     */
+    flowBiasLive: boolean;
+    /** Forward-return horizon (ms) the rolling-IC gate scores + its re-eval cadence. Default 60000. */
+    flowBiasHorizonMs: number;
+    /** Min trailing Spearman IC to keep the live flow bias validated (else stand aside). Default 0.05. */
+    flowBiasMinIc: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

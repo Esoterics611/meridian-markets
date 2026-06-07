@@ -17,6 +17,7 @@ import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { L2PollDriver } from './live/l2-poll-driver';
 import { FundingBiasSource } from './bias/funding-bias-source';
 import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
+import { RollingIcFlowBiasSource } from './bias/rolling-ic-flow-bias-source';
 import { IFlowShadowRecorder, NoopFlowShadowRecorder } from './bias/flow-shadow-recorder';
 import { JsonlFlowShadowRecorder } from './persistence/jsonl-flow-shadow-recorder';
 import { MmController } from './mm.controller';
@@ -222,6 +223,21 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
           const fundingRate = await fundingRateFor(srcId, spec.symbol);
           const useFast = mm.fastRequoteEnabled && srcId === 'hyperliquid' && mm.fastSymbols.includes(spec.symbol.toUpperCase());
+          // The LIVE directional bias driving the fast engine: when MM_FLOW_BIAS_LIVE is on,
+          // a self-validating rolling-IC flow source (re-checks its own forward-return IC
+          // every horizon; sizes carry only while predictive, per coin — reversal coins
+          // self-disable). Else the static funding axe. directional-glft books act on it;
+          // neutral mm-glft ignores bias, so attaching it desk-wide is safe.
+          const liveBiasSource =
+            mm.flowBiasLive && useFast
+              ? new RollingIcFlowBiasSource({
+                  fullBiasImbalance: mm.flowFullImbalance,
+                  maxBias: mm.flowMaxBias,
+                  horizonMs: mm.flowBiasHorizonMs,
+                  evalEveryMs: mm.flowBiasHorizonMs,
+                  icThreshold: mm.flowBiasMinIc,
+                })
+              : biasSource;
           const fastEngine = useFast
             ? new L2LiveFillEngine({
                 symbol: spec.symbol,
@@ -240,7 +256,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // The directional axe on the fast path: the same validated bias source the
                 // bar path uses, with the live funding rate as its input (kept current by
                 // the refresh cron via MmBook.setFundingRatePerHour → engine).
-                biasSource,
+                biasSource: liveBiasSource,
                 fundingRatePerHour: fundingRate,
                 // F1b shadow: the book-imbalance directional signal on EVERY fast market,
                 // measured + recorded but never quoted (zero impact). Off ⇒ no shadow source.

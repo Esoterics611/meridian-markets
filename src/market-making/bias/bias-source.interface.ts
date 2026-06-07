@@ -30,6 +30,9 @@ export interface BiasContext {
    * input for a flow-based directional source; undefined off the L2/fast path.
    */
   readonly bookImbalance?: number;
+  /** Current fair-value mid (price micros) — lets a self-validating source score its
+   *  own forward-return IC. Undefined off the L2/fast path. */
+  readonly midMicros?: bigint;
 }
 
 export interface BiasReading {

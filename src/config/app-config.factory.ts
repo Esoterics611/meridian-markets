@@ -138,6 +138,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     flowMaxBias: parseFloat(process.env['MM_FLOW_MAX_BIAS'] ?? '0.5'),
     flowShadowMinMs: parseInt(process.env['MM_FLOW_SHADOW_MIN_MS'] ?? '1000', 10),
     flowShadowPath: process.env['MM_FLOW_SHADOW_PATH'] ?? '',
+    flowBiasLive: (process.env['MM_FLOW_BIAS_LIVE'] ?? 'false').toLowerCase() === 'true',
+    flowBiasHorizonMs: parseInt(process.env['MM_FLOW_BIAS_HORIZON_MS'] ?? '60000', 10),
+    flowBiasMinIc: parseFloat(process.env['MM_FLOW_BIAS_MIN_IC'] ?? '0.05'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

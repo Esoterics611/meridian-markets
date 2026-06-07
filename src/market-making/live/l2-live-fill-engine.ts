@@ -232,13 +232,13 @@ export class L2LiveFillEngine {
     // Directional bias (the axe) on the fast path — OOS-gated (effectiveBias zeroes an
     // unvalidated reading). The funding input is the live, refreshed rate.
     const bias = this.cfg.biasSource
-      ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance }))
+      ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance, midMicros: mid }))
       : undefined;
     // SHADOW flow signal: read + recorded, NEVER fed to the quoter (it's `shadowBiasSource`,
     // not `biasSource`) ⇒ zero quote impact by construction. Throttled to bound the file;
     // the offline gate (scripts/flow-bias-markout.ts) scores its forward-return IC.
     if (this.cfg.shadowBiasSource && nowMs - this.lastShadowMs >= (this.cfg.shadowMinIntervalMs ?? 1000)) {
-      const sr = this.cfg.shadowBiasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance });
+      const sr = this.cfg.shadowBiasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance, midMicros: mid });
       const fb = Number(flow.aggressiveBuyUnits);
       const fa = Number(flow.aggressiveSellUnits);
       this.cfg.shadowRecorder?.record({
