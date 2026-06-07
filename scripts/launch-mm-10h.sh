@@ -18,6 +18,14 @@
 #                                 ×10 makes the reservation actively mean-revert toward flat.
 #   MM_MAX_INVENTORY_LOTS=4     — halve the inventory bound vs the prior run (was 8 ≈ $800k/$1M).
 #
+# Plus the ADVERSE-SELECTION defence ("avoid informed orders, like the big desks do"):
+#   MM_F3_TOXICITY=true         — scale the half-spread by trade-flow toxicity vs its rolling
+#                                 average: TIGHTEN into calm two-sided flow (farm the rebate),
+#                                 WIDEN into a one-sided sweep (informed flow = where you get
+#                                 picked off). Inventory-neutral, width only. This was validated
+#                                 in the offline LOB replay but had never been wired to live —
+#                                 same FlowToxicityScaler now drives both.
+#
 # Directional is DELIBERATELY OFF this run (no mm-directional-glft, MM_FLOW_BIAS_LIVE unset).
 # It returns in the NEXT run together with the inventory TIME-STOP + hedge leg (phase B) and
 # only on the pre-registered BTC/ETH/XRP at a ~60s horizon — see docs/NEXT_RUN_PREREG.md.
@@ -32,6 +40,7 @@
 #   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 #   MM_MICROPRICE_DEPTH=5 \
 #   MM_HARD_INVENTORY_CAP=true MM_INVENTORY_SKEW_MULT=10 MM_MAX_INVENTORY_LOTS=4 \
+#   MM_F3_TOXICITY=true MM_F3_MIN_SCALE=0.5 MM_F3_MAX_SCALE=3.0 \
 #   MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 #   TELEMETRY_ENABLED=true \
 #   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm-governed.log

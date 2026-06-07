@@ -149,6 +149,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     flowBiasMinIc: parseFloat(process.env['MM_FLOW_BIAS_MIN_IC'] ?? '0.05'),
     dirSpreadSkew: parseFloat(process.env['MM_DIR_SPREAD_SKEW'] ?? '0.5'),
     dirSingleSideBias: parseFloat(process.env['MM_DIR_SINGLE_SIDE_BIAS'] ?? '0.6'),
+    // F3 adverse-selection defence: scale the half-spread by trade-flow toxicity vs its
+    // rolling average (widen into one-sided/informed sweeps, tighten into calm flow). The
+    // same scaler the offline LOB replay validated. Off by default (no-op); on for the run.
+    f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
+    f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
+    f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

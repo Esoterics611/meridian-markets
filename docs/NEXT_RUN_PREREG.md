@@ -12,13 +12,15 @@ the spread engine is fine). Two runs, one variable changed at a time.
 
 ## Run A — the inventory governor, neutral (THIS is the next run)
 
-**Hypothesis (pre-registered):** with the inventory governor on, a neutral spread-capture
+**Hypothesis (pre-registered):** with the two DEFENSIVE layers on, a neutral spread-capture
 desk holds a steady, low-drawdown NAV curve and **unrealised stops being the loss column**.
 
 - **Universe (frozen):** BTC, ETH, SOL, DOGE, BNB, XRP, ADA, SUI — the Entry #28 KEEP set. $1M/book, $8M desk.
 - **Strategy:** `mm-glft` (neutral) on every book. NO directional, NO live bias.
-- **Change under test (only this):** the inventory governor —
-  `MM_HARD_INVENTORY_CAP=true`, `MM_INVENTORY_SKEW_MULT=10`, `MM_MAX_INVENTORY_LOTS=4`.
+- **Changes under test (both inventory-neutral defences, shipped together):**
+  1. the **inventory governor** — `MM_HARD_INVENTORY_CAP=true`, `MM_INVENTORY_SKEW_MULT=10`, `MM_MAX_INVENTORY_LOTS=4` (bounds how much inventory you can carry);
+  2. the **adverse-selection defence (F3)** — `MM_F3_TOXICITY=true` (widen into informed/one-sided flow, tighten into calm) — validated offline, newly wired live.
+  Both are defence, not a directional bet, so bundling them is one coherent hypothesis ("defensive MM holds the curve"); the #39 run is the no-defence baseline to compare against.
 - **Everything else held vs #39:** same venue (HL), fast re-quote 100ms, micro-price center, fees/rebate, persistence.
 - **Signal capture:** `MM_FLOW_SHADOW=true` stays on — measure-only, zero P&L, keeps growing the directional validation set for Run B.
 - **Success metric (pre-registered, judged on `mm_nav`):**

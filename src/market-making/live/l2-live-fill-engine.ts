@@ -10,6 +10,7 @@ import { l2SnapshotToOrderBook } from '../backtest/l2-tape';
 import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } from '../backtest/queue-fill';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
+import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
 import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
 
@@ -114,6 +115,13 @@ export interface L2LiveFillEngineConfig {
   shadowMinIntervalMs?: number;
   /** Levels/side for the book-imbalance signal. Default = microDepth ?? 5. */
   imbalanceDepth?: number;
+  /**
+   * F3 adverse-selection defence: when set, the half-spread is scaled by current trade-flow
+   * toxicity vs its rolling average — TIGHTEN into calm two-sided flow (rebate farming),
+   * WIDEN into a one-sided sweep (informed flow, where you get picked off). Inventory-neutral
+   * (width only). Shared scaler with the offline backtest. Omit ⇒ spread unscaled (legacy).
+   */
+  toxicityScaler?: FlowToxicityScaler;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -253,11 +261,16 @@ export class L2LiveFillEngine {
       this.shadowObservations += 1;
       this.lastShadowMs = nowMs;
     }
+    // F3: widen into toxic (one-sided/informed) flow, tighten into calm flow — the
+    // adverse-selection defence. Always update the scaler (so its rolling average tracks)
+    // even when no fills happened this tick; undefined ⇒ feature off ⇒ spread unscaled.
+    const spreadScale = this.cfg.toxicityScaler?.scale(flow.aggressiveBuyUnits, flow.aggressiveSellUnits);
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros: mid,
       referenceMicros,
       bias,
+      spreadScale,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,

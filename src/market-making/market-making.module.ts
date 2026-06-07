@@ -14,6 +14,7 @@ import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
+import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
 import { FundingBiasSource } from './bias/funding-bias-source';
 import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
@@ -275,6 +276,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 shadowRecorder: flowShadowRecorder,
                 shadowMinIntervalMs: mm.flowShadowMinMs,
                 imbalanceDepth: mm.microPriceDepth,
+                // F3 adverse-selection defence: widen into toxic/one-sided (informed) flow,
+                // tighten into calm flow. Per-book scaler (own rolling window). Off ⇒ unscaled.
+                toxicityScaler: mm.f3Toxicity
+                  ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
+                  : undefined,
               })
             : undefined;
           return new MmBook({

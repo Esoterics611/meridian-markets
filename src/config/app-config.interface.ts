@@ -275,6 +275,13 @@ export interface AppConfig {
     /** |bias| at/above which the directional quoter goes SINGLE-SIDED (parks the offload
      *  side) while accumulating toward target. 0 ⇒ never. Default 0.6. */
     dirSingleSideBias: number;
+    /** F3 adverse-selection defence: scale the live half-spread by flow toxicity vs its
+     *  rolling average (widen into informed/one-sided flow, tighten into calm). Off by default. */
+    f3Toxicity: boolean;
+    /** Tightest F3 scale (calm flow). Default 0.5. */
+    f3MinScale: number;
+    /** Widest F3 scale (toxic flow). Default 3.0. */
+    f3MaxScale: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
