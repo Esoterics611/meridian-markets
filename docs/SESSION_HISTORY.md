@@ -690,3 +690,79 @@ Same day, evening. With the 20-perp L2 capture running all session (harvest is n
 
 ### Verification
 - `npx tsc --noEmit` clean; **153 suites / 1019 tests** (was 149/993 at session start — +4 suites/+26 tests across the event tape, persistence, and funding-carry discovery). Each item committed on master with a `Co-Authored-By` trailer.
+
+---
+
+## 20. Role-scoped UI redesign — design doc + six role pages (2026-06-06…07)
+
+Executed [docs/UI_REDESIGN_PROMPT.md](UI_REDESIGN_PROMPT.md): replace the 100KB `/demo` `index.html` with **role-scoped, server-rendered pages** served by the same Nest app — **no React, no build step, no new npm deps**, terminal aesthetic, thin read-only-over-the-engine doctrine (CLAUDE.md §1). New code lives in `src/ui/`; views are **pure functions → unit-tested** (render → assert HTML), so the UI rejoined the test discipline.
+
+### Stack decided (recorded in [docs/UI_ARCHITECTURE.md](UI_ARCHITECTURE.md))
+Server-rendered partials via a hand-rolled auto-escaping `html\`\`` tagged template (no template engine) + native **SSE** (`@Sse`) for live regions + vanilla **Web Components** for the shared client primitives + one terminal CSS. **htmx/Alpine were evaluated and not adopted** — the control plane returns JSON not HTML fragments, so htmx's swap model doesn't fit; a ~40-line `<desk-action>`/`<desk-form>` does the write path dependency-free. SPA rejected on doctrine.
+
+### Shipped — six role pages (each its own commit on master)
+1. **`/exec`** — read-only executive overview (desk NAV, net P&L, worst-book drawdown vs the 2% budget, per-book table) + the SSE spine + the `<desk-feed>` shared component + the offline DI-compile test (since `start:dev` exits 144 here).
+2. **`/ops`** — first action page: process/feed/DB health (reusing `assessReadiness`), MM desk status, persistence; **action palette** (Start/Stop/Flatten) via the new `<desk-action>`.
+3. **`/desk/mm`** — MM console: per-book quotes + 4-component PnL attribution + Activity tape (from the MM `DeskEventLog`, exported for this) + launch/preset/remove via `<desk-form>`/`<desk-action>` (re-launch = reconfigure).
+4. **`/desk/statarb`** — stat-arb console: per-pair z/β/regime/position + the persisted blotter (DB-guarded) + tape + launch/remove. **Controller declared in `StatArbModule`** (not UiModule) because that graph won't boot under the light DI test — recorded as the wiring rule (§7).
+5. **`/risk`** — drawdown vs budget, net/gross exposure, **adverse selection as the live toxicity signal (no fabricated VPIN — the gate passes vpin=0)**, verdict-transition feed, de-risk levers + the **cross-desk kill switch**.
+6. **`/research`** — static findings KEEP/CUT/RESERVE board (tracks `RESEARCH_FINDINGS.md`) + the **copy-the-runbook-command** helper (`<copy-cmd>`, no execution, §5). No live funding board — there is no funding endpoint, so it is shown as a verdict with that caveat, not invented rates.
+
+Shared widgets in `src/ui/render/components.ts` + `src/ui/public/*.js`: `topBar`/`pageShell`, `<desk-feed>` (SSE read), `<desk-action>` + `<desk-form>` (writes → existing control plane), `<copy-cmd>`, `activityTape`/`deskControls`/`statArbControls`. The top-bar nav marks unbuilt pages as disabled "soon" (no dead links). `/demo` is untouched and runs side-by-side until parity.
+
+### Deferred to next session
+- **`/pm`** (Thesis Register) — its engine endpoints don't exist yet (CLAUDE.md §8 "coming"); needs the engine surface first or an honest stub. The **`/` launcher** (role index) — trivial.
+- Deferred panels: a `<nav-spark>` equity sparkline (`/exec`,`/desk`), an `/ops` Prometheus-metrics panel, an append-mode cursor-based `<activity-tape>`, a **live funding board** + MM screener panel (need serving endpoints — funding has none), a mode-aware/live stat-arb blotter, and a real **per-book pause/deny + limit-lowering** risk endpoint (engine work).
+- Then: retire `/demo` on parity (keep the JSON `DemoController` endpoints).
+
+### Verification
+- `npx tsc -p tsconfig.build.json --noEmit` clean; **168 suites / 1116 tests** (was 149/993 at the start of the redesign — +19 suites / +123 tests, all in `src/ui/`). Zero regressions; each page committed on master with a `Co-Authored-By` trailer. `start:dev` exits 144 in the sandbox ⇒ all live runs handed to the operator (steps in [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10).
+
+---
+
+## 21. UI rebuild — the deferred-panel pass (2026-06-07)
+
+Continued the role-scoped UI rebuild (§20) by working the **buildable** deferred
+panels from [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §9 — the ones with an existing
+serving endpoint, so nothing is faked. Four commits on master, each tsc-clean +
+spec'd (render → assert HTML, plus the offline DI-compile test):
+
+### Shipped (each its own commit on master)
+1. **`/` role launcher** — the missing entry point. A static role-card index
+   (`LandingController` in `UiModule` + `renderLandingPage`/`LAUNCHER_ENTRIES`)
+   replaces the old `AppController` root→`/demo` redirect (deleted). Live cards link;
+   the unbuilt `/pm` renders as a disabled "soon" card (honest nav). The top-bar brand
+   now links back to `/`.
+2. **`<nav-spark>` equity sparkline** — a shared Web Component that self-fetches
+   `GET /api/market-making/nav` (durable NAV, Telemetry P3) and draws the equity curve
+   as an inline SVG. On `/exec` + `/desk/mm` (desk-aggregate), placed **outside** the
+   SSE region so a tick can't recreate it. **Honest:** when `MM_PERSIST` is off the
+   endpoint says `enabled:false` and the component shows that, not a fake flat line.
+3. **`/ops` telemetry/runtime panel** — process memory (RSS, heap) + the live loop
+   counters (mm ticks + mean tick duration, overruns, event-loop lag, persist ok/err)
+   read straight from the `PrometheusRegistry` (the metrics ledger). Injected
+   `@Optional` (TelemetryModule is `@Global`) so the offline DI test still resolves.
+   **Honest:** telemetry OFF ⇒ the panel shows OFF + the enable hint and still shows
+   memory (a process stat), but does **not** print 0-counters as if measured.
+4. **Append-mode `<activity-tape>`** — a cursor-based Web Component that polls
+   `…/events?since=<cursor>` and **prepends only new events**, preserving the
+   operator's scroll into history (the old full-replace tape reset scroll every 2s).
+   On `/desk/mm` + `/desk/statarb`: the tape moved **out** of the SSE live region onto
+   the static page; the streams now carry only summary + cards; controllers supply
+   `cursor = DeskEventLog.lastSeq()`. `/risk`'s short verdict feed kept the in-stream
+   full-replace `activityTape()`.
+
+### Deferred (endpoint-blocked, not page-blocked) — the only thing between here and `/demo` retirement
+- **`/pm`** Thesis Register (no thesis endpoints), a **live funding board / MM screener**
+  (no serving endpoint — funding has none), a real **per-book pause/deny + limit** risk
+  lever (engine work), a **mode-aware/live blotter**, and **per-book-in-card sparklines**
+  (the cards live in the SSE region — needs the persistent/append placement pattern).
+- **`/demo` is ready to retire pending a deliberate call** — it's a large, working,
+  pre-existing console, so it was left in place (both run side by side, no behaviour
+  change). Not deleted unilaterally.
+
+### Verification
+- `npx tsc --noEmit -p tsconfig.json` clean (full project, incl. specs); **169 suites /
+  1128 tests** (was 168/1116 at §20 — +1 suite / +12 tests, all in `src/ui/`). Zero
+  regressions. `start:dev` exits 144 in the sandbox ⇒ live runs handed to the operator
+  (same steps, [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10; now also `/` for the launcher).

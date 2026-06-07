@@ -6,7 +6,8 @@
     "deleteOutDir": false,
     "tsConfigPath": "tsconfig.build.json",
     "assets": [
-      { "include": "stat-arb/demo/public/**/*", "outDir": "dist" }
+      { "include": "stat-arb/demo/public/**/*", "outDir": "dist" },
+      { "include": "ui/public/**/*", "outDir": "dist" }
     ]
   }
 }

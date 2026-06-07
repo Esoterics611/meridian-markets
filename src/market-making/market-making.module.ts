@@ -318,6 +318,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
   controllers: [MmController],
   // Exported so TelemetryModule's collector + health controller can read the live
   // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
-  exports: [MmPortfolioTrader],
+  // DeskEventLog is exported so the UI's /desk/mm page can server-render the MM
+  // Activity tape from the same in-memory event sink the fills emit into.
+  exports: [MmPortfolioTrader, DeskEventLog],
 })
 export class MarketMakingModule {}

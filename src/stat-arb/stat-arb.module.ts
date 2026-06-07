@@ -26,6 +26,7 @@ import { StatArbNavCron } from './persistence/nav.cron';
 import { ResearchController } from './research/research.controller';
 import { ExecDemoService } from '../execution/exec-demo.service';
 import { ExecController } from '../execution/exec.controller';
+import { StatArbDeskController } from '../ui/statarb-desk.controller';
 import { UniverseController } from './discovery/universe.controller';
 import { OpportunityScanner } from './discovery/opportunity-scanner';
 import { OpportunityController } from './discovery/opportunity.controller';
@@ -453,6 +454,10 @@ async function warmupFromAlpaca(
     UniverseController,
     LiveController,
     OpportunityController,
+    // The /desk/statarb UI page. Declared here (not UiModule) so it can inject the
+    // stat-arb LivePortfolioTrader + DeskEventLog + StatArbRepository, which already
+    // resolve in this module's graph (UI_ARCHITECTURE.md §7). Its view lives in src/ui.
+    StatArbDeskController,
   ],
 })
 export class StatArbModule {}
