@@ -34,9 +34,11 @@ export class MmDeskController {
 
   @Sse('desk/mm/stream')
   stream(): Observable<MessageEvent> {
+    // Only the summary + per-book cards stream; the Activity tape is the append-mode
+    // <activity-tape> on the static page, which self-polls /api/market-making/events.
     return interval(MM_DESK_STREAM_MS).pipe(
       startWith(0),
-      map(() => ({ data: { html: renderMmDeskLive(this.mm.snapshot(), this.recentEvents()).value } }) as MessageEvent),
+      map(() => ({ data: { html: renderMmDeskLive(this.mm.snapshot()).value } }) as MessageEvent),
     );
   }
 
@@ -48,6 +50,7 @@ export class MmDeskController {
     return {
       snap: this.mm.snapshot(),
       events: this.recentEvents(),
+      cursor: this.eventLog ? this.eventLog.lastSeq() : 0,
       strategies: mmStrategyRegistry.liveCapable().map((d) => ({ id: d.id, label: d.label })),
       presets: listMmPresets().map((p) => ({ id: p.id, label: p.label })),
     };

@@ -111,6 +111,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('nav-spark.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain("customElements.define('nav-spark'");
+
+    assets.serve('activity-tape.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('activity-tape'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {

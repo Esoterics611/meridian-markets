@@ -49,7 +49,7 @@ export class StatArbDeskController {
     // rendered once on page load to avoid a Postgres query every tick.
     return interval(STREAM_MS).pipe(
       startWith(0),
-      map(() => ({ data: { html: renderStatArbLive(this.portfolio.snapshot(), this.recentEvents()).value } }) as MessageEvent),
+      map(() => ({ data: { html: renderStatArbLive(this.portfolio.snapshot()).value } }) as MessageEvent),
     );
   }
 
@@ -80,6 +80,7 @@ export class StatArbDeskController {
     return {
       snap: this.portfolio.snapshot(),
       events: this.recentEvents(),
+      cursor: this.eventLog ? this.eventLog.lastSeq() : 0,
       blotter,
       blotterAvailable,
       strategies: strategyRegistry.liveCapable().map((d) => ({ id: d.id, label: d.label })),

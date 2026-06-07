@@ -70,7 +70,7 @@ function ev(over: Partial<DeskEvent> = {}): DeskEvent {
 
 describe('renderMmDeskLive', () => {
   it('renders the desk summary from the snapshot', () => {
-    const h = renderMmDeskLive(snap(), []).value;
+    const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('desk nav');
     expect(h).toContain('$100,699.50');
     expect(h).toContain('+$699.50');
@@ -78,7 +78,7 @@ describe('renderMmDeskLive', () => {
   });
 
   it('renders a per-book card: quotes, PnL attribution and verdict', () => {
-    const h = renderMmDeskLive(snap(), []).value;
+    const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('BTC·hyperliquid');
     expect(h).toContain('62,990.00'); // bid
     expect(h).toContain('63,010.00'); // ask
@@ -91,37 +91,28 @@ describe('renderMmDeskLive', () => {
   });
 
   it('wires the per-book remove button to the symbol it sits on', () => {
-    const h = renderMmDeskLive(snap(), []).value;
+    const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('endpoint="/api/market-making/remove"');
     expect(h).toContain('&quot;symbol&quot;:&quot;BTC&quot;'); // JSON body, html-escaped
     expect(h).toContain('Remove + flatten BTC?'); // confirm names the book
   });
 
   it('shows a WARMING badge for a book that is not warm yet', () => {
-    const h = renderMmDeskLive(snap({ books: [book({ warm: false })] }), []).value;
+    const h = renderMmDeskLive(snap({ books: [book({ warm: false })] })).value;
     expect(h).toContain('WARMING');
   });
 
   it('renders "—" for a book with no quote yet', () => {
-    const h = renderMmDeskLive(snap({ books: [book({ bidMicros: null, askMicros: null })] }), []).value;
+    const h = renderMmDeskLive(snap({ books: [book({ bidMicros: null, askMicros: null })] })).value;
     expect(h).toContain('—');
   });
 
-  it('renders the activity tape newest-first with the engine message verbatim', () => {
-    const events = [
-      ev({ seq: 1, kind: 'launch', message: 'BTC ▸ launched' }),
-      ev({ seq: 2, kind: 'fill', message: 'BTC ▸ BUY 0.25 @ 62,990.00 — opened long' }),
-    ];
-    const h = renderMmDeskLive(snap(), events).value;
-    // newest (seq 2) appears before oldest (seq 1)
-    expect(h.indexOf('opened long')).toBeLessThan(h.indexOf('launched'));
-    expect(h).toContain('12:00:05'); // ts → HH:MM:SS
-  });
-
-  it('shows an honest empty state for no books and no activity', () => {
-    const h = renderMmDeskLive(snap({ bookCount: 0, books: [] }), []).value;
+  it('shows an honest empty state for no books (the tape is now the static append-mode component)', () => {
+    const h = renderMmDeskLive(snap({ bookCount: 0, books: [] })).value;
     expect(h).toContain('no books launched');
-    expect(h).toContain('no activity yet');
+    // the Activity tape is no longer in the SSE region — it must not be here
+    expect(h).not.toContain('activity-tape');
+    expect(h).not.toContain('class="panel activity"');
   });
 });
 
@@ -143,7 +134,7 @@ describe('renderLaunchForm', () => {
 
 describe('renderMmDeskPage', () => {
   it('wraps controls + launch form + live region in the shared shell', () => {
-    const state: MmDeskState = { snap: snap(), events: [], strategies: [], presets: [] };
+    const state: MmDeskState = { snap: snap(), events: [], cursor: 0, strategies: [], presets: [] };
     const html = renderMmDeskPage(state);
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('class="action-palette"'); // shared desk controls
@@ -155,10 +146,25 @@ describe('renderMmDeskPage', () => {
   });
 
   it('renders the desk equity sparkline OUTSIDE the SSE live region', () => {
-    const state: MmDeskState = { snap: snap(), events: [], strategies: [], presets: [] };
+    const state: MmDeskState = { snap: snap(), events: [], cursor: 0, strategies: [], presets: [] };
     const html = renderMmDeskPage(state);
     expect(html).toContain('<nav-spark book="" hours="24"');
     // it must sit before the live region so an SSE tick can't recreate it mid-fetch
     expect(html.indexOf('<nav-spark')).toBeLessThan(html.indexOf('id="mm-live"'));
+  });
+
+  it('renders the append-mode <activity-tape> OUTSIDE the SSE region: rows newest-first + cursor + endpoint', () => {
+    const events = [
+      ev({ seq: 7, kind: 'launch', message: 'BTC ▸ launched' }),
+      ev({ seq: 8, kind: 'fill', message: 'BTC ▸ BUY 0.25 @ 62,990.00 — opened long' }),
+    ];
+    const state: MmDeskState = { snap: snap(), events, cursor: 8, strategies: [], presets: [] };
+    const html = renderMmDeskPage(state);
+    // the dedicated component, pointed at the MM events endpoint with the lastSeq cursor
+    expect(html).toContain('<activity-tape src="/api/market-making/events" cursor="8"');
+    // initial paint: newest (seq 8) before oldest (seq 7), engine message verbatim
+    expect(html.indexOf('opened long')).toBeLessThan(html.indexOf('launched'));
+    // and it lives AFTER the live region (self-polls; must not be inside the SSE swap)
+    expect(html.indexOf('id="mm-live"')).toBeLessThan(html.indexOf('<activity-tape'));
   });
 });

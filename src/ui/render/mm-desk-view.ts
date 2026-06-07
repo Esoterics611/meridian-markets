@@ -13,7 +13,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, activityTape, navSparkPanel } from './components';
+import { deskControls, appendActivityTape, navSparkPanel } from './components';
 
 export interface StrategyOption {
   id: string;
@@ -28,6 +28,8 @@ export interface MmDeskState {
   snap: MmPortfolioSnapshot;
   /** Recent desk events, oldest-first (the log's feed order); the tape reverses them. */
   events: DeskEvent[];
+  /** Cursor (DeskEventLog.lastSeq()) for the append-mode tape's first poll. */
+  cursor: number;
   strategies: StrategyOption[];
   presets: PresetOption[];
 }
@@ -86,8 +88,10 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
   `;
 }
 
-/** The live region: desk summary + per-book cards + the Activity tape. */
-export function renderMmDeskLive(snap: MmPortfolioSnapshot, events: DeskEvent[]): SafeHtml {
+/** The live region: desk summary + per-book cards. (The Activity tape is the
+ *  append-mode <activity-tape> on the static page — it self-polls and must NOT be
+ *  inside this SSE-swapped region, or a tick would reset its scroll + restart it.) */
+export function renderMmDeskLive(snap: MmPortfolioSnapshot): SafeHtml {
   const cards = snap.books.length
     ? raw(snap.books.map((b) => bookCard(b).value).join(''))
     : html`<div class="empty dim">no books launched — use the launch form above</div>`;
@@ -107,8 +111,6 @@ export function renderMmDeskLive(snap: MmPortfolioSnapshot, events: DeskEvent[])
     </section>
 
     <section class="book-cards">${cards}</section>
-
-    ${activityTape(events)}
   `;
 }
 
@@ -150,8 +152,9 @@ export function renderMmDeskPage(state: MmDeskState): string {
     ${navSparkPanel({ label: 'desk equity' })}
     ${renderLaunchForm(state.strategies, state.presets)}
     <desk-feed src="/desk/mm/stream" target="mm-live">
-      <div id="mm-live">${renderMmDeskLive(state.snap, state.events)}</div>
+      <div id="mm-live">${renderMmDeskLive(state.snap)}</div>
     </desk-feed>
+    ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/market-making/events' })}
   `;
   return pageShell({ title: 'Meridian · MM desk', activeHref: '/desk/mm', body: raw(body.value) });
 }

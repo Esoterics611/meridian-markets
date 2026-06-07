@@ -74,13 +74,15 @@ describe('StatArbDeskController', () => {
     expect(await c.page()).toContain('ETH/BTC ▸ launched');
   });
 
-  it('GET /desk/statarb/stream emits an { html } region frame (no blotter, no full doc)', async () => {
+  it('GET /desk/statarb/stream emits an { html } region frame (cards only; tape + blotter are static)', async () => {
     const c = new StatArbDeskController(fakePortfolio());
     const frame = await firstValueFrom(c.stream().pipe(take(1)));
     const data = frame.data as { html: string };
     expect(data.html).toContain('book-cards');
-    expect(data.html).toContain('activity');
     expect(data.html).not.toContain('<!doctype html>');
     expect(data.html).not.toContain('blotter'); // durable blotter is page-load only, not streamed
+    // the Activity tape is the static append-mode <activity-tape>, not streamed each tick
+    expect(data.html).not.toContain('activity-tape');
+    expect(data.html).not.toContain('class="panel activity"');
   });
 });

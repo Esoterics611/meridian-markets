@@ -101,14 +101,10 @@ function tapeRow(ev: DeskEvent): SafeHtml {
   </li>`;
 }
 
-/**
- * The Activity tape — the live business-event feed (fills / verdict changes / book
- * lifecycle). `events` arrive oldest-first (the log's feed order); we show them
- * newest-first, capped. Shared by mm/statarb/risk. `title` + `emptyNote` let the
- * risk page reuse it as a verdict-transition feed.
- */
-export function activityTape(events: DeskEvent[], title = 'activity', emptyNote = 'no activity yet — launch a book to start the tape'): SafeHtml {
-  const rows = events.length
+/** Server-render the tape rows (newest-first) or the empty note. Shared by both the
+ *  full-replace tape (in-SSE) and the append-mode tape's first paint. */
+function tapeRows(events: DeskEvent[], emptyNote: string): SafeHtml {
+  return events.length
     ? raw(
         [...events]
           .reverse()
@@ -116,10 +112,59 @@ export function activityTape(events: DeskEvent[], title = 'activity', emptyNote 
           .join(''),
       )
     : html`<li class="dim empty">${emptyNote}</li>`;
+}
+
+/**
+ * The Activity tape — the live business-event feed (fills / verdict changes / book
+ * lifecycle). `events` arrive oldest-first (the log's feed order); we show them
+ * newest-first, capped. This is the FULL-REPLACE variant rendered INSIDE an SSE
+ * region (the whole list is re-rendered each tick). Used by /risk's short verdict
+ * feed; the busy desk tapes use appendActivityTape() instead. `title` + `emptyNote`
+ * let the risk page reuse it as a verdict-transition feed.
+ */
+export function activityTape(events: DeskEvent[], title = 'activity', emptyNote = 'no activity yet — launch a book to start the tape'): SafeHtml {
   return html`
     <section class="panel activity">
       <div class="panel-h">${title}</div>
-      <ul class="tape">${rows}</ul>
+      <ul class="tape">${tapeRows(events, emptyNote)}</ul>
+    </section>
+  `;
+}
+
+export interface AppendTapeOpts {
+  /** Recent events for the first paint, oldest-first (the log's feed order). */
+  events: DeskEvent[];
+  /** The events endpoint base, e.g. '/api/market-making/events'. */
+  src: string;
+  /** Initial cursor = DeskEventLog.lastSeq(); the first poll fetches events after it. */
+  cursor: number;
+  title?: string;
+  emptyNote?: string;
+  /** Optional client-side kind filter, e.g. 'verdict' for a risk feed. */
+  kind?: string;
+  /** Optional book filter passed through to the endpoint (&book=). */
+  book?: string;
+}
+
+/**
+ * The APPEND-MODE Activity tape — the dedicated <activity-tape> Web Component (the
+ * cursor-based feed, UI_ARCHITECTURE.md §5). The server renders the initial rows
+ * (newest-first) + the cursor for a correct first paint; the component then polls
+ * `src?since=<cursor>` and PREPENDS only the new events, so the list isn't rebuilt
+ * each tick and the operator's scroll into history is preserved. MUST be placed
+ * OUTSIDE any SSE region (it self-polls; an SSE swap would recreate it and restart
+ * the feed). Shared by /desk/mm + /desk/statarb.
+ */
+export function appendActivityTape(opts: AppendTapeOpts): SafeHtml {
+  const title = opts.title ?? 'activity';
+  const emptyNote = opts.emptyNote ?? 'no activity yet — launch a book to start the tape';
+  const shown = opts.kind ? opts.events.filter((e) => e.kind === opts.kind) : opts.events;
+  return html`
+    <section class="panel activity">
+      <div class="panel-h">${title}</div>
+      <activity-tape src="${opts.src}" cursor="${opts.cursor}" kind="${opts.kind ?? ''}" book="${opts.book ?? ''}">
+        <ul class="tape">${tapeRows(shown, emptyNote)}</ul>
+      </activity-tape>
     </section>
   `;
 }

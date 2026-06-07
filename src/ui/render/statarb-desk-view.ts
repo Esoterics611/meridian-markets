@@ -13,7 +13,7 @@ import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, returnPct, signClass } from './format';
-import { statArbControls, activityTape } from './components';
+import { statArbControls, appendActivityTape } from './components';
 
 /** Minimal blotter row shape (subset of StatArbTradeRow) the view needs. */
 export interface BlotterRow {
@@ -33,6 +33,8 @@ export interface StrategyOption {
 export interface StatArbDeskState {
   snap: PortfolioSnapshot;
   events: DeskEvent[];
+  /** Cursor (DeskEventLog.lastSeq()) for the append-mode tape's first poll. */
+  cursor: number;
   /** Persisted closed trades (newest-first); empty when no DB / none yet. */
   blotter: BlotterRow[];
   /** Whether the blotter could be read (false ⇒ persistence/DB off). */
@@ -87,8 +89,9 @@ function pairCard(b: PortfolioBookRow): SafeHtml {
   `;
 }
 
-/** The live region: desk summary + per-pair cards + the Activity tape. */
-export function renderStatArbLive(snap: PortfolioSnapshot, events: DeskEvent[]): SafeHtml {
+/** The live region: desk summary + per-pair cards. (The Activity tape is the
+ *  append-mode <activity-tape> on the static page — outside this SSE-swapped region.) */
+export function renderStatArbLive(snap: PortfolioSnapshot): SafeHtml {
   const net = (BigInt(snap.realisedPnlUnits) + BigInt(snap.unrealisedPnlUnits)).toString();
   const cards = snap.books.length
     ? raw(snap.books.map((b) => pairCard(b).value).join(''))
@@ -109,8 +112,6 @@ export function renderStatArbLive(snap: PortfolioSnapshot, events: DeskEvent[]):
     </section>
 
     <section class="book-cards">${cards}</section>
-
-    ${activityTape(events)}
   `;
 }
 
@@ -178,8 +179,9 @@ export function renderStatArbPage(state: StatArbDeskState): string {
     ${statArbControls()}
     ${renderStatArbLaunchForm(state.strategies)}
     <desk-feed src="/desk/statarb/stream" target="statarb-live">
-      <div id="statarb-live">${renderStatArbLive(state.snap, state.events)}</div>
+      <div id="statarb-live">${renderStatArbLive(state.snap)}</div>
     </desk-feed>
+    ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/stat-arb/live/events' })}
     ${renderStatArbBlotter(state.blotter, state.blotterAvailable)}
   `;
   return pageShell({ title: 'Meridian · stat-arb desk', activeHref: '/desk/statarb', body: raw(body.value) });

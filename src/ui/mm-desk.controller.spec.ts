@@ -46,14 +46,16 @@ describe('MmDeskController', () => {
     expect(c.page()).toContain('no activity yet');
   });
 
-  it('GET /desk/mm/stream emits an { html } region frame (cards + tape, not a full doc)', async () => {
+  it('GET /desk/mm/stream emits an { html } region frame (cards only; tape + form are static)', async () => {
     const c = new MmDeskController(fakeTrader());
     const frame = await firstValueFrom(c.stream().pipe(take(1)));
     const data = frame.data as { html: string };
     expect(typeof data.html).toBe('string');
     expect(data.html).toContain('book-cards');
-    expect(data.html).toContain('activity');
     expect(data.html).not.toContain('<!doctype html>');
     expect(data.html).not.toContain('class="panel launch"'); // form is static chrome, not streamed
+    // the Activity tape is the static append-mode <activity-tape>, NOT streamed each tick
+    expect(data.html).not.toContain('activity-tape');
+    expect(data.html).not.toContain('class="panel activity"');
   });
 });

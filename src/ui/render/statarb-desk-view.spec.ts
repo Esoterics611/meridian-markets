@@ -63,7 +63,7 @@ function ev(over: Partial<DeskEvent> = {}): DeskEvent {
 
 describe('renderStatArbLive', () => {
   it('renders the desk summary (net = realised + unrealised)', () => {
-    const h = renderStatArbLive(snap(), []).value;
+    const h = renderStatArbLive(snap()).value;
     expect(h).toContain('desk nav');
     expect(h).toContain('$100,450.00');
     expect(h).toContain('+$1,234.00'); // 1000 + 234
@@ -72,7 +72,7 @@ describe('renderStatArbLive', () => {
   });
 
   it('renders a per-pair card: z / β / regime / position / P&L', () => {
-    const h = renderStatArbLive(snap(), []).value;
+    const h = renderStatArbLive(snap()).value;
     expect(h).toContain('ETH/BTC');
     expect(h).toContain('1.84'); // z
     expect(h).toContain('0.061'); // β (3dp)
@@ -83,25 +83,26 @@ describe('renderStatArbLive', () => {
   });
 
   it('wires the per-pair remove button to the pair it sits on', () => {
-    const h = renderStatArbLive(snap(), []).value;
+    const h = renderStatArbLive(snap()).value;
     expect(h).toContain('endpoint="/api/stat-arb/live/portfolio/remove"');
     expect(h).toContain('&quot;pair&quot;:&quot;ETH/BTC&quot;'); // JSON body, html-escaped
     expect(h).toContain('Remove + flatten ETH/BTC?');
   });
 
   it('colours the position badge by side', () => {
-    expect(renderStatArbLive(snap({ books: [pair({ position: 'LONG' })] }), []).value).toContain('badge badge--allow');
-    expect(renderStatArbLive(snap({ books: [pair({ position: 'SHORT' })] }), []).value).toContain('badge badge--deny');
+    expect(renderStatArbLive(snap({ books: [pair({ position: 'LONG' })] })).value).toContain('badge badge--allow');
+    expect(renderStatArbLive(snap({ books: [pair({ position: 'SHORT' })] })).value).toContain('badge badge--deny');
     // null position renders FLAT (paper/dim badge)
-    const flat = renderStatArbLive(snap({ books: [pair({ position: null })] }), []).value;
+    const flat = renderStatArbLive(snap({ books: [pair({ position: null })] })).value;
     expect(flat).toContain('>FLAT</span>');
   });
 
-  it('renders the activity tape + an honest empty state', () => {
-    expect(renderStatArbLive(snap(), [ev()]).value).toContain('entered SHORT');
-    const empty = renderStatArbLive(snap({ pairCount: 0, books: [] }), []).value;
+  it('shows an honest empty state for no pairs (the tape is the static append-mode component)', () => {
+    const empty = renderStatArbLive(snap({ pairCount: 0, books: [] })).value;
     expect(empty).toContain('no pairs launched');
-    expect(empty).toContain('no activity yet');
+    // the Activity tape is no longer in the SSE region
+    expect(empty).not.toContain('activity-tape');
+    expect(empty).not.toContain('class="panel activity"');
   });
 });
 
@@ -142,7 +143,7 @@ describe('renderStatArbLaunchForm', () => {
 
 describe('renderStatArbPage', () => {
   it('wraps controls + launch form + live region + blotter in the shared shell', () => {
-    const state: StatArbDeskState = { snap: snap(), events: [], blotter: [], blotterAvailable: false, strategies: [] };
+    const state: StatArbDeskState = { snap: snap(), events: [], cursor: 0, blotter: [], blotterAvailable: false, strategies: [] };
     const html = renderStatArbPage(state);
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('endpoint="/api/stat-arb/live/portfolio/start"'); // stat-arb controls
@@ -151,5 +152,14 @@ describe('renderStatArbPage', () => {
     expect(html).toContain('id="statarb-live"');
     expect(html).toContain('persists with Postgres'); // blotter note (unavailable)
     expect(html).toContain('nav-link--active');
+  });
+
+  it('renders the append-mode <activity-tape> OUTSIDE the SSE region (stat-arb events endpoint + cursor)', () => {
+    const state: StatArbDeskState = { snap: snap(), events: [ev()], cursor: 12, blotter: [], blotterAvailable: false, strategies: [] };
+    const html = renderStatArbPage(state);
+    expect(html).toContain('<activity-tape src="/api/stat-arb/live/events" cursor="12"');
+    expect(html).toContain('entered SHORT'); // initial paint shows the engine message verbatim
+    // it sits after the live region (self-polls; not inside the SSE swap)
+    expect(html.indexOf('id="statarb-live"')).toBeLessThan(html.indexOf('<activity-tape'));
   });
 });
