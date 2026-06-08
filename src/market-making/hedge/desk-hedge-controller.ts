@@ -58,6 +58,10 @@ export class DeskHedgeController {
     private readonly venue: ITradingVenue,
     private readonly cfg: HedgeConfig,
     private readonly clock: () => Date = () => new Date(),
+    // Optional price sink: push the current marks to the venue's price source before filling
+    // so the paper taker fills at the same mid we hedge against (the live module wires this to
+    // the PaperVenue's pricePoller). Omit ⇒ the venue prices itself (the unit tests).
+    private readonly syncPrices?: (prices: Record<string, bigint>) => void,
   ) {}
 
   private posOf(u: string): PerpPosition {
@@ -93,6 +97,7 @@ export class DeskHedgeController {
     // 2. The banded rebalance against the current hedge notional.
     const plan = computeHedge(books, this.hedgeNotionalUsd(ctx.prices), this.cfg);
     this.lastOrders = plan.orders;
+    if (plan.orders.length) this.syncPrices?.(ctx.prices); // pin the venue's fill price to our marks
 
     // 3. Fill each order as a taker on the venue; update the perp position from the real fill.
     for (const o of plan.orders) {

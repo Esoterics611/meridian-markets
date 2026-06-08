@@ -25,6 +25,8 @@ import { MmController } from './mm.controller';
 import { MmPortfolioTrader, MmBookSpec } from './live/mm-portfolio-trader';
 import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
+import { PaperVenue } from '../execution/paper-venue';
+import { DeskHedgeController } from './hedge/desk-hedge-controller';
 import { venueFeeFor } from './backtest/venue-fees';
 import { HyperliquidFundingClient } from '../market-data/funding/hyperliquid-funding-client';
 import { DbService } from '@database/db.service';
@@ -363,6 +365,26 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const store: IMmStateStore = mm.persist && db ? new PostgresMmStateStore(new MmStateRepository(db)) : new NullMmStateStore();
         if (mm.persist && !db) new Logger('MarketMakingModule').warn('MM_PERSIST=true but no DbService — running in-memory (no restart-safe books)');
 
+        // Desk delta hedge (HEDGING_MODEL.md): a paper perp leg (PaperVenue) fed by the live
+        // book mids, driven each tick by DeskHedgeController to flatten each book's net delta.
+        // Off unless MM_DELTA_HEDGE=true ⇒ no hedge venue, trader behaviour unchanged.
+        let hedger: DeskHedgeController | undefined;
+        if (mm.deltaHedge) {
+          const hedgeMids: Record<string, bigint> = {};
+          const hedgeVenue = new PaperVenue({
+            pricePoller: async (s) => hedgeMids[s] ?? 0n,
+            takerFeeBps: BigInt(Math.max(0, Math.round(mm.hedgeTakerBps))),
+            venueId: 'hl-perp-hedge',
+          });
+          hedger = new DeskHedgeController(
+            hedgeVenue,
+            { bandUsd: mm.hedgeBandUsd, betaMap: {}, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
+            () => new Date(),
+            (prices) => Object.assign(hedgeMids, prices),
+          );
+          new Logger('MarketMakingModule').log(`desk delta hedge ON — band $${mm.hedgeBandUsd}, perp taker ${mm.hedgeTakerBps}bps (paper)`);
+        }
+
         const trader = new MmPortfolioTrader(
           makeBook,
           mm.pollIntervalMs,
@@ -370,6 +392,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           { store, rebuildBook, flattenOnShutdown: mm.flattenOnShutdown },
           tele,
           deskEvents,
+          hedger,
         );
 
         // C2 fast path: build the sub-second L2 poll driver + the real HL trades-WS

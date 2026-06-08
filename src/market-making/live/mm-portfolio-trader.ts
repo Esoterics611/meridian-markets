@@ -1,5 +1,7 @@
 import { Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { MmBook, MmBookSnapshot } from './mm-book';
+import { DeskHedgeController, HedgeSnapshot } from '../hedge/desk-hedge-controller';
+import { BookDelta } from '../hedge/desk-delta-hedger';
 import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
 import { NullMmStateStore } from '../persistence/null-mm-state-store';
 import { ITelemetry } from '../../telemetry/telemetry.interface';
@@ -65,6 +67,8 @@ export interface MmPortfolioSnapshot {
   fundingUnits: string;
   netPnlUnits: string;
   books: MmBookSnapshot[];
+  /** Desk delta-hedge state (gross delta / post-hedge residual / hedge P&L), when enabled. */
+  hedge?: HedgeSnapshot;
 }
 
 export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -95,11 +99,31 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     // unit tests are unchanged; the module injects the shared DeskEventLog so these
     // lifecycle events land in the same log + activity feed as the per-book fills.
     private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
+    // Desk delta hedge (HEDGING_MODEL.md). undefined ⇒ off (every existing test constructs the
+    // trader without it and is unchanged). The module injects it when MM_DELTA_HEDGE=true.
+    private readonly hedger?: DeskHedgeController,
   ) {
     this.capitalUnits = initialCapitalUnits;
     this.store = persistence.store ?? new NullMmStateStore();
     this.rebuildBook = persistence.rebuildBook;
     this.flattenOnShutdown = persistence.flattenOnShutdown ?? false;
+  }
+
+  /** epoch ms of the last hedge rebalance, for funding/dt accrual. */
+  private lastHedgeMs: number | null = null;
+
+  /** Per-underlying book deltas + marks for the hedge, read off the live book snapshots. */
+  private deskDeltas(): { books: BookDelta[]; prices: Record<string, bigint> } {
+    const books: BookDelta[] = [];
+    const prices: Record<string, bigint> = {};
+    for (const b of this.books.values()) {
+      const s = b.snapshot();
+      const midMicros = BigInt(s.midMicros);
+      if (midMicros <= 0n) continue; // un-warm book has no mark yet
+      books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros });
+      prices[s.symbol] = midMicros;
+    }
+    return { books, prices };
   }
 
   /** Epoch ms of the last completed tick (or null) — the readiness freshness probe. */
@@ -274,6 +298,19 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
           .map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
       );
       await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
+      if (this.hedger) {
+        // Delta hedge AFTER the books tick (so we hedge this tick's inventory). Best-effort —
+        // a hedge error never sinks the loop (mirrors the per-book guard above).
+        try {
+          const { books, prices } = this.deskDeltas();
+          const now = Date.now();
+          const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
+          this.lastHedgeMs = now;
+          await this.hedger.rebalance(books, { prices, dtHours });
+        } catch (e) {
+          this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
+        }
+      }
     } finally {
       this.ticking = false;
       const durSec = (Date.now() - startMs) / 1000;
@@ -371,6 +408,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       fundingUnits: funding.toString(),
       netPnlUnits: net.toString(),
       books,
+      hedge: this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined,
     };
   }
 }

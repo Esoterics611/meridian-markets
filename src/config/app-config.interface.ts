@@ -182,6 +182,15 @@ export interface AppConfig {
      *  raw lot count (Journal #41: a fixed 4-lot cap is a 100× different bet on BTC vs DOGE).
      *  0 = off (legacy lot-count cap). */
     maxInventoryNotionalFrac: number;
+    /** Desk delta hedge (HEDGING_MODEL.md): hold a paper perp leg that offsets each book's net
+     *  delta, so the desk earns the MM edge without the directional variance. Off by default. */
+    deltaHedge: boolean;
+    /** Rebalance the hedge only when an underlying's residual |net delta| exceeds this many USD. */
+    hedgeBandUsd: number;
+    /** Taker fee (bps) charged on the hedge perp leg (HL perp taker ≈ 2.5). */
+    hedgeTakerBps: number;
+    /** Half-spread (bps) crossed when rebalancing the hedge (informational cost estimate). */
+    hedgeHalfSpreadBps: number;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

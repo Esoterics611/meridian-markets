@@ -3,6 +3,8 @@ import { MmBook } from './mm-book';
 import { Bar } from '../../stat-arb/backtest/bar';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
 import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
+import { DeskHedgeController } from '../hedge/desk-hedge-controller';
+import { PaperVenue } from '../../execution/paper-venue';
 
 function bars(symbol: string): Bar[] {
   return Array.from({ length: 6 }, (_, i) => ({
@@ -83,6 +85,35 @@ describe('MmPortfolioTrader', () => {
     expect(snap.bookCount).toBe(2);
     expect(snap.books.map((b) => b.symbol).sort()).toEqual(['FDUSD', 'USDC']);
     expect(snap.books.every((b) => b.fills > 0)).toBe(true);
+  });
+
+  it('delta hedge: undefined by default (snapshot.hedge absent, behaviour unchanged)', async () => {
+    const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n);
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);
+    await pf.tick();
+    expect(pf.snapshot().hedge).toBeUndefined();
+  });
+
+  it('delta hedge: when wired, flattens each book net delta on the perp leg after a tick', async () => {
+    const hedgeMids: Record<string, bigint> = {};
+    const venue = new PaperVenue({ pricePoller: async (s) => hedgeMids[s] ?? 0n, takerFeeBps: 3n });
+    const hedger = new DeskHedgeController(
+      venue,
+      { bandUsd: 0, betaMap: {}, hedgeTakerBps: 2.5, hedgeHalfSpreadBps: 1 },
+      () => new Date(),
+      (p) => Object.assign(hedgeMids, p),
+    );
+    const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, {}, undefined, undefined, hedger);
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);
+    for (let i = 0; i < 6; i++) await pf.tick();
+
+    const snap = pf.snapshot();
+    expect(snap.hedge?.enabled).toBe(true);
+    // With a zero band, any net delta is hedged out ⇒ residual ≈ flat (sub-dollar rounding).
+    expect(snap.hedge!.residualUsd).toBeLessThan(1);
+    // The hedge mirrors the book's net delta in size.
+    const inv = Number(BigInt(snap.books[0].inventoryUnits)) / 1e6;
+    expect(snap.hedge!.grossDeltaUsd).toBeCloseTo(Math.abs(inv * 1.0), 4);
   });
 
   it('refreshFunding drives the source per (symbol, source) and counts only updated books', async () => {
