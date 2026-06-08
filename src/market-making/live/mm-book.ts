@@ -142,6 +142,8 @@ export interface MmBookSnapshot {
   feesUnits: string;
   /** Funding accrued on held inventory (+ received / − paid); "0" on non-perp venues. */
   fundingUnits: string;
+  /** Live perp funding rate (signed fraction/hour) — drives the delta hedge's funding accrual. */
+  fundingRatePerHour: number;
   netPnlUnits: string;
   spreadCapturedUnits: string;
   adverseSelectionUnits: string;
@@ -517,6 +519,7 @@ export class MmBook {
       unrealisedPnlUnits: this.book.unrealisedUnits(midMicros).toString(),
       feesUnits: this.book.feesUnits().toString(),
       fundingUnits: this.fundingUnits.toString(),
+      fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
       netPnlUnits: (this.book.totalPnlUnits(midMicros) + this.fundingUnits).toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseSelectionUnits: this.adverse.toString(),
@@ -558,6 +561,7 @@ export class MmBook {
       unrealisedPnlUnits: m.unrealisedPnlUnits.toString(),
       feesUnits: m.feesUnits.toString(),
       fundingUnits: '0',
+      fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
       netPnlUnits: m.netPnlUnits.toString(),
       spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
       adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),

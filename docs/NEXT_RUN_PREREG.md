@@ -29,6 +29,8 @@ desk holds a steady, low-drawdown NAV curve and **unrealised stops being the los
   3. **No book carries inventory > `MM_MAX_INVENTORY_LOTS`** at any checkpoint (the hard cap holds).
 - **Run:** `scripts/launch-mm-10h.sh` (header has the exact server env). Score the shadow capture after with `scripts/flow-bias-markout.ts`.
 
+> **VERDICT (2026-06-08, ~10h, Journal #41):** metric 1 **PASS** (unrealised +$1,464 = 0.15× realised −$9,952 — the #39 unrealised-bag pathology is gone); metric 2 **FAIL** (per-book maxDD SUI 17.6% / BTC 10.3% / SOL 7.4% — only DOGE ≤1.5%); metric 3 holds (governor flattening). Desk **−$8,225** net. **Lesson:** the governor fixed the *unrealised* axis only — it crystallised the loss into realised by flattening, it did not stop the bleed, because **a fixed lot-cap ≠ bounded drawdown and the desk's NET DELTA is unhedged.** Fixes shipped: notional inventory cap (`MM_MAX_INVENTORY_NOTIONAL_FRAC`) + the `DeskDeltaHedger` model (`docs/HEDGING_MODEL.md`). **Run A′ supersedes this:** governor + notional cap + delta hedge; same metrics; required before any directional Run B.
+
 ## Run B — the time-stopped directional lean (the run AFTER A)
 
 Only after Run A confirms the governor works. Needs phase-B code first (the taker time-stop +

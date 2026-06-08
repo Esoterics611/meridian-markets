@@ -25,6 +25,11 @@ export interface MmStrategyBuildOpts {
   maxHalfSpreadBps: number;
   /** Saturation cap on |inventory|, in lots (one lot = one quote size). */
   maxInventoryLots: number;
+  /** Cap inventory by NOTIONAL — this fraction of book capital at the live mid — instead of a
+   *  raw lot count (Journal #41). 0/undefined ⇒ the legacy lot-count cap. Needs capitalUnits. */
+  maxInventoryNotionalFrac?: number;
+  /** Book capital in micro-USD (6-dec), for the notional inventory cap. */
+  capitalUnits?: bigint;
   /** Per-launch overrides of the frozen defaultParams (e.g. { gamma, kappa }). */
   params?: Record<string, number>;
 }
@@ -88,7 +93,7 @@ const GLFT: MmStrategyDefinition = {
   courseRef: '§3.5 GLFT steady state',
   liveCapable: true,
   defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0 },
-  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
+  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, maxInventoryNotionalFrac, capitalUnits, params }) => {
     const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0, ...params };
     return new GlftQuoter({
       gamma: p.gamma,
@@ -97,6 +102,8 @@ const GLFT: MmStrategyDefinition = {
       minHalfSpreadBps,
       maxHalfSpreadBps,
       maxInventoryLots,
+      maxInventoryNotionalFrac,
+      capitalUnits,
       steadyHorizonBars: p.steadyHorizonBars,
       inventorySkewMult: p.inventorySkewMult,
       hardInventoryCap: p.hardInventoryCap === 1,
@@ -113,7 +120,7 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
   courseRef: 'Directional MM (axe)',
   liveCapable: true,
   defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0, inventorySkewMult: 1, hardInventoryCap: 0 },
-  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
+  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, maxInventoryNotionalFrac, capitalUnits, params }) => {
     const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0, inventorySkewMult: 1, hardInventoryCap: 0, ...params };
     return new DirectionalGlftQuoter({
       gamma: p.gamma,
@@ -122,6 +129,8 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
       minHalfSpreadBps,
       maxHalfSpreadBps,
       maxInventoryLots,
+      maxInventoryNotionalFrac,
+      capitalUnits,
       steadyHorizonBars: p.steadyHorizonBars,
       bias: p.bias,
       convictionGain: p.convictionGain,

@@ -165,6 +165,17 @@ export class MmController {
     return this.portfolio.snapshot();
   }
 
+  /**
+   * Close the whole desk before shutting the server down: flatten + soft-close every book so a
+   * restart comes up clean instead of rehydrating stale inventory (the "UI shows old positions"
+   * surprise). Durable against a later hard kill — the rows are soft-closed synchronously.
+   */
+  @Post('close-all')
+  async closeAll() {
+    const closed = await this.portfolio.closeAll();
+    return { closed, ...this.portfolio.snapshot() };
+  }
+
   @Get('snapshot')
   snapshot() {
     return this.portfolio.snapshot();

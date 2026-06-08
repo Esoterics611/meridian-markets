@@ -124,4 +124,44 @@ describe('GlftQuoter', () => {
       expect(same.quote(c, 'X').ask.priceMicros).toBe(legacy.quote(c, 'X').ask.priceMicros);
     });
   });
+
+  // The notional inventory cap (Journal #41): a fixed lot count is a 100×-different bet across
+  // a wide price universe (4 lots of BTC ≫ 4 lots of DOGE) — BTC drew 10% on "4 lots". The cap
+  // is recomputed each tick as frac·capital ÷ (price·lotUnits), so it binds the same RISK.
+  describe('notional inventory cap', () => {
+    const P = { gamma: 0.0025, kappa: 2, quoteSizeUnits: 1_000_000n, minHalfSpreadBps: 0, steadyHorizonBars: 1, maxHalfSpreadBps: 200 };
+    const CAP = 1_000_000_000_000n; // $1,000,000 book in micro-USD
+    // 10% of $1M = $100k notional budget; one lot = 1 coin (quoteSizeUnits 1e6).
+    const notional = () => new GlftQuoter({ ...P, maxInventoryLots: 50, hardInventoryCap: true, maxInventoryNotionalFrac: 0.1, capitalUnits: CAP }, CLOCK);
+    const parkedBid = (p: ReturnType<GlftQuoter['quote']>) =>
+      Number(p.reservationMicros) - Number(p.bid.priceMicros) === (Number(p.context.midMicros) * 200) / 10_000;
+
+    it('binds far below the lot cap on a high-priced book ($100k mid ⇒ ~1-lot notional budget)', () => {
+      // 2 lots is well under the 50-lot count cap, but $200k ≫ the $100k notional budget ⇒ park.
+      const btc = notional().quote(ctx({ midMicros: 100_000_000_000n, inventoryUnits: 2_000_000n }), 'BTC');
+      expect(parkedBid(btc)).toBe(true);
+    });
+
+    it('does NOT bind on a low-priced book at the same lot count (same $ budget, far more lots)', () => {
+      // $1 mid: the $100k budget is 100,000 lots, so 2 lots is nowhere near the cap.
+      const doge = notional().quote(ctx({ midMicros: 1_000_000n, inventoryUnits: 2_000_000n }), 'DOGE');
+      expect(parkedBid(doge)).toBe(false);
+    });
+
+    it('parks at the same NOTIONAL regardless of price (scale-invariant risk): 2× price ⇒ ½ the lots', () => {
+      // At $200k mid the budget is ½ a lot, so even 0.6 lots (600k units) breaches the cap…
+      const hi = notional().quote(ctx({ midMicros: 200_000_000_000n, inventoryUnits: 600_000n }), 'BTC');
+      // …while at $100k the same 0.6 lots is $60k < $100k budget ⇒ no park.
+      const lo = notional().quote(ctx({ midMicros: 100_000_000_000n, inventoryUnits: 600_000n }), 'BTC');
+      expect(parkedBid(hi)).toBe(true);
+      expect(parkedBid(lo)).toBe(false);
+    });
+
+    it('frac 0 / unset ⇒ the legacy lot-count cap (no notional binding)', () => {
+      const off = new GlftQuoter({ ...P, maxInventoryLots: 50, hardInventoryCap: true, maxInventoryNotionalFrac: 0, capitalUnits: CAP }, CLOCK);
+      // Same BTC case that parked above — with the notional cap off, 2 lots < 50-lot cap ⇒ no park.
+      const btc = off.quote(ctx({ midMicros: 100_000_000_000n, inventoryUnits: 2_000_000n }), 'BTC');
+      expect(parkedBid(btc)).toBe(false);
+    });
+  });
 });

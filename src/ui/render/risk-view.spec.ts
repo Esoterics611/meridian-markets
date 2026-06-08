@@ -26,6 +26,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     unrealisedPnlUnits: '0',
     feesUnits: '0',
     fundingUnits: '0',
+    fundingRatePerHour: 0,
     netPnlUnits: '0',
     spreadCapturedUnits: '0',
     adverseSelectionUnits: '-200500000', // −$200.50 toxicity

@@ -121,6 +121,17 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // rail so the book cannot breach maxInventoryLots. Defaults reproduce legacy (no-op).
     inventorySkewMult: parseFloat(process.env['MM_INVENTORY_SKEW_MULT'] ?? '1'),
     hardInventoryCap: (process.env['MM_HARD_INVENTORY_CAP'] ?? 'false').toLowerCase() === 'true',
+    // Notional inventory cap (Journal #41): cap |inventory| at this fraction of book capital at
+    // the live mid, so the bound is the same RISK across a 100×-price universe rather than the
+    // same lot count (a fixed 4-lot cap let BTC draw 10%). 0 = off (legacy lot-count cap).
+    maxInventoryNotionalFrac: parseFloat(process.env['MM_MAX_INVENTORY_NOTIONAL_FRAC'] ?? '0'),
+    // Desk delta hedge (HEDGING_MODEL.md): a paper perp leg offsetting each book's net delta so
+    // the desk earns the MM edge (spread+rebate−adverse) without the directional variance that
+    // was the #41 loss. Off by default (no hedge venue, trader unchanged). Band in USD.
+    deltaHedge: (process.env['MM_DELTA_HEDGE'] ?? 'false').toLowerCase() === 'true',
+    hedgeBandUsd: parseFloat(process.env['MM_HEDGE_BAND_USD'] ?? '2000'),
+    hedgeTakerBps: parseFloat(process.env['MM_HEDGE_TAKER_BPS'] ?? '2.5'),
+    hedgeHalfSpreadBps: parseFloat(process.env['MM_HEDGE_HALF_SPREAD_BPS'] ?? '1'),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),

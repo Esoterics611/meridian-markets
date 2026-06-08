@@ -1,5 +1,7 @@
 import { Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { MmBook, MmBookSnapshot } from './mm-book';
+import { DeskHedgeController, HedgeSnapshot } from '../hedge/desk-hedge-controller';
+import { BookDelta } from '../hedge/desk-delta-hedger';
 import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
 import { NullMmStateStore } from '../persistence/null-mm-state-store';
 import { ITelemetry } from '../../telemetry/telemetry.interface';
@@ -65,6 +67,8 @@ export interface MmPortfolioSnapshot {
   fundingUnits: string;
   netPnlUnits: string;
   books: MmBookSnapshot[];
+  /** Desk delta-hedge state (gross delta / post-hedge residual / hedge P&L), when enabled. */
+  hedge?: HedgeSnapshot;
 }
 
 export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -95,11 +99,33 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     // unit tests are unchanged; the module injects the shared DeskEventLog so these
     // lifecycle events land in the same log + activity feed as the per-book fills.
     private readonly events: IDeskEventSink = NULL_DESK_EVENT_SINK,
+    // Desk delta hedge (HEDGING_MODEL.md). undefined ⇒ off (every existing test constructs the
+    // trader without it and is unchanged). The module injects it when MM_DELTA_HEDGE=true.
+    private readonly hedger?: DeskHedgeController,
   ) {
     this.capitalUnits = initialCapitalUnits;
     this.store = persistence.store ?? new NullMmStateStore();
     this.rebuildBook = persistence.rebuildBook;
     this.flattenOnShutdown = persistence.flattenOnShutdown ?? false;
+  }
+
+  /** epoch ms of the last hedge rebalance, for funding/dt accrual. */
+  private lastHedgeMs: number | null = null;
+
+  /** Per-underlying book deltas + marks + funding for the hedge, read off the live book snapshots. */
+  private deskDeltas(): { books: BookDelta[]; prices: Record<string, bigint>; funding: Record<string, number> } {
+    const books: BookDelta[] = [];
+    const prices: Record<string, bigint> = {};
+    const funding: Record<string, number> = {};
+    for (const b of this.books.values()) {
+      const s = b.snapshot();
+      const midMicros = BigInt(s.midMicros);
+      if (midMicros <= 0n) continue; // un-warm book has no mark yet
+      books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros });
+      prices[s.symbol] = midMicros;
+      funding[s.symbol] = s.fundingRatePerHour; // the live HL perp rate; the short hedge earns it
+    }
+    return { books, prices, funding };
   }
 
   /** Epoch ms of the last completed tick (or null) — the readiness freshness probe. */
@@ -184,6 +210,23 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
 
   async flattenAll(): Promise<void> {
     await Promise.all([...this.books.values()].map((b) => b.flatten().catch(() => undefined)));
+    // Persist the flat state NOW — don't wait for the next tick. Without this, a flatten
+    // followed by a hard kill leaves the last (non-flat) checkpoint in the store, so the
+    // books rehydrate WITH the inventory the operator thought they'd closed.
+    await this.checkpointAll();
+  }
+
+  /**
+   * Close the WHOLE desk: flatten + soft-close every book so the next boot comes up CLEAN
+   * (nothing to rehydrate). Each row is soft-closed in the store synchronously, so the clean
+   * state survives a hard kill afterwards — unlike the OnApplicationShutdown flatten, which a
+   * SIGKILL/`kill -9` skips entirely. This is the pre-shutdown ritual (scripts/stop-desk.sh):
+   * run it, see the books drop to zero, THEN stop the server.
+   */
+  async closeAll(): Promise<number> {
+    const symbols = [...this.books.keys()]; // snapshot keys — removeBook mutates the map
+    for (const s of symbols) await this.removeBook(s);
+    return symbols.length;
   }
 
   start(): void {
@@ -274,6 +317,19 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
           .map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
       );
       await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
+      if (this.hedger) {
+        // Delta hedge AFTER the books tick (so we hedge this tick's inventory). Best-effort —
+        // a hedge error never sinks the loop (mirrors the per-book guard above).
+        try {
+          const { books, prices, funding } = this.deskDeltas();
+          const now = Date.now();
+          const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
+          this.lastHedgeMs = now;
+          await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
+        } catch (e) {
+          this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
+        }
+      }
     } finally {
       this.ticking = false;
       const durSec = (Date.now() - startMs) / 1000;
@@ -371,6 +427,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       fundingUnits: funding.toString(),
       netPnlUnits: net.toString(),
       books,
+      hedge: this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined,
     };
   }
 }
