@@ -8,6 +8,7 @@ import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
 import { VpinEstimator } from '../risk/vpin';
+import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
 import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { L2LiveFillEngine } from './l2-live-fill-engine';
@@ -69,6 +70,8 @@ export interface MmBookConfig {
   vpinEmaBuckets?: number;
   /** VPIN bucket size in asset units; default = quoteSizeUnits·10 (self-scales per symbol). */
   vpinBucketUnits?: bigint;
+  /** Forward markout horizons in ms for the adverse-selection curve. Default 1s/5s/30s. */
+  markoutHorizonsMs?: number[];
   /** Latest-closed-bar source (one bar per call, null when none new). */
   nextBar: (symbol: string) => Promise<Bar | null>;
   /**
@@ -172,6 +175,8 @@ export interface MmBookSnapshot {
   vpin: number;
   /** VPIN buckets closed so far (the gauge is meaningful once this clears the EMA window). */
   vpinBuckets: number;
+  /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
+  markout: MarkoutPoint[];
   fills: number;
   bidFills: number;
   askFills: number;
@@ -209,6 +214,8 @@ export class MmBook {
   private fundingUnits = 0n;
   /** Live toxicity gauge — fed by BVC on the bar path, real aggressor flow on the fast path. */
   private readonly vpin: VpinEstimator;
+  /** Forward markout curve for bar-path books (the fast path uses the engine's tracker). */
+  private readonly markout: MarkoutTracker;
   private prevBarMs: number | undefined;
   private prevMidMicros: bigint | undefined;
   private peakEquity: bigint;
@@ -232,6 +239,7 @@ export class MmBook {
       bucketVolumeUnits: bucket > 0n ? bucket : 1_000_000n,
       emaWindowBuckets: cfg.vpinEmaBuckets ?? 50,
     });
+    this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000]);
   }
 
   setRunning(v: boolean): void {
@@ -426,6 +434,8 @@ export class MmBook {
       const buyUnits = BigInt(Math.round(Number(volUnits) * buyFrac));
       this.vpin.onClassifiedVolume(buyUnits, volUnits - buyUnits);
     }
+    // Re-mark prior fills against this bar's mid (the forward markout curve).
+    this.markout.onMid(tsMs, midMicros);
     this.prevBarMs = tsMs;
     this.prevMidMicros = midMicros;
 
@@ -504,6 +514,8 @@ export class MmBook {
       this.fills += 1;
       // Defer adverse selection to next bar's mid (a one-bar mark-out).
       this.pendingMarkout.push({ side, sizeUnits: this.cfg.quoteSizeUnits, fairMid: priceMicros });
+      // Record the fill for the multi-horizon markout curve (marked vs the fill-time mid).
+      this.markout.onFill(side, midMicros, tsMs);
       // The business event: a trade entered/exited inventory (enter = open/add,
       // exit = reduce/close/flip, with the realised P&L the exit just booked).
       this.events.emit(
@@ -592,6 +604,7 @@ export class MmBook {
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
+      markout: this.markout.curve(),
       fills: this.fills,
       bidFills: this.bidFills,
       askFills: this.askFills,
@@ -638,6 +651,7 @@ export class MmBook {
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
+      markout: m.markout,
       fills: m.queueFills,
       bidFills: m.bidFills,
       askFills: m.askFills,

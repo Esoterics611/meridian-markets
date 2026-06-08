@@ -666,6 +666,7 @@
         const funding = Number(b.fundingUnits || 0);
         const dd = Number(b.maxDrawdownPct);
         const vpin = Number(b.vpin || 0);
+        const moLabel = (ms) => ms >= 1000 ? (ms / 1000) + 's' : ms + 'ms';
         const invCarry = Number(b.inventoryCarryUnits || 0);
         const capNotional = Number(b.inventoryNotionalCapUnits || 0) / USDC;   // $ inventory rail
         const railPct = capNotional > 0 ? Math.abs(exposure) / capNotional * 100 : null;
@@ -696,6 +697,7 @@
             ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), Number(b.spreadCapturedUnits) >= 0 ? 'pos' : 'neg', 'gross edge earned vs the fair mid at fill time (diagnostic)')}
             ${mini('adverse', fmtUsdc(-adv), adv > 0 ? 'neg' : 'pos', 'markout tax — a negative value = the mid moved against our fills after we traded (picked off). Diagnostic: already inside net via fill prices.')}
             ${mini('inv carry', fmtUsdc(invCarry), invCarry >= 0 ? 'pos' : 'neg', 'mark-to-market drift on inventory we were already holding — the third attribution column beside spread and adverse (diagnostic)')}
+            ${(b.markout || []).map((p) => mini('mo ' + moLabel(p.ms), p.bps != null ? num(p.bps, 1) + ' bps' : '—', p.bps != null ? (p.bps < 0 ? 'neg' : 'pos') : '', 'forward markout at ' + moLabel(p.ms) + ': avg per-fill mid move from our side — negative = adverse/picked off (' + (p.count || 0) + ' fills). A curve sinking with horizon = toxic flow.')).join('')}
             ${mini('fees / reb', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg', 'signed: negative = maker rebate earned, positive = fee paid')}
             ${funding !== 0 ? mini('funding', fmtUsdc(funding), funding >= 0 ? 'pos' : 'neg', 'perp funding accrued on the open position') : ''}
             ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg', 'realised − fees + unrealised + funding')}

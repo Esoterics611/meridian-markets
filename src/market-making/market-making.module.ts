@@ -258,6 +258,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             ? new L2LiveFillEngine({
                 symbol: spec.symbol,
                 quoter,
+                markoutHorizonsMs: mm.markoutHorizonsMs,
                 quoteSizeUnits,
                 gamma: spec.params?.['gamma'] ?? mm.gamma,
                 kappa: spec.params?.['kappa'] ?? mm.kappa,
@@ -307,6 +308,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
             vpinEmaBuckets: mm.vpinEmaBuckets,
+            markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
@@ -357,6 +359,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             capitalUnits: rec.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
             vpinEmaBuckets: mm.vpinEmaBuckets,
+            markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),

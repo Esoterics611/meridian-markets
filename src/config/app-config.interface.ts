@@ -302,6 +302,8 @@ export interface AppConfig {
     vpinPauseThreshold: number;
     /** How long a VPIN-toxicity pause lasts (ms). Default 5000. */
     vpinPauseMs: number;
+    /** Forward markout horizons (ms) for the adverse-selection curve. Default [1000,5000,30000]. */
+    markoutHorizonsMs: number[];
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
