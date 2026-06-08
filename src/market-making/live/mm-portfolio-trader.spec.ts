@@ -167,6 +167,39 @@ describe('MmPortfolioTrader', () => {
     expect(closed).toContain('USDC');
   });
 
+  it('closeAll soft-closes every book so a restart comes up CLEAN (no rehydrated positions)', async () => {
+    const { store, saved, closed } = makeFakeStore();
+    const a = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await a.addBook({ symbol: 'USDC', strategyId: 'mm-symmetric' }, 1_000_000_000n);
+    await a.addBook({ symbol: 'FDUSD', strategyId: 'mm-symmetric' }, 1_000_000_000n);
+    for (let i = 0; i < 6; i++) await a.tick();
+    expect(saved.size).toBe(2);
+
+    // The pre-shutdown ritual: close the whole desk.
+    expect(await a.closeAll()).toBe(2);
+    expect(a.snapshot().bookCount).toBe(0); // desk empty in-process
+    expect(closed.sort()).toEqual(['FDUSD', 'USDC']); // both rows soft-closed in the store
+
+    // Restart: a fresh trader over the SAME store rehydrates NOTHING (loadOpen skips CLOSED rows).
+    const b = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await b.onApplicationBootstrap();
+    expect(b.snapshot().bookCount).toBe(0); // ← the fix: no stale positions on boot
+  });
+
+  it('flattenAll persists the flat state immediately (durable against a later hard kill)', async () => {
+    const { store } = makeFakeStore();
+    const a = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await a.addBook({ symbol: 'USDC', strategyId: 'mm-symmetric' }, 1_000_000_000n);
+    for (let i = 0; i < 6; i++) await a.tick();
+    await a.flattenAll();
+
+    // Restart WITHOUT a further tick: the flat inventory must already be in the store
+    // (the checkpoint inside flattenAll wrote it — not left for a next tick a kill could pre-empt).
+    const b = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
+    await b.onApplicationBootstrap();
+    expect(b.snapshot().books[0].inventoryUnits).toBe('0');
+  });
+
   it('does not persist when the store is disabled (default Null) — no behaviour change', async () => {
     const pf = new MmPortfolioTrader(makeBook, 1000); // no persistence opts ⇒ NullStore
     await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);

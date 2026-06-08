@@ -210,6 +210,23 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
 
   async flattenAll(): Promise<void> {
     await Promise.all([...this.books.values()].map((b) => b.flatten().catch(() => undefined)));
+    // Persist the flat state NOW — don't wait for the next tick. Without this, a flatten
+    // followed by a hard kill leaves the last (non-flat) checkpoint in the store, so the
+    // books rehydrate WITH the inventory the operator thought they'd closed.
+    await this.checkpointAll();
+  }
+
+  /**
+   * Close the WHOLE desk: flatten + soft-close every book so the next boot comes up CLEAN
+   * (nothing to rehydrate). Each row is soft-closed in the store synchronously, so the clean
+   * state survives a hard kill afterwards — unlike the OnApplicationShutdown flatten, which a
+   * SIGKILL/`kill -9` skips entirely. This is the pre-shutdown ritual (scripts/stop-desk.sh):
+   * run it, see the books drop to zero, THEN stop the server.
+   */
+  async closeAll(): Promise<number> {
+    const symbols = [...this.books.keys()]; // snapshot keys — removeBook mutates the map
+    for (const s of symbols) await this.removeBook(s);
+    return symbols.length;
   }
 
   start(): void {
