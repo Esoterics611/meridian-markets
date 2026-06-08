@@ -1601,3 +1601,35 @@ Wired registry → config (`MM_INVENTORY_SKEW_MULT`, `MM_HARD_INVENTORY_CAP`) �
 **Review that mattered:** confirmed the fast L2 path reprices off the quoter's FINAL per-side prices (`l2-live-fill-engine` 281–282), so the hard cap + skew genuinely bind on the real run path, not just in unit tests. Honest limits: the hard cap is "park at the max rail," re-checked every 100ms re-quote ⇒ overshoot ≤ ~1 lot between requotes (not a zero-size stop — that, plus the inventory **time-stop** and the **desk-level delta hedge**, is phase B and needs taker plumbing on the fast path, deliberately NOT rushed in before an unattended run).
 
 **Next run (pre-registered, `docs/NEXT_RUN_PREREG.md`; runbook `scripts/launch-mm-10h.sh`):** ALL books NEUTRAL `mm-glft` + governor + F3, $8M, fast path, `MM_FLOW_SHADOW` still capturing (free directional data for phase-B). **Judge by:** desk **unrealised stops being the loss column** (|unreal| ≤ ~0.3×|realised|, vs #39's −$10.5k unreal / −$1.2k realised), per-book **maxDD ≤ ~1.5%** (vs SOL 6.5%), and **no book exceeds 4 lots**. Directional returns in the run AFTER, with the time-stop + hedge, only on the pre-registered BTC/ETH/XRP at a ~60s horizon.
+
+## 2026-06-08 — Entry #41 (the governed run, MEASURED): the governor fixed the *unrealised* axis it targeted — and only that one; bounding lots ≠ bounding drawdown
+
+Run A as pre-registered (`docs/NEXT_RUN_PREREG.md`): ALL 8 books NEUTRAL `mm-glft` + the inventory governor (`MM_HARD_INVENTORY_CAP=true`, `MM_INVENTORY_SKEW_MULT=10`, `MM_MAX_INVENTORY_LOTS=4`) + F3 toxicity, $8M, HL, 100ms re-quote, micro-price center, directional OFF. Live read at ~10h (terminal-stable; `run-20260608-0048-mm-governed.log`, snapshot via `/api/market-making/snapshot`).
+
+**Verdict vs the three pre-registered metrics:**
+| Metric (pre-registered) | Result | |
+|---|---|---|
+| 1. Desk \|unrealised\| ≤ ~0.3× \|realised\| | realised **−$9,952**, unrealised **+$1,464** → **0.15×** | ✅ PASS |
+| 2. Per-book maxDD ≤ ~1.5% | only DOGE (1.37%). SUI **17.6%**, BTC **10.3%**, SOL 7.4%, ETH 6.8%, ADA 3.7%, XRP 2.4%, BNB 2.2% | ❌ FAIL hard |
+| 3. No book inventory > 4 lots | governor flattening (7/8 books realised < 0); cap holds at snapshot | ✅ holding |
+
+**Desk net ≈ −$8,225 on $8M (−0.10%).** Per-book net: BTC −5.1k, SUI −3.0k, ADA −2.0k, SOL −1.9k, DOGE +0.1k, XRP +0.8k, BNB +0.8k, ETH +2.3k. Fees only **−$262** total (the −0.2bps rebate is doing its job — costs are NOT the leak). Funding 0.
+
+**What the run actually says:**
+1. **The governor fixed the axis it targeted, and only that one.** #39's loss was a hidden unrealised bag (−$10.5k unreal / −$1.2k realised); metric 1 PASSED — the bag is gone (unreal +$1.5k, small). But it got there by *flattening at a loss* — the bleed moved into **realised** (−$9,952), it did not stop. The governor crystallised the loss sooner; it did not bound the drawdown (metric 2 failed badly). We treated the symptom.
+2. **A fixed lot-cap is wrong across a 100×-price universe.** `maxInventoryLots=4` is the SAME for BTC ($100k/coin) and DOGE/ADA/SUI (≈$0.x). Even though `quoteSizeUnits` is notional-÷-price at launch, the cap is re-checked against a static lot count while price drifts, and fixed-size books aren't normalised at all. BTC drew **10.3%** on "4 lots" with only **40 fills** (it barely quoted, parked a position, ate the move). The cap must be **notional/σ-normalised** (fraction of book capital at the live price), not lot-count — the same σ-scale-invariance lesson we applied to *quoting* (S31) but never to the *inventory cap*. **→ fixed this entry (B-fix below).**
+3. **8 neutral crypto books = one short-gamma beta bet, not 8 edges.** BTC/SOL/SUI/ETH all drew down in the same window. Per-book inventory caps do nothing about the desk's **net delta** — that's the dominant, still-unhedged risk. The desk-level net-delta hedge, flagged for Run B, is actually Run A's missing piece and is now the #1 build item.
+4. **Spread edge is real but ≈ adverse selection — net ~flat.** Every book captured positive spread (ETH +683, SUI +527, SOL +140, BTC +116); adverse selection roughly ate it (ETH adv −1138 > its spread). Re-confirms #28–#33: micro-price + fast cadence make spread-capture honestly positive, but on its own it's a coin-flip after adverse selection. The rebate (fees −$262) is the only structural plus; the leak is inventory/direction.
+5. **ETH's +$2.3k is NOT a win** — realised **−$3.6k** masked by a lucky unrealised long **+$5.7k** into an up-move (531 fills). The honest desk number is **realised −$9,952**, not net −$8,225. Any post-mortem must mark-to-realised or strip transient unrealised, or we fool ourselves — which defeats the demo. **→ post-mortem tooling must headline realised.**
+6. **F3 was invisible.** 0 widen-events in the log, adverse-selection still ≈ spread. We shipped it "validated offline, newly wired live" — live, it needs instrumentation (widen-event count, adverse-Δ vs #39 baseline) before we can claim it fired. Honesty rail: don't credit a defence we can't measure.
+
+**The fix shipped this entry (B-fix — the notional inventory cap):** `MM_MAX_INVENTORY_NOTIONAL_FRAC` caps inventory by **notional as a fraction of book capital**, evaluated against the live mid each tick — `effMaxLots = min(maxInventoryLots, frac·capitalUnits·1e6 / (midMicros·lotUnits))` (reuses the `quoteUnitsForNotional` unit convention). Threaded config → registry build-ctx (`capitalUnits` + frac) → `GlftQuoter` + `DirectionalGlftQuoter`; the effective cap drives both the skew clamp and the hard-cap park. Default 0 = off (legacy no-op, every existing spec preserved). This directly fixes the BTC-cap-too-loose failure.
+
+**Forward plan (fix the risk model before any directional carry — Run B stays parked):**
+- **D1 (done, this entry):** notional/σ-normalised inventory cap.
+- **D2 (next build, #1 risk item):** desk-level **net-delta hedge** — the only thing that bounds correlated drawdown. Needs the taker leg on the fast path (the plumbing #40 deliberately deferred).
+- **D3:** instrument F3 + the governor — widen-event / flatten-event counts + per-book "realised-from-forced-flatten" on the tape/snapshot, so the next run is judged on whether the defences *fired*, not just the outcome.
+- **D4:** mark-to-realised in the post-mortem jq/template — headline realised, flag unrealised as transient.
+- **D5:** re-pre-register **Run A′** (governor + notional cap + hedge); require per-book maxDD ≤ ~1.5% BEFORE any directional run.
+
+**Standing rule respected:** this is fixing the risk model, NOT adding coins/signals to chase a number.

@@ -205,6 +205,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
+            maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac, // notional cap (Journal #41)
+            capitalUnits: mm.capitalUnits,
             // Desk-wide directional-quote defaults (skew + single-siding) + the inventory
             // governor (skew-mult + hard cap, Journal #39); a per-book spec.params still
             // overrides. Directional-only knobs are ignored by non-directional families.
@@ -320,6 +322,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
+            maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac, // notional cap (Journal #41)
+            capitalUnits: rec.capitalUnits,
             // Re-apply the current desk-wide defaults (skew/single-side + the #39 inventory
             // governor) under the persisted per-book overrides, matching the launch path so a
             // rehydrated book resumes with the same governor a fresh one gets.

@@ -178,6 +178,10 @@ export interface AppConfig {
     /** Hard inventory backstop: park the accumulating side at the rail when |inventory| ≥
      *  maxInventoryLots so the book physically cannot breach the cap. */
     hardInventoryCap: boolean;
+    /** Cap inventory by NOTIONAL — this fraction of book capital at the live mid — instead of a
+     *  raw lot count (Journal #41: a fixed 4-lot cap is a 100× different bet on BTC vs DOGE).
+     *  0 = off (legacy lot-count cap). */
+    maxInventoryNotionalFrac: number;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

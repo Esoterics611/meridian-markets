@@ -40,6 +40,16 @@ export interface GlftQuoterParams {
    *  regardless of how weak the skew is. The fix for the runaway inventory that was the
    *  whole loss in Journal #39. Default false (skew-only — the legacy behaviour). */
   hardInventoryCap?: boolean;
+  /** Cap inventory by NOTIONAL — a fraction of book capital at the LIVE mid — instead of a
+   *  raw lot count. A fixed `maxInventoryLots` means a wildly different notional bet across a
+   *  100×-price universe (4 lots of BTC ≫ 4 lots of DOGE), which is why BTC drew 10% on "4
+   *  lots" in Journal #41. The effective cap each tick is
+   *    effMaxLots = min(maxInventoryLots, frac·capitalUnits·1e6 / (midMicros·lotUnits))
+   *  — the σ-scale-invariance lesson (S31) applied to the inventory cap. 0/undefined = off
+   *  (legacy lot-count cap). Needs `capitalUnits`. */
+  maxInventoryNotionalFrac?: number;
+  /** Book capital in micro-USD (6-dec), for the notional inventory cap above. */
+  capitalUnits?: bigint;
 }
 
 /** Floor a half-spread at 1 micro so a confidence-tightened quote never collapses to 0. */
@@ -67,7 +77,11 @@ export class GlftQuoter implements IQuoter {
     const center = Number(ctx.referenceMicros ?? ctx.midMicros);
     const sigmaRel = Math.max(ctx.volatility, 0);
     const rawQLots = Number(ctx.inventoryUnits) / Number(this.lotUnits);
-    const qLots = clamp(rawQLots, -this.p.maxInventoryLots, this.p.maxInventoryLots);
+    // Notional inventory cap (Journal #41): convert a capital-fraction notional budget into an
+    // effective lot cap at the live mid, so the bound is the SAME risk across a 100×-price
+    // universe instead of the same lot count. Falls back to the raw lot cap when unset/unusable.
+    const effMaxLots = this.effectiveMaxLots(s);
+    const qLots = clamp(rawQLots, -effMaxLots, effMaxLots);
     const skewMult = this.p.inventorySkewMult && this.p.inventorySkewMult > 0 ? this.p.inventorySkewMult : 1;
     const T = this.p.steadyHorizonBars; // steady-state: NOT ctx.horizonBars
 
@@ -89,8 +103,8 @@ export class GlftQuoter implements IQuoter {
     let bidHalfSpreadMicros: bigint | undefined;
     let askHalfSpreadMicros: bigint | undefined;
     if (this.p.hardInventoryCap) {
-      if (rawQLots >= this.p.maxInventoryLots) bidHalfSpreadMicros = maxMicros; // max long ⇒ stop buying
-      else if (rawQLots <= -this.p.maxInventoryLots) askHalfSpreadMicros = maxMicros; // max short ⇒ stop selling
+      if (rawQLots >= effMaxLots) bidHalfSpreadMicros = maxMicros; // at notional/lot cap long ⇒ stop buying
+      else if (rawQLots <= -effMaxLots) askHalfSpreadMicros = maxMicros; // at cap short ⇒ stop selling
     }
 
     return buildQuotePair({
@@ -105,5 +119,19 @@ export class GlftQuoter implements IQuoter {
       tickSeq: this.tickSeq++,
       clock: this.clock,
     });
+  }
+
+  /** Effective inventory cap in lots. When a notional fraction + capital are configured, the
+   *  cap is the SMALLER of the raw lot cap and the capital-fraction notional budget at the
+   *  live mid `s` (= midMicros = price·1e6). notional_microUSD(lots) = lots·lotUnits·s/1e6, so
+   *  the lot budget for frac·capitalUnits is frac·capitalUnits·1e6/(s·lotUnits) — the same
+   *  unit convention as quoteUnitsForNotional. Off by default ⇒ the legacy lot-count cap. */
+  private effectiveMaxLots(s: number): number {
+    const frac = this.p.maxInventoryNotionalFrac;
+    const cap = this.p.capitalUnits;
+    if (!frac || frac <= 0 || !cap || cap <= 0n || !(s > 0)) return this.p.maxInventoryLots;
+    const notionalCapLots = (frac * Number(cap) * 1_000_000) / (s * Number(this.lotUnits));
+    if (!Number.isFinite(notionalCapLots) || notionalCapLots <= 0) return this.p.maxInventoryLots;
+    return Math.min(this.p.maxInventoryLots, notionalCapLots);
   }
 }

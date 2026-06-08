@@ -63,7 +63,10 @@ export class DirectionalGlftQuoter implements IQuoter {
     const center = Number(ctx.referenceMicros ?? ctx.midMicros); // F1 micro-price compatible
     const sigmaRel = Math.max(ctx.volatility, 0);
     const rawQLots = Number(ctx.inventoryUnits) / Number(this.lotUnits);
-    const qLots = clamp(rawQLots, -this.p.maxInventoryLots, this.p.maxInventoryLots);
+    // Notional inventory cap (Journal #41) — same risk across a 100×-price universe, not the
+    // same lot count. Bounds the clamp, the directional TARGET q*, and the hard cap below.
+    const effMaxLots = this.effectiveMaxLots(s);
+    const qLots = clamp(rawQLots, -effMaxLots, effMaxLots);
     const skewMult = this.p.inventorySkewMult && this.p.inventorySkewMult > 0 ? this.p.inventorySkewMult : 1;
     const T = this.p.steadyHorizonBars;
 
@@ -76,7 +79,7 @@ export class DirectionalGlftQuoter implements IQuoter {
     // The axe: skew toward the TARGET inventory q* (= bias·maxLots), not toward 0.
     // effectiveQ = how far we are from where the VIEW wants us; the skew works that
     // off, so the book rests at q* and recycles spread around the held position.
-    const targetLots = bias * this.p.maxInventoryLots;
+    const targetLots = bias * effMaxLots;
     const effectiveQ = qLots - targetLots;
     // inventorySkewMult strengthens the pull toward the TARGET q* (sheds any excess beyond
     // the chosen carry faster), the same #39 fix the neutral book gets toward 0.
@@ -113,8 +116,8 @@ export class DirectionalGlftQuoter implements IQuoter {
     // book must not breach maxInventoryLots. Park whichever side would add to the position
     // at the rail (Journal #39: an axed book ran 100×+ past its target and that was the loss).
     if (this.p.hardInventoryCap) {
-      if (rawQLots >= this.p.maxInventoryLots) bidHalf = Number(maxMicros); // max long ⇒ stop buying
-      else if (rawQLots <= -this.p.maxInventoryLots) askHalf = Number(maxMicros); // max short ⇒ stop selling
+      if (rawQLots >= effMaxLots) bidHalf = Number(maxMicros); // at notional/lot cap long ⇒ stop buying
+      else if (rawQLots <= -effMaxLots) askHalf = Number(maxMicros); // at cap short ⇒ stop selling
     }
 
     return buildQuotePair({
@@ -129,5 +132,16 @@ export class DirectionalGlftQuoter implements IQuoter {
       tickSeq: this.tickSeq++,
       clock: this.clock,
     });
+  }
+
+  /** Effective inventory cap in lots — min(maxInventoryLots, frac·capitalUnits·1e6/(s·lotUnits))
+   *  when a notional fraction + capital are set, else the raw lot cap (Journal #41). */
+  private effectiveMaxLots(s: number): number {
+    const frac = this.p.maxInventoryNotionalFrac;
+    const cap = this.p.capitalUnits;
+    if (!frac || frac <= 0 || !cap || cap <= 0n || !(s > 0)) return this.p.maxInventoryLots;
+    const notionalCapLots = (frac * Number(cap) * 1_000_000) / (s * Number(this.lotUnits));
+    if (!Number.isFinite(notionalCapLots) || notionalCapLots <= 0) return this.p.maxInventoryLots;
+    return Math.min(this.p.maxInventoryLots, notionalCapLots);
   }
 }
