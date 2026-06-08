@@ -1633,3 +1633,20 @@ Run A as pre-registered (`docs/NEXT_RUN_PREREG.md`): ALL 8 books NEUTRAL `mm-glf
 - **D5:** re-pre-register **Run A′** (governor + notional cap + hedge); require per-book maxDD ≤ ~1.5% BEFORE any directional run.
 
 **Standing rule respected:** this is fixing the risk model, NOT adding coins/signals to chase a number.
+
+## 2026-06-08 — Entry #42 (built + measured): the delta hedge EXECUTES (paper perp), and the gamma overlay is regime-dependent — long gamma clears only when realised > implied
+
+Follow-through on #41's plan. Two things, both shipped/measured this session.
+
+**1. The delta hedge now executes (not just a model).** `DeskHedgeController` (`src/market-making/hedge/`) holds the perp position per hedge underlying, fills the banded `computeHedge` orders as **taker on a `PaperVenue`** fed by the live book mids, accrues funding (a short hedge EARNS on positive rate), and marks hedge P&L. Wired into `MmPortfolioTrader.tick()` behind `MM_DELTA_HEDGE` (empty betaMap ⇒ each book self-hedges per-symbol); the snapshot carries desk gross-delta / post-hedge residual / hedge-P&L. Default off ⇒ trader unchanged. **Honest connectivity (HEDGING_MODEL.md §3b):** there is NO real futures/options order placement — the paper perp hedge reuses `PaperVenue` + the HL feed; real-money is parked. Hedge-funding from the live HL rate is the one remaining follow-up (v1 hedges delta). tsc clean; 291 MM/config tests + 15 hedge tests.
+
+**2. The gamma overlay — measured on live data, the verdict is REGIME-DEPENDENT.** MM is structurally short gamma; the overlay (buy gamma) offsets it but pays implied vol, so the whole call is **realised vol vs implied vol**. `gamma-overlay.ts` (the ½Γ(σr²−σi²)T identity ⇒ recover fraction `1 − iv²/rv²`) + `scripts/gamma-overlay-backtest.ts` (HL BTC 1m realised vs Deribit nearest-expiry ATM `mark_iv`). Live read 2026-06-08, BTC ~$63.4k, implied sticky ~58.8%:
+
+| window | realised vol | implied | verdict |
+|---|---|---|---|
+| 6h | 55.5% | 58.8% | overpriced ⇒ insurance only |
+| 12h | 83.3% | 58.6% | clears (recovers ~51% of bleed) |
+| 48h | 61.5% | 58.8% | marginally clears |
+| 1 week | 76.2% | 58.8% | clears |
+
+**Read:** in the current elevated-vol regime BTC realises MORE than options price ⇒ long gamma clears its premium and would recover ~half of a short-gamma bleed; in the calm 6h pocket it flips to net-negative (the VRP). So the overlay is a **regime tool, not an always-on engine** — buy gamma when realised>implied+cost (the MM's worst windows, good anti-correlation), eat the bleed otherwise. **Honest caveats:** one underlying (BTC), ATM nearest-expiry IV as the proxy, a representative bleed input (#41 adverse total ~$2,345), horizon mismatch (12h realised vs ~1–2d expiry). The signal is the rv-vs-iv comparison, measured per-window — not a static "options are a winner." Next: calibrate the desk's real cash-gamma from the adverse-selection column, score the overlay across many windows for a distribution, and (later) a paper options leg once the rv>iv gate holds out-of-sample.
