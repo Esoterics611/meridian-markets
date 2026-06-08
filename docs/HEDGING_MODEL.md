@@ -117,6 +117,21 @@ the backtest shows realised > implied net of cost in *our* windows — implied i
 
 ---
 
+## 3b. Connectivity audit — what is actually wired (2026-06-08, honest)
+
+The model above is pure math; it executes nothing. Before any of it is "live," here is the real state:
+
+| Leg | Real order placement | Paper execution | Data feed |
+|---|---|---|---|
+| **Perp (HL)** | **none** — `HyperliquidClient` is `IReferenceBarSource/IL2BookSource/ITradeStreamSource` (DATA only); no HL order adapter exists. `live` posture is parked. | **buildable, NOT wired** — `PaperVenue` (`ITradingVenue`, injected `pricePoller` + slippage + `takerFeeBps`) can simulate the taker fill at the HL perp mid; funding via `hyperliquid-funding-client`. | ✅ price/L2/trades/funding live |
+| **Option (Deribit)** | none | none — no option instrument/fill/greeks-accounting path | ⚠️ `DeribitClient` fetches chain + `mark_iv` + greeks (real v2 REST) but is **DORMANT — not referenced by any module/DI**. |
+
+**Consequence:** `computeHedge` returns orders that nothing fills yet. To make the **paper** perp hedge real
+needs a wiring step (a hedge `PaperVenue` fed by an HL perp price-poller + funding accrual, driven from
+`MmPortfolioTrader`) — existing parts, not a new integration. The **options overlay** can be *validated
+offline* against real Deribit IV today (the client exists), but has **no execution path**, paper or real.
+**No real-money futures/options connectivity exists, by design.** Don't represent the hedge as live-ready.
+
 ## 4. The arc
 
 ```
