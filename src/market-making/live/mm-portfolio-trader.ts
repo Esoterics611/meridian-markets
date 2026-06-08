@@ -112,18 +112,20 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   /** epoch ms of the last hedge rebalance, for funding/dt accrual. */
   private lastHedgeMs: number | null = null;
 
-  /** Per-underlying book deltas + marks for the hedge, read off the live book snapshots. */
-  private deskDeltas(): { books: BookDelta[]; prices: Record<string, bigint> } {
+  /** Per-underlying book deltas + marks + funding for the hedge, read off the live book snapshots. */
+  private deskDeltas(): { books: BookDelta[]; prices: Record<string, bigint>; funding: Record<string, number> } {
     const books: BookDelta[] = [];
     const prices: Record<string, bigint> = {};
+    const funding: Record<string, number> = {};
     for (const b of this.books.values()) {
       const s = b.snapshot();
       const midMicros = BigInt(s.midMicros);
       if (midMicros <= 0n) continue; // un-warm book has no mark yet
       books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros });
       prices[s.symbol] = midMicros;
+      funding[s.symbol] = s.fundingRatePerHour; // the live HL perp rate; the short hedge earns it
     }
-    return { books, prices };
+    return { books, prices, funding };
   }
 
   /** Epoch ms of the last completed tick (or null) — the readiness freshness probe. */
@@ -302,11 +304,11 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
         // Delta hedge AFTER the books tick (so we hedge this tick's inventory). Best-effort —
         // a hedge error never sinks the loop (mirrors the per-book guard above).
         try {
-          const { books, prices } = this.deskDeltas();
+          const { books, prices, funding } = this.deskDeltas();
           const now = Date.now();
           const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
           this.lastHedgeMs = now;
-          await this.hedger.rebalance(books, { prices, dtHours });
+          await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
         } catch (e) {
           this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
         }

@@ -29,6 +29,9 @@ curl -s localhost:3100/api/market-making/snapshot | jq -r \
 
 # equity curve (persisted to mm_nav)
 curl -s localhost:3100/api/market-making/nav | jq .
+
+# desk DELTA HEDGE (when MM_DELTA_HEDGE=true): gross delta, post-hedge residual, hedge P&L, funding
+curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd, fundingUsd, perUnderlying}'
 ```
 
 ## Stop
@@ -47,4 +50,16 @@ MM_DIR_SINGLE_SIDE_BIAS=0 bash scripts/start-desk.sh   # skew only, never single
 MM_FLOW_BIAS_LIVE=false   bash scripts/start-desk.sh   # neutral spread-engine run (no directional bias)
 MM_FAST_REQUOTE_MS=250    bash scripts/start-desk.sh   # slower cadence
 ```
+
+## The delta-hedged run (HEDGING_MODEL.md — isolate the MM edge from directional variance)
+The #41 loss was net delta, not spread. To run the desk with the paper perp delta hedge on
+(each book's net delta offset on a PaperVenue perp leg fed by the live HL mid):
+```bash
+MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
+  bash scripts/start-desk.sh        # neutral mm-glft + notional cap + delta hedge (Run A′)
+```
+Then launch the books as usual (`bash scripts/launch-mm-10h.sh`). The pre-registered win is
+the **post-hedge residual staying near flat** and **per-book maxDD ≤ ~1.5%** (vs #41's 17.6%) —
+watch `.hedge.residualUsd` and `.hedge.hedgePnlUsd` on the snapshot. Hedge is paper-only (no real
+venue); `MM_DELTA_HEDGE` unset ⇒ the unhedged baseline (the #41 run) for comparison.
 Defaults live in `scripts/start-desk.sh`; full rationale in `scripts/launch-mm-10h.sh` header + `QUANT_JOURNAL` #38.

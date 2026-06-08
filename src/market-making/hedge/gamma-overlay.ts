@@ -59,3 +59,21 @@ export function gammaOverlay(input: GammaOverlayInput): GammaOverlayResult {
 export function variancePnlUsd(cashGammaUsd: number, realizedVol: number, impliedVol: number, years: number): number {
   return 0.5 * cashGammaUsd * (realizedVol * realizedVol - impliedVol * impliedVol) * years;
 }
+
+/**
+ * Back out the desk's effective cash-gamma G (= S²Γ) from a MEASURED short-gamma bleed over a
+ * window: bleed ≈ ½·G·σ_real²·T ⇒ G = 2·bleed / (σ_real²·T). This lets the overlay be sized from
+ * the desk's REAL adverse-selection loss instead of a guessed notional. `years` = window length
+ * in years. (Consistency: variancePnlUsd(G, rv, iv, years) == bleed·(1 − iv²/rv²) = the overlay
+ * recovery — so calibrating here makes the overlay math self-consistent with the observed bleed.)
+ */
+export function calibrateCashGamma(bleedUsd: number, realizedVol: number, years: number): number {
+  if (!(realizedVol > 0) || !(years > 0)) return 0;
+  return (2 * bleedUsd) / (realizedVol * realizedVol * years);
+}
+
+/** The short-gamma loss for an instantaneous move of `movePct` (0.01 = 1%): ½·G·move² — a readout
+ *  of "how much the desk bleeds per 1% move" once cash-gamma is calibrated. */
+export function gammaLossForMove(cashGammaUsd: number, movePct: number): number {
+  return 0.5 * cashGammaUsd * movePct * movePct;
+}

@@ -1,4 +1,4 @@
-import { realizedVolAnnualized, gammaOverlay, variancePnlUsd } from './gamma-overlay';
+import { realizedVolAnnualized, gammaOverlay, variancePnlUsd, calibrateCashGamma, gammaLossForMove } from './gamma-overlay';
 
 describe('gamma-overlay economics', () => {
   it('realizedVolAnnualized scales stdev of log returns by √periodsPerYear', () => {
@@ -31,5 +31,23 @@ describe('gamma-overlay economics', () => {
   it('variancePnlUsd is positive iff realised variance exceeds implied', () => {
     expect(variancePnlUsd(1_000_000, 0.8, 0.5, 1)).toBeGreaterThan(0);
     expect(variancePnlUsd(1_000_000, 0.4, 0.5, 1)).toBeLessThan(0);
+  });
+
+  it('calibrateCashGamma is self-consistent: variancePnl(G,rv,iv,T) == the overlay recovery', () => {
+    const bleed = 2_345;
+    const rv = 0.83;
+    const years = 12 / (365 * 24); // a 12h window
+    const G = calibrateCashGamma(bleed, rv, years);
+    expect(G).toBeGreaterThan(0);
+    // The calibrated cash-gamma reproduces the bleed: ½·G·rv²·T == bleed.
+    expect(0.5 * G * rv * rv * years).toBeCloseTo(bleed, 6);
+    // …and the variance-form overlay P&L matches gammaOverlay's recovered USD at any implied.
+    const iv = 0.55;
+    expect(variancePnlUsd(G, rv, iv, years)).toBeCloseTo(gammaOverlay({ realizedVol: rv, impliedVol: iv, bleedUsd: bleed }).recoveredUsd, 6);
+  });
+
+  it('gammaLossForMove reports the short-gamma bleed per move (½·G·move²)', () => {
+    expect(gammaLossForMove(5_000_000, 0.01)).toBeCloseTo(250, 6); // $5M cash-gamma ⇒ $250 per 1% move
+    expect(calibrateCashGamma(0, 0.5, 1)).toBe(0); // no bleed ⇒ no gamma
   });
 });

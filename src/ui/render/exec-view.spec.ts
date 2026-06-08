@@ -29,6 +29,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     unrealisedPnlUnits: '100000000',
     feesUnits: '-2000000',
     fundingUnits: '0',
+    fundingRatePerHour: 0,
     netPnlUnits: '500000000', // +$500.00
     spreadCapturedUnits: '700000000',
     adverseSelectionUnits: '-200000000',
