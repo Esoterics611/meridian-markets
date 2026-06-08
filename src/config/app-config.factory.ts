@@ -115,6 +115,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     minHalfSpreadBps: parseFloat(process.env['MM_MIN_HALF_SPREAD_BPS'] ?? '1'),
     maxHalfSpreadBps: parseFloat(process.env['MM_MAX_HALF_SPREAD_BPS'] ?? '200'),
     maxInventoryLots: parseFloat(process.env['MM_MAX_INVENTORY_LOTS'] ?? '8'),
+    // Inventory governor (Journal #39 — inventory carry was the whole loss). The bare A-S
+    // skew is ~2 bps at full inventory (negligible); inventorySkewMult scales the skew term
+    // so it actually mean-reverts, and hardInventoryCap parks the accumulating side at the
+    // rail so the book cannot breach maxInventoryLots. Defaults reproduce legacy (no-op).
+    inventorySkewMult: parseFloat(process.env['MM_INVENTORY_SKEW_MULT'] ?? '1'),
+    hardInventoryCap: (process.env['MM_HARD_INVENTORY_CAP'] ?? 'false').toLowerCase() === 'true',
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
@@ -141,6 +147,14 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     flowBiasLive: (process.env['MM_FLOW_BIAS_LIVE'] ?? 'false').toLowerCase() === 'true',
     flowBiasHorizonMs: parseInt(process.env['MM_FLOW_BIAS_HORIZON_MS'] ?? '60000', 10),
     flowBiasMinIc: parseFloat(process.env['MM_FLOW_BIAS_MIN_IC'] ?? '0.05'),
+    dirSpreadSkew: parseFloat(process.env['MM_DIR_SPREAD_SKEW'] ?? '0.5'),
+    dirSingleSideBias: parseFloat(process.env['MM_DIR_SINGLE_SIDE_BIAS'] ?? '0.6'),
+    // F3 adverse-selection defence: scale the half-spread by trade-flow toxicity vs its
+    // rolling average (widen into one-sided/informed sweeps, tighten into calm flow). The
+    // same scaler the offline LOB replay validated. Off by default (no-op); on for the run.
+    f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
+    f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
+    f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

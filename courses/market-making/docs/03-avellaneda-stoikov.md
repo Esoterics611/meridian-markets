@@ -286,6 +286,22 @@ flowchart TB
 
 Long-inventory case: both quotes pulled down, ask sitting below mid (aggressive ask, attracts buyers). Short-inventory case: both quotes pushed up, bid sitting above mid (aggressive bid, attracts sellers). In each case the spread is the same; only the midpoint moves.
 
+The same idea as a *continuous* picture — the reservation price is a straight line in inventory, sloping down at rate $\gamma\sigma^2(T-t)$ as you get longer:
+
+```
+   reservation  r(q) = mid − q·γσ²(T−t)            (mid = 65000)
+   r
+   65050 ┤●                          q = −2  → r ABOVE mid (lean to buy back to flat)
+   65025 ┤      ●
+   65000 ┤────────────●────────────  q =  0  → r = mid (quote symmetric)
+   64975 ┤                  ●
+   64950 ┤                        ●  q = +2  → r BELOW mid (lean to sell down to flat)
+         └────┬─────┬─────┬─────┬────
+             −2    −1     0    +1    +2        inventory  q
+```
+
+The bid and ask are placed ±half-spread around $r$, so the **whole two-sided quote slides down the page as inventory grows.** This is the single most important picture in the chapter, and the one [§11](11-directional-market-making.md) generalises: a neutral maker centres this line on $q=0$; an *axed* maker centres it on a target $q^\*$ it wants to hold. **Inventory does not change your spread — it changes your center.**
+
 ## 3.6 Interpretation — the three knobs
 
 The model has, in operational terms, three knobs the maker tunes:

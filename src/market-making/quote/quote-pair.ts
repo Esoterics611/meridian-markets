@@ -82,6 +82,13 @@ export interface BuildQuotePairArgs {
   symbol: string;
   reservationMicros: bigint;
   halfSpreadMicros: bigint;
+  /**
+   * Optional ASYMMETRIC per-side half-spreads (the directional skew / single-siding):
+   * tighten the side we want filled, widen/park the offload side. Default ⇒ symmetric
+   * (= halfSpreadMicros both sides), so every non-directional quoter is unchanged.
+   */
+  bidHalfSpreadMicros?: bigint;
+  askHalfSpreadMicros?: bigint;
   sizeUnits: bigint;
   ctx: QuoteContext;
   strategyId: string;
@@ -92,19 +99,23 @@ export interface BuildQuotePairArgs {
 /**
  * Assemble a {bid,ask} QuotePair from a reservation price and a half-spread.
  * Bid is floored, ask is ceiled, guaranteeing bid < ask by at least 2 micros
- * even when the half-spread rounds to zero.
+ * even when the half-spread rounds to zero. Per-side half-spreads default to the
+ * symmetric `halfSpreadMicros`; supplying them independently skews the quote.
  */
 export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
-  const half = a.halfSpreadMicros > 0n ? a.halfSpreadMicros : 1n;
-  const bidMicros = a.reservationMicros - half;
-  const askMicros = a.reservationMicros + half;
-  const req = (side: QuoteSide, priceMicros: bigint): QuoteRequest => ({
-    side,
+  const base = a.halfSpreadMicros > 0n ? a.halfSpreadMicros : 1n;
+  const sideHalf = (x: bigint | undefined): bigint => (x === undefined ? base : x > 0n ? x : 1n);
+  const bidHalf = sideHalf(a.bidHalfSpreadMicros);
+  const askHalf = sideHalf(a.askHalfSpreadMicros);
+  const bidMicros = a.reservationMicros - bidHalf;
+  const askMicros = a.reservationMicros + askHalf;
+  const req = (s: QuoteSide, priceMicros: bigint): QuoteRequest => ({
+    side: s,
     priceMicros,
     sizeUnits: a.sizeUnits,
     postOnly: true,
     timeInForce: 'POST_ONLY',
-    idempotencyKey: `${a.strategyId}-${a.tickSeq}-${side}`,
+    idempotencyKey: `${a.strategyId}-${a.tickSeq}-${s}`,
   });
   return {
     ts: a.clock(),
@@ -112,7 +123,7 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
     bid: req('bid', bidMicros),
     ask: req('ask', askMicros),
     reservationMicros: a.reservationMicros,
-    halfSpreadMicros: half,
+    halfSpreadMicros: base,
     context: a.ctx,
   };
 }

@@ -78,5 +78,8 @@ nav:
   - 6. Backtesting & LOB replay: 06-backtesting.md
   - 7. From paper to production: 07-production.md
   - 8. The Meridian desk stack — Hyperliquid, queue-aware fills, tuning: 08-the-meridian-desk-stack.md
+  - 9. The decisive result — market making is a fair-value problem: 09-the-fair-value-result.md
+  - 10. The fair-value engine — building a theo & re-quoting fast: 10-the-fair-value-engine.md
+  - 11. Directional market making — carry as a chosen bet: 11-directional-market-making.md
   - Appendix A — Code-shape catalogue: appendix-a-code-shapes.md
   - Appendix B — Source notebook: appendix-b-sources.md

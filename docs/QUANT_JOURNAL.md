@@ -1522,3 +1522,82 @@ Re-ran the #1 OOS sweep on real HL history (`docs/research/2026-06-07-13-48-...j
 ## 2026-06-07 — Entry #37 (built): the shadow flow-imbalance bias — a fast directional input on EVERY market, measured before it's trusted
 
 Built the "fast direction on all markets" piece the right way (Ronnie pushed; #36 framed it). The fast directional input is the **L2 book-imbalance signal** (`bookImbalanceFromL2`: top-N (ΣbidSz−ΣaskSz)/(Σ) ∈ [−1,1] — book pressure leads the next mid move, the same imbalance the micro-price weights), exposed as a `FlowImbalanceBiasSource` (bid-heavy ⇒ long). It runs on EVERY fast book — but as a **SHADOW**: the engine reads it into a *separate* `shadowBiasSource` field that is **recorded but never fed to the quoter** (`validated:false` ⇒ `effectiveBias`=0, and structurally it never touches `ctx.bias`), so it has **zero P&L impact by construction**. Each throttled (≥1s) snapshot appends one line to a durable JSONL (`JsonlFlowShadowRecorder`, append-immediately — the persistence gap that lost the last session does NOT apply). The offline gate `scripts/flow-bias-markout.ts` joins each obs to its forward return over 60/300/900s and reports Spearman IC + hit — the markout discipline, applied live. **Only if a horizon's IC is positive AND stable across coins does the flow source earn `validated:true` and start sizing carry next run.** This is the honest version of "bias on all markets": collect the evidence on all of them now, trust it only where it proves out (the #33 lesson — an unvalidated bias is leverage on noise). Wired behind `MM_FLOW_SHADOW` (off by default; ON for the 10h run). tsc clean; **+12 specs** (imbalance math, flow-source sign/cap/shadow-zeroing, durable JSONL + noop). Gate smoke-tested on a synthetic capture with built-in structure: reads **IC 0.77 @5s decaying to ~0 @15s** — it discriminates correctly.
+
+## 2026-06-07 — Entry #38 (the regime response, built): dynamic self-validating bias + asymmetric/single-sided spread — a real MM
+
+The live run made the gap concrete. Desk −$788/$8M (−1bp), but **ex-BTC the desk was +$311** (ETH +$397, BNB +$67, …); **BTC alone −$1,100**, of which **−$1,207 was the inventory mark on a ~9-BTC SHORT** the static funding axe held while BTC rose ~0.2%. The spread engine works; the **static directional bet was the whole loss** — exactly #33, live and cap-bounded. "How didn't we catch it": the only thing steering BTC was the *weekly* funding axe (built not to chase a regime), and the fast detector (flow imbalance) was in shadow. Ronnie's call, correct: **the bias must update like quotes do** — continuously, with its own validity re-checked. That's how a systematic desk runs (continuous alpha + live-IC decay monitoring).
+
+Built the two halves of the regime response:
+- **`RollingIcFlowBiasSource` (`4bc9699`, `MM_FLOW_BIAS_LIVE`):** the live directional view. Value updates every tick off book imbalance; **validity re-checked every horizon against its own trailing forward-return IC** — sizes carry only while predictive, **per coin**. Reversal coins auto-disable (never flips sign live). Backed by the run's own shadow data: flow IC **+0.22 @30s on BTC (hit 60%)**, real-but-decaying ETH/XRP, **reversal on ADA/DOGE** → the per-coin self-gate is exactly right.
+- **Asymmetric skew + single-siding (`e235b5c`, `MM_DIR_SPREAD_SKEW`/`MM_DIR_SINGLE_SIDE_BIAS`):** on a live view the quoter **tightens the accumulation side + widens the offload side**, and goes **single-sided** (parks the offload side at the max rail) while still building toward target. Turns a caught regime into captured edge instead of a held bleed. Off by default; `bias=0` reproduces neutral GLFT bit-for-bit.
+
+Both behind flags, tsc clean, full MM suite green (+ the quote-pair gains optional per-side half-spreads, every other quoter unchanged). **Re-run config (Ronnie stopping + restarting the desk): ALL books `mm-directional-glft` + `MM_FLOW_BIAS_LIVE=true`** — the desk self-gates per coin (BTC/ETH/XRP lean + skew; ADA/DOGE quote neutral automatically). Runbook updated (`scripts/launch-mm-10h.sh`). **What a real MM still lacks (named for next):** a proper change-point detector (CUSUM on signed flow), fast realized-vol → instant spread widening, real-time markout→spread feedback, live VPIN on the fast path, delta hedging, laddered multi-level quotes. Pushed up to `4bc9699` as PR #15; this entry's two commits + the re-run runbook are the follow-up.
+
+## 2026-06-07 — Entry #39 (the all-directional run, MEASURED): the spread engine is fine — a 30-second alpha taking multi-minute inventory risk is the loss
+
+Ran the Entry #38 config live — **all 8 books `mm-directional-glft`, `MM_FLOW_BIAS_LIVE=true`, fast re-quote on, `MM_FLOW_SHADOW` capturing** — `~17:39–19:08` (~89 min), $8M deployed (8 × $1M), HL. Persisted to `mm_nav`; flow shadow `docs/research/flow-shadow-2026-06-07T17-39-18-716Z.jsonl` (35,916 obs). **It was the worst run yet, and the post-mortem is unambiguous.**
+
+**The numbers (final `mm_nav`, real books only):**
+
+| book | net $ | realised | unreal | fees | maxDD% |
+|---|--:|--:|--:|--:|--:|
+| ETH | **+794** | +672 | +85 | −37 | 0.99 |
+| DOGE | **+393** | +361 | +25 | −7 | 0.20 |
+| XRP | **+147** | +323 | −194 | −18 | 0.36 |
+| BNB | −1,120 | −6 | −1,121 | −6 | 1.37 |
+| SUI | −1,579 | +12 | −1,601 | −10 | 1.97 |
+| ADA | −2,486 | −316 | −2,176 | −6 | 3.13 |
+| BTC | −2,486 | −672 | −1,857 | −43 | 3.40 |
+| SOL | −5,286 | −1,611 | −3,706 | −31 | **6.47** |
+| **desk** | **−11,623** | **−1,236** | **−10,545** | **−158** | — |
+
+**−$11,623 / $8M = −14.5 bps in ~1.5h** (vs #38's −$788/$8M with the *single* static axe). Turning every book directional made the loss **~15×** bigger. The split is the whole story: **unrealised −$10,545 is the loss** — open inventory marked underwater. Realised is roughly flat-to-slightly-negative (−$1,236, dragged by SOL/BTC offloading bad inventory).
+
+**The pattern, stated plainly:** the **3 books that stayed near-flat made money** (ETH/DOGE/XRP — positive realised, tiny unreal, maxDD ≤1%). The **5 books that accumulated a large one-sided position and held it lost money** (SOL got 6.2B-unit long into a −SOL move → −$3.7k unreal, 6.5% DD; ADA, SUI, BNB the same shape). **Ronnie's read is exactly right and the data proves it: the spread engine is profitable; the position is where we bleed.**
+
+**Why the self-gating bias didn't save it — the actual root cause (markout on this run's own shadow, `scripts/flow-bias-markout.ts`, Spearman IC of signal vs forward mid):**
+
+| coin | 30s | 60s | 300s | 900s |
+|---|--:|--:|--:|--:|
+| BTC | **0.188** | 0.147 | 0.01 | −0.07 |
+| ETH | **0.172** | 0.131 | 0.03 | 0.08 |
+| XRP | **0.164** | 0.161 | 0.09 | **0.237** |
+| SOL | 0.075 | 0.035 | −0.01 | **−0.116** |
+| SUI | 0.020 | −0.004 | −0.07 | **−0.145** |
+| DOGE | 0.067 | 0.056 | 0.118 | 0.016 |
+| ADA | 0.034 | 0.065 | 0.084 | 0.016 |
+| BNB | 0.064 | 0.056 | 0.00 | 0.090 |
+
+The flow signal is a **real 30–60s predictor** on the liquid majors (BTC/ETH/XRP) — and **decays to zero or flips negative by 5–15 min** (SOL −0.12, SUI −0.15 @900s). **But the inventory the signal builds was held for many minutes / the whole session.** So we used a **30-second alpha to take multi-minute inventory risk** — at the horizon where we actually carried the position, the signal had **no skill or negative skill**. The per-coin IC self-gate can't catch this: it checks IC at the signal's *own* (short) horizon, where it's positive, not at the *hold* horizon, where it bleeds. This is the #33 lesson again ("bias on everything = leverage on noise"), now quantified at 15×.
+
+**This run answers Ronnie's question — yes to both, and here's the order:** in the real world you (1) **hedge the residual delta** and (2) **only deliberately hold inventory inside the horizon your signal is valid**. And yes — **the hedge cost goes into the spread**: every unit you quote, you expect to offload/hedge, so the quoted half-spread must cover the hedge round-trip (taker fee + half-spread on the hedge venue). A spread that doesn't price the hedge is quoting at a loss. That's pillar 2 (`3fd72fb`), and this run is the measurement that says it's *the* fix, not a nice-to-have.
+
+### Lessons → redesign (the next-run plan)
+
+1. **Default the desk back to NEUTRAL spread-capture, not all-directional.** `mm-glft` substrate (the #28 KEEP set) is the steady-curve demo — it works *by staying flat*. All-directional is retired as a default; it's the proven loss mode.
+2. **Inventory governor (the missing piece — build before next run):**
+   - **Hard inventory cap per book** (|q| ≤ q_max), enforced at the quoter, no exceptions.
+   - **Inventory time-stop:** any lot held > `T` (start `T≈60s`, matched to the signal horizon) is offloaded at market. This is the direct kill for the 30s-alpha/multi-minute-hold mismatch that caused this run's loss.
+   - **Stronger reservation-price skew:** quotes must actively push inventory back to zero (Avellaneda-Stoikov), not just lean — SOL/ADA/SUI ran because skew was too weak to flatten in a trend.
+3. **Hedge leg (pillar 2):** when |net delta| > threshold, flatten with a taker hedge on the perp; **add the modeled hedge cost to the quoted half-spread** so the spread pays for it. Measure: does desk unrealised stop being the loss column?
+4. **Directional lean ONLY on BTC/ETH/XRP, only inside ~60s, time-stopped.** Never SOL/SUI (reversal coins this window). A tilt that must be flat by 60s is not a held bag.
+5. **Pre-register coin/horizon universe before the run** (the #36 methodology fix) — no expanding the sweep and keeping survivors.
+
+**Judge the next run by:** desk **unrealised stays small** (inventory controlled) and the substrate holds a steady low-DD NAV curve — that, plus ETH/DOGE/XRP-style positive realised, *is* the demo. The directional tilt is a small, time-stopped add-on, not the engine.
+
+**Caveat (honesty gate):** one ~89-min window, 8 coins; the qualitative finding (spread positive when flat, inventory carry is the loss, signal horizon ≪ hold horizon) is robust and matches #38/#33; the exact bps aren't gospel. No code changed this entry — analysis + plan only.
+
+## 2026-06-08 — Entry #40 (built): the defensive desk — inventory governor + adverse-selection (F3) spread, wired LIVE for the next paper run
+
+Acted on #39. Two **inventory-neutral defensive** layers, both behind config (defaults are no-ops, every existing spec preserved), tsc clean, **53 MM suites / 276 tests green**.
+
+**1. The inventory governor (`983f9c0`) — the fix for the runaway position that WAS the #39 loss.** Diagnosis sharpened on reading the code: the bare A-S skew is **~2 bps at full inventory** (γσ²T with σ a per-bar fraction is tiny) — it never mean-reverted; and *nothing* stopped a book breaching its cap (the clamp only bounded the skew math, not the actual fills), so SOL ran a 6.2B-unit long. Two knobs on `GlftQuoter` + `DirectionalGlftQuoter`:
+- `inventorySkewMult` — scales the inventory-skew term ONLY (not the half-spread), so the reservation actually pulls inventory back to flat/target.
+- `hardInventoryCap` — at |inventory| ≥ maxInventoryLots, PARKS the accumulating side at the max rail so the book physically cannot add to the position; the other side keeps quoting to shed.
+Wired registry → config (`MM_INVENTORY_SKEW_MULT`, `MM_HARD_INVENTORY_CAP`) → both module build sites (launch + rehydration — also fixed a latent drop of the desk-wide skew defaults on restart). +5 quoter specs.
+
+**2. The adverse-selection defence — F3, ported backtest→live (Ronnie: "avoid informed orders like the big boys… and if it's in the backtest but not live, fix it").** This is the core MM problem: informed traders hit your quote right before price runs, and informed flow is ONE-SIDED aggressor flow. The offline LOB replay already scaled the spread by **trade-flow toxicity τ = |buy−sell|/(buy+sell) relative to its rolling average** (TIGHTEN into calm two-sided flow = farm the rebate; WIDEN into a sweep = where you get picked off) — but it was **dormant in live**: the fast engine computed the imbalance every tick yet never set `ctx.spreadScale`, so the live desk quoted the same width into calm flow and into a toxic sweep. Extracted the validated formula into a shared `FlowToxicityScaler` (microstructure/), pointed BOTH the backtest and the live `L2LiveFillEngine` at it (lob-replay specs still green = behaviour preserved), behind `MM_F3_TOXICITY`. This is the WIDTH companion to the micro-price CENTER (F1, already live) — together they're the "don't get adversely selected" pair, and they use the flow signal *defensively* (inventory-neutral) instead of as the directional bet that lost in #39.
+
+**Review that mattered:** confirmed the fast L2 path reprices off the quoter's FINAL per-side prices (`l2-live-fill-engine` 281–282), so the hard cap + skew genuinely bind on the real run path, not just in unit tests. Honest limits: the hard cap is "park at the max rail," re-checked every 100ms re-quote ⇒ overshoot ≤ ~1 lot between requotes (not a zero-size stop — that, plus the inventory **time-stop** and the **desk-level delta hedge**, is phase B and needs taker plumbing on the fast path, deliberately NOT rushed in before an unattended run).
+
+**Next run (pre-registered, `docs/NEXT_RUN_PREREG.md`; runbook `scripts/launch-mm-10h.sh`):** ALL books NEUTRAL `mm-glft` + governor + F3, $8M, fast path, `MM_FLOW_SHADOW` still capturing (free directional data for phase-B). **Judge by:** desk **unrealised stops being the loss column** (|unreal| ≤ ~0.3×|realised|, vs #39's −$10.5k unreal / −$1.2k realised), per-book **maxDD ≤ ~1.5%** (vs SOL 6.5%), and **no book exceeds 4 lots**. Directional returns in the run AFTER, with the time-stop + hedge, only on the pre-registered BTC/ETH/XRP at a ~60s horizon.

@@ -87,9 +87,9 @@ const GLFT: MmStrategyDefinition = {
     'Guéant-Lehalle-Fernández-Tapia (§3.5): the infinite-horizon limit of AS — inventory skew and half-spread don\'t decay as a session clock runs out, the right choice for a continuously-running book.',
   courseRef: '§3.5 GLFT steady state',
   liveCapable: true,
-  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1 },
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0 },
   build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
-    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, ...params };
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0, ...params };
     return new GlftQuoter({
       gamma: p.gamma,
       kappa: p.kappa,
@@ -98,6 +98,8 @@ const GLFT: MmStrategyDefinition = {
       maxHalfSpreadBps,
       maxInventoryLots,
       steadyHorizonBars: p.steadyHorizonBars,
+      inventorySkewMult: p.inventorySkewMult,
+      hardInventoryCap: p.hardInventoryCap === 1,
     });
   },
 };
@@ -110,9 +112,9 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
     'GLFT that rests at a TARGET inventory q*=bias·maxLots instead of 0 (DIRECTIONAL_MM_STRATEGY.md): where the desk holds a house view, it accumulates the position via the maker, earning spread+rebate while building it — the dealer "axe". bias=0 ≡ neutral GLFT. Targets the inventory-carry term that is the only remaining loss once the spread edge goes positive at fine cadence (Journal #32).',
   courseRef: 'Directional MM (axe)',
   liveCapable: true,
-  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0 },
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0, inventorySkewMult: 1, hardInventoryCap: 0 },
   build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, params }) => {
-    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, ...params };
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, bias: 0, convictionGain: 0, spreadSkewIntensity: 0, singleSideBias: 0, inventorySkewMult: 1, hardInventoryCap: 0, ...params };
     return new DirectionalGlftQuoter({
       gamma: p.gamma,
       kappa: p.kappa,
@@ -123,6 +125,10 @@ const DIRECTIONAL_GLFT: MmStrategyDefinition = {
       steadyHorizonBars: p.steadyHorizonBars,
       bias: p.bias,
       convictionGain: p.convictionGain,
+      spreadSkewIntensity: p.spreadSkewIntensity,
+      singleSideBias: p.singleSideBias,
+      inventorySkewMult: p.inventorySkewMult,
+      hardInventoryCap: p.hardInventoryCap === 1,
     });
   },
 };

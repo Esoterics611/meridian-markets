@@ -14,6 +14,7 @@ import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
+import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
 import { FundingBiasSource } from './bias/funding-bias-source';
 import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
@@ -204,7 +205,16 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
-            params: spec.params,
+            // Desk-wide directional-quote defaults (skew + single-siding) + the inventory
+            // governor (skew-mult + hard cap, Journal #39); a per-book spec.params still
+            // overrides. Directional-only knobs are ignored by non-directional families.
+            params: {
+              spreadSkewIntensity: mm.dirSpreadSkew,
+              singleSideBias: mm.dirSingleSideBias,
+              inventorySkewMult: mm.inventorySkewMult,
+              hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              ...spec.params,
+            },
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
           // Directional bias (the axe): only a mm-directional-glft book on an
@@ -266,6 +276,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 shadowRecorder: flowShadowRecorder,
                 shadowMinIntervalMs: mm.flowShadowMinMs,
                 imbalanceDepth: mm.microPriceDepth,
+                // F3 adverse-selection defence: widen into toxic/one-sided (informed) flow,
+                // tighten into calm flow. Per-book scaler (own rolling window). Off ⇒ unscaled.
+                toxicityScaler: mm.f3Toxicity
+                  ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
+                  : undefined,
               })
             : undefined;
           return new MmBook({
@@ -305,7 +320,16 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
             maxInventoryLots: mm.maxInventoryLots,
-            params: rec.params ?? undefined,
+            // Re-apply the current desk-wide defaults (skew/single-side + the #39 inventory
+            // governor) under the persisted per-book overrides, matching the launch path so a
+            // rehydrated book resumes with the same governor a fresh one gets.
+            params: {
+              spreadSkewIntensity: mm.dirSpreadSkew,
+              singleSideBias: mm.dirSingleSideBias,
+              inventorySkewMult: mm.inventorySkewMult,
+              hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              ...(rec.params ?? {}),
+            },
           });
           return new MmBook({
             symbol: rec.symbol,

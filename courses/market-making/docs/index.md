@@ -48,6 +48,7 @@ If you've read the stat-arb course's §4 (execution) and §5 (risk), you've seen
 | Have read stat-arb | [§1](01-introduction.md) | §2 → §3 in order |
 | Software engineer, want the code shape | [§4 execution](04-execution.md) → [Appendix A](appendix-a-code-shapes.md) | §3 backwards for the math |
 | Already a quant; want the operational discipline | [§5 risk](05-risk.md) | §7 production, §6 backtesting |
+| Want the *one finding* that changed everything | [§9](09-the-fair-value-result.md) — why naive MM loses, and the fix | §10 (the fair-value engine), §11 (carry as a chosen bet) |
 | Kicking the tyres — should I invest a weekend? | [§1](01-introduction.md) | [§7](07-production.md) — the cost / benefit picture |
 
 ## Chapter map
@@ -63,13 +64,16 @@ If you've read the stat-arb course's §4 (execution) and §5 (risk), you've seen
 | 6 | [Backtesting & LOB replay](06-backtesting.md) | Run an LOB-replay backtest that respects queue position. Calibrate a fill-probability model. Recognise the three most common backtest pathologies before they ship. |
 | 7 | [From paper to production](07-production.md) | Take a quoter from shadow mode to minimum-capital live to full allocation along a published ramp, with named acceptance bands. |
 | 8 | [The Meridian desk stack](08-the-meridian-desk-stack.md) | Run the desk procedure: launch a book on Hyperliquid, keep the quoter price-scale-invariant, price each book at its own venue's fee, fill FIFO against a real L2 tape, tune γ/κ per pool, and size in dollars. |
+| 9 | [The decisive result](09-the-fair-value-result.md) | Explain *why naive spread market making loses at every spread width* — it is a fair-value problem, not a width problem — and the two fixes (micro-price center + sub-second cadence) that flipped the desk's spread edge from −\$1,020 to +\$133. **The hinge of the course.** |
+| 10 | [The fair-value engine](10-the-fair-value-engine.md) | Build the "theo": a fused fair-value estimate `μ` + confidence `Σ`, quote `μ ± f(Σ)`, re-quote on every tick behind a latency rail. The architecture every serious electronic MM actually runs. |
+| 11 | [Directional market making](11-directional-market-making.md) | Turn inventory carry — the largest, most controllable P&L term — from a coin flip into a chosen, OOS-validated, governed bet. Includes the −\$11,623 post-mortem that taught the discipline. |
 | A | [Code-shape catalogue](appendix-a-code-shapes.md) | Recognise the recurring TypeScript patterns the chapters lean on. |
 | B | [Source notebook](appendix-b-sources.md) | Look up any citation in the course. |
 
 ## What you will *not* get from this course
 
 - **A profitable quoter you can run on Monday.** Same answer as the stat-arb course. The math is public; the edge is the infrastructure around it.
-- **Backtest plots.** LOB-replay backtests can be made to look like anything. We teach the *method* in §6 and trust you to run your own.
+- **Curve-fit backtest plots sold as proof.** LOB-replay backtests can be made to look like anything, so we never ship one as evidence. We teach the *method* in §6 and trust you to run your own. (What §9–§11 *do* show is different: **measured results from this desk's own honest replay/paper runs, every one reported with its caveats** — including the losing runs. A −\$11,623 post-mortem is not a sales pitch; it is the discipline.)
 - **Latency-arms-race material.** This course assumes you're trading on a venue and exchange tier where you are *not* the fastest participant. The math we teach (Avellaneda-Stoikov, Glosten-Milgrom decomposition, inventory skew) is the math that matters when you're competing on quote quality and inventory management rather than on co-located FPGAs. If you want to learn the latency game, you need a different course and a different employer.
 - **Anything you can't audit.** Every step is traceable to a paper or a repo we've kept a copy of.
 

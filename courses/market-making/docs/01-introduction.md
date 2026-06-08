@@ -54,6 +54,20 @@ The single most important framing in this course is the decomposition of the spr
 
 The decomposition is operational, not just theoretical. Every component shows up on a real desk's PnL attribution dashboard, and every component has its own circuit breaker.
 
+Visually, the quoted half-spread is a **stack** — each component is a slice of premium the maker must collect just to break even on that source of cost:
+
+```
+   the quoted HALF-SPREAD, decomposed into the premium each cost demands
+   │
+   ├─ order-processing   ▓▓                 known in advance: fees − rebate + infra/N   (§4)
+   ├─ inventory          ▓▓▓▓               grows with |q|, σ², and time held           (§3)
+   └─ adverse selection  ▓▓▓▓▓▓▓▓▓▓         the big, variable, dangerous one            (§2, §9)
+                         └──────────────────────────────────────────────────────►
+                          premium you must earn per fill to break even
+```
+
+Set your half-spread *below* this stack and you are quoting at a loss on every fill. The engineering job — the rest of the course — is to shrink each slice without giving away the premium, and the largest, most dangerous slice is the third one. **Chapter 9 is the discovery that adverse selection on a real venue routinely exceeds the *entire* half-spread, and that the fix is not a wider spread but a better-priced one.**
+
 The order-processing component is the easy one because it is *known in advance*. The venue's fee schedule is public; the cost per fill is arithmetic. The mistake here is forgetting that your *minimum profitable spread* must clear $2 \times c_{\text{op}}$ (you pay it on both legs of a round trip). On a venue with 5 bps maker rebate and 10 bps taker fee, a quote-then-take round trip costs you 5 bps net; a maker-maker round trip earns you 10 bps in rebates. The choice of which round trips you target shapes the §4 infrastructure stack.
 
 The inventory component is the one **AS08** (Avellaneda & Stoikov, 2008) made tractable, and it is the math of §3. As inventory drifts long, the *next* bid-fill is worth less to you than the *next* ask-fill, because the bid-fill increases your position risk and the ask-fill decreases it. The response is to skew quotes — bid lower, ask lower — so the next ask-fill is more likely than the next bid-fill, and inventory drifts back toward zero. The skew is proportional to inventory, time horizon, and risk aversion.

@@ -172,6 +172,12 @@ export interface AppConfig {
     maxHalfSpreadBps: number;
     /** Saturation cap on |inventory| in lots (one lot = one quote size). */
     maxInventoryLots: number;
+    /** Multiplier on the inventory-skew term (Journal #39): >1 mean-reverts inventory to
+     *  flat/target harder without widening the spread. 1 = standard A-S. */
+    inventorySkewMult: number;
+    /** Hard inventory backstop: park the accumulating side at the rail when |inventory| ≥
+     *  maxInventoryLots so the book physically cannot breach the cap. */
+    hardInventoryCap: boolean;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */
@@ -263,6 +269,19 @@ export interface AppConfig {
     flowBiasHorizonMs: number;
     /** Min trailing Spearman IC to keep the live flow bias validated (else stand aside). Default 0.05. */
     flowBiasMinIc: number;
+    /** Directional-quoter spread-skew intensity λ∈[0,1]: tighten the accumulation side +
+     *  widen the offload side ∝ bias. 0 = symmetric. Default 0.5. */
+    dirSpreadSkew: number;
+    /** |bias| at/above which the directional quoter goes SINGLE-SIDED (parks the offload
+     *  side) while accumulating toward target. 0 ⇒ never. Default 0.6. */
+    dirSingleSideBias: number;
+    /** F3 adverse-selection defence: scale the live half-spread by flow toxicity vs its
+     *  rolling average (widen into informed/one-sided flow, tighten into calm). Off by default. */
+    f3Toxicity: boolean;
+    /** Tightest F3 scale (calm flow). Default 0.5. */
+    f3MinScale: number;
+    /** Widest F3 scale (toxic flow). Default 3.0. */
+    f3MaxScale: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam
