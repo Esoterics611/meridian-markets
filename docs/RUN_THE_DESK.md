@@ -15,13 +15,16 @@ server is still up — free it: `kill -9 $(lsof -ti tcp:3100)`.)
 ```bash
 bash scripts/launch-mm-10h.sh
 ```
-Resets + launches all 8 books as `mm-directional-glft` with the self-gating flow bias
-(BTC/ETH/XRP lean once their rolling IC clears ~1–2 min in; ADA/DOGE stay neutral).
+Resets + launches all 8 books as **neutral `mm-glft`** + the inventory governor (Journal #39:
+the directional lean is OFF this run; `MM_FLOW_SHADOW` still records the signal at zero P&L).
 
 ## Watch it
 ```bash
-# live trade tape
-tail -f docs/research/run-*-mm10h.log | grep --line-buffered DeskEvents
+# full live log — boot, fills, risk verdicts, everything (newest logfile)
+tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)"
+
+# just the trade tape (enter/exit + realised P&L)
+tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)" | grep --line-buffered DeskEvents
 
 # P&L per book, worst first ($; spread vs adverse vs inventory)
 curl -s localhost:3100/api/market-making/snapshot | jq -r \
@@ -30,12 +33,21 @@ curl -s localhost:3100/api/market-making/snapshot | jq -r \
 # equity curve (persisted to mm_nav)
 curl -s localhost:3100/api/market-making/nav | jq .
 
+# per-book maxDD — the pre-registered Run A′ metric (needs MM_PERSIST + Postgres)
+curl -s 'localhost:3100/api/market-making/nav?hours=24&book=BTC' | jq '.[-1].maxDrawdownPct'
+
 # desk DELTA HEDGE (when MM_DELTA_HEDGE=true): gross delta, post-hedge residual, hedge P&L, funding
 curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd, fundingUsd, perUnderlying}'
 ```
 
-## Stop
-`Ctrl-C` in terminal 1.  (Or `kill -9 $(lsof -ti tcp:3100)`.)
+## Stop  (close positions FIRST, or the next start rehydrates them)
+With `MM_PERSIST=true` the desk checkpoints live inventory every tick and rehydrates all
+open books on boot — so a bare `Ctrl-C` leaves stale positions that reappear in the UI next
+start. Close the desk first:
+```bash
+bash scripts/stop-desk.sh            # flatten + soft-close every book (durable; survives kill -9)
+```
+Then `Ctrl-C` terminal 1 (or `kill -9 $(lsof -ti tcp:3100)`). The next start comes up clean.
 
 ## Analyze after the run
 ```bash
@@ -56,10 +68,18 @@ The #41 loss was net delta, not spread. To run the desk with the paper perp delt
 (each book's net delta offset on a PaperVenue perp leg fed by the live HL mid):
 ```bash
 MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
+MM_FLOW_BIAS_LIVE=false \
   bash scripts/start-desk.sh        # neutral mm-glft + notional cap + delta hedge (Run A′)
 ```
-Then launch the books as usual (`bash scripts/launch-mm-10h.sh`). The pre-registered win is
-the **post-hedge residual staying near flat** and **per-book maxDD ≤ ~1.5%** (vs #41's 17.6%) —
-watch `.hedge.residualUsd` and `.hedge.hedgePnlUsd` on the snapshot. Hedge is paper-only (no real
-venue); `MM_DELTA_HEDGE` unset ⇒ the unhedged baseline (the #41 run) for comparison.
+`MM_FLOW_BIAS_LIVE=false` is required: `start-desk.sh` defaults the flow-bias skew ON, and Run A′
+must be **neutral** to isolate the hedge. Then launch the books as usual
+(`bash scripts/launch-mm-10h.sh`). The pre-registered win is the **post-hedge residual staying
+near flat** and **per-book maxDD ≤ ~1.5%** (vs #41's 17.6%) — watch `.hedge.residualUsd` +
+`.hedge.hedgePnlUsd` on the snapshot and the per-book `maxDrawdownPct` (commands above). Hedge is
+paper-only (no real venue); `MM_DELTA_HEDGE` unset ⇒ the unhedged baseline (the #41 run) for comparison.
+
+Quick mechanism sanity-check (verified 2026-06-08, ~1-min boot): with stale books carrying a
+~$614k gross desk delta, the banded hedge drove **post-hedge residual to ~$1,078 (0% of gross)**
+in one rebalance — the linear hedge neutralises the directional bet as designed. The multi-hour
+maxDD verdict still needs the full run.
 Defaults live in `scripts/start-desk.sh`; full rationale in `scripts/launch-mm-10h.sh` header + `QUANT_JOURNAL` #38.
