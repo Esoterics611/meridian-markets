@@ -22,11 +22,12 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     inventoryUnits: '250000', // 0.25
     capitalUnits: '100000000000',
     equityUnits: '100700000000',
-    realisedPnlUnits: '400000000',
-    unrealisedPnlUnits: '300000000',
-    feesUnits: '-2000000', // −$2.00 (cost)
-    fundingUnits: '1500000',
-    fundingRatePerHour: 0, // +$1.50
+    realisedPnlUnits: '400000000', // +$400.00
+    unrealisedPnlUnits: '300000000', // +$300.00 (inv MTM)
+    feesUnits: '2000000', // $2.00 cost (engine convention: + cost, − rebate)
+    fundingUnits: '1500000', // +$1.50
+    fundingRatePerHour: 0,
+    // net = realised − fees + invMTM + funding = 400 − 2 + 300 + 1.5 = 699.50 (the cash grid sums to this)
     netPnlUnits: '699500000', // +$699.50
     spreadCapturedUnits: '900000000', // +$900.00
     adverseSelectionUnits: '-200500000', // −$200.50
@@ -48,7 +49,7 @@ function snap(over: Partial<MmPortfolioSnapshot> = {}): MmPortfolioSnapshot {
     equityUnits: '100699500000',
     realisedPnlUnits: '400000000',
     unrealisedPnlUnits: '300000000',
-    feesUnits: '-2000000',
+    feesUnits: '2000000',
     fundingUnits: '1500000',
     netPnlUnits: '699500000',
     books: [book()],
@@ -78,15 +79,21 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('>RUNNING<');
   });
 
-  it('renders a per-book card: quotes, PnL attribution and verdict', () => {
+  it('renders a per-book card: quotes, cash P&L (sums to net), mark-out diagnostic and verdict', () => {
     const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('BTC·hyperliquid');
     expect(h).toContain('62,990.00'); // bid
     expect(h).toContain('63,010.00'); // ask
+    // cash grid — these four lines sum to net P&L
+    expect(h).toContain('+$400.00'); // realised
+    expect(h).toContain('+$300.00'); // inv MTM (unrealised)
+    expect(h).toContain('−$2.00'); // fees (contribution sign: a $2 cost reduces net)
+    expect(h).toContain('+$1.50'); // funding
+    expect(h).toContain('+$699.50'); // net P&L = 400 − 2 + 300 + 1.5
+    // mark-out attribution — a diagnostic, explicitly NOT part of net
     expect(h).toContain('+$900.00'); // spread captured
     expect(h).toContain('−$200.50'); // adverse selection
-    expect(h).toContain('−$2.00'); // fees
-    expect(h).toContain('+$1.50'); // funding
+    expect(h).toContain('diagnostic · ≠ net');
     expect(h).toContain('badge--allow'); // verdict
     expect(h).toContain('fills 42 (b21/a21)');
   });
