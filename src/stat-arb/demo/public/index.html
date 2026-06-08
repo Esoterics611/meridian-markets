@@ -648,14 +648,23 @@
       let p; try { p = await jget('/api/market-making/snapshot'); } catch { return; }
       window.__mm = p;
       const books = (p && p.books) || [];
+      const fmtUsd0 = (x) => (Number(x) < 0 ? '-' : '') + '$' + Math.abs(Number(x)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      // Desk net delta + post-hedge residual (when MM_DELTA_HEDGE is on) — the headline risk number.
+      const hedgeTxt = p && p.hedge ? ` · net Δ ${fmtUsd0(p.hedge.grossDeltaUsd)} → ${fmtUsd0(p.hedge.residualUsd)} hedged` : '';
       $('mm-summary').textContent = books.length
-        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC · ${p.running ? 'live' : 'paused'}`
+        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC${hedgeTxt} · ${p.running ? 'live' : 'paused'}`
         : '';
       if (!books.length) { $('mm-books').innerHTML = '<div class="muted">no maker books — launch one above</div>'; return; }
-      const mini = (k, v, cls = '') => `<div class="mini"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      const mini = (k, v, cls = '', title = '') => `<div class="mini"${title ? ' title="' + title + '"' : ''}><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
       $('mm-books').innerHTML = books.map((b) => {
         const h = pushHist('mm:' + b.symbol, NaN, Number(b.equityUnits) / USDC);
         const net = Number(b.netPnlUnits), inv = Number(b.inventoryUnits) / USDC;
+        const mid = Number(b.midMicros) / USDC;
+        const exposure = inv * mid;                        // signed $ notional at the live mid
+        const real = Number(b.realisedPnlUnits), unreal = Number(b.unrealisedPnlUnits);
+        const adv = Number(b.adverseSelectionUnits);       // SIGN: + = loss to us (markout tax)
+        const funding = Number(b.fundingUnits || 0);
+        const dd = Number(b.maxDrawdownPct);
         const spreadBps = (b.bidMicros && b.askMicros && b.midMicros)
           ? (Number(b.askMicros) - Number(b.bidMicros)) / Number(b.midMicros) * 10000 : null;
         const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
@@ -671,11 +680,17 @@
             ${mini('bid', px6(b.bidMicros))}
             ${mini('ask', px6(b.askMicros))}
             ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
-            ${mini('inventory', num(inv, 2))}
-            ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), 'pos')}
-            ${mini('fees', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg')}
-            ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg')}
+            ${mini('inventory', num(inv, 4), '', 'signed position in base units (long +, short −)')}
+            ${mini('exposure', fmtUsd0(exposure), '', 'inventory marked at the live mid — your directional $ risk')}
+            ${mini('realised', fmtUsdc(real), real >= 0 ? 'pos' : 'neg', 'locked-in P&L from round-trips already closed')}
+            ${mini('unrealised', fmtUsdc(unreal), unreal >= 0 ? 'pos' : 'neg', 'mark-to-market of OPEN inventory — the column that drove the #41 drawdown')}
+            ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), Number(b.spreadCapturedUnits) >= 0 ? 'pos' : 'neg', 'gross edge earned vs the fair mid at fill time (diagnostic)')}
+            ${mini('adverse', fmtUsdc(-adv), adv > 0 ? 'neg' : 'pos', 'markout tax — a negative value = the mid moved against our fills after we traded (picked off). Diagnostic: already inside net via fill prices.')}
+            ${mini('fees / reb', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg', 'signed: negative = maker rebate earned, positive = fee paid')}
+            ${funding !== 0 ? mini('funding', fmtUsdc(funding), funding >= 0 ? 'pos' : 'neg', 'perp funding accrued on the open position') : ''}
+            ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg', 'realised − fees + unrealised + funding')}
             ${mini('equity', fmtUsdc(b.equityUnits), (Number(b.equityUnits) - Number(b.capitalUnits)) >= 0 ? 'pos' : 'neg')}
+            ${mini('maxDD', Number.isFinite(dd) ? num(dd, 2) + '%' : '—', dd >= 5 ? 'neg' : '', 'peak-to-trough drawdown — the metric the desk minimises')}
           </div>
           <div style="margin-top:10px;"><div class="spark-k">equity over time</div>${spark(h.eq, net >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
         </div>`;
