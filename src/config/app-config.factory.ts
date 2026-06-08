@@ -171,6 +171,9 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
     f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
     f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
+    vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
+    vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
+    vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

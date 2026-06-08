@@ -169,8 +169,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           new CompositeRiskGate({
             maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
             minNavRatio: 1 - mm.maxDrawdownPct / 100,
-            vpinPauseThreshold: 2, // bar mode has no live VPIN; effectively off until the tick tape lands
-            vpinPauseMs: 30_000,
+            // VPIN is now live (BVC on bars, real aggressor flow on the fast path). Default
+            // threshold 1.01 ⇒ gauge-only (no pause); arm the pause via MM_VPIN_PAUSE_THRESHOLD<1.
+            vpinPauseThreshold: mm.vpinPauseThreshold,
+            vpinPauseMs: mm.vpinPauseMs,
             maxAdverseUnits: mm.capitalUnits, // generous; the tick-data path tightens this
             adversePauseMs: 30_000,
           });
@@ -304,6 +306,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            vpinEmaBuckets: mm.vpinEmaBuckets,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
@@ -353,6 +356,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: rec.fundingRatePerHour,
             capitalUnits: rec.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            vpinEmaBuckets: mm.vpinEmaBuckets,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),

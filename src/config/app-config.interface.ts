@@ -295,6 +295,13 @@ export interface AppConfig {
     f3MinScale: number;
     /** Widest F3 scale (toxic flow). Default 3.0. */
     f3MaxScale: number;
+    /** VPIN (volume-synchronised toxicity) EMA window in buckets. Default 50. */
+    vpinEmaBuckets: number;
+    /** Pause quoting when live VPIN ≥ this (∈[0,1]). Default 1.01 ⇒ off (gauge only;
+     *  lower below 1 to arm the toxicity pause on the bar-path risk gate). */
+    vpinPauseThreshold: number;
+    /** How long a VPIN-toxicity pause lasts (ms). Default 5000. */
+    vpinPauseMs: number;
   };
   /**
    * Backend observability (metrics + health endpoints). A config-gated swap seam

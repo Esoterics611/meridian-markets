@@ -31,7 +31,23 @@ export class VpinEstimator {
     if (sizeUnits <= 0n) return;
     if (side === 'buy') this.bucketBuyUnits += sizeUnits;
     else this.bucketSellUnits += sizeUnits;
+    this.drain();
+  }
 
+  /**
+   * Feed a chunk of volume already split into buy/sell — e.g. Bulk Volume
+   * Classification on a bar (buyVol = V·Φ(z)), or real per-interval aggressor
+   * prints. Both legs are added before any bucket closes, so a bar's BVC split
+   * is never torn across a bucket boundary mid-classification.
+   */
+  onClassifiedVolume(buyUnits: bigint, sellUnits: bigint): void {
+    if (buyUnits > 0n) this.bucketBuyUnits += buyUnits;
+    if (sellUnits > 0n) this.bucketSellUnits += sellUnits;
+    this.drain();
+  }
+
+  /** Close as many full buckets as the accumulated volume allows, updating the EMA. */
+  private drain(): void {
     while (this.bucketBuyUnits + this.bucketSellUnits >= this.cfg.bucketVolumeUnits) {
       const total = this.bucketBuyUnits + this.bucketSellUnits;
       const imbalanceUnits =

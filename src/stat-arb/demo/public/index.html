@@ -665,6 +665,7 @@
         const adv = Number(b.adverseSelectionUnits);       // SIGN: + = loss to us (markout tax)
         const funding = Number(b.fundingUnits || 0);
         const dd = Number(b.maxDrawdownPct);
+        const vpin = Number(b.vpin || 0);
         const invCarry = Number(b.inventoryCarryUnits || 0);
         const capNotional = Number(b.inventoryNotionalCapUnits || 0) / USDC;   // $ inventory rail
         const railPct = capNotional > 0 ? Math.abs(exposure) / capNotional * 100 : null;
@@ -686,6 +687,7 @@
             ${mini('ask', px6(b.askMicros))}
             ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
             ${mini('skew', skewBps != null ? num(skewBps, 1) + ' bps' : '—', '', 'quote-center lean off the mid — the inventory/bias skew the quoter applies to shed position')}
+            ${mini('VPIN', b.vpinBuckets > 0 ? num(vpin, 2) : '—', vpin >= 0.7 ? 'neg' : '', 'volume-synchronised toxicity (informed-flow probability, 0–1) — BVC on bars, real aggressor flow on the fast path. High = one-sided/informed flow; arm a pause via MM_VPIN_PAUSE_THRESHOLD<1.')}
             ${mini('inventory', num(inv, 4), '', 'signed position in base units (long +, short −)')}
             ${mini('exposure', fmtUsd0(exposure), '', 'inventory marked at the live mid — your directional $ risk')}
             ${mini('rail', railPct != null ? num(railPct, 0) + '%' : '—', railPct != null && railPct >= 80 ? 'neg' : '', 'inventory as a % of the notional cap — at 100% the governor parks the heavy side at the rail')}
