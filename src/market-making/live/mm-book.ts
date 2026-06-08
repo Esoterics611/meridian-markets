@@ -57,6 +57,12 @@ export interface MmBookConfig {
    */
   fundingRatePerHour?: number;
   capitalUnits: bigint;
+  /**
+   * Notional inventory cap as a fraction of capital (Journal #41) — the same value the
+   * quoter uses to bound |inventory| at frac·capital. Surfaced on the snapshot so the UI
+   * can render "inventory as % of the rail". Omit/0 ⇒ no notional cap (lot-count only).
+   */
+  maxInventoryNotionalFrac?: number;
   /** Latest-closed-bar source (one bar per call, null when none new). */
   nextBar: (symbol: string) => Promise<Bar | null>;
   /**
@@ -109,6 +115,9 @@ export interface MmBookState {
   fundingUnits: string;
   spreadCapturedUnits: string;
   adverseUnits: string;
+  /** MTM drift booked on carried inventory (diagnostic attribution). Optional for
+   *  backward-compat with states persisted before this field existed. */
+  inventoryCarryUnits?: string;
   peakEquityUnits: string;
   maxDrawdownPct: number;
   barsSeen: number;
@@ -147,6 +156,12 @@ export interface MmBookSnapshot {
   netPnlUnits: string;
   spreadCapturedUnits: string;
   adverseSelectionUnits: string;
+  /** MTM drift on inventory carried between bars (+ gain / − loss) — the third
+   *  attribution column alongside spread and adverse. */
+  inventoryCarryUnits: string;
+  /** |inventory| cap in USDC-units (frac·capital); "0" when no notional cap is set.
+   *  The UI shows exposure as a % of this rail. */
+  inventoryNotionalCapUnits: string;
   fills: number;
   bidFills: number;
   askFills: number;
@@ -177,6 +192,9 @@ export class MmBook {
   private blockedQuotes = 0;
   private spreadCaptured = 0n;
   private adverse = 0n;
+  /** MTM drift on inventory carried across bars (+ gain / − loss). Diagnostic
+   *  attribution; already inside realised/unrealised, not added to net again. */
+  private inventoryCarry = 0n;
   /** Funding harvested (+) / paid (−) on held inventory over the run; 0 when no rate. */
   private fundingUnits = 0n;
   private prevBarMs: number | undefined;
@@ -242,6 +260,13 @@ export class MmBook {
     };
   }
 
+  /** |inventory| cap in USDC-units (frac·capital); 0n when no notional cap is configured. */
+  private notionalCapUnits(): bigint {
+    const frac = this.cfg.maxInventoryNotionalFrac;
+    if (!frac || frac <= 0) return 0n;
+    return BigInt(Math.round(frac * Number(this.cfg.capitalUnits)));
+  }
+
   /** Snapshot the evolving P&L state for persistence (restart-safe books). */
   serializeState(): MmBookState {
     return {
@@ -249,6 +274,7 @@ export class MmBook {
       fundingUnits: this.fundingUnits.toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseUnits: this.adverse.toString(),
+      inventoryCarryUnits: this.inventoryCarry.toString(),
       peakEquityUnits: this.peakEquity.toString(),
       maxDrawdownPct: this.maxDrawdownPct,
       barsSeen: this.barsSeen,
@@ -266,6 +292,7 @@ export class MmBook {
     this.fundingUnits = BigInt(s.fundingUnits);
     this.spreadCaptured = BigInt(s.spreadCapturedUnits);
     this.adverse = BigInt(s.adverseUnits);
+    this.inventoryCarry = BigInt(s.inventoryCarryUnits ?? '0');
     this.peakEquity = BigInt(s.peakEquityUnits);
     this.maxDrawdownPct = s.maxDrawdownPct;
     this.barsSeen = s.barsSeen;
@@ -360,6 +387,12 @@ export class MmBook {
         const notional = (inv * this.prevMidMicros) / MICROS;
         this.fundingUnits += BigInt(Math.round(-Number(notional) * fundingRate * dtHours));
       }
+    }
+    // Mark the carried inventory to this bar's mid — the inventory-carry attribution
+    // column (MTM drift on what we already held, distinct from this bar's own fills).
+    if (this.prevMidMicros !== undefined) {
+      const carried = this.book.inventoryUnits();
+      if (carried !== 0n) this.inventoryCarry += (carried * (midMicros - this.prevMidMicros)) / MICROS;
     }
     this.prevBarMs = tsMs;
     this.prevMidMicros = midMicros;
@@ -523,6 +556,8 @@ export class MmBook {
       netPnlUnits: (this.book.totalPnlUnits(midMicros) + this.fundingUnits).toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseSelectionUnits: this.adverse.toString(),
+      inventoryCarryUnits: this.inventoryCarry.toString(),
+      inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       fills: this.fills,
       bidFills: this.bidFills,
       askFills: this.askFills,
@@ -565,6 +600,8 @@ export class MmBook {
       netPnlUnits: m.netPnlUnits.toString(),
       spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
       adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
+      inventoryCarryUnits: m.attribution.inventoryCarryUnits.toString(),
+      inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       fills: m.queueFills,
       bidFills: m.bidFills,
       askFills: m.askFills,
