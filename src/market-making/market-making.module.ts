@@ -169,8 +169,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           new CompositeRiskGate({
             maxInventoryUnits: quoteSizeUnits * BigInt(Math.ceil(mm.maxInventoryLots)),
             minNavRatio: 1 - mm.maxDrawdownPct / 100,
-            vpinPauseThreshold: 2, // bar mode has no live VPIN; effectively off until the tick tape lands
-            vpinPauseMs: 30_000,
+            // VPIN is now live (BVC on bars, real aggressor flow on the fast path). Default
+            // threshold 1.01 ⇒ gauge-only (no pause); arm the pause via MM_VPIN_PAUSE_THRESHOLD<1.
+            vpinPauseThreshold: mm.vpinPauseThreshold,
+            vpinPauseMs: mm.vpinPauseMs,
             maxAdverseUnits: mm.capitalUnits, // generous; the tick-data path tightens this
             adversePauseMs: 30_000,
           });
@@ -256,6 +258,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             ? new L2LiveFillEngine({
                 symbol: spec.symbol,
                 quoter,
+                markoutHorizonsMs: mm.markoutHorizonsMs,
                 quoteSizeUnits,
                 gamma: spec.params?.['gamma'] ?? mm.gamma,
                 kappa: spec.params?.['kappa'] ?? mm.kappa,
@@ -303,6 +306,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             makerFeeBps: venueFeeFor(srcId).makerBps,
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
+            maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            vpinEmaBuckets: mm.vpinEmaBuckets,
+            markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
@@ -351,6 +357,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             makerFeeBps: rec.makerFeeBps,
             fundingRatePerHour: rec.fundingRatePerHour,
             capitalUnits: rec.capitalUnits,
+            maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            vpinEmaBuckets: mm.vpinEmaBuckets,
+            markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),

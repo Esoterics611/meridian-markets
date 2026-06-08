@@ -115,16 +115,21 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     minHalfSpreadBps: parseFloat(process.env['MM_MIN_HALF_SPREAD_BPS'] ?? '1'),
     maxHalfSpreadBps: parseFloat(process.env['MM_MAX_HALF_SPREAD_BPS'] ?? '200'),
     maxInventoryLots: parseFloat(process.env['MM_MAX_INVENTORY_LOTS'] ?? '8'),
-    // Inventory governor (Journal #39 — inventory carry was the whole loss). The bare A-S
+    // Inventory governor (Journal #39/#41 — inventory carry was the whole loss). The bare A-S
     // skew is ~2 bps at full inventory (negligible); inventorySkewMult scales the skew term
     // so it actually mean-reverts, and hardInventoryCap parks the accumulating side at the
-    // rail so the book cannot breach maxInventoryLots. Defaults reproduce legacy (no-op).
-    inventorySkewMult: parseFloat(process.env['MM_INVENTORY_SKEW_MULT'] ?? '1'),
-    hardInventoryCap: (process.env['MM_HARD_INVENTORY_CAP'] ?? 'false').toLowerCase() === 'true',
+    // rail so the book cannot breach the cap. NOW ON BY DEFAULT (Journal #43): the desk ran with
+    // the governor at its legacy no-op and accumulated runaway one-sided inventory (e.g. −1.65M
+    // ADA, BTC at 88% of book notional, 10%+ maxDD) whose mark-to-market — not spread — drove
+    // net P&L. skewMult=4 is a starting value pending a γ/κ/skew sweep; the hard + notional caps
+    // are deterministic bounds, not tuning. Override via env to reproduce the legacy no-op.
+    inventorySkewMult: parseFloat(process.env['MM_INVENTORY_SKEW_MULT'] ?? '4'),
+    hardInventoryCap: (process.env['MM_HARD_INVENTORY_CAP'] ?? 'true').toLowerCase() === 'true',
     // Notional inventory cap (Journal #41): cap |inventory| at this fraction of book capital at
     // the live mid, so the bound is the same RISK across a 100×-price universe rather than the
-    // same lot count (a fixed 4-lot cap let BTC draw 10%). 0 = off (legacy lot-count cap).
-    maxInventoryNotionalFrac: parseFloat(process.env['MM_MAX_INVENTORY_NOTIONAL_FRAC'] ?? '0'),
+    // same lot count (a fixed 8-lot cap let BTC run to 88% of book notional). 0 = off (legacy
+    // lot-count cap). Default 0.25 ⇒ no book holds more than a quarter of its capital in inventory.
+    maxInventoryNotionalFrac: parseFloat(process.env['MM_MAX_INVENTORY_NOTIONAL_FRAC'] ?? '0.25'),
     // Desk delta hedge (HEDGING_MODEL.md): a paper perp leg offsetting each book's net delta so
     // the desk earns the MM edge (spread+rebate−adverse) without the directional variance that
     // was the #41 loss. Off by default (no hedge venue, trader unchanged). Band in USD.
@@ -166,6 +171,13 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
     f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
     f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
+    vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
+    vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
+    vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),
+    markoutHorizonsMs: (process.env['MM_MARKOUT_HORIZONS_MS'] ?? '1000,5000,30000')
+      .split(',')
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => Number.isFinite(n) && n > 0),
   },
   telemetry: {
     enabled: (process.env['TELEMETRY_ENABLED'] ?? 'false').toLowerCase() === 'true',

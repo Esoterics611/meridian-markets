@@ -648,14 +648,30 @@
       let p; try { p = await jget('/api/market-making/snapshot'); } catch { return; }
       window.__mm = p;
       const books = (p && p.books) || [];
+      const fmtUsd0 = (x) => (Number(x) < 0 ? '-' : '') + '$' + Math.abs(Number(x)).toLocaleString(undefined, { maximumFractionDigits: 0 });
+      // Desk net delta + post-hedge residual (when MM_DELTA_HEDGE is on) — the headline risk number.
+      const hedgeTxt = p && p.hedge ? ` · net Δ ${fmtUsd0(p.hedge.grossDeltaUsd)} → ${fmtUsd0(p.hedge.residualUsd)} hedged` : '';
       $('mm-summary').textContent = books.length
-        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC · ${p.running ? 'live' : 'paused'}`
+        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC${hedgeTxt} · ${p.running ? 'live' : 'paused'}`
         : '';
       if (!books.length) { $('mm-books').innerHTML = '<div class="muted">no maker books — launch one above</div>'; return; }
-      const mini = (k, v, cls = '') => `<div class="mini"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
+      const mini = (k, v, cls = '', title = '') => `<div class="mini"${title ? ' title="' + title + '"' : ''}><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;
       $('mm-books').innerHTML = books.map((b) => {
         const h = pushHist('mm:' + b.symbol, NaN, Number(b.equityUnits) / USDC);
         const net = Number(b.netPnlUnits), inv = Number(b.inventoryUnits) / USDC;
+        const mid = Number(b.midMicros) / USDC;
+        const exposure = inv * mid;                        // signed $ notional at the live mid
+        const real = Number(b.realisedPnlUnits), unreal = Number(b.unrealisedPnlUnits);
+        const adv = Number(b.adverseSelectionUnits);       // SIGN: + = loss to us (markout tax)
+        const funding = Number(b.fundingUnits || 0);
+        const dd = Number(b.maxDrawdownPct);
+        const vpin = Number(b.vpin || 0);
+        const moLabel = (ms) => ms >= 1000 ? (ms / 1000) + 's' : ms + 'ms';
+        const invCarry = Number(b.inventoryCarryUnits || 0);
+        const capNotional = Number(b.inventoryNotionalCapUnits || 0) / USDC;   // $ inventory rail
+        const railPct = capNotional > 0 ? Math.abs(exposure) / capNotional * 100 : null;
+        const skewBps = (b.reservationMicros && b.midMicros)
+          ? (Number(b.reservationMicros) - Number(b.midMicros)) / Number(b.midMicros) * 10000 : null;
         const spreadBps = (b.bidMicros && b.askMicros && b.midMicros)
           ? (Number(b.askMicros) - Number(b.bidMicros)) / Number(b.midMicros) * 10000 : null;
         const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
@@ -671,11 +687,22 @@
             ${mini('bid', px6(b.bidMicros))}
             ${mini('ask', px6(b.askMicros))}
             ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
-            ${mini('inventory', num(inv, 2))}
-            ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), 'pos')}
-            ${mini('fees', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg')}
-            ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg')}
+            ${mini('skew', skewBps != null ? num(skewBps, 1) + ' bps' : '—', '', 'quote-center lean off the mid — the inventory/bias skew the quoter applies to shed position')}
+            ${mini('VPIN', b.vpinBuckets > 0 ? num(vpin, 2) : '—', vpin >= 0.7 ? 'neg' : '', 'volume-synchronised toxicity (informed-flow probability, 0–1) — BVC on bars, real aggressor flow on the fast path. High = one-sided/informed flow; arm a pause via MM_VPIN_PAUSE_THRESHOLD<1.')}
+            ${mini('inventory', num(inv, 4), '', 'signed position in base units (long +, short −)')}
+            ${mini('exposure', fmtUsd0(exposure), '', 'inventory marked at the live mid — your directional $ risk')}
+            ${mini('rail', railPct != null ? num(railPct, 0) + '%' : '—', railPct != null && railPct >= 80 ? 'neg' : '', 'inventory as a % of the notional cap — at 100% the governor parks the heavy side at the rail')}
+            ${mini('realised', fmtUsdc(real), real >= 0 ? 'pos' : 'neg', 'locked-in P&L from round-trips already closed')}
+            ${mini('unrealised', fmtUsdc(unreal), unreal >= 0 ? 'pos' : 'neg', 'mark-to-market of OPEN inventory — the column that drove the #41 drawdown')}
+            ${mini('spread P&L', fmtUsdc(b.spreadCapturedUnits), Number(b.spreadCapturedUnits) >= 0 ? 'pos' : 'neg', 'gross edge earned vs the fair mid at fill time (diagnostic)')}
+            ${mini('adverse', fmtUsdc(-adv), adv > 0 ? 'neg' : 'pos', 'markout tax — a negative value = the mid moved against our fills after we traded (picked off). Diagnostic: already inside net via fill prices.')}
+            ${mini('inv carry', fmtUsdc(invCarry), invCarry >= 0 ? 'pos' : 'neg', 'mark-to-market drift on inventory we were already holding — the third attribution column beside spread and adverse (diagnostic)')}
+            ${(b.markout || []).map((p) => mini('mo ' + moLabel(p.ms), p.bps != null ? num(p.bps, 1) + ' bps' : '—', p.bps != null ? (p.bps < 0 ? 'neg' : 'pos') : '', 'forward markout at ' + moLabel(p.ms) + ': avg per-fill mid move from our side — negative = adverse/picked off (' + (p.count || 0) + ' fills). A curve sinking with horizon = toxic flow.')).join('')}
+            ${mini('fees / reb', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg', 'signed: negative = maker rebate earned, positive = fee paid')}
+            ${funding !== 0 ? mini('funding', fmtUsdc(funding), funding >= 0 ? 'pos' : 'neg', 'perp funding accrued on the open position') : ''}
+            ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg', 'realised − fees + unrealised + funding')}
             ${mini('equity', fmtUsdc(b.equityUnits), (Number(b.equityUnits) - Number(b.capitalUnits)) >= 0 ? 'pos' : 'neg')}
+            ${mini('maxDD', Number.isFinite(dd) ? num(dd, 2) + '%' : '—', dd >= 5 ? 'neg' : '', 'peak-to-trough drawdown — the metric the desk minimises')}
           </div>
           <div style="margin-top:10px;"><div class="spark-k">equity over time</div>${spark(h.eq, net >= 0 ? '#00d4aa' : '#ff5c5c')}</div>
         </div>`;

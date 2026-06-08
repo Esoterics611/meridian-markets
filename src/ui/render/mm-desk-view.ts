@@ -46,6 +46,10 @@ function price(micros: string | null): string {
 function bookCard(b: MmBookSnapshot): SafeHtml {
   const label = b.source ? `${b.symbol}·${b.source}` : b.symbol;
   const removeBody = JSON.stringify({ symbol: b.symbol });
+  // Fees as their CONTRIBUTION to net (a rebate reads +, a cost −), matching the
+  // Activity tape's `fmtMoney(-feeUnits)`. The cash grid then literally sums to net:
+  //   net = realised + inv MTM + fees(contrib) + funding   (mm-book.ts:523 / inventory-book.ts:130)
+  const feesContribUnits = (-BigInt(b.feesUnits)).toString();
   return html`
     <div class="book-card">
       <div class="book-card-h">
@@ -65,12 +69,21 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         <div class="q"><span class="qk">inventory</span><span class="qv mono">${fmtQty(BigInt(b.inventoryUnits))}</span></div>
       </div>
 
+      <!-- Cash P&L — these four lines SUM to net P&L (the inv-MTM line is the mark-to-
+           market on the open inventory position above; it is what dominates net). -->
       <div class="attr-grid">
-        <div class="attr"><span class="ak">spread</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
-        <div class="attr"><span class="ak">adverse</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
-        <div class="attr"><span class="ak">fees</span><span class="av mono ${signClass(b.feesUnits)}">${money(b.feesUnits)}</span></div>
+        <div class="attr"><span class="ak">realised</span><span class="av mono ${signClass(b.realisedPnlUnits)}">${money(b.realisedPnlUnits)}</span></div>
+        <div class="attr"><span class="ak">inv MTM</span><span class="av mono ${signClass(b.unrealisedPnlUnits)}">${money(b.unrealisedPnlUnits)}</span></div>
+        <div class="attr"><span class="ak">fees</span><span class="av mono ${signClass(feesContribUnits)}">${money(feesContribUnits)}</span></div>
         <div class="attr"><span class="ak">funding</span><span class="av mono ${signClass(b.fundingUnits)}">${money(b.fundingUnits)}</span></div>
         <div class="attr attr--net"><span class="ak">net P&amp;L</span><span class="av mono ${signClass(b.netPnlUnits)}">${money(b.netPnlUnits)}</span></div>
+      </div>
+      <!-- Mark-out attribution — a per-fill diagnostic on quote quality (was the price
+           good vs. where the mid went next?). It does NOT sum to net P&L. -->
+      <div class="attr-grid attr-grid--diag">
+        <div class="attr"><span class="ak">spread</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
+        <div class="attr"><span class="ak">adverse</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
+        <div class="attr"><span class="ak dim">mark-out</span><span class="av dim">diagnostic · ≠ net</span></div>
       </div>
 
       <div class="book-foot">

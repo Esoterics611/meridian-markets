@@ -11,6 +11,7 @@ import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } fro
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
+import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
 import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
 
@@ -66,6 +67,8 @@ interface LiveResting extends RestingQuote {
 export interface L2LiveFillEngineConfig {
   symbol: string;
   quoter: IQuoter;
+  /** Forward markout horizons in ms for the adverse-selection curve. Default 1s/5s/30s. */
+  markoutHorizonsMs?: number[];
   /** Asset units quoted per side (6-dec). */
   quoteSizeUnits: bigint;
   gamma: number;
@@ -143,6 +146,8 @@ export interface L2LiveFillEngineMetrics {
   feesUnits: bigint;
   maxDrawdownPct: number;
   attribution: AttributionSummary;
+  /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
+  markout: MarkoutPoint[];
 }
 
 export class L2LiveFillEngine {
@@ -150,6 +155,7 @@ export class L2LiveFillEngine {
   private readonly vol: RollingVolatility;
   private readonly book = new InventoryBook();
   private readonly components: PnlComponent[] = [];
+  private readonly markout: MarkoutTracker;
   private readonly latencyMs: number;
 
   private restingBid: LiveResting | undefined;
@@ -171,6 +177,7 @@ export class L2LiveFillEngine {
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
     this.vol = new RollingVolatility(cfg.volWindowBars);
+    this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000]);
     this.latencyMs = Math.max(0, cfg.cancelReplaceLatencyMs ?? 100);
     this.peakEquity = cfg.capitalUnits;
     this.fundingRatePerHour = cfg.fundingRatePerHour ?? 0;
@@ -207,6 +214,8 @@ export class L2LiveFillEngine {
     this.snapshots += 1;
     this.vol.push(Number(mid) / 1e6);
     this.lastMidMicros = mid;
+    // Re-mark prior fills against this print (the markout/adverse-selection curve).
+    this.markout.onMid(nowMs, mid);
 
     const flow: IntervalFlow = {
       aggressiveBuyUnits: tick.flow?.aggressiveBuyUnits ?? 0n,
@@ -317,7 +326,7 @@ export class L2LiveFillEngine {
     }
     if (outcome.filledUnits > 0n) {
       const side: FillSide = order.side;
-      this.applyFill(side, order.priceMicros, outcome.filledUnits, order.fairMidMicros, markoutMid);
+      this.applyFill(side, order.priceMicros, outcome.filledUnits, order.fairMidMicros, markoutMid, nowMs);
       this.queueFills += 1;
       if (side === 'BUY') this.bidFills += 1;
       else this.askFills += 1;
@@ -340,7 +349,7 @@ export class L2LiveFillEngine {
     return { ...res.order, liveFromMs: nowMs + this.latencyMs, fairMidMicros: mid, quotedAtMs: nowMs };
   }
 
-  private applyFill(side: FillSide, priceMicros: bigint, qty: bigint, fairMid: bigint, markoutMid: bigint): void {
+  private applyFill(side: FillSide, priceMicros: bigint, qty: bigint, fairMid: bigint, markoutMid: bigint, nowMs: number): void {
     const notional = valueUnits(qty, priceMicros);
     const fee = (notional * BigInt(Math.round(this.cfg.makerFeeBps * 100))) / 1_000_000n;
     const invBefore = this.book.inventoryUnits();
@@ -348,6 +357,8 @@ export class L2LiveFillEngine {
     // Adverse selection is the markout at the RE-QUOTE horizon (this snapshot's mid vs
     // the fair mid when the order was quoted) — the fast cadence, not a coarse bar.
     this.components.push(attributeFill({ side, sizeUnits: qty, priceMicros, feeUnits: fee }, fairMid, markoutMid, invBefore));
+    // Also record it for the forward markout CURVE (re-marked at 1s/5s/30s as mids arrive).
+    this.markout.onFill(side, fairMid, nowMs);
   }
 
   private markDd(mid: bigint): void {
@@ -377,6 +388,7 @@ export class L2LiveFillEngine {
       feesUnits: this.book.feesUnits(),
       maxDrawdownPct: this.maxDrawdownPct,
       attribution: sumComponents(this.components),
+      markout: this.markout.curve(),
     };
   }
 

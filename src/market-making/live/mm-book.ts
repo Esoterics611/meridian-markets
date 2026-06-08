@@ -7,6 +7,9 @@ import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
+import { VpinEstimator } from '../risk/vpin';
+import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
+import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { L2LiveFillEngine } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
@@ -57,6 +60,18 @@ export interface MmBookConfig {
    */
   fundingRatePerHour?: number;
   capitalUnits: bigint;
+  /**
+   * Notional inventory cap as a fraction of capital (Journal #41) — the same value the
+   * quoter uses to bound |inventory| at frac·capital. Surfaced on the snapshot so the UI
+   * can render "inventory as % of the rail". Omit/0 ⇒ no notional cap (lot-count only).
+   */
+  maxInventoryNotionalFrac?: number;
+  /** VPIN EMA window in buckets (toxicity gauge + risk pause). Default 50. */
+  vpinEmaBuckets?: number;
+  /** VPIN bucket size in asset units; default = quoteSizeUnits·10 (self-scales per symbol). */
+  vpinBucketUnits?: bigint;
+  /** Forward markout horizons in ms for the adverse-selection curve. Default 1s/5s/30s. */
+  markoutHorizonsMs?: number[];
   /** Latest-closed-bar source (one bar per call, null when none new). */
   nextBar: (symbol: string) => Promise<Bar | null>;
   /**
@@ -109,6 +124,9 @@ export interface MmBookState {
   fundingUnits: string;
   spreadCapturedUnits: string;
   adverseUnits: string;
+  /** MTM drift booked on carried inventory (diagnostic attribution). Optional for
+   *  backward-compat with states persisted before this field existed. */
+  inventoryCarryUnits?: string;
   peakEquityUnits: string;
   maxDrawdownPct: number;
   barsSeen: number;
@@ -147,6 +165,18 @@ export interface MmBookSnapshot {
   netPnlUnits: string;
   spreadCapturedUnits: string;
   adverseSelectionUnits: string;
+  /** MTM drift on inventory carried between bars (+ gain / − loss) — the third
+   *  attribution column alongside spread and adverse. */
+  inventoryCarryUnits: string;
+  /** |inventory| cap in USDC-units (frac·capital); "0" when no notional cap is set.
+   *  The UI shows exposure as a % of this rail. */
+  inventoryNotionalCapUnits: string;
+  /** Live VPIN (volume-synchronised toxicity) ∈ [0,1]; high = one-sided/informed flow. */
+  vpin: number;
+  /** VPIN buckets closed so far (the gauge is meaningful once this clears the EMA window). */
+  vpinBuckets: number;
+  /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
+  markout: MarkoutPoint[];
   fills: number;
   bidFills: number;
   askFills: number;
@@ -177,8 +207,15 @@ export class MmBook {
   private blockedQuotes = 0;
   private spreadCaptured = 0n;
   private adverse = 0n;
+  /** MTM drift on inventory carried across bars (+ gain / − loss). Diagnostic
+   *  attribution; already inside realised/unrealised, not added to net again. */
+  private inventoryCarry = 0n;
   /** Funding harvested (+) / paid (−) on held inventory over the run; 0 when no rate. */
   private fundingUnits = 0n;
+  /** Live toxicity gauge — fed by BVC on the bar path, real aggressor flow on the fast path. */
+  private readonly vpin: VpinEstimator;
+  /** Forward markout curve for bar-path books (the fast path uses the engine's tracker). */
+  private readonly markout: MarkoutTracker;
   private prevBarMs: number | undefined;
   private prevMidMicros: bigint | undefined;
   private peakEquity: bigint;
@@ -195,6 +232,14 @@ export class MmBook {
     this.now = cfg.now ?? (() => new Date());
     this.events = cfg.events ?? NULL_DESK_EVENT_SINK;
     this.peakEquity = cfg.capitalUnits;
+    // Bucket size self-scales off the book's own quote size so one knob fits a
+    // 100×-price universe (DOGE's quoteSize in asset units ≫ BTC's). Override via cfg.
+    const bucket = cfg.vpinBucketUnits && cfg.vpinBucketUnits > 0n ? cfg.vpinBucketUnits : cfg.quoteSizeUnits * 10n;
+    this.vpin = new VpinEstimator({
+      bucketVolumeUnits: bucket > 0n ? bucket : 1_000_000n,
+      emaWindowBuckets: cfg.vpinEmaBuckets ?? 50,
+    });
+    this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000]);
   }
 
   setRunning(v: boolean): void {
@@ -242,6 +287,13 @@ export class MmBook {
     };
   }
 
+  /** |inventory| cap in USDC-units (frac·capital); 0n when no notional cap is configured. */
+  private notionalCapUnits(): bigint {
+    const frac = this.cfg.maxInventoryNotionalFrac;
+    if (!frac || frac <= 0) return 0n;
+    return BigInt(Math.round(frac * Number(this.cfg.capitalUnits)));
+  }
+
   /** Snapshot the evolving P&L state for persistence (restart-safe books). */
   serializeState(): MmBookState {
     return {
@@ -249,6 +301,7 @@ export class MmBook {
       fundingUnits: this.fundingUnits.toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseUnits: this.adverse.toString(),
+      inventoryCarryUnits: this.inventoryCarry.toString(),
       peakEquityUnits: this.peakEquity.toString(),
       maxDrawdownPct: this.maxDrawdownPct,
       barsSeen: this.barsSeen,
@@ -266,6 +319,7 @@ export class MmBook {
     this.fundingUnits = BigInt(s.fundingUnits);
     this.spreadCaptured = BigInt(s.spreadCapturedUnits);
     this.adverse = BigInt(s.adverseUnits);
+    this.inventoryCarry = BigInt(s.inventoryCarryUnits ?? '0');
     this.peakEquity = BigInt(s.peakEquityUnits);
     this.maxDrawdownPct = s.maxDrawdownPct;
     this.barsSeen = s.barsSeen;
@@ -306,6 +360,8 @@ export class MmBook {
   onL2Snapshot(tick: LiveTick): void {
     const eng = this.cfg.fastEngine;
     if (!eng || !this.running) return;
+    // VPIN feed (fast path): real per-interval aggressor prints — no BVC estimate needed.
+    if (tick.flow) this.vpin.onClassifiedVolume(tick.flow.aggressiveBuyUnits ?? 0n, tick.flow.aggressiveSellUnits ?? 0n);
     const beforeBid = this._fastBidFills;
     const beforeAsk = this._fastAskFills;
     const quote = eng.onSnapshot(tick);
@@ -361,6 +417,25 @@ export class MmBook {
         this.fundingUnits += BigInt(Math.round(-Number(notional) * fundingRate * dtHours));
       }
     }
+    // Mark the carried inventory to this bar's mid — the inventory-carry attribution
+    // column (MTM drift on what we already held, distinct from this bar's own fills).
+    if (this.prevMidMicros !== undefined) {
+      const carried = this.book.inventoryUnits();
+      if (carried !== 0n) this.inventoryCarry += (carried * (midMicros - this.prevMidMicros)) / MICROS;
+    }
+    // VPIN feed (bar path): classify this bar's volume into buy/sell via Bulk Volume
+    // Classification (BVC, ELO12) — buyFrac = Φ(standardised return) — then bucket it.
+    // Needs a warm σ for the standardisation; while warming, VPIN simply stays at 0.
+    const sigma = this.vol.value();
+    if (this.prevMidMicros !== undefined && Number.isFinite(sigma) && sigma > 0 && bar.volume > 0) {
+      const ret = Math.log(Number(midMicros) / Number(this.prevMidMicros));
+      const buyFrac = normCdf(ret / sigma);
+      const volUnits = BigInt(Math.round(bar.volume * 1e6));
+      const buyUnits = BigInt(Math.round(Number(volUnits) * buyFrac));
+      this.vpin.onClassifiedVolume(buyUnits, volUnits - buyUnits);
+    }
+    // Re-mark prior fills against this bar's mid (the forward markout curve).
+    this.markout.onMid(tsMs, midMicros);
     this.prevBarMs = tsMs;
     this.prevMidMicros = midMicros;
 
@@ -411,7 +486,7 @@ export class MmBook {
 
     if (this.cfg.riskGate) {
       const navRatio = Number(this.equityWithFunding(midMicros)) / Number(this.cfg.capitalUnits);
-      const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: 0, recentAdverseUnits: this.adverse, killed: false };
+      const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: this.vpin.current(), recentAdverseUnits: this.adverse, killed: false };
       const verdict = this.cfg.riskGate.check(quote, state);
       // Emit a business event only on a verdict TRANSITION (Allow ⇄ Pause ⇄ Deny),
       // not every blocked tick — the operator wants the state change, not a flood.
@@ -439,6 +514,8 @@ export class MmBook {
       this.fills += 1;
       // Defer adverse selection to next bar's mid (a one-bar mark-out).
       this.pendingMarkout.push({ side, sizeUnits: this.cfg.quoteSizeUnits, fairMid: priceMicros });
+      // Record the fill for the multi-horizon markout curve (marked vs the fill-time mid).
+      this.markout.onFill(side, midMicros, tsMs);
       // The business event: a trade entered/exited inventory (enter = open/add,
       // exit = reduce/close/flip, with the realised P&L the exit just booked).
       this.events.emit(
@@ -523,6 +600,11 @@ export class MmBook {
       netPnlUnits: (this.book.totalPnlUnits(midMicros) + this.fundingUnits).toString(),
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseSelectionUnits: this.adverse.toString(),
+      inventoryCarryUnits: this.inventoryCarry.toString(),
+      inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
+      vpin: this.vpin.current(),
+      vpinBuckets: this.vpin.bucketsSeen(),
+      markout: this.markout.curve(),
       fills: this.fills,
       bidFills: this.bidFills,
       askFills: this.askFills,
@@ -565,6 +647,11 @@ export class MmBook {
       netPnlUnits: m.netPnlUnits.toString(),
       spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
       adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
+      inventoryCarryUnits: m.attribution.inventoryCarryUnits.toString(),
+      inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
+      vpin: this.vpin.current(),
+      vpinBuckets: this.vpin.bucketsSeen(),
+      markout: m.markout,
       fills: m.queueFills,
       bidFills: m.bidFills,
       askFills: m.askFills,

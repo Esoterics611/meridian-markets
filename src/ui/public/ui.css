@@ -286,6 +286,10 @@ desk-form[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
 .qv, .av { font-size: 13px; }
 .attr--net .ak { color: var(--fg); }
 .attr--net .av { font-weight: 600; }
+/* mark-out attribution: a diagnostic, visually demoted + dashed so it reads as
+   separate from the cash grid above (which is the one that sums to net). */
+.attr-grid--diag { border-top-style: dashed; opacity: 0.72; }
+.attr-grid--diag .av { font-size: 12px; }
 .book-foot {
   display: flex;
   align-items: center;
