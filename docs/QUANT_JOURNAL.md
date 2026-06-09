@@ -1880,3 +1880,48 @@ loop unwinds the hedge over the next ticks; only `closeAll` needs the explicit r
 hedge, tapes it, snapshot flat) green — `jest src/market-making/{hedge,live,events}` 93/93. **Operator
 note:** if a desk shows a ghost P&L, the cause is almost always a **stale duplicate server** — `ps aux |
 grep nest` should show exactly ONE; kill extras, then `bash scripts/stop-desk.sh` lands it on 000.
+
+## 2026-06-09 — Entry #47 (the rehydrate trap: restarted books fell back to slow bar quoting → the bleed)
+**Symptom.** A ~73-min governed run (8 HL books, $1M each, delta hedge ON) bled **−$80.3k realised** (DB
+`mm_nav`, ~100% realised — locked in, not a mark), maxDD scaling with each coin's vol (XRP/BTC/ETH worst,
+ADA least). Fees were tiny (−$8…−$68/book) ⇒ NOT a cost problem. Per-book attribution from the log
+persistence blobs (`realised = spreadCaptured + invCarry + funding`; `adverse` is the diagnostic markout):
+**`spreadCaptured` deeply NEGATIVE on every book** (−$3.9k…−$14.8k) — the textbook signature of **getting
+picked off** (the mark moves against each fill by more than the half-spread earned).
+
+**Root cause (the real find).** The book the operator was running had been **rehydrated from persistence**
+(`boot: "rehydrated 8 mm book(s)"`). The fast-path machinery — F1 micro-price center + sub-second re-quote,
+F3 toxicity widening, and the hedge-cost-in-spread premium — was wired **only in `makeBook` (the fresh
+launch path)**. `rebuildBook` (the restart path) built a plain `MmBook` with **no `fastEngine`** ⇒
+`isFastPath()` = `!!cfg.fastEngine` = **false** ⇒ the book ran on the **15s bar tick** off a ~1/min candle
+mid. So a 15s-stale quote sat in front of 100ms flow — **all of #27–#44 silently evaporated on every desk
+restart/reopen.** This is why "I thought everything was microsecond" and "this was supposed to be fixed":
+the fixes were real, but only on the launch path; the two construction paths had drifted.
+
+**Hedge churn (secondary, ~$4k).** 133 hedge orders, **$14.7M perp notional round-tripped** (20 BTC `open`s
++ 20 `flip`s = flattening then re-opening, not converging). Cause: `deskDeltas()` skipped any book whose
+mid flickered to 0 for a cycle (`midMicros <= 0n continue`), so that underlying's net delta vanished, the
+hedge unwound a correct leg, then re-opened it next cycle. #45a's flicker fix only stabilised the hedge's
+*own* valuation (`DeskHedgeController.resolveMarks`), not the *book-side* dropout upstream of it.
+
+**The honest verdict (said plainly to the operator).** The hedge was **~5% of the loss, not the cause**. A
+perfect, free, instant delta hedge still leaves the ~$80k — it's a **fair-value/edge problem**, not a
+directional-delta problem. A hedge converts directional *variance* into a steadier line; it cannot
+manufacture edge from a negative-edge quoter.
+
+**Fixes shipped (this entry).**
+1. **Unified book wiring** — extracted `resolveBiasSources()` + `buildFastEngine()` helpers in
+   `market-making.module.ts`; **both** `makeBook` and `rebuildBook` now call them, so a rehydrated L2 book
+   is byte-identical to a freshly launched one (fast engine + bias axes + F3 + hedge-cost-in-spread). This
+   is the primary fix — books are back on the 100ms micro-price re-quote path after a restart.
+2. **Hedge-cost-in-spread now actually fires** — `hedgeCostBps = (taker+halfspread)·mult` (= (2.5+1)·0.5 =
+   **1.75bps** premium when the hedge is on) lives in the fast engine and was already unit-tested
+   (`quote-pair.ts:119`); fix #1 means rehydrated books finally get it.
+3. **Hedge-churn fix** — `MmPortfolioTrader.deskDeltas()` keeps a `lastBookMark` per symbol and values a
+   flickered book's delta at its last-known mark instead of dropping it, so the hedge stops round-tripping
+   across price flickers (only a never-warmed book is skipped).
+
+**Tests:** tsc clean; `jest src/market-making/{live,hedge,quote}` 121/121 green. **Operator rule (now in
+the `mm-run-review` skill):** after every run, read **edge first** (is `spreadCaptured` negative? = picked
+off), and check the desk loop log line — if it says `quoting every 15000ms` AND there's no fast-path
+activity, the books rehydrated onto the slow path. A genuinely fast desk re-quotes sub-second.
