@@ -1743,3 +1743,57 @@ Acted on Q1 of the e2e doc (Ronnie: "converge the fill paths to fast-only"). The
 - **Docs/run refreshed:** `scripts/start-desk.sh` + `launch-mm-10h.sh` (dropped the dead flag, governor-on note), `docs/RUN_THE_DESK.md` (fast-only callout, knob table), `README.md` (added the MM-desk run section + honest research read: DD bounded, edge still open), and the e2e doc Q1 marked done.
 
 tsc clean; 312 mm+config + 403 mm+ui suites green. The pre-existing `telemetry.module.spec` flake is still the only red (deferred, untouched). **Next:** the OOS β fit for the hedge map + DR-4 (hedge on the fast path), then chase the edge (adverse-selection defence + validated lean).
+
+## 2026-06-09 — Entry #45 (built: the four "make money" pillars wired end-to-end + the training loop)
+
+Acted on the #44 plan + Ronnie's standing demand that the NEXT run actually make money and that
+*nothing* ships silently off. One focused session on `feat/mm-desk-diagnostics-and-guide` (commits
+7abc48d → d9aada1). The thesis: a neutral MM desk makes money iff **(1) positions are hedged, (2) the
+hedge cost is paid for by the spread, (3) adverse flow is defended, (4) we don't fight bad exposure** —
+and every one of those must be ON, visible, and measurable.
+
+**1. DR-4 — the hedge runs on the fast cadence.** It rebalanced inside `tick()` (the 15s bar timer)
+while every live book trades on the 100ms L2 path ⇒ it read stale deltas and mostly no-op'd (#44 root
+cause 4). Added an `afterCycle` hook to `L2PollDriver` (fires once per poll cycle, after every book's
+snapshot is routed, awaited so the no-pile-up guard serialises it) wired to a new
+`MmPortfolioTrader.hedgeTick()`. The bar tick drives the hedge only when no fast driver exists (offline
+tests) ⇒ never double-hedged; `hedgeTick()` is re-entrancy-guarded (it places real paper orders).
+
+**2. DR-3 — F3 is instrumented.** The toxicity defence was invisible (#44: 0 widen-events, no way to
+tell it fired). The L2 engine now tracks widen/tighten step counts + mean/max/last spread-scale,
+surfaced as `metrics().toxicity` (undefined when the scaler is off ⇒ reads honestly), on
+`MmBookSnapshot.toxicity`, and logged each NAV interval as a grep-able `F3 toxicity:` line.
+
+**3. The money link — hedge cost priced INTO the maker spread.** A hedge you don't pay for is a sure
+bleed: every passive fill is neutralised with a perp taker, so the maker half-spread must earn ≥ that.
+Added `ctx.hedgeCostBps` — an additive half-spread premium applied to both sides in `buildQuotePair`
+(the one chokepoint every quoter funnels through ⇒ no quoter touched), wired from the engine as
+`(hedgeTaker + hedgeHalfSpread) · MM_HEDGE_COST_SPREAD_MULT` when the hedge is on. The mult (default
+0.5) is the fill-rate-vs-cost lever — a neutral book offsets most flow before it becomes hedged delta,
+so charging the full per-fill round-trip over-widens and starves fills.
+
+**4. Priority #2 — OOS hedge β-map.** `scripts/hedge-beta-fit.ts` (DB-free, public HL REST) OLS-fits
+each alt's log-returns on BTC/ETH and maps it to the better-tracking major. Measured 2026-06-09
+(30d×1h, R² 0.5–0.8): **SOL/DOGE/XRP/ADA/SUI→ETH, BNB→BTC** ⇒
+`MM_HEDGE_BETA_MAP="SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30"`,
+baked as the start-desk default — the hedge now neutralises the basket with ~2 major legs (the #41 "8
+books = 1 β bet"), not 8 self-hedges.
+
+**5. No more silent-off (DR-0) + the UI shows it.** `scripts/start-desk.sh` now bakes ALL four pillars
+ON (it IS the canonical Run A′). The `/demo` MM-desk view gained a **delta-hedge panel** (gross Δ,
+residual + % neutralised, hedge P&L folded into desk net, funding, cost, per-leg) and **per-book F3
+diagnostics** — a working hedge/defence is finally visible (the colour-semantics + dead-stuff UI pass
+is the next session). Run A′ re-registered with a **realised-first gate** (desk realised ≥ 0, not just
+bounded DD) + hedge-live + F3-fired checks before any directional Run B.
+
+**6. The training loop (binding intent).** `docs/RUN_TRAINING_LOOP.md`: every run trains the next —
+artifacts = the dataset, realised P&L = the reward, params (β-map, cost mult, F3 scales, bias gate) =
+the weights, OOS gate + pre-registration = anti-overfit. Per-artifact fitter→param map + the path to
+automating it (`learn-from-run.ts` → a gated trainer loop). Honest caveat: the market is
+non-stationary ⇒ last run's optimum is a *prior*, re-fit every run, move in small pre-registered steps.
+
+**Tests:** tsc clean; 1243 pass (the lone red is the pre-existing `telemetry.module.spec` isolation
+flake, untouched). **NOT yet measured** — this is engineering verified by tests; the proof is the
+forward Run A′ (hand-run: `bash scripts/start-desk.sh` + `launch-mm-10h.sh`, then the `mm-run-review`
+skill). **Next:** run it; review realised-first; if realised < 0, the leak is adverse selection (tune
+F3 scales / γκ / the β-map via the training loop) — NOT more coins. Plus the deferred UI review.
