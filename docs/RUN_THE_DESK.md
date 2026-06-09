@@ -20,9 +20,14 @@ paper perp delta hedge. Owns the terminal (Ctrl-C to stop); logs to a `run-<ts>-
 > **inventory governor caps + skew are default-ON** (#43), and funding now accrues on the fast
 > path too — so the minimal command below is much shorter than older runs'.
 
-**Easiest: `bash scripts/start-desk.sh`** now bakes in the full canonical Run A′ — all four
-"make money" pillars ON (hedge + hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off
-(Journal #44 DR-0). The explicit equivalent, if you'd rather see every knob:
+**Easiest — and canonical: `bash scripts/start-desk.sh`.** That script IS the single source of
+truth for the run config; it bakes in the full Run A′ — all four "make money" pillars ON (hedge +
+hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off (Journal #44 DR-0), and it
+**pre-flights** the two traps (stale server on :3100, silent rehydrate of old books — Journal
+#46a/#47). Every value below is overridable, e.g. `MM_FLOW_BIAS_LIVE=false bash scripts/start-desk.sh`.
+
+The block below **mirrors `start-desk.sh` exactly** (if they ever disagree, the script wins — it's
+what actually runs). Shown so you can see every knob in one place:
 
 ```bash
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
@@ -31,17 +36,31 @@ MM_PERSIST=true \
 MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
 MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 MM_MICROPRICE_DEPTH=5 \
-MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
 MM_F3_TOXICITY=true \
-MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_HEDGE_COST_SPREAD_MULT=0.5 \
+MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 \
+MM_HEDGE_TAKER_BPS=2.5 MM_HEDGE_HALF_SPREAD_BPS=1 MM_HEDGE_COST_SPREAD_MULT=0.5 \
 MM_HEDGE_BETA_MAP="SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30" \
-MM_FLOW_BIAS_LIVE=false \
+MM_FLOW_BIAS_LIVE=true MM_FLOW_BIAS_HORIZON_MS=60000 MM_FLOW_BIAS_MIN_IC=0.05 \
+MM_DIR_SPREAD_SKEW=0.5 MM_DIR_SINGLE_SIDE_BIAS=0.6 \
 MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 npm run start:dev 2>&1 | tee "docs/research/run-$(date +%Y%m%d-%H%M%S)-mm10h.log"
 ```
-Wait for `Nest application successfully started`. (If it says `EADDRINUSE :3100`, an old server
-is still up — free it: `kill -9 $(lsof -ti tcp:3100)`.) Confirm in the boot log: `desk delta hedge
-ON — … target: …` (the β-map) and, once flow comes in, `F3 toxicity:` lines.
+> The inventory governor (hard cap + skew + `maxInventoryNotionalFrac`) is **default-ON in code**
+> (#43), so `start-desk.sh` doesn't need to set it — see the Knobs reference to override. And
+> `MM_FLOW_BIAS_LIVE=true` is **safe in the canonical run**: it's OOS-gated and only `directional-glft`
+> books act on it, so the neutral `mm-glft` books here stay neutral (it just leaves the seam armed).
+Wait for `Nest application successfully started`. `start-desk.sh` now **pre-flights** for you: it
+refuses to boot if a desk already holds `:3100` (the stale-server ghost-P&L trap, #46a) and warns
+when persisted OPEN books will be **rehydrated** — a "fresh trial" that secretly resumes old
+inventory + P&L (#47). The explicit command below has no such guard — if it says `EADDRINUSE :3100`,
+free it: `kill -9 $(lsof -ti tcp:3100)`.
+
+**Confirm three things in the boot log before you trust the run:**
+1. `desk delta hedge ON — … target: …` — the β-map is loaded.
+2. **`desk loop started — N book(s): N on fast L2 re-quote (driver on), 0 on the …ms bar path`** —
+   the #47 check. If it says **`0 on fast L2 re-quote`**, the books fell onto the slow 15s bar tick
+   (the rehydrate trap) and you *will* get picked off — **stop, don't trade it.**
+3. once flow comes in, `F3 toxicity:` lines — the adverse-selection defence is firing.
 
 ## How the knobs shape the run
 The desk's P&L splits into four columns (see "Watch it"): **spread captured** (+), **adverse
