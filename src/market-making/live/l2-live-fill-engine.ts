@@ -125,6 +125,13 @@ export interface L2LiveFillEngineConfig {
    * (width only). Shared scaler with the offline backtest. Omit ⇒ spread unscaled (legacy).
    */
   toxicityScaler?: FlowToxicityScaler;
+  /**
+   * Additive half-spread premium (bps of mid) that prices the perp hedge cost into the maker quote
+   * (ctx.hedgeCostBps). Set to the hedge round-trip (taker + half-spread bps) when the desk runs the
+   * delta hedge, so the spread the maker earns covers the taker we pay to neutralise each fill. 0 ⇒
+   * unchanged (hedge off). The next run's "make money" link: hedging isn't free, so charge for it.
+   */
+  hedgeCostBps?: number;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -315,6 +322,7 @@ export class L2LiveFillEngine {
       referenceMicros,
       bias,
       spreadScale,
+      hedgeCostBps: this.cfg.hedgeCostBps,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,

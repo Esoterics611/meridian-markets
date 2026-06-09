@@ -303,6 +303,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 toxicityScaler: mm.f3Toxicity
                   ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
                   : undefined,
+                // Price the perp hedge into the maker spread when the delta hedge is on: each fill we
+                // make may be hedged with a perp taker, so the spread should earn ≥ the (fraction of
+                // the) hedge round-trip (taker + half-spread bps) or hedging converts directional risk
+                // into a cost bleed. Scaled by hedgeCostSpreadMult (a neutral book offsets most flow
+                // before it becomes hedged delta ⇒ marginal hedged fraction < 1). 0 when hedge off.
+                hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
               })
             : undefined;
           return new MmBook({

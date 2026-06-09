@@ -126,6 +126,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     hedgeBandUsd: parseFloat(process.env['MM_HEDGE_BAND_USD'] ?? '2000'),
     hedgeTakerBps: parseFloat(process.env['MM_HEDGE_TAKER_BPS'] ?? '2.5'),
     hedgeHalfSpreadBps: parseFloat(process.env['MM_HEDGE_HALF_SPREAD_BPS'] ?? '1'),
+    // Fraction of the hedge round-trip (taker + half-spread bps) priced INTO the maker half-spread
+    // when the hedge is on, so each fill earns ≥ the perp cost of neutralising it. 1.0 = full per-fill
+    // cost (conservative — wide spreads, fewer fills, every fill self-funds its hedge); a NEUTRAL book
+    // offsets most flow before it ever becomes hedged delta, so the *marginal* hedged fraction is < 1 —
+    // lower this (e.g. 0.3) if the wide spread collapses the fill rate. Only applied when deltaHedge on.
+    hedgeCostSpreadMult: parseFloat(process.env['MM_HEDGE_COST_SPREAD_MULT'] ?? '0.5'),
     // Hedge β-map (Journal #44 DR-3): fold alts onto a major perp via SYMBOL:UNDERLYING:BETA
     // triples (e.g. "SOL:BTC:1.4,ETH:BTC:1.2") so one BTC leg hedges the basket. Empty (default)
     // ⇒ each book self-hedges its own perp 1:1 — an explicit, logged choice, NOT a hidden no-op.

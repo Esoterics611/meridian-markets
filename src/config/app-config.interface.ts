@@ -172,6 +172,9 @@ export interface AppConfig {
     hedgeTakerBps: number;
     /** Half-spread (bps) crossed when rebalancing the hedge (informational cost estimate). */
     hedgeHalfSpreadBps: number;
+    /** Fraction of the hedge round-trip priced into the maker half-spread (0..1+). 0 ⇒ don't charge
+     *  fills for hedging; 1 ⇒ each fill fully pre-funds its hedge. Only used when deltaHedge is on. */
+    hedgeCostSpreadMult: number;
     /** Hedge β-map: book symbol → { underlying, beta }. Folds alts onto a major perp so one leg
      *  hedges the basket (Journal #41/#44 DR-3). Empty = self-hedge each symbol 1:1 (the default). */
     hedgeBetaMap: Record<string, { underlying: string; beta: number }>;

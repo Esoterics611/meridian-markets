@@ -56,6 +56,15 @@ export interface QuoteContext {
   /** (T−t): horizon in bars. AS shrinks the spread as this → 0; GLFT ignores it. */
   readonly horizonBars: number;
   /**
+   * Optional ADDITIVE half-spread premium (bps of mid) that prices the cost of hedging each fill
+   * on the perp leg into the maker quote. When the desk runs the delta hedge, every passive fill
+   * creates inventory we immediately neutralise with a perp TAKER (hedgeTaker + half-spread bps) —
+   * so the maker half-spread must earn at least that or hedging is a guaranteed bleed (the maker
+   * rebate − hedge taker must stay net-positive). Applied to BOTH sides in buildQuotePair. 0/undefined
+   * ⇒ no premium (hedge off, or pricing it elsewhere) ⇒ every existing quoter is unchanged.
+   */
+  readonly hedgeCostBps?: number;
+  /**
    * Optional directional bias in [−1, +1] (DIRECTIONAL_MM_STRATEGY.md): the axed
    * maker rests at a TARGET inventory q* = bias·Q_max instead of 0. +1 = max long,
    * −1 = max short, 0 = neutral. Already OOS-gated by the runtime — an unvalidated
@@ -103,8 +112,15 @@ export interface BuildQuotePairArgs {
  * symmetric `halfSpreadMicros`; supplying them independently skews the quote.
  */
 export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
-  const base = a.halfSpreadMicros > 0n ? a.halfSpreadMicros : 1n;
-  const sideHalf = (x: bigint | undefined): bigint => (x === undefined ? base : x > 0n ? x : 1n);
+  // Hedge-cost premium (bps of mid → micros): widen BOTH sides so the maker spread covers the perp
+  // taker we pay to hedge each fill. Added once per side (each fill triggers one hedge), so it does
+  // NOT double-count under the symmetric default below. 0 when no hedge cost is supplied.
+  const hedgeAdd =
+    a.ctx.hedgeCostBps && a.ctx.hedgeCostBps > 0
+      ? (a.ctx.midMicros * BigInt(Math.round(a.ctx.hedgeCostBps * 100))) / 1_000_000n
+      : 0n;
+  const base = (a.halfSpreadMicros > 0n ? a.halfSpreadMicros : 1n) + hedgeAdd;
+  const sideHalf = (x: bigint | undefined): bigint => (x === undefined ? base : (x > 0n ? x : 1n) + hedgeAdd);
   const bidHalf = sideHalf(a.bidHalfSpreadMicros);
   const askHalf = sideHalf(a.askHalfSpreadMicros);
   const bidMicros = a.reservationMicros - bidHalf;
