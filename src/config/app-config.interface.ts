@@ -172,6 +172,9 @@ export interface AppConfig {
     hedgeTakerBps: number;
     /** Half-spread (bps) crossed when rebalancing the hedge (informational cost estimate). */
     hedgeHalfSpreadBps: number;
+    /** Hedge β-map: book symbol → { underlying, beta }. Folds alts onto a major perp so one leg
+     *  hedges the basket (Journal #41/#44 DR-3). Empty = self-hedge each symbol 1:1 (the default). */
+    hedgeBetaMap: Record<string, { underlying: string; beta: number }>;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

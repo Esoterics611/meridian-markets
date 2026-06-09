@@ -27,6 +27,7 @@ import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
 import { PaperVenue } from '../execution/paper-venue';
 import { DeskHedgeController } from './hedge/desk-hedge-controller';
+import { describeBetaMap } from './hedge/parse-beta-map';
 import { venueFeeFor } from './backtest/venue-fees';
 import { HyperliquidFundingClient } from '../market-data/funding/hyperliquid-funding-client';
 import { DbService } from '@database/db.service';
@@ -387,11 +388,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           });
           hedger = new DeskHedgeController(
             hedgeVenue,
-            { bandUsd: mm.hedgeBandUsd, betaMap: {}, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
+            { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
           );
-          new Logger('MarketMakingModule').log(`desk delta hedge ON — band $${mm.hedgeBandUsd}, perp taker ${mm.hedgeTakerBps}bps (paper)`);
+          new Logger('MarketMakingModule').log(
+            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,
+          );
         }
 
         const trader = new MmPortfolioTrader(

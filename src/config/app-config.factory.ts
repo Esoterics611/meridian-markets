@@ -1,5 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
+import { parseHedgeBetaMap } from '../market-making/hedge/parse-beta-map';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
   if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
@@ -125,6 +126,11 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     hedgeBandUsd: parseFloat(process.env['MM_HEDGE_BAND_USD'] ?? '2000'),
     hedgeTakerBps: parseFloat(process.env['MM_HEDGE_TAKER_BPS'] ?? '2.5'),
     hedgeHalfSpreadBps: parseFloat(process.env['MM_HEDGE_HALF_SPREAD_BPS'] ?? '1'),
+    // Hedge β-map (Journal #44 DR-3): fold alts onto a major perp via SYMBOL:UNDERLYING:BETA
+    // triples (e.g. "SOL:BTC:1.4,ETH:BTC:1.2") so one BTC leg hedges the basket. Empty (default)
+    // ⇒ each book self-hedges its own perp 1:1 — an explicit, logged choice, NOT a hidden no-op.
+    // The cross-asset betas want an OOS fit before they're trusted (a wrong β over-hedges noise).
+    hedgeBetaMap: parseHedgeBetaMap(process.env['MM_HEDGE_BETA_MAP'] ?? ''),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
