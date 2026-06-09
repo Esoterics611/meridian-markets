@@ -1925,3 +1925,27 @@ manufacture edge from a negative-edge quoter.
 the `mm-run-review` skill):** after every run, read **edge first** (is `spreadCaptured` negative? = picked
 off), and check the desk loop log line — if it says `quoting every 15000ms` AND there's no fast-path
 activity, the books rehydrated onto the slow path. A genuinely fast desk re-quotes sub-second.
+
+## 2026-06-09 — Entry #48 (the frontier moved: pick-off fixed → σ-independent inventory lean)
+**First clean read on the fixed (fast-path) desk** (8 books, $8M, ~42 min): `spreadCaptured` flipped to
+**POSITIVE on all 8 books** (BTC +191, ETH +133, SOL +77, …) vs −$4k…−$15k each pre-fix — **the #47
+micro-price/fast re-quote fix killed the pick-off.** The delta hedge also works now: gross delta
+**$382,619 → residual $586** (99.85% neutralised), churn down to 61 orders/$2.5M (from 133/$14.7M). Desk
+net −$1,627 — but it's **realised −$618, unrealised −$1,055** (open marks, partly revert). The new #1 loss
+is **inventory carry / cross-hedge basis**: 7/8 books ran NET SHORT into a rising tape (passive LP
+accumulates against the trend), and the hedge flattens the *beta-weighted* delta but not the alt/major
+**basis**, so the alt inventory marks against us.
+
+**Root cause of the inventory build:** the GLFT reservation skew is ∝ γ·σ²·q — in a **calm-but-trending**
+tape (low realised vol, steady drift) it nearly vanishes (≈2bps at full inventory at the σ-floor), so the
+book has no real lean to shed one-sided inventory. `inventorySkewMult` only scales that already-tiny term.
+
+**Fix shipped:** `MM_INVENTORY_SPREAD_SKEW` (default **0.4**) — a σ-INDEPENDENT graduated asymmetric
+half-spread skew driven by inventory utilisation u=q/cap: tighten the shedding side (more exits) + widen
+the adding side (fewer entries), proportional to how full the book is, ramping to the hard cap. Wired
+interface→factory→registry→**both** makeBook and rebuildBook (#47 discipline). tsc clean; jest
+src/market-making+config 331/331 (+5 shed-skew specs). **Operator note:** don't edit code under a live
+`nest --watch` desk you're measuring — each save hot-reloads (restart → re-rehydrate → hedge reset →
+books come up stopped). Stop, change, then start a clean run. **NEXT:** clean Run A′ on the full fixed
+build; if inventory/basis still bleeds, the levers are MM_INVENTORY_SPREAD_SKEW↑, tighter notional cap,
+and a dynamic/per-name hedge — see the deep-research prompt drafted this session.
