@@ -16,7 +16,7 @@ Read [`CLAUDE.md`](CLAUDE.md) first — the authoritative architecture + session
 
 The point of the desk is truthful numbers, so the findings — including the unflattering ones — are logged in full ([`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) for the chronological trail, [`docs/RESEARCH_FINDINGS.md`](docs/RESEARCH_FINDINGS.md) for the citable verdicts). The current read:
 
-- **Naive spread market-making loses** to adverse selection at every spread width — the edge is **fair-value prediction + speed**, not a wider spread. Quoting around the book-imbalance **micro-price** cuts adverse selection; at **sub-second** re-quote cadence the spread edge flips from losing to positive (the desk's spread-vs-adverse measure went −$1,020 → +$133 on one 8h window). The remaining loss is **inventory carry**, which the directional ("axed") maker is built to turn into a chosen, validated bet.
+- **Naive spread market-making loses** to adverse selection at every spread width — the edge is **fair-value prediction + speed**, not a wider spread. Quoting around the book-imbalance **micro-price** cuts adverse selection; at **sub-second** re-quote cadence the spread edge flips from losing to positive (the desk's spread-vs-adverse measure went −$1,020 → +$133 on one 8h window). The remaining loss is **inventory carry / net delta** — the inventory governor (notional caps + skew, now default-on) **bounds drawdown** (per-book maxDD ≤ ~1.5% on a 10h run, vs 17% before), and an auditable perp **delta hedge** neutralises the residual; the desk is now a *small, bounded* result, not a blow-up. Turning that into a steady *positive* is the open problem (the edge is the adverse-selection defence + a validated lean, not more coins).
 - **Crypto taker stat-arb is killed** (a cointegration cliff); **equities sector stat-arb** is real but thin (~0.06 Sharpe) and survivorship-bound; **funding carry** is real but modest (fatter on non-major perps). Every one of these was measured against fees, adverse selection, and out-of-sample gates before it counted.
 
 See [`docs/WEEKLY_WRAP_2026-06-05.md`](docs/WEEKLY_WRAP_2026-06-05.md) for the latest summary.
@@ -120,6 +120,27 @@ curl -s  localhost:3100/api/stat-arb/live/trades    | jq   # persisted blotter (
 curl -sX POST localhost:3100/api/stat-arb/live/portfolio/launch \
   -H 'content-type: application/json' \
   -d '{"symbolA":"ETH","symbolB":"BTC","strategyId":"ou-bertram","beta":18.0,"params":{"ouWindow":90},"capitalUsdc":50000}' | jq
+```
+
+### D. The market-making desk (the live earner)
+
+The automated MM books run **next to** the stat-arb portfolio on the same process. Two terminals
+— full guide + every knob in [docs/RUN_THE_DESK.md](docs/RUN_THE_DESK.md):
+
+```bash
+bash scripts/start-desk.sh          # terminal 1: the canonical paper desk (Ctrl-C to stop)
+bash scripts/launch-mm-10h.sh       # terminal 2: launch the 8 HL books
+```
+
+The **fast L2 queue-aware fill path is the default** for any L2 venue (Hyperliquid); a book on a
+**non-L2 venue is refused** (candle fills can't resolve top-of-book turnover, so they're an
+offline-test simulator only, not an honest track record). The inventory governor (notional/skew
+caps) is **default-ON**, funding accrues on the fast path, and the desk carries an **auditable**
+paper-perp **delta hedge** (`MM_DELTA_HEDGE=true` — folded into NAV + on the event tape). Watch it:
+
+```bash
+curl -s localhost:3100/api/market-making/snapshot | jq '.books[] | {symbol, netPnlUnits, maxDrawdownPct}'
+curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd}'
 ```
 
 ### Execution modes

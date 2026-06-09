@@ -14,14 +14,19 @@ The canonical run: neutral `mm-glft` spread engine + the inventory governor (on 
 paper perp delta hedge. Owns the terminal (Ctrl-C to stop); logs to a `run-<ts>-mm10h.log` the
 "Watch it" commands glob for.
 
+> **Fast-only (Journal #44).** The queue-aware **L2 fill path is now the default** for any
+> L2-capable venue (Hyperliquid) — there is no `MM_FAST_REQUOTE_ENABLED` flag any more, and a
+> book launched on a **non-L2 venue is refused** (bar/candle fills are offline-test only). The
+> **inventory governor caps + skew are default-ON** (#43), and funding now accrues on the fast
+> path too — so the minimal command below is much shorter than older runs'.
+
 ```bash
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 TELEMETRY_ENABLED=true \
 MM_PERSIST=true \
-MM_FAST_REQUOTE_ENABLED=true MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
+MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
 MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 MM_MICROPRICE_DEPTH=5 \
-MM_HARD_INVENTORY_CAP=true MM_INVENTORY_SKEW_MULT=4 MM_MAX_INVENTORY_LOTS=8 \
 MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
 MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 \
 MM_FLOW_BIAS_LIVE=false \
@@ -150,10 +155,9 @@ it **up / on**.
 | Env | Default | Effect (turn up / on) |
 |---|---|---|
 | **`MM_MICROPRICE_DEPTH`** | `5` | center quotes on N L2 levels of imbalance ⇒ **less adverse selection**; `0` = stale mid (worst). |
-| **`MM_FAST_REQUOTE_ENABLED`** | `false` | turns on the sub-second re-quote loop. |
 | **`MM_FAST_REQUOTE_MS`** | `750` | **lower** = fresher fair value, less pickoff, more order churn (Run A′ `100`). |
 | **`MM_CANCEL_REPLACE_LATENCY_MS`** | `100` | modeled quote-move latency; **lower** = more optimistic fills (Run A′ `30`). |
-| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` | which books get the fast path. |
+| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` | which books get the real **trades-WS aggressor flow** (for VPIN/toxicity). The fast L2 fill path itself is now the default for *all* L2 books — this list just scopes the WS feed. |
 
 ### Inventory governor — the inventory-carry lever (on by default; #39/#41/#43)
 | Env | Default | Effect (turn up / on) |

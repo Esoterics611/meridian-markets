@@ -16,6 +16,11 @@ A **book** quotes a two-sided market on one instrument, gets **passively filled*
 
 ## 1. Two entry cadences (and the coexistence rule)
 
+> **Update (Journal #44 — fast-only shipped):** the fast L2 path is now the **default and only LIVE
+> path** — a live book on a non-L2 venue is **refused at launch** (`market-making.module.ts`), and
+> funding now accrues on the fast path. The bar path below survives **only** as the offline/unit-test
+> simulator. The two-path description is retained because the *code* still has both (test vs live).
+
 A book is driven by **exactly one** of two clocks — never both (`mm-book.ts:191-192, 398`):
 
 | | **Fast L2 path** (the earner) | **Bar path** (legacy / fallback) |
@@ -106,7 +111,7 @@ Per bar (bar path) / per snapshot (`mm-book.ts:407-424`):
 
 > Real top-tier MM desks run **one** quote→fill→hedge pipeline: quote off a micro-price/fair-value, re-quote in microseconds with cancel/replace, manage inventory with an A-S reservation price + a hard limit, **net the residual delta and hedge it on the most liquid leg past a band**, widen/pull on toxic flow, and attribute P&L into spread / adverse / inventory / hedge / fees. Meridian has all these pieces — the open work is *converging onto the single honest path* and proving the edge.
 
-- **Q1 — Converge to ONE fill path (fast/L2 only)?** *Your call, and I agree directionally.* The bar/candle path can't produce honest fills (proven), so for any venue without an L2 tape we can't truthfully claim a live MM track record anyway. Recommendation: make **fast/L2 the only path we trust**; demote the bar path to *test-only / clearly-labelled synthetic* and gate live MM books on having an L2 source. **Cost:** the DEX (GeckoTerminal) frontier has no L2 tape yet, so converging means "no live MM there until it does." Don't rip it out unilaterally — it's load-bearing for non-L2 venues + many unit tests. **→ decide the product line first.**
+- **Q1 — Converge to ONE fill path (fast/L2 only)? ✅ DONE (Journal #44).** Shipped: fast/L2 is the default and only LIVE path; a non-L2 launch is refused; funding was ported onto the fast path; the bar path is now the offline/unit-test simulator only. Product consequence accepted: **no live MM on a venue without an L2 tape** (so the DEX/GeckoTerminal frontier is paused for live MM until it has one).
 - **Q2 — Hedge target + cadence (DR-3 done / DR-4 open).** The β-map mechanism now exists but defaults to per-symbol self-hedge; top desks hedge the **aggregate basket β on one liquid leg** (alts→BTC/ETH) past a band, not each micro-fill. Needs an **OOS β fit** before the map is trusted (a wrong β over-hedges noise). And the hedge still runs on the **slow bar timer** while books fill at 100ms (DR-4) — it should move to the fast path so it tracks the inventory it's chasing. **→ OOS β fit, then DR-4.**
 - **Q3 — Pin the canonical demo config (DR-0 follow-up).** `fastRequote` and `f3Toxicity` are default-OFF; the demo only gets them via the launch script's copy-pasted env. That's how #43's governor silently ran off. The defaults should be the *honest demo values*, or the canonical config pinned in one place (not a bash comment). **→ pin it.**
 - **Q4 — Persist the attribution + headline realised (DR-5/6).** spread/adverse/inventoryCarry die at shutdown (only on the live card). Persist them to `mm_nav` and make the scorecard lead with realised. **→ schema add.**

@@ -14,9 +14,11 @@ LOG="docs/research/run-$(date +%Y%m%d-%H%M%S)-mm10h.log"
 mkdir -p docs/research
 echo "▶ MM desk starting — logging to $LOG  (Ctrl-C to stop)"
 
+# The fast L2 path is the DEFAULT now (Journal #44 fast-only) — no MM_FAST_REQUOTE_ENABLED flag;
+# HL books fill queue-aware automatically, a non-L2 venue is refused at launch. The inventory
+# governor (#43) is also default-ON. MM_FAST_SYMBOLS just scopes the real trades-WS aggressor feed.
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 MM_PERSIST="${MM_PERSIST:-true}" \
-MM_FAST_REQUOTE_ENABLED=true \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \
 MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI}" \
