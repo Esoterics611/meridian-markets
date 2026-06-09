@@ -114,6 +114,9 @@ describe('MmPortfolioTrader', () => {
     // The hedge mirrors the book's net delta in size.
     const inv = Number(BigInt(snap.books[0].inventoryUnits)) / 1e6;
     expect(snap.hedge!.grossDeltaUsd).toBeCloseTo(Math.abs(inv * 1.0), 4);
+    // DR-2: the hedge P&L is folded into the desk net (desk net = book net + hedge P&L).
+    expect(BigInt(snap.netPnlUnits)).toBe(BigInt(snap.books[0].netPnlUnits) + BigInt(snap.hedgePnlUnits ?? '0'));
+    expect(BigInt(snap.hedgePnlUnits ?? '0')).toBe(BigInt(Math.round(snap.hedge!.hedgePnlUsd * 1_000_000)));
   });
 
   it('refreshFunding drives the source per (symbol, source) and counts only updated books', async () => {

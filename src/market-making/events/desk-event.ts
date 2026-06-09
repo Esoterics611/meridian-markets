@@ -20,6 +20,7 @@ export type DeskEventKind =
   | 'verdict' // the risk gate's verdict CHANGED (Allow ⇄ Pause ⇄ Deny)
   | 'launch' // a book was launched on an instrument
   | 'remove' // a book was flattened + dropped
+  | 'hedge' // the desk delta-hedge traded a perp leg to flatten net delta
   | 'start' // the desk loop started ticking
   | 'stop'; // the desk loop stopped
 
@@ -167,6 +168,21 @@ export function verdictEvent(p: { ts: number; book: string; source: string; prev
     message: `${p.book} ▸ risk ${p.prev} → ${p.next}` + (p.next === 'Allow' ? ' (resumed quoting)' : ' (quoting blocked)'),
     verdict: p.next,
     prevVerdict: p.prev,
+  };
+}
+
+/** Build a desk delta-hedge rebalance event (HEDGING_MODEL.md): a perp leg traded to flatten the
+ *  desk's net delta. Emitted once per rebalance order so the hedge is auditable on the SAME tape
+ *  as fills — Journal #44 DR-2 (before this, the hedge traded invisibly in memory). */
+export function hedgeEvent(p: { ts: number; underlying: string; side: 'buy' | 'sell'; notionalUsd: number; residualUsd: number; reason: string }): DeskEventInput {
+  const usd = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'hedge',
+    book: p.underlying,
+    source: 'hl-perp-hedge',
+    message: `HEDGE ▸ ${p.side.toUpperCase()} ${usd(p.notionalUsd)} ${p.underlying}-perp — ${p.reason} → residual ${usd(p.residualUsd)}`,
   };
 }
 

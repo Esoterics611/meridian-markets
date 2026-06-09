@@ -8,7 +8,7 @@ import { ITelemetry } from '../../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
 import { M } from '../../telemetry/metric-catalog';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
-import { lifecycleEvent } from '../events/desk-event';
+import { lifecycleEvent, hedgeEvent } from '../events/desk-event';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -67,6 +67,10 @@ export interface MmPortfolioSnapshot {
   fundingUnits: string;
   netPnlUnits: string;
   books: MmBookSnapshot[];
+  /** The hedge leg's P&L (mtm + funding − cost), folded into the desk totals above as an OPEN
+   *  position ⇒ counted in netPnlUnits/unrealisedPnlUnits/equityUnits. The live trader always
+   *  populates it ('0' when no hedge); optional only so hand-built test fixtures need not. (DR-2) */
+  hedgePnlUnits?: string;
   /** Desk delta-hedge state (gross delta / post-hedge residual / hedge P&L), when enabled. */
   hedge?: HedgeSnapshot;
 }
@@ -325,7 +329,12 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
           const now = Date.now();
           const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
           this.lastHedgeMs = now;
-          await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
+          const hedgeSnap = await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
+          // DR-2: put every rebalance on the desk tape so the hedge is auditable like a fill.
+          for (const o of hedgeSnap.ordersLastTick) {
+            const resid = hedgeSnap.perUnderlying.find((u) => u.underlying === o.underlying)?.residualUsd ?? 0;
+            this.events.emit(hedgeEvent({ ts: now, underlying: o.underlying, side: o.side, notionalUsd: o.notionalUsd, residualUsd: resid, reason: o.reason }));
+          }
         } catch (e) {
           this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
         }
@@ -416,18 +425,24 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       funding += BigInt(s.fundingUnits);
       net += BigInt(s.netPnlUnits);
     }
+    // DR-2: fold the hedge leg into the desk totals. The hedge holds an OPEN perp position, so its
+    // P&L (mtm + funding − cost) is desk UNREALISED — without this the persisted NAV + the live
+    // gauge counted only the books and the hedge was invisible in the net (Journal #44).
+    const hedge = this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined;
+    const hedgePnlUnits = hedge && this.books.size ? BigInt(Math.round(hedge.hedgePnlUsd * 1_000_000)) : 0n;
     return {
       running: this.isRunning(),
       bookCount: this.books.size,
       capitalUnits: (this.books.size ? cap : this.capitalUnits).toString(),
-      equityUnits: (this.books.size ? eq : this.capitalUnits).toString(),
+      equityUnits: (this.books.size ? eq + hedgePnlUnits : this.capitalUnits).toString(),
       realisedPnlUnits: real.toString(),
-      unrealisedPnlUnits: unreal.toString(),
+      unrealisedPnlUnits: (unreal + hedgePnlUnits).toString(),
       feesUnits: fees.toString(),
       fundingUnits: funding.toString(),
-      netPnlUnits: net.toString(),
+      netPnlUnits: (net + hedgePnlUnits).toString(),
       books,
-      hedge: this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined,
+      hedgePnlUnits: hedgePnlUnits.toString(),
+      hedge,
     };
   }
 }
