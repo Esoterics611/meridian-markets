@@ -9,6 +9,7 @@
 //   renderMmDeskPage(state) — the full document.
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { MmBookSnapshot } from '../../market-making/live/mm-book';
+import { HedgeSnapshot } from '../../market-making/hedge/desk-hedge-controller';
 import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
@@ -87,7 +88,9 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
       </div>
 
       <div class="book-foot">
-        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD ${pct(b.maxDrawdownPct)}</span>
+        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD ${pct(b.maxDrawdownPct)}${b.toxicity
+          ? ` · F3 widen ${b.toxicity.widenSteps}/tighten ${b.toxicity.tightenSteps} · scale ${b.toxicity.lastScale.toFixed(2)} (max ${b.toxicity.maxScale.toFixed(2)})`
+          : ''}</span>
         <desk-action
           endpoint="/api/market-making/remove"
           body="${removeBody}"
@@ -98,6 +101,45 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         ></desk-action>
       </div>
     </div>
+  `;
+}
+
+/** USD float (the hedge snapshot speaks dollars, not micro-units) → the serialised-units string
+ *  the money/usd/signClass formatters expect, so the hedge panel shares the desk's money dialect. */
+function hedgeUnits(usdFloat: number): string {
+  return Math.round(usdFloat * 1_000_000).toString();
+}
+
+/**
+ * The desk delta-hedge panel (DR-2): the perp overlay that neutralises the desk's net delta, now
+ * folded into desk net P&L — shown so a working hedge is VISIBLE (Journal #44: an invisible hedge
+ * reads as no hedge). Rendered only when the hedge is enabled (show only what's live).
+ */
+function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
+  const neutralised = h.grossDeltaUsd > 1 ? (1 - h.residualUsd / h.grossDeltaUsd) * 100 : 0;
+  const legs = h.perUnderlying.filter((p) => Math.abs(p.netDeltaUsd) > 1 || Math.abs(p.hedgeNotionalUsd) > 1);
+  const legCells = legs.length
+    ? raw(
+        legs
+          .map(
+            (p) =>
+              html`<span class="mono">${p.underlying} Δ${money(hedgeUnits(p.netDeltaUsd))} → resid ${money(hedgeUnits(p.residualUsd))}</span>`.value,
+          )
+          .join(' &nbsp; '),
+      )
+    : html`<span class="dim">flat — no net delta to hedge</span>`;
+  return html`
+    <section class="panel">
+      <div class="panel-h">delta hedge <span class="badge badge--allow">ON</span> <span class="dim">perp overlay · folded into desk net</span></div>
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-k">gross Δ</span><span class="stat-v mono">${usd(hedgeUnits(h.grossDeltaUsd))}</span></div>
+        <div class="stat"><span class="stat-k">residual</span><span class="stat-v mono">${usd(hedgeUnits(h.residualUsd))} <span class="stat-sub">${pct(neutralised)} neutralised</span></span></div>
+        <div class="stat"><span class="stat-k">hedge p&amp;l</span><span class="stat-v mono ${signClass(hedgePnlUnits)}">${money(hedgePnlUnits)}</span></div>
+        <div class="stat"><span class="stat-k">funding</span><span class="stat-v mono ${signClass(hedgeUnits(h.fundingUsd))}">${money(hedgeUnits(h.fundingUsd))}</span></div>
+        <div class="stat"><span class="stat-k">cost</span><span class="stat-v mono ${signClass(hedgeUnits(-h.hedgeCostUsd))}">${money(hedgeUnits(-h.hedgeCostUsd))}</span></div>
+      </div>
+      <p class="dim hint">${legCells}</p>
+    </section>
   `;
 }
 
@@ -122,6 +164,8 @@ export function renderMmDeskLive(snap: MmPortfolioSnapshot): SafeHtml {
         <span class="stat-v">${snap.running ? html`<span class="badge badge--allow">RUNNING</span>` : html`<span class="badge badge--pause">STOPPED</span>`} <span class="badge badge--paper">PAPER</span></span>
       </div>
     </section>
+
+    ${snap.hedge?.enabled ? hedgePanel(snap.hedge, snap.hedgePnlUnits ?? '0') : ''}
 
     <section class="book-cards">${cards}</section>
   `;

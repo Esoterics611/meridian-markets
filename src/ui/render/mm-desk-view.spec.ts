@@ -99,6 +99,35 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('fills 42 (b21/a21)');
   });
 
+  it('renders the delta-hedge panel (DR-2) only when the hedge is enabled, with gross/residual/P&L', () => {
+    const hedge = {
+      enabled: true,
+      grossDeltaUsd: 12000,
+      residualUsd: 600,
+      hedgePnlUsd: 41.5,
+      hedgeCostUsd: 12,
+      fundingUsd: 8,
+      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600 }],
+      ordersLastTick: [],
+    };
+    const h = renderMmDeskLive(snap({ hedge, hedgePnlUnits: '41500000' })).value;
+    expect(h).toContain('delta hedge');
+    expect(h).toContain('gross Δ');
+    expect(h).toContain('$12,000.00'); // gross delta
+    expect(h).toContain('neutralised'); // residual / gross
+    expect(h).toContain('+$41.50'); // hedge P&L folded into desk net
+    // off ⇒ no panel
+    expect(renderMmDeskLive(snap()).value).not.toContain('delta hedge');
+  });
+
+  it('renders the F3 toxicity diagnostics on a book card when the scaler is wired (DR-3)', () => {
+    const h = renderMmDeskLive(snap({ books: [book({ toxicity: { widenSteps: 12, tightenSteps: 340, avgScale: 0.71, maxScale: 2.43, lastScale: 0.6 } })] })).value;
+    expect(h).toContain('F3 widen 12/tighten 340');
+    expect(h).toContain('scale 0.60 (max 2.43)');
+    // a book with no scaler shows no F3 line
+    expect(renderMmDeskLive(snap()).value).not.toContain('F3 widen');
+  });
+
   it('wires the per-book remove button to the symbol it sits on', () => {
     const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('endpoint="/api/market-making/remove"');
