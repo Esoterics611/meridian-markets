@@ -1809,3 +1809,50 @@ hedgePnl=−$9,752 → orders=1 / −$2 (= the stable case). Regression test add
 must be restarted (stop-desk + relaunch) to clear the bad in-memory hedge state** — persisted mm_nav rows
 are historical. This is exactly why the UI-visibility work mattered: the bug was invisible until the hedge
 was on the card.
+
+## 2026-06-09 — Entry #46 (JOB A: MM-desk UI colour semantics made honest + dead-field audit)
+
+The #45 next-session ask: the `/demo` desk pages must use intuitive colour — **green = working FOR us,
+red = against us** — the way a pro MM terminal does, and show only real/active fields. Audited every
+`signClass(...)`/colour call site across the MM-backed pages (`/desk/mm`, `/exec`, `/risk`); stat-arb
+desk left untouched (not in active development).
+
+**The colour dialect (now documented at the top of `format.ts`, the one place the dialect is decided):**
+- **green (.pos)** — money FOR the desk: realised/MTM gains, funding received, a maker **rebate**
+  (revenue), net profit. The rebate case is the subtle one: fees are coloured by their **contribution**
+  to net (`−feesUnits`), so a cost reads red and a −0.2bps HL rebate reads **green** (already wired #43 —
+  confirmed correct).
+- **red (.neg)** — money AGAINST the desk: losses, costs paid, funding paid, **adverse selection**
+  (`adverseSelectionUnits` is a signed one-bar markout — negative = picked off → red; a *favorable*
+  markout is genuinely good → green, which is honest), a drawdown **over budget**.
+- **amber (.warn, new class)** — caution / the **gate intervening**, NOT a loss: blocked quotes, a
+  non-Allow risk verdict, WARMING. Eyes-here, but we didn't lose money.
+- **neutral (.flat/.dim/plain)** — **direction & exposure**, where a sign isn't good/bad: inventory,
+  net delta, gross Δ / residual, quotes (bid/mid/ask/reservation/½-spread), counts. Never `signClass`.
+
+**Fixes applied (the three genuine bugs the audit found):**
+1. **`/risk` net & per-book exposure** was `signClass` → a net-**short** read **red** ("bad") and a
+   net-long read green. Exposure sign is a *direction*, not goodness → now **neutral** (sign still shown
+   in the number). This is the same inventory-sign trap the MM card already avoids.
+2. **`/risk` blocked quotes / blocked-books** were **red** (loss colour). A blocked quote is the risk
+   gate doing its job → recoloured **amber** (caution). Kept "books over budget" red (a real breach).
+3. **`/desk/mm` card maxDD** was un-coloured dim text; it's always-bad → now **red once it breaches the
+   shared `DRAWDOWN_BUDGET_PCT` (2%)**, dim within — matching how `/exec` + `/risk` already flag it.
+
+**Verified already-correct (no change):** the per-book cash grid still literally sums to net (#43
+invariant, untouched); the hedge panel's hedge-P&L is labelled "folded into desk net" so it isn't
+double-shown as separate; hedge P&L / funding (green=received) / cost (negated → red) and gross Δ /
+residual (neutral) were all coloured right by #45. **F3 toxicity** stays **dim** — it's the adverse
+defence *firing* (a diagnostic), not money for/against us.
+
+**Dead-field audit:** the render layer (mm/exec/risk) shows **no** dead/legacy/never-populated field —
+the snapshot carries bar-path-only (`seededBars`/`lastBarAt`/`barsSeen`) + unused (`vpin`/`vpinBuckets`/
+`inventoryNotionalCapUnits`/`markout`/`fundingRatePerHour`) fields, but **none are rendered** on the MM
+pages (`/risk` even refuses to print a fake VPIN — shows live adverse instead). Nothing to remove on the
+pages; pruning the unused *snapshot* fields is an engine-side tidy, deferred (out of UI scope). One stale
+comment noted: `inventoryNotionalCapUnits`' doc claims "the UI shows exposure as a % of this rail" — the
+UI does not; a 1-line engine-comment fix left for the repo-wide audit pass.
+
+**Tests:** tsc clean; `jest src/ui` 94/94 green (+ new maxDD-reddens-over-budget and exposure-neutral /
+blocked-amber assertions). **JOB B (run + review Run A′) is hand-run by Ronnie** — the sandbox can't run
+the dev server; smoke step: `bash scripts/start-desk.sh` → `http://localhost:3100/desk/mm` (+ `/risk`).

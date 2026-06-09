@@ -14,7 +14,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, appendActivityTape, navSparkPanel } from './components';
+import { deskControls, appendActivityTape, navSparkPanel, DRAWDOWN_BUDGET_PCT } from './components';
 
 export interface StrategyOption {
   id: string;
@@ -51,6 +51,13 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
   // Activity tape's `fmtMoney(-feeUnits)`. The cash grid then literally sums to net:
   //   net = realised + inv MTM + fees(contrib) + funding   (mm-book.ts:523 / inventory-book.ts:130)
   const feesContribUnits = (-BigInt(b.feesUnits)).toString();
+  // maxDD is always-bad: it reads red once it breaches the shared drawdown budget
+  // (the same threshold /exec + /risk flag), dim while inside it. F3 stays dim — it's
+  // the toxicity DEFENCE firing (a diagnostic), not money for/against us.
+  const ddClass = b.maxDrawdownPct > DRAWDOWN_BUDGET_PCT ? 'neg' : 'dim';
+  const f3 = b.toxicity
+    ? html` · F3 widen ${b.toxicity.widenSteps}/tighten ${b.toxicity.tightenSteps} · scale ${b.toxicity.lastScale.toFixed(2)} (max ${b.toxicity.maxScale.toFixed(2)})`
+    : '';
   return html`
     <div class="book-card">
       <div class="book-card-h">
@@ -88,9 +95,7 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
       </div>
 
       <div class="book-foot">
-        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD ${pct(b.maxDrawdownPct)}${b.toxicity
-          ? ` · F3 widen ${b.toxicity.widenSteps}/tighten ${b.toxicity.tightenSteps} · scale ${b.toxicity.lastScale.toFixed(2)} (max ${b.toxicity.maxScale.toFixed(2)})`
-          : ''}</span>
+        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD <span class="${ddClass}">${pct(b.maxDrawdownPct)}</span>${f3}</span>
         <desk-action
           endpoint="/api/market-making/remove"
           body="${removeBody}"

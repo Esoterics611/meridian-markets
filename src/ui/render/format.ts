@@ -2,6 +2,23 @@
 // units (CLAUDE.md §3); these turn the engine's serialised *string* units into
 // human cells. We reuse the desk-event money formatter so the UI and the
 // Activity tape speak the same dialect (DRY: one rounding rule for the desk).
+//
+// ── COLOUR SEMANTICS (the desk's one rule: a colour means "for us / against us",
+//    NOT "the number is positive/negative") ──────────────────────────────────────
+//   green (.pos)  — money working FOR the desk: realised/MTM gains, funding RECEIVED,
+//                   a maker REBATE (revenue), net profit. A rebate must read green even
+//                   though it's a "fee" — so fees are coloured by their CONTRIBUTION to
+//                   net (−feesUnits): a cost reads red, a rebate reads green.
+//   red  (.neg)   — money working AGAINST the desk: realised/MTM losses, costs PAID,
+//                   funding paid, adverse selection (picked-off markout), a drawdown
+//                   over the risk budget.
+//   amber (.warn) — caution / the gate intervening (not a loss): blocked quotes, a
+//                   non-Allow risk verdict, WARMING. Eyes-here, but we didn't lose money.
+//   neutral (.flat / .dim / plain) — DIRECTION & EXPOSURE, where a sign is not good/bad:
+//                   inventory, net delta, gross Δ / residual, quotes (bid/mid/ask),
+//                   reservation, ½-spread, counts. NEVER run these through signClass —
+//                   a net-short isn't "bad" and a net-long isn't "good".
+//   Use signClass ONLY on a P&L / cost line where + genuinely means "good for the desk".
 import { fmtMoney } from '../../market-making/events/desk-event';
 
 const MICROS = 1_000_000;
@@ -22,7 +39,9 @@ export function pct(n: number, dp = 2): string {
   return `${n.toFixed(dp)}%`;
 }
 
-/** P&L cell colour class from serialised units: "pos" / "neg" / "flat". */
+/** P&L cell colour class from serialised units: "pos" (green) / "neg" (red) / "flat".
+ *  ONLY for lines where + means "good for the desk" (see the COLOUR SEMANTICS note above).
+ *  Directional/exposure fields (inventory, net delta, residual) must stay neutral. */
 export function signClass(unitsStr: string): string {
   const v = BigInt(unitsStr);
   return v > 0n ? 'pos' : v < 0n ? 'neg' : 'flat';

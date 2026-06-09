@@ -53,9 +53,12 @@ function riskRow(b: MmBookSnapshot): SafeHtml {
       <td class="mono">${label}</td>
       <td>${verdictBadge(b.lastVerdict)}</td>
       <td class="num ${ddBreach ? 'neg' : 'dim'}">${pct(b.maxDrawdownPct)}</td>
-      <td class="num ${signClass(exp)}">${money(exp)}</td>
+      <!-- exposure is a DIRECTION (long +/short −), not good/bad → neutral, never signClass.
+           adverse is signed markout (− = picked off) → red when toxic. blocked = the gate
+           intervening → amber caution, not a red loss. -->
+      <td class="num mono">${money(exp)}</td>
       <td class="num ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</td>
-      <td class="num ${b.blockedQuotes > 0 ? 'neg' : 'dim'}">${b.blockedQuotes}</td>
+      <td class="num ${b.blockedQuotes > 0 ? 'warn' : 'dim'}">${b.blockedQuotes}</td>
       <td class="num">
         <desk-action
           endpoint="/api/market-making/remove"
@@ -94,11 +97,11 @@ export function renderRiskLive(snap: MmPortfolioSnapshot, verdicts: DeskEvent[])
       </div>
       <div class="stat">
         <span class="stat-k">blocked books</span>
-        <span class="stat-v mono ${blockedBooks > 0 ? 'neg' : 'flat'}">${blockedBooks} <span class="stat-sub">non-Allow verdict</span></span>
+        <span class="stat-v mono ${blockedBooks > 0 ? 'warn' : 'flat'}">${blockedBooks} <span class="stat-sub">non-Allow verdict</span></span>
       </div>
       <div class="stat">
         <span class="stat-k">net / gross exposure</span>
-        <span class="stat-v mono"><span class="${signClass(exp.net)}">${money(exp.net)}</span> <span class="stat-sub">/ ${usd(absUnits(exp.gross))}</span></span>
+        <span class="stat-v mono"><span>${money(exp.net)}</span> <span class="stat-sub">/ ${usd(absUnits(exp.gross))}</span></span>
       </div>
     </section>
 

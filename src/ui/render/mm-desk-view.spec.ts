@@ -128,6 +128,13 @@ describe('renderMmDeskLive', () => {
     expect(renderMmDeskLive(snap()).value).not.toContain('F3 widen');
   });
 
+  it('reddens maxDD only when it breaches the drawdown budget (always-bad → red over budget, dim within)', () => {
+    const under = renderMmDeskLive(snap()).value; // 0.53% — inside the 2% budget
+    expect(under).toContain('maxDD <span class="dim">0.53%</span>');
+    const over = renderMmDeskLive(snap({ books: [book({ maxDrawdownPct: 3.2 })] })).value;
+    expect(over).toContain('maxDD <span class="neg">3.20%</span>');
+  });
+
   it('wires the per-book remove button to the symbol it sits on', () => {
     const h = renderMmDeskLive(snap()).value;
     expect(h).toContain('endpoint="/api/market-making/remove"');
