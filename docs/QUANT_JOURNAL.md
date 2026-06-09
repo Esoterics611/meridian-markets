@@ -1797,3 +1797,15 @@ flake, untouched). **NOT yet measured** — this is engineering verified by test
 forward Run A′ (hand-run: `bash scripts/start-desk.sh` + `launch-mm-10h.sh`, then the `mm-run-review`
 skill). **Next:** run it; review realised-first; if realised < 0, the leak is adverse selection (tune
 F3 scales / γκ / the β-map via the training loop) — NOT more coins. Plus the deferred UI review.
+
+### #45a hotfix (same day, from the first live look) — the hedge marked a flickering price at $0
+Ronnie opened the live `/demo` and the desk read **+$194M P&L on $8M** — the hedge P&L was garbage.
+Reproduced + fixed: on the 100ms cadence, when a book goes un-warm/mid-relaunch its symbol drops out of
+the desk price map (`deskDeltas` skips mid≤0). With the cross-asset β-map the hedge underlying (ETH) then
+had no live price, so `DeskHedgeController` (a) marked its OPEN perp at **0** → phantom P&L, and (b) saw
+its current hedge as **$0** → re-traded every tick. Fix: `resolveMarks()` falls back to the **last-known
+mark** per underlying, used for funding/current-hedge/fill/P&L alike. Probe: flicker case orders=26 /
+hedgePnl=−$9,752 → orders=1 / −$2 (= the stable case). Regression test added. **A desk already running
+must be restarted (stop-desk + relaunch) to clear the bad in-memory hedge state** — persisted mm_nav rows
+are historical. This is exactly why the UI-visibility work mattered: the bug was invisible until the hedge
+was on the card.
