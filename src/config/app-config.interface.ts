@@ -211,13 +211,10 @@ export interface AppConfig {
      */
     microPriceDepth: number;
     /**
-     * Fast-requote path (C2 — CADENCE_LIVE_LOOP_PLAN.md): the master switch for the
-     * queue-aware, sub-second L2 fill path. Off ⇒ today's bar loop (nothing changes);
-     * on ⇒ L2-capable (Hyperliquid) books are driven by the L2 poll driver + the
-     * L2LiveFillEngine instead of the 15s bar tick. Default OFF.
+     * Fast-path poll cadence (ms, sub-second 250–1000). Default 750. The queue-aware L2 fill
+     * path itself is now the DEFAULT for any L2-capable venue (Journal #44 fast-only) — there is
+     * no on/off switch; a non-L2 venue is refused at launch, not silently bar-filled.
      */
-    fastRequoteEnabled: boolean;
-    /** Fast-path poll cadence (ms, sub-second 250–1000). Default 750. */
     fastRequoteMs: number;
     /** Cancel/replace round-trip the fast engine charges (the §6b honesty rail, 50–250ms). Default 100. */
     cancelReplaceLatencyMs: number;

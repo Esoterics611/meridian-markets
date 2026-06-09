@@ -96,8 +96,9 @@ export interface MmBookConfig {
    * book is on the FAST path: it is driven by L2 snapshots via onL2Snapshot() (the
    * poll driver), NOT by the bar tick (the trader skips it — the coexistence rule, so
    * a book is never on both paths). The book shares the engine's InventoryBook, and
-   * snapshot() reads the engine's metrics. Wired only for L2-capable (HL) venues when
-   * MM_FAST_REQUOTE_ENABLED.
+   * snapshot() reads the engine's metrics. The DEFAULT for any L2-capable (HL) venue
+   * (Journal #44 fast-only); a non-L2 venue is refused at launch, so the bar path runs
+   * only in offline/unit tests.
    */
   fastEngine?: L2LiveFillEngine;
   /** Optional σ warmup: recent closes so the book quotes on its first live bar. */

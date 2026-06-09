@@ -142,7 +142,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     navIntervalMs: parseInt(process.env['MM_NAV_INTERVAL_MS'] ?? '60000', 10),
     fundingRefreshMs: parseInt(process.env['MM_FUNDING_REFRESH_MS'] ?? '600000', 10), // 10m; HL funds hourly
     microPriceDepth: parseInt(process.env['MM_MICROPRICE_DEPTH'] ?? '5', 10), // F1 quote center off N L2 levels; 0 = off (mid)
-    fastRequoteEnabled: (process.env['MM_FAST_REQUOTE_ENABLED'] ?? 'false').toLowerCase() === 'true',
+    // Fast L2 path is the default for L2 venues (Journal #44 fast-only) — no on/off flag.
     fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
     cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
     fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
