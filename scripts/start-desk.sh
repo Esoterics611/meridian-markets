@@ -10,9 +10,35 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+HOST="${MM_HOST:-http://localhost:3100}"
+
+# ── Pre-flight (Journal #46a/#47): exactly ONE desk, and a KNOWN starting state ───────────────
+# 1. Stale server still on :3100 = the classic ghost-P&L trap (the browser talks to an old process
+#    holding poisoned in-memory hedge state). Refuse to start a second one.
+if curl -sf --max-time 3 "$HOST/health" >/dev/null 2>&1; then
+  echo "✗ a desk is already serving $HOST — refusing to start a second (the stale-server ghost-P&L trap)."
+  echo "  Stop it (Ctrl-C its terminal) or:  pkill -f 'nest start'   then re-run."
+  exit 1
+fi
+# 2. Surface whether this boot RESUMES persisted books (carry old inventory + P&L) or comes up clean.
+#    A 'fresh trial' that silently rehydrates old books is the #47 confusion. Best-effort (needs psql).
+if command -v psql >/dev/null 2>&1; then
+  open=$(PGPASSWORD=meridian_markets_app psql -h localhost -p 5433 -U meridian_markets_app \
+    -d meridian_markets -tAc "select count(*) from mm_book_state where status='OPEN'" 2>/dev/null || echo '?')
+  if [ "$open" != "0" ] && [ "$open" != "?" ] && [ -n "$open" ]; then
+    echo "⚠ $open persisted OPEN book(s) will be REHYDRATED on boot — this RESUMES them with their carried"
+    echo "  inventory + P&L (NOT a fresh trial). For a clean slate: start the desk, run scripts/stop-desk.sh"
+    echo "  (close-all), then restart.  Continuing in 5s — Ctrl-C to abort."
+    sleep 5
+  fi
+fi
+
 LOG="docs/research/run-$(date +%Y%m%d-%H%M%S)-mm10h.log"
 mkdir -p docs/research
 echo "▶ MM desk starting — logging to $LOG  (Ctrl-C to stop)"
+echo "ℹ Once started, CONFIRM the fast path in $LOG (Journal #47): the loop logs"
+echo "    'desk loop started — N book(s): N on fast L2 re-quote (driver on), 0 on the …ms bar path'"
+echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path — stop and report, don't trade it."
 
 # The fast L2 path is the DEFAULT now (Journal #44 fast-only) — no MM_FAST_REQUOTE_ENABLED flag;
 # HL books fill queue-aware automatically, a non-L2 venue is refused at launch. The inventory
