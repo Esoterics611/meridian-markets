@@ -11,7 +11,7 @@ import { VpinEstimator } from '../risk/vpin';
 import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
 import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
-import { L2LiveFillEngine } from './l2-live-fill-engine';
+import { L2LiveFillEngine, ToxicityMetrics } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
@@ -178,6 +178,9 @@ export interface MmBookSnapshot {
   vpinBuckets: number;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
+  /** F3 toxicity spread-scaler diagnostics (fast path only; undefined on the bar path / when
+   *  the defence is off). Confirms the adverse-selection defence fired (Journal #44 DR-3). */
+  toxicity?: ToxicityMetrics;
   fills: number;
   bidFills: number;
   askFills: number;
@@ -667,6 +670,7 @@ export class MmBook {
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
       markout: m.markout,
+      toxicity: m.toxicity,
       fills: m.queueFills,
       bidFills: m.bidFills,
       askFills: m.askFills,

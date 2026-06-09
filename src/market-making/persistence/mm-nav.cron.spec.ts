@@ -1,4 +1,4 @@
-import { MmNavCron, navRowsFromSnapshot } from './mm-nav.cron';
+import { MmNavCron, navRowsFromSnapshot, f3Summary } from './mm-nav.cron';
 import { ConfigService } from '@nestjs/config';
 import { MmNavRepository, MmNavInsert } from './mm-nav.repository';
 import { MmPortfolioTrader, MmPortfolioSnapshot } from '../live/mm-portfolio-trader';
@@ -81,6 +81,20 @@ describe('navRowsFromSnapshot (pure mapping)', () => {
     const rows = navRowsFromSnapshot(snapshot(), new Date());
     expect(rows).toHaveLength(1);
     expect(rows[0].equityUnits).toBe(100_000_000_000n);
+  });
+});
+
+describe('f3Summary (DR-3 grep-able toxicity line)', () => {
+  it('summarises each book that carries the F3 scaler; null when none do', () => {
+    expect(f3Summary(snapshot({ books: [book({ symbol: 'BTC' })] }))).toBeNull(); // no toxicity ⇒ no line
+    const s = snapshot({
+      books: [
+        book({ symbol: 'BTC', toxicity: { widenSteps: 12, tightenSteps: 340, avgScale: 0.71, maxScale: 2.43, lastScale: 0.6 } }),
+        book({ symbol: 'ETH' }), // bar-ish / no scaler ⇒ skipped
+      ],
+    });
+    const line = f3Summary(s);
+    expect(line).toBe('BTC widen=12 tighten=340 avg=0.71 max=2.43 last=0.60');
   });
 });
 

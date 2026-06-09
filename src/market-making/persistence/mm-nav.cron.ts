@@ -49,9 +49,14 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
   async tick(now: Date = new Date()): Promise<void> {
     if (!this.repo) return;
     try {
-      const rows = navRowsFromSnapshot(this.trader.snapshot(), now);
+      const snap = this.trader.snapshot();
+      const rows = navRowsFromSnapshot(snap, now);
       const n = await this.repo.insertNavSnapshot(rows);
       this.logger.log(`mm NAV booked: ${n} row(s) (desk + ${n - 1} book(s)) asOf=${now.toISOString()}`);
+      // DR-3: a compact, grep-able F3 line each interval so a post-run `grep 'F3 toxicity'`
+      // answers "did the adverse-selection defence fire?" — Journal #44 found it invisible.
+      const tox = f3Summary(snap);
+      if (tox) this.logger.log(`F3 toxicity: ${tox}`);
     } catch (err) {
       this.logger.error(`mm NAV tick failed: ${(err as Error).message}`);
     }
@@ -70,6 +75,24 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
  * parallel accounting path. The true desk-equity drawdown is always recoverable
  * from the persisted equity curve itself.
  */
+/**
+ * A compact, grep-able F3 toxicity line (DR-3): per fast-path book, how often the half-spread
+ * was widened / tightened, the mean scale, and the worst widen — so a post-run
+ * `grep 'F3 toxicity'` answers "did the adverse-selection defence actually fire?" (Journal #44
+ * found 0 widen-events and couldn't tell). Returns null when no book carries the scaler (bar
+ * path / feature off) ⇒ no line logged. Pure + exported for the unit test.
+ */
+export function f3Summary(s: MmPortfolioSnapshot): string | null {
+  const parts = s.books
+    .filter((b) => b.toxicity)
+    .map(
+      (b) =>
+        `${b.symbol} widen=${b.toxicity!.widenSteps} tighten=${b.toxicity!.tightenSteps} ` +
+        `avg=${b.toxicity!.avgScale.toFixed(2)} max=${b.toxicity!.maxScale.toFixed(2)} last=${b.toxicity!.lastScale.toFixed(2)}`,
+    );
+  return parts.length ? parts.join(' | ') : null;
+}
+
 export function navRowsFromSnapshot(s: MmPortfolioSnapshot, asOf: Date): MmNavInsert[] {
   let deskInventory = 0n;
   let worstDrawdownPct = 0;
