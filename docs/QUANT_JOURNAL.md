@@ -1668,3 +1668,56 @@ Started from a UI question — *"where does net P&L come from? these numbers don
 **3. Root cause: the inventory governor from #39/#41 was built but shipped at its legacy no-op default.** `app-config.factory.ts` had `inventorySkewMult=1` (bare A-S skew ≈2bps at full inventory — #39 proved it can't mean-revert in a trend), `hardInventoryCap=false` (the deterministic backstop OFF), `maxInventoryNotionalFrac=0` (notional cap OFF ⇒ a fixed 8-lot cap = wildly different risk across a 100×-price universe). Comment literally read *"Defaults reproduce legacy (no-op)."* The live desk never set the env overrides, so nothing bounded inventory. **Fix:** flipped the defaults ON — `MM_HARD_INVENTORY_CAP` true, `MM_MAX_INVENTORY_NOTIONAL_FRAC` 0.25 (no book holds >¼ of its capital in inventory, risk-uniform across coins), `MM_INVENTORY_SKEW_MULT` 4. The two caps are **deterministic bounds, not tuning**; skewMult=4 is a **starting value pending a γ/κ/skew sweep** (#39 only established that 1 is too weak). tsc clean; card + glft-governor + config suites green; the quoter already had hard-cap/notional/skew mechanics tested in `glft-quoter.spec.ts`.
 
 **Honest caveats / next:** these are *engineering* fixes verified by tests + a render check — **not yet a measured paper run**. The proof is a forward run with the governor on: net P&L should become **spread-driven** (the inv-MTM line small and mean-reverting) and per-book maxDD should drop well under the 10.7% BTC saw. skewMult wants the sweep; and the desk needs a restart/relaunch to pick up the new defaults (running books keep their old config). This pairs with the #42 delta hedge — caps bound the *position*, the hedge bounds the *delta variance* of whatever position remains.
+
+## 2026-06-09 — Entry #44 (measured 10h-launch run): DD control WORKS, the hedge is INERT, and the real disease is default-sprawl + a zombie legacy path
+
+The first forward run with #43's governor defaults ON (`MM_HARD_INVENTORY_CAP=true`, `MM_MAX_INVENTORY_NOTIONAL_FRAC=0.25`, `MM_INVENTORY_SKEW_MULT` high) **and** #42's `MM_DELTA_HEDGE=true`. 8 neutral `mm-glft` books on Hyperliquid, $1M each ($8M desk), all on the 100ms fast path. Launched `00:56`, recorded book NAV through `05:18` (~4.4h; the loop logged to 08:18). Authoritative numbers pulled from the live DB (`mm_nav` latest row per book + the `book_key=''` desk-aggregate row), NOT the log.
+
+**Per-book final (NAV, $):**
+
+| book | net | realised | unreal | fees | maxDD% | fills |
+|---|---|---|---|---|---|---|
+| SUI | **+1,489** | −189 | +1,665 | −14 | 1.35 | 143 |
+| BNB | **+290** | −365 | +650 | −5 | 0.84 | 295 |
+| DOGE | −31 | **+285** | −323 | −8 | 0.53 | 103 |
+| ADA | −199 | −308 | +106 | −4 | 0.62 | 525 |
+| SOL | −366 | −64 | −368 | −65 | 0.87 | 193 |
+| XRP | −617 | −773 | +145 | −11 | 1.02 | 145 |
+| ETH | −774 | −1,099 | +183 | −142 | 1.15 | 603 |
+| BTC | −954 | −748 | −325 | −120 | 1.42 | 231 |
+| **DESK** | **−1,161** | **−3,260** | **+1,731** | **−368** | **1.42** | 2,238 |
+
+**Desk net −$1,161 on $8M = −0.0145%.** Funding 0.
+
+**Verdict 1 — DD CONTROL WORKS (the win, pre-registered gate PASSES).** Every book's maxDD landed in **0.53%–1.42%**, all under the #41 pre-registration bar of ~1.5%. Compare #41: SUI 17.6%, BTC 10.3%. The notional/σ-normalised inventory cap + hard-cap park + stronger skew (shipped #43, defaults flipped ON) **bounded the position risk across the 100×-price universe**. Metric 2 — the one that failed hard in #41 — now passes cleanly. The drawdown is genuinely controlled.
+
+**Verdict 2 — but the desk still loses, and the honest number is realised −$3,260, not net −$1,161.** Realised is **negative on 7 of 8 books** (only DOGE +$285 realised). The two green "winners" — SUI +$1,489 and BNB +$290 — are **transient unrealised longs into an up-move** (SUI realised −$189 / unreal +$1,665; BNB −$365 / +$650), the exact #41-learning-#5 trap: mark-to-realised and they're red. The +$1,731 desk unrealised will mean-revert. So DD control bought a **small, bounded loss**, not a profit — spread capture ≈ adverse selection again, and the −0.2bps rebate did not even net positive (fees −$368, dominated by the two most-active books ETH/BTC, i.e. those books paid more in crossing/half-spread on the hedge-free fast path than the rebate returned). **The governor solved the blow-up, not the edge.**
+
+**Verdict 3 — the HEDGE IS INERT. Four independent root causes, all confirmed:**
+1. **There are TWO hedge subsystems and the one that ran all night is a zombie.** `src/hedge/` (`HedgeService` + `HedgeMonitorCron` + `hedge-circuit-breaker` + the `hedge_positions` table) is a **pre-MM, DB-backed perp-short hedge** imported globally in `app.module.ts`. Its 60s cron fired **425 times and logged 425 identical** `markAll: skipping mock-pos-4 — venue has no such position (ledger/venue drift)` warnings — it was iterating **stale 2026-05-28 test fixtures** (418 rows in `hedge_positions`, most never closed) that the mock venue no longer has. It does **nothing** for the MM desk; it is pure log-noise + scope. This is the `[HedgeService]` you see in the log — and it is NOT the MM hedge.
+2. **The real MM hedge (#42 `DeskHedgeController`) is unobservable — in-memory only, never persisted.** It holds perp positions in a `this.pos` Map and writes to **no table and no event**. After the run there is **zero durable record** of gross delta, residual, hedge P&L, or a single hedge fill. For a demo whose entire premise is *honesty about the numbers*, an **unauditable hedge is indistinguishable from no hedge** — which is exactly why it reads as "not working."
+3. **Its config is degenerate: `betaMap: {}` (hard-coded at `market-making.module.ts:390`) ⇒ every book self-hedges per-symbol.** That just re-flattens the *same* inventory the governor already bounds — it does **nothing** about the #41 disease (8 neutral books = ONE correlated crypto-β bet). The correct target is a **β-map of the alts onto BTC/ETH** so a single major-perp leg neutralises the *basket* net delta. As shipped, the hedge is redundant with the governor and leaves the actual correlated-β risk fully on.
+4. **Cadence mismatch.** The rebalance runs inside `tick()` (the slow bar timer, `pollIntervalMs`), which explicitly **filters out fast-path books** — but all 8 books trade on the 100ms fast path (`routeL2Snapshot`). So the hedge reads *stale* deltas at a slow cadence and, with the governor keeping per-symbol inventory small and a $2,000 dead-band, mostly **no-ops**.
+
+**The real disease (Ronnie's read, confirmed): default-sprawl + dead paths are now causing bugs and confusing analysis.** This run is the symptom of a system that has accumulated too much optionality: the governor that shipped *default-OFF* and silently no-op'd for a whole prior run (#43); a hedge whose default `betaMap` is the degenerate `{}`; a `MM_DELTA_HEDGE` that turns on an unobservable in-memory leg; and a **second, legacy hedge stack still wired into boot** doing nothing but erroring. Every one of these is a switch or a path that *looks* live and isn't. The engine is testable and clever, but the **configuration surface and the legacy carry are working against us** — the #1 fix is not a new feature, it's **tightening the system to one honest path.**
+
+### Dev requirements (lessons → tickets)
+
+- **DR-0 (P0, META — tighten the system).** Treat config-sprawl and dead paths as the primary defect class. Audit every `MM_*` default in `app-config.factory.ts`: a default must be either the *honest production value* or *explicitly, loudly off* — no more "default reproduces legacy no-op" that silently disables a risk control (#43) or ships a degenerate hedge (this entry). Inventory every legacy module still wired into `app.module` and decide keep/quarantine/delete with a written reason.
+- **DR-1 (P0).** **One hedge system.** Retire/quarantine the legacy `src/hedge/` stack: remove `HedgeModule` from `app.module.ts` (or hard-gate its cron OFF behind a default-false flag) and purge the stale `hedge_positions` fixtures. Kills the 425-warning spam and the scope Ronnie flagged. The MM `DeskHedgeController` is the *only* hedge.
+- **DR-2 (P0).** **Make the MM hedge durable + auditable.** Persist `HedgeSnapshot` each tick (new `mm_hedge` table or columns on `mm_nav`: grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, per-underlying units) and emit hedge open/rebalance on the `DeskEvent` tape. Until the hedge is in the same ledger as the books, we cannot say it works.
+- **DR-3 (P0).** **Hedge the desk β, not the symbol.** Replace `betaMap: {}` with a real, OOS-estimated β-map (alts→BTC/ETH) behind `MM_HEDGE_BETA_MAP`; default it to the *measured* map, not empty. One major-perp leg should neutralise the basket — the #41 "8 books = 1 β bet."
+- **DR-4 (P1).** **Run the hedge on the fast path.** Move the rebalance off `tick()` onto `routeL2Snapshot` (or a dedicated sub-second hedge cadence) so it tracks the inventory that actually changes at 100ms instead of lagging it.
+- **DR-5 (P1).** **Persist the spread / adverse / inventory-carry attribution to `mm_nav`** (today only realised/unreal/fees survive shutdown; the #43 card shows the split live but it dies with the process). A post-mortem can't locate the realised leak without it.
+- **DR-6 (P1).** **Scorecard headlines realised.** Tooling must lead with realised P&L and flag unrealised as transient — SUI/BNB "wins" were unrealised longs (the recurring #41-#5 trap). See the run-review skill below.
+- **DR-7 (P2).** **The edge is still missing even with DD bounded.** Spread ≈ adverse on 7/8 books, rebate net-negative. The path to positive is the adverse-selection defence (confirm F3 toxicity actually *fires* — still uninstrumented) and the *validated* directional lean (parked), **not more coins**. Re-register **Run A′** requiring **desk realised ≥ 0** (not just maxDD ≤ 1.5%) before any directional run.
+
+### How this run was reviewed (the data map — so we never snoop blind again)
+
+Authoritative P&L is the **DB, not the log**. The 27MB run log is ~99% TypeORM query echo + the legacy-hedge warning; reading it end-to-end is the trap.
+- **Final P&L:** `mm_nav`, latest row per `book_key` (real books = symbols; `book_key=''` is the desk aggregate; `it-nav-*` rows are int-test fixtures — exclude). Columns: net/realised/unrealised/fees/funding/maxDD.
+- **DD control:** `max_drawdown_pct` per book from the same query (books relaunch clean ⇒ per-run).
+- **Hedge state:** `hedge_positions` is the **legacy** table only — newest real row predates the run ⇒ the MM hedge opened nothing *there*; the MM hedge state is in-memory and currently **unrecoverable** (→ DR-2).
+- **Fills / activity:** `grep '[DeskEvents]' | grep ' ▸ ' | count by symbol`.
+- **Hedge health:** `grep -c 'markAll: skipping'` (425 = the zombie firing every cycle).
+- Codified as the `mm-run-review` skill.
