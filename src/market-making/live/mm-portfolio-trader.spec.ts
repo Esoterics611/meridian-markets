@@ -119,6 +119,60 @@ describe('MmPortfolioTrader', () => {
     expect(BigInt(snap.hedgePnlUnits ?? '0')).toBe(BigInt(Math.round(snap.hedge!.hedgePnlUsd * 1_000_000)));
   });
 
+  it('DR-4: the hedge runs on the fast cycle (hedgeTick); the bar tick drives it only when no fast driver is wired', async () => {
+    let rebalances = 0;
+    const flat = { enabled: true, grossDeltaUsd: 0, residualUsd: 0, hedgePnlUsd: 0, hedgeCostUsd: 0, fundingUsd: 0, perUnderlying: [], ordersLastTick: [] };
+    const fakeHedger = {
+      rebalance: async () => {
+        rebalances += 1;
+        return flat;
+      },
+      snapshot: () => flat,
+    } as unknown as DeskHedgeController;
+    const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, {}, undefined, undefined, fakeHedger);
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);
+
+    // No fast driver ⇒ the bar tick drives the hedge (offline/test bar-sim path preserved).
+    await pf.tick();
+    expect(rebalances).toBe(1);
+
+    // Wire a fast driver ⇒ the bar tick must NOT hedge — the fast cycle owns it now (no double-hedge).
+    pf.setFastDriver({ start: () => undefined, stop: () => undefined });
+    await pf.tick();
+    expect(rebalances).toBe(1); // unchanged
+
+    // The driver's afterCycle hook calls hedgeTick() — that is what now drives the hedge live.
+    await pf.hedgeTick();
+    expect(rebalances).toBe(2);
+  });
+
+  it('hedgeTick is re-entrancy-guarded — overlapping calls early-return (never double-fires the perp leg)', async () => {
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    const flat = { enabled: true, grossDeltaUsd: 0, residualUsd: 0, hedgePnlUsd: 0, hedgeCostUsd: 0, fundingUsd: 0, perUnderlying: [], ordersLastTick: [] };
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((r) => (release = r));
+    const fakeHedger = {
+      rebalance: async () => {
+        inFlight += 1;
+        maxConcurrent = Math.max(maxConcurrent, inFlight);
+        await gate;
+        inFlight -= 1;
+        return flat;
+      },
+      snapshot: () => flat,
+    } as unknown as DeskHedgeController;
+    const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, {}, undefined, undefined, fakeHedger);
+    await pf.addBook({ symbol: 'USDC' }, 1_000_000_000n);
+
+    const first = pf.hedgeTick(); // holds the gate open
+    await Promise.resolve();
+    await pf.hedgeTick(); // should early-return while the first is in flight
+    release!();
+    await first;
+    expect(maxConcurrent).toBe(1);
+  });
+
   it('refreshFunding drives the source per (symbol, source) and counts only updated books', async () => {
     const pf = new MmPortfolioTrader(makeBook, 1000, 3_000_000_000n);
     await pf.addBook({ symbol: 'BTC', source: 'hyperliquid' }, 1_000_000_000n);

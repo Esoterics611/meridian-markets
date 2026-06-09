@@ -440,6 +440,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               pollIntervalMs: mm.fastRequoteMs,
               sink: (symbol, t) => trader.routeL2Snapshot(symbol, t),
               tradeStream,
+              // DR-4: run the desk delta hedge on the fast cadence (once per poll cycle, after the
+              // books are updated) so it tracks the 100ms inventory instead of the slow bar timer.
+              afterCycle: () => trader.hedgeTick(),
             });
             trader.setFastDriver(driver);
           }

@@ -65,6 +65,14 @@ export interface L2PollDriverConfig {
   sink: LiveTickSink;
   /** Optional aggressor-flow stream to drain per symbol per poll (real taker flow). */
   tradeStream?: ITradeStream;
+  /**
+   * Optional hook fired ONCE per poll cycle, AFTER every symbol's fresh snapshot has been
+   * routed to its sink — the seam for desk-level work that must read the just-updated books
+   * at the fast cadence rather than lag it on the slow bar timer (the delta hedge runs here,
+   * DR-4). Awaited inside the cycle so the no-pile-up guard serialises it with the next cycle;
+   * best-effort — a throw is swallowed and never tears down the loop.
+   */
+  afterCycle?: () => void | Promise<void>;
   /** Injected scheduler (default = real Node timers). Tests pass a fake clock. */
   scheduler?: PollScheduler;
 }
@@ -144,6 +152,15 @@ export class L2PollDriver {
           this.cfg.sink(symbol, { snapshot: this.stampTs(snap), flow });
         }),
       );
+      // Desk-level post-cycle hook (DR-4: the delta hedge). Runs once, after every book has
+      // its fresh snapshot. Awaited so the in-flight guard serialises it; best-effort.
+      if (this.cfg.afterCycle) {
+        try {
+          await this.cfg.afterCycle();
+        } catch {
+          // swallow — a cycle-hook error never sinks the poll loop.
+        }
+      }
     } finally {
       this.polls += 1;
       this.polling = false;
