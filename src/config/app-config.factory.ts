@@ -1,5 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
+import { parseHedgeBetaMap } from '../market-making/hedge/parse-beta-map';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
   if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
@@ -34,18 +35,6 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     apiBaseUrl: process.env['ONDO_API_BASE_URL'] ?? '',
     apiKey: process.env['ONDO_API_KEY'] ?? '',
     institutionId: process.env['ONDO_INSTITUTION_ID'] ?? '',
-  },
-  hedge: {
-    mockEnabled: process.env['MOCK_HEDGE_ENABLED'] !== 'false',
-    mockFxDriftBpsPerDay: parseFloat(process.env['MOCK_HEDGE_FX_DRIFT_BPS_PER_DAY'] ?? '2'),
-    mockSettleMs: parseInt(process.env['MOCK_HEDGE_SETTLE_MS'] ?? '0', 10),
-    maxFundingBps: parseInt(process.env['HEDGE_MAX_FUNDING_BPS'] ?? '100', 10),
-    maxFeedStalenessMs: parseInt(process.env['HEDGE_MAX_FEED_STALENESS_MS'] ?? '300000', 10),
-    hedgeRatioPct: parseInt(process.env['HEDGE_RATIO_PCT'] ?? '100', 10),
-    rebalanceThresholdPct: parseInt(process.env['HEDGE_REBALANCE_THRESHOLD_PCT'] ?? '5', 10),
-    monitorIntervalMs: parseInt(process.env['HEDGE_MONITOR_INTERVAL_MS'] ?? '60000', 10),
-    ilsSigmaBps: parseInt(process.env['HEDGE_ILS_SIGMA_BPS'] ?? '94', 10),
-    positionStalenessMs: parseInt(process.env['HEDGE_POSITION_STALENESS_MS'] ?? '30000', 10),
   },
   statArb: {
     mockEnabled: process.env['MOCK_TRADING_ENABLED'] !== 'false',
@@ -137,6 +126,17 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     hedgeBandUsd: parseFloat(process.env['MM_HEDGE_BAND_USD'] ?? '2000'),
     hedgeTakerBps: parseFloat(process.env['MM_HEDGE_TAKER_BPS'] ?? '2.5'),
     hedgeHalfSpreadBps: parseFloat(process.env['MM_HEDGE_HALF_SPREAD_BPS'] ?? '1'),
+    // Fraction of the hedge round-trip (taker + half-spread bps) priced INTO the maker half-spread
+    // when the hedge is on, so each fill earns ≥ the perp cost of neutralising it. 1.0 = full per-fill
+    // cost (conservative — wide spreads, fewer fills, every fill self-funds its hedge); a NEUTRAL book
+    // offsets most flow before it ever becomes hedged delta, so the *marginal* hedged fraction is < 1 —
+    // lower this (e.g. 0.3) if the wide spread collapses the fill rate. Only applied when deltaHedge on.
+    hedgeCostSpreadMult: parseFloat(process.env['MM_HEDGE_COST_SPREAD_MULT'] ?? '0.5'),
+    // Hedge β-map (Journal #44 DR-3): fold alts onto a major perp via SYMBOL:UNDERLYING:BETA
+    // triples (e.g. "SOL:BTC:1.4,ETH:BTC:1.2") so one BTC leg hedges the basket. Empty (default)
+    // ⇒ each book self-hedges its own perp 1:1 — an explicit, logged choice, NOT a hidden no-op.
+    // The cross-asset betas want an OOS fit before they're trusted (a wrong β over-hedges noise).
+    hedgeBetaMap: parseHedgeBetaMap(process.env['MM_HEDGE_BETA_MAP'] ?? ''),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
@@ -148,7 +148,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     navIntervalMs: parseInt(process.env['MM_NAV_INTERVAL_MS'] ?? '60000', 10),
     fundingRefreshMs: parseInt(process.env['MM_FUNDING_REFRESH_MS'] ?? '600000', 10), // 10m; HL funds hourly
     microPriceDepth: parseInt(process.env['MM_MICROPRICE_DEPTH'] ?? '5', 10), // F1 quote center off N L2 levels; 0 = off (mid)
-    fastRequoteEnabled: (process.env['MM_FAST_REQUOTE_ENABLED'] ?? 'false').toLowerCase() === 'true',
+    // Fast L2 path is the default for L2 venues (Journal #44 fast-only) — no on/off flag.
     fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
     cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
     fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),

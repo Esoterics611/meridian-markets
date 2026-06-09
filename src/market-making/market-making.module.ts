@@ -27,6 +27,7 @@ import { MmBook } from './live/mm-book';
 import { quoteUnitsForNotional } from './live/notional-sizing';
 import { PaperVenue } from '../execution/paper-venue';
 import { DeskHedgeController } from './hedge/desk-hedge-controller';
+import { describeBetaMap } from './hedge/parse-beta-map';
 import { venueFeeFor } from './backtest/venue-fees';
 import { HyperliquidFundingClient } from '../market-data/funding/hyperliquid-funding-client';
 import { DbService } from '@database/db.service';
@@ -191,6 +192,18 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           const srcId = spec.source ?? mm.defaultSource;
           const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
 
+          // Fast-only (Journal #44): a live MM book needs an L2 order-book feed to fill HONESTLY
+          // (queue-aware). Bar/candle fills can't resolve top-of-book turnover (S33) ⇒ they are an
+          // offline simulator only, never a live track record. So a non-L2 venue is refused live;
+          // it stays available for unit/offline tests (nodeEnv 'test'), which drive the bar path.
+          const hasL2 = typeof (refSource as Partial<IL2BookSource> | undefined)?.l2Snapshot === 'function';
+          if (!hasL2 && app.nodeEnv !== 'test') {
+            throw new Error(
+              `MM is fast-only: venue '${srcId}' has no L2 order-book feed, so it cannot produce ` +
+                `honest queue-aware fills. Launch on an L2 venue (e.g. hyperliquid). Bar/candle fills are offline-test only.`,
+            );
+          }
+
           // Notional sizing: when a $ quote is requested, probe the live price and
           // size quoteSizeUnits = notional ÷ price (notional-sizing.ts). Else fixed.
           let quoteSizeUnits = mm.quoteSizeUnits;
@@ -238,7 +251,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           // risk gate + sizing as the bar book; the engine owns the InventoryBook the
           // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
           const fundingRate = await fundingRateFor(srcId, spec.symbol);
-          const useFast = mm.fastRequoteEnabled && srcId === 'hyperliquid' && mm.fastSymbols.includes(spec.symbol.toUpperCase());
+          // Fast is the DEFAULT for any L2-capable venue (no opt-in flag): an L2 book ⇒ the
+          // queue-aware engine; the bar path only runs for the non-L2 offline-test case above.
+          const useFast = hasL2;
           // The LIVE directional bias driving the fast engine: when MM_FLOW_BIAS_LIVE is on,
           // a self-validating rolling-IC flow source (re-checks its own forward-return IC
           // every horizon; sizes carry only while predictive, per coin — reversal coins
@@ -288,6 +303,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 toxicityScaler: mm.f3Toxicity
                   ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
                   : undefined,
+                // Price the perp hedge into the maker spread when the delta hedge is on: each fill we
+                // make may be hedged with a perp taker, so the spread should earn ≥ the (fraction of
+                // the) hedge round-trip (taker + half-spread bps) or hedging converts directional risk
+                // into a cost bleed. Scaled by hedgeCostSpreadMult (a neutral book offsets most flow
+                // before it becomes hedged delta ⇒ marginal hedged fraction < 1). 0 when hedge off.
+                hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
               })
             : undefined;
           return new MmBook({
@@ -387,11 +408,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           });
           hedger = new DeskHedgeController(
             hedgeVenue,
-            { bandUsd: mm.hedgeBandUsd, betaMap: {}, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
+            { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
           );
-          new Logger('MarketMakingModule').log(`desk delta hedge ON — band $${mm.hedgeBandUsd}, perp taker ${mm.hedgeTakerBps}bps (paper)`);
+          new Logger('MarketMakingModule').log(
+            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,
+          );
         }
 
         const trader = new MmPortfolioTrader(
@@ -409,7 +432,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         // driver resolves its symbols from the trader each cycle (dynamic books), and
         // routes each snapshot+flow back to the matching book's onL2Snapshot. Off ⇒
         // no driver, no WS, no behaviour change (today's bar loop).
-        if (mm.fastRequoteEnabled) {
+        // Fast L2 path is the DEFAULT (Journal #44 fast-only): wire the sub-second poll driver
+        // whenever an L2 source exists. Books self-select via isFastPath(); the driver polls
+        // fastPathSymbols() dynamically. No L2 source ⇒ no driver (and non-L2 live books are
+        // already refused at launch above), so the only path left is the offline-test bar sim.
+        {
           const hl = refRegistry.get('hyperliquid') as Partial<IL2BookSource & ITradeStreamSource> | undefined;
           if (hl && typeof hl.l2Snapshot === 'function') {
             const tradeStream = typeof hl.openTradeStream === 'function' ? hl.openTradeStream(mm.fastSymbols) : undefined;
@@ -419,10 +446,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               pollIntervalMs: mm.fastRequoteMs,
               sink: (symbol, t) => trader.routeL2Snapshot(symbol, t),
               tradeStream,
+              // DR-4: run the desk delta hedge on the fast cadence (once per poll cycle, after the
+              // books are updated) so it tracks the 100ms inventory instead of the slow bar timer.
+              afterCycle: () => trader.hedgeTick(),
             });
             trader.setFastDriver(driver);
-          } else {
-            new Logger('MarketMakingModule').warn('MM_FAST_REQUOTE_ENABLED=true but no L2 source — fast path inactive');
           }
         }
         return trader;

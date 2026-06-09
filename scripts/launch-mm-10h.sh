@@ -11,12 +11,11 @@
 # position is the bleed. So this run isolates ONE change — the inventory governor — and
 # asks the single question that matters: does unrealised stop being the loss column?
 #
-# The governor (built this session, behind config, defaults are no-ops):
-#   MM_HARD_INVENTORY_CAP=true  — park the accumulating side at the rail at |q|≥cap, so a
-#                                 book PHYSICALLY cannot run inventory the way SOL did (6.2B long).
-#   MM_INVENTORY_SKEW_MULT=10   — the bare A-S skew is ~2 bps at full inventory (negligible);
-#                                 ×10 makes the reservation actively mean-revert toward flat.
-#   MM_MAX_INVENTORY_LOTS=4     — halve the inventory bound vs the prior run (was 8 ≈ $800k/$1M).
+# The inventory governor is now DEFAULT-ON (Journal #43) — no env needed:
+#   hardInventoryCap=true            — park the accumulating side at the rail at |q|≥cap.
+#   maxInventoryNotionalFrac=0.25    — cap |inv| at ¼ of book capital at the live mid (risk-uniform).
+#   inventorySkewMult=4              — make the A-S reservation actively mean-revert toward flat.
+# (Override any of MM_HARD_INVENTORY_CAP / MM_MAX_INVENTORY_NOTIONAL_FRAC / MM_INVENTORY_SKEW_MULT to tune.)
 #
 # Plus the ADVERSE-SELECTION defence ("avoid informed orders, like the big desks do"):
 #   MM_F3_TOXICITY=true         — scale the half-spread by trade-flow toxicity vs its rolling
@@ -32,18 +31,16 @@
 # MM_FLOW_SHADOW stays ON: it keeps recording the fast signal (zero P&L impact) so the
 # directional validation set keeps growing for when the time-stopped lean comes back.
 #
-# Prereqs — start the server FIRST with persistence + the fast fair-value path + the governor:
+# Prereqs — start the server FIRST. Easiest: `bash scripts/start-desk.sh` (the canonical config).
+# The fast L2 path + the inventory governor are now BUILT-IN DEFAULTS (Journal #43/#44), so the
+# minimal server env is just:
 #   FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
-#   MM_PERSIST=true \
-#   MM_FAST_REQUOTE_ENABLED=true MM_FAST_REQUOTE_MS=100 \
-#   MM_CANCEL_REPLACE_LATENCY_MS=30 \
+#   MM_PERSIST=true MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
 #   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
-#   MM_MICROPRICE_DEPTH=5 \
-#   MM_HARD_INVENTORY_CAP=true MM_INVENTORY_SKEW_MULT=10 MM_MAX_INVENTORY_LOTS=4 \
-#   MM_F3_TOXICITY=true MM_F3_MIN_SCALE=0.5 MM_F3_MAX_SCALE=3.0 \
-#   MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
-#   TELEMETRY_ENABLED=true \
-#   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm-governed.log
+#   MM_F3_TOXICITY=true MM_FLOW_SHADOW=true TELEMETRY_ENABLED=true \
+#   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm.log
+# (Fast is L2-default — no MM_FAST_REQUOTE_ENABLED; the governor caps + skew default ON; add
+#  MM_DELTA_HEDGE=true to run the auditable perp delta hedge.)
 #
 # After the run, score the captured signal (still measure-only, never quoted):
 #   npx ts-node -r tsconfig-paths/register scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 30,60,300,900

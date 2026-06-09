@@ -125,6 +125,13 @@ export interface L2LiveFillEngineConfig {
    * (width only). Shared scaler with the offline backtest. Omit ⇒ spread unscaled (legacy).
    */
   toxicityScaler?: FlowToxicityScaler;
+  /**
+   * Additive half-spread premium (bps of mid) that prices the perp hedge cost into the maker quote
+   * (ctx.hedgeCostBps). Set to the hedge round-trip (taker + half-spread bps) when the desk runs the
+   * delta hedge, so the spread the maker earns covers the taker we pay to neutralise each fill. 0 ⇒
+   * unchanged (hedge off). The next run's "make money" link: hedging isn't free, so charge for it.
+   */
+  hedgeCostBps?: number;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -148,6 +155,24 @@ export interface L2LiveFillEngineMetrics {
   attribution: AttributionSummary;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
+  /** F3 toxicity spread-scaler diagnostics — present ONLY when the scaler is wired (the live
+   *  fast path); undefined ⇒ the adverse-selection defence is off. Lets a run CONFIRM F3 fired
+   *  (Journal #44 DR-3: don't credit a defence we can't measure). */
+  toxicity?: ToxicityMetrics;
+}
+
+/** F3 confidence-scaled-spread diagnostics (how often / how hard the half-spread was scaled). */
+export interface ToxicityMetrics {
+  /** Steps the half-spread was WIDENED (scale > 1 — toxic, one-sided/informed flow). */
+  widenSteps: number;
+  /** Steps it was TIGHTENED (scale < 1 — calm two-sided flow, the rebate-farming regime). */
+  tightenSteps: number;
+  /** Mean spread scale across quoting steps (1 = neutral, the no-op baseline). */
+  avgScale: number;
+  /** Largest widen applied over the run (the worst toxic spike the book reacted to). */
+  maxScale: number;
+  /** Most-recent scale (the live gauge). */
+  lastScale: number;
 }
 
 export class L2LiveFillEngine {
@@ -173,6 +198,13 @@ export class L2LiveFillEngine {
   private fundingRatePerHour: number;
   private shadowObservations = 0;
   private lastShadowMs = 0;
+  // F3 toxicity-scaler diagnostics (Journal #44 DR-3: prove the adverse-selection defence fires).
+  private widenSteps = 0;
+  private tightenSteps = 0;
+  private spreadScaleSum = 0;
+  private spreadScaleSteps = 0;
+  private maxSpreadScale = 1;
+  private lastSpreadScale = 1;
 
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
@@ -274,12 +306,23 @@ export class L2LiveFillEngine {
     // adverse-selection defence. Always update the scaler (so its rolling average tracks)
     // even when no fills happened this tick; undefined ⇒ feature off ⇒ spread unscaled.
     const spreadScale = this.cfg.toxicityScaler?.scale(flow.aggressiveBuyUnits, flow.aggressiveSellUnits);
+    if (spreadScale !== undefined) {
+      // F3 instrumentation (DR-3): count widen/tighten steps + track the scale so a run can be
+      // judged on whether the defence FIRED, not just on the outcome (Journal #44: F3 was invisible).
+      this.lastSpreadScale = spreadScale;
+      this.spreadScaleSum += spreadScale;
+      this.spreadScaleSteps += 1;
+      if (spreadScale > 1 + 1e-9) this.widenSteps += 1;
+      else if (spreadScale < 1 - 1e-9) this.tightenSteps += 1;
+      if (spreadScale > this.maxSpreadScale) this.maxSpreadScale = spreadScale;
+    }
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros: mid,
       referenceMicros,
       bias,
       spreadScale,
+      hedgeCostBps: this.cfg.hedgeCostBps,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,
@@ -389,6 +432,15 @@ export class L2LiveFillEngine {
       maxDrawdownPct: this.maxDrawdownPct,
       attribution: sumComponents(this.components),
       markout: this.markout.curve(),
+      toxicity: this.cfg.toxicityScaler
+        ? {
+            widenSteps: this.widenSteps,
+            tightenSteps: this.tightenSteps,
+            avgScale: this.spreadScaleSteps > 0 ? this.spreadScaleSum / this.spreadScaleSteps : 1,
+            maxScale: this.maxSpreadScale,
+            lastScale: this.lastSpreadScale,
+          }
+        : undefined,
     };
   }
 

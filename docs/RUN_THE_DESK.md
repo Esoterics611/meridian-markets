@@ -14,22 +14,34 @@ The canonical run: neutral `mm-glft` spread engine + the inventory governor (on 
 paper perp delta hedge. Owns the terminal (Ctrl-C to stop); logs to a `run-<ts>-mm10h.log` the
 "Watch it" commands glob for.
 
+> **Fast-only (Journal #44).** The queue-aware **L2 fill path is now the default** for any
+> L2-capable venue (Hyperliquid) — there is no `MM_FAST_REQUOTE_ENABLED` flag any more, and a
+> book launched on a **non-L2 venue is refused** (bar/candle fills are offline-test only). The
+> **inventory governor caps + skew are default-ON** (#43), and funding now accrues on the fast
+> path too — so the minimal command below is much shorter than older runs'.
+
+**Easiest: `bash scripts/start-desk.sh`** now bakes in the full canonical Run A′ — all four
+"make money" pillars ON (hedge + hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off
+(Journal #44 DR-0). The explicit equivalent, if you'd rather see every knob:
+
 ```bash
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 TELEMETRY_ENABLED=true \
 MM_PERSIST=true \
-MM_FAST_REQUOTE_ENABLED=true MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
+MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
 MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 MM_MICROPRICE_DEPTH=5 \
-MM_HARD_INVENTORY_CAP=true MM_INVENTORY_SKEW_MULT=4 MM_MAX_INVENTORY_LOTS=8 \
 MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
-MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 \
+MM_F3_TOXICITY=true \
+MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_HEDGE_COST_SPREAD_MULT=0.5 \
+MM_HEDGE_BETA_MAP="SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30" \
 MM_FLOW_BIAS_LIVE=false \
 MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 npm run start:dev 2>&1 | tee "docs/research/run-$(date +%Y%m%d-%H%M%S)-mm10h.log"
 ```
 Wait for `Nest application successfully started`. (If it says `EADDRINUSE :3100`, an old server
-is still up — free it: `kill -9 $(lsof -ti tcp:3100)`.)
+is still up — free it: `kill -9 $(lsof -ti tcp:3100)`.) Confirm in the boot log: `desk delta hedge
+ON — … target: …` (the β-map) and, once flow comes in, `F3 toxicity:` lines.
 
 ## How the knobs shape the run
 The desk's P&L splits into four columns (see "Watch it"): **spread captured** (+), **adverse
@@ -50,11 +62,23 @@ one of those levers — that's *how* it affects the run:
   #41 runaway: −1.65M ADA, BTC at 88% of book notional). The skew mult makes the quotes actively
   lean toward flat. Tighter caps / higher skew ⇒ **less inventory carry and lower drawdown**, but
   you forgo some fills at the rail and give up a little spread to the skew.
-- **Delta hedge → removes directional variance** (`MM_DELTA_HEDGE`, `MM_HEDGE_BAND_USD`). A paper
-  perp leg offsets each book's *net* delta, so the desk keeps the MM edge (spread + rebate − adverse)
-  without the directional swing that was the entire #41 loss. Narrower band ⇒ **residual held closer
-  to flat**, but more hedge rebalances ⇒ more taker fees + funding paid. **This is the one change
-  that distinguishes the canonical run from the unhedged baseline.**
+- **Delta hedge → removes directional variance** (`MM_DELTA_HEDGE`, `MM_HEDGE_BAND_USD`,
+  `MM_HEDGE_BETA_MAP`). A paper perp leg offsets the desk's *net* β-weighted delta, so the desk keeps
+  the MM edge (spread + rebate − adverse) without the directional swing that was the entire #41 loss.
+  It runs on the **fast L2 cadence** now (DR-4 — it tracks the 100ms inventory, not the 15s bar), is
+  **folded into desk NAV + on the tape** (DR-2 — a working hedge is finally visible), and the β-map
+  hedges the basket with ~2 major legs (ETH/BTC) instead of 8 self-hedges (the #41 "8 books = 1 β
+  bet"). Narrower band ⇒ residual held closer to flat, more rebalances ⇒ more taker cost.
+- **Hedge cost in spread → keeps hedging from being a sure bleed** (`MM_HEDGE_COST_SPREAD_MULT`). Every
+  fill we make is neutralised with a perp taker, so the maker half-spread is widened by that round-trip
+  cost — a fill must earn ≥ what it costs to hedge it. `0.5` (default) charges half the per-fill cost (a
+  neutral book offsets most flow before it becomes hedged delta); raise toward `1.0` to be stricter,
+  **lower it if the wider spread starves the fill rate** (the central cost-vs-fills lever).
+- **F3 toxicity → cuts adverse selection from informed flow** (`MM_F3_TOXICITY`, `MM_F3_MIN/MAX_SCALE`).
+  Scales the half-spread by trade-flow toxicity vs its rolling average — TIGHTEN into calm two-sided
+  flow (farm the rebate), WIDEN into a one-sided sweep (informed flow = where you get picked off). It is
+  **instrumented** now (DR-3): `grep 'F3 toxicity'` in the log shows widen/tighten counts so you can
+  confirm it actually fired — don't credit a defence you can't measure (Journal #44).
 - **Directional bias → adds a chosen bet** (`MM_FLOW_BIAS_LIVE` and the `MM_DIR_*` knobs). OFF in the
   canonical run: a blind directional lean loses (leverage on noise), and Run A′ must stay neutral so
   the hedge's effect is measurable. `MM_FLOW_SHADOW` records the signal at **zero P&L** so the
@@ -90,13 +114,21 @@ curl -s localhost:3100/api/market-making/nav | jq .
 # per-book maxDD — the pre-registered win metric (needs MM_PERSIST + Postgres)
 curl -s 'localhost:3100/api/market-making/nav?hours=24&book=BTC' | jq '.[-1].maxDrawdownPct'
 
-# delta hedge: gross delta, post-hedge residual, hedge P&L, funding
+# delta hedge: gross delta, post-hedge residual, hedge P&L, funding (folded into desk net)
 curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd, fundingUsd, perUnderlying}'
+
+# F3 adverse-selection defence — did it fire? (widen/tighten counts per book, logged each NAV tick)
+grep 'F3 toxicity' "$(ls -t docs/research/run-*-mm10h.log | head -1)" | tail -3
 ```
 
-**The win condition:** post-hedge residual stays near flat (`.hedge.residualUsd`,
-`.hedge.hedgePnlUsd`) **and** per-book maxDD ≤ ~1.5% (vs #41's 17.6%), with `adv` (adverse
-selection) not eating the `spread` column.
+**The win condition (Run A′, pre-registered — `docs/NEXT_RUN_PREREG.md`):** realised-first.
+1. **desk REALISED P&L ≥ 0** (the new bar — #44 had bounded DD but bled −$3.26k realised; mark to
+   realised, don't count transient unrealised longs);
+2. per-book maxDD ≤ ~1.5% (vs #41's 17.6%);
+3. the hedge is non-trivially live — `.hedge.hedgePnlUsd` ≠ 0, residual < gross (DR-4);
+4. F3 fired — `grep 'F3 toxicity'` shows widen-events > 0 in a toxic window (DR-3).
+All four ⇒ gate to Run B (the validated directional lean). If realised < 0, fix adverse / the hedge
+map — do **not** add coins.
 
 ## Stop  (close positions FIRST, or the next start rehydrates them)
 With `MM_PERSIST=true` the desk checkpoints live inventory every tick and rehydrates all open books
@@ -120,9 +152,10 @@ change against it — change exactly one thing, compare, fold the answer back in
 
 | Profile | How it differs from §1 | Why you'd run it |
 |---|---|---|
-| **Canonical (Run A′)** | — (the §1 command as-is) | the run. Neutral spread + governor + delta hedge. |
-| Unhedged baseline | **drop** `MM_DELTA_HEDGE`/`MM_HEDGE_BAND_USD` | measures what the hedge is worth — this is the #41 directional-variance baseline. |
-| Wrapper shorthand | `bash scripts/start-desk.sh` = §1 fair-value block **but** flow-bias ON + **no** hedge | quick neutral-spread start; **not** the canonical run. To make it canonical: `MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 MM_FLOW_BIAS_LIVE=false bash scripts/start-desk.sh` |
+| **Canonical (Run A′)** | `bash scripts/start-desk.sh` (now bakes in §1 exactly: governor + hedge + hedge-cost-in-spread + F3 + β-map) | the run. Neutral spread, directional variance hedged, hedge paid for, adverse defended. |
+| Unhedged baseline | `MM_DELTA_HEDGE=false bash scripts/start-desk.sh` | measures what the hedge is worth — the #41 directional-variance baseline. |
+| F3 off | `MM_F3_TOXICITY=false bash scripts/start-desk.sh` | measures the adverse-selection defence's contribution. |
+| Self-hedge | `MM_HEDGE_BETA_MAP="" bash scripts/start-desk.sh` | hedge each book on its own perp (8 legs) instead of the basket β-map — A/B the capital efficiency. |
 
 ---
 
@@ -150,10 +183,9 @@ it **up / on**.
 | Env | Default | Effect (turn up / on) |
 |---|---|---|
 | **`MM_MICROPRICE_DEPTH`** | `5` | center quotes on N L2 levels of imbalance ⇒ **less adverse selection**; `0` = stale mid (worst). |
-| **`MM_FAST_REQUOTE_ENABLED`** | `false` | turns on the sub-second re-quote loop. |
 | **`MM_FAST_REQUOTE_MS`** | `750` | **lower** = fresher fair value, less pickoff, more order churn (Run A′ `100`). |
 | **`MM_CANCEL_REPLACE_LATENCY_MS`** | `100` | modeled quote-move latency; **lower** = more optimistic fills (Run A′ `30`). |
-| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` | which books get the fast path. |
+| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` | which books get the real **trades-WS aggressor flow** (for VPIN/toxicity). The fast L2 fill path itself is now the default for *all* L2 books — this list just scopes the WS feed. |
 
 ### Inventory governor — the inventory-carry lever (on by default; #39/#41/#43)
 | Env | Default | Effect (turn up / on) |
@@ -166,10 +198,12 @@ it **up / on**.
 ### Delta hedge — the directional-variance lever (defines the canonical run)
 | Env | Default | Effect (turn up / on) |
 |---|---|---|
-| **`MM_DELTA_HEDGE`** | `false` | paper perp leg offsets net delta ⇒ **removes directional variance** (the #41 loss). |
+| **`MM_DELTA_HEDGE`** | `false` (start-desk: **`true`**) | paper perp leg offsets net delta on the **fast cadence** (DR-4) ⇒ **removes directional variance** (the #41 loss); folded into desk NAV + tape (DR-2). |
 | **`MM_HEDGE_BAND_USD`** | `2000` | **lower** = residual held tighter to flat, more rebalances ⇒ more hedge cost. |
-| `MM_HEDGE_TAKER_BPS` | `2.5` | modeled taker cost per hedge fill. |
-| `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg. |
+| **`MM_HEDGE_BETA_MAP`** | self-hedge (start-desk: the **OOS β-map**) | `SYM:UNDERLYING:β` triples fold alts onto a major perp ⇒ hedge the basket with ~2 legs. Re-fit with `scripts/hedge-beta-fit.ts`. |
+| **`MM_HEDGE_COST_SPREAD_MULT`** | `0.5` | fraction of the hedge round-trip priced into the maker spread ⇒ each fill earns ≥ its hedge cost. **Lower if fills starve**, raise to be stricter; `0` = don't charge. |
+| `MM_HEDGE_TAKER_BPS` | `2.5` | modeled taker cost per hedge fill (also the spread-premium basis). |
+| `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg (also the spread-premium basis). |
 
 ### Directional / flow bias — a chosen bet (OFF in the canonical run)
 | Env | Default | Effect (turn up / on) |
@@ -198,8 +232,9 @@ it **up / on**.
 ### Other tunables (rarely touched)
 `MM_GAMMA` (0.0025, risk aversion → wider base spread), `MM_KAPPA` (2, order-arrival decay),
 `MM_MIN/MAX_HALF_SPREAD_BPS` (1 / 200, clamps), `MM_MAKER_FEE_BPS` (−0.2 HL rebate),
-`MM_MAX_DRAWDOWN_PCT` (10, risk-gate trip), `MM_F3_TOXICITY` (false; widens into one-sided sweeps),
-`MM_F3_MIN/MAX_SCALE` (0.5 / 3.0), `MM_FUNDING_BIAS_SYMBOLS` (BTC), `MM_FUNDING_REFRESH_MS` (600000).
+`MM_MAX_DRAWDOWN_PCT` (10, risk-gate trip), **`MM_F3_TOXICITY`** (start-desk: `true`; widens into
+one-sided sweeps, **instrumented** — `grep 'F3 toxicity'`), `MM_F3_MIN/MAX_SCALE` (0.5 / 3.0),
+`MM_FUNDING_BIAS_SYMBOLS` (BTC), `MM_FUNDING_REFRESH_MS` (600000).
 Full list + comments in `app-config.factory.ts`.
 
 Defaults live in `scripts/start-desk.sh`; full rationale in `scripts/launch-mm-10h.sh` header +

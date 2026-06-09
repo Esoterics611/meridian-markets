@@ -15,25 +15,6 @@ export interface AppConfig {
     apiKey: string;
     institutionId: string;
   };
-  hedge: {
-    mockEnabled: boolean;
-    mockFxDriftBpsPerDay: number;
-    mockSettleMs: number;
-    /** Kill-switch: pause hedging if venue funding exceeds this (basis points). Default 100 bps. */
-    maxFundingBps: number;
-    /** Kill-switch: pause hedging if the Lira-Bridge exposure feed is older than this (ms). Default 5 min. */
-    maxFeedStalenessMs: number;
-    /** Fraction of outstanding USDC exposure to hedge. 100 = 100%. Default 100. */
-    hedgeRatioPct: number;
-    /** Minimum imbalance (as % of target) to trigger a rebalance. Default 5%. */
-    rebalanceThresholdPct: number;
-    /** How often the hedge monitor cron runs (ms). Default 60s. */
-    monitorIntervalMs: number;
-    /** 1σ ILS/USD daily vol in basis points — used for 3σ liquidation buffer. Default 94 bps (~5% ann). */
-    ilsSigmaBps: number;
-    /** How old a cached hedge position can be before re-fetching from the venue (ms). Default 30s. */
-    positionStalenessMs: number;
-  };
   statArb: {
     /** Use the synthetic feed/venue (offline, deterministic tests). Real venues are armed via LIVE_TRADING_ARMED. */
     mockEnabled: boolean;
@@ -191,6 +172,12 @@ export interface AppConfig {
     hedgeTakerBps: number;
     /** Half-spread (bps) crossed when rebalancing the hedge (informational cost estimate). */
     hedgeHalfSpreadBps: number;
+    /** Fraction of the hedge round-trip priced into the maker half-spread (0..1+). 0 ⇒ don't charge
+     *  fills for hedging; 1 ⇒ each fill fully pre-funds its hedge. Only used when deltaHedge is on. */
+    hedgeCostSpreadMult: number;
+    /** Hedge β-map: book symbol → { underlying, beta }. Folds alts onto a major perp so one leg
+     *  hedges the basket (Journal #41/#44 DR-3). Empty = self-hedge each symbol 1:1 (the default). */
+    hedgeBetaMap: Record<string, { underlying: string; beta: number }>;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */
@@ -227,13 +214,10 @@ export interface AppConfig {
      */
     microPriceDepth: number;
     /**
-     * Fast-requote path (C2 — CADENCE_LIVE_LOOP_PLAN.md): the master switch for the
-     * queue-aware, sub-second L2 fill path. Off ⇒ today's bar loop (nothing changes);
-     * on ⇒ L2-capable (Hyperliquid) books are driven by the L2 poll driver + the
-     * L2LiveFillEngine instead of the 15s bar tick. Default OFF.
+     * Fast-path poll cadence (ms, sub-second 250–1000). Default 750. The queue-aware L2 fill
+     * path itself is now the DEFAULT for any L2-capable venue (Journal #44 fast-only) — there is
+     * no on/off switch; a non-L2 venue is refused at launch, not silently bar-filled.
      */
-    fastRequoteEnabled: boolean;
-    /** Fast-path poll cadence (ms, sub-second 250–1000). Default 750. */
     fastRequoteMs: number;
     /** Cancel/replace round-trip the fast engine charges (the §6b honesty rail, 50–250ms). Default 100. */
     cancelReplaceLatencyMs: number;

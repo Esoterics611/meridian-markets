@@ -4,6 +4,7 @@ import { L2Snapshot, L2Level } from '../../market-data/reference/reference-sourc
 import { IntervalFlowLike } from '../backtest/l2-tape';
 import { IQuoter } from '../quote/quoter.interface';
 import { QuoteContext, QuotePair, buildQuotePair } from '../quote/quote-pair';
+import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
 
 // L2LiveFillEngine spec — the live, fast-cadence, queue-aware fill engine. Pure unit:
 // canned L2 snapshots + scripted flow, no network, no DB, deterministic (the snapshot
@@ -236,5 +237,32 @@ describe('L2LiveFillEngine — accounting + post-only', () => {
     for (let i = 0; i < 4; i++) ticks.push({ snapshot: snap(i * 1000, 98.5, 10, 99, 10), flow: flow(5, 5, 99, 99) });
     const m = run(baseCfg(), ticks).metrics();
     expect(m.bidFills).toBe(0); // bid 99 would cross best ask 99 → never placed
+  });
+});
+
+describe('L2LiveFillEngine — F3 toxicity instrumentation (DR-3)', () => {
+  it('reports widen/tighten counts + scale when the toxicity scaler is wired', () => {
+    // Two balanced ticks (τ≈0), then a one-sided sweep (τ=1 ⇒ widen vs the calm average),
+    // then balanced again (τ=0 ⇒ tighten). Warmup snapshots (σ not ready) don't reach the scaler.
+    const ticks: LiveTick[] = [
+      { snapshot: snap(0, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) }, // warmup
+      { snapshot: snap(1000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) }, // warmup
+      { snapshot: snap(2000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) }, // calm (quoting begins)
+      { snapshot: snap(3000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) }, // calm
+      { snapshot: snap(4000, 99, 10, 101, 10), flow: flow(0, 10, 99, 101) }, // one-sided sweep ⇒ widen
+      { snapshot: snap(5000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) }, // calm again ⇒ tighten
+    ];
+    const m = run(baseCfg({ toxicityScaler: new FlowToxicityScaler({ windowBars: 8, minScale: 0.5, maxScale: 3 }) }), ticks).metrics();
+    expect(m.toxicity).toBeDefined();
+    expect(m.toxicity!.widenSteps).toBeGreaterThanOrEqual(1);
+    expect(m.toxicity!.tightenSteps).toBeGreaterThanOrEqual(1);
+    expect(m.toxicity!.maxScale).toBeGreaterThan(1);
+    expect(m.toxicity!.lastScale).toBeLessThan(1); // last tick tightened
+  });
+
+  it('toxicity is undefined when no scaler is wired (the defence is off — read it honestly)', () => {
+    const ticks: LiveTick[] = [];
+    for (let i = 0; i < 6; i++) ticks.push({ snapshot: snap(i * 1000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) });
+    expect(run(baseCfg(), ticks).metrics().toxicity).toBeUndefined();
   });
 });

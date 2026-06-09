@@ -8,7 +8,7 @@ import { ITelemetry } from '../../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
 import { M } from '../../telemetry/metric-catalog';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
-import { lifecycleEvent } from '../events/desk-event';
+import { lifecycleEvent, hedgeEvent } from '../events/desk-event';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -67,6 +67,10 @@ export interface MmPortfolioSnapshot {
   fundingUnits: string;
   netPnlUnits: string;
   books: MmBookSnapshot[];
+  /** The hedge leg's P&L (mtm + funding − cost), folded into the desk totals above as an OPEN
+   *  position ⇒ counted in netPnlUnits/unrealisedPnlUnits/equityUnits. The live trader always
+   *  populates it ('0' when no hedge); optional only so hand-built test fixtures need not. (DR-2) */
+  hedgePnlUnits?: string;
   /** Desk delta-hedge state (gross delta / post-hedge residual / hedge P&L), when enabled. */
   hedge?: HedgeSnapshot;
 }
@@ -317,19 +321,12 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
           .map((b) => b.tick().catch((e) => this.logger.error(`mm book tick error: ${(e as Error).message}`))),
       );
       await this.checkpointAll(); // durable P&L after every tick (no-op when persistence is off)
-      if (this.hedger) {
-        // Delta hedge AFTER the books tick (so we hedge this tick's inventory). Best-effort —
-        // a hedge error never sinks the loop (mirrors the per-book guard above).
-        try {
-          const { books, prices, funding } = this.deskDeltas();
-          const now = Date.now();
-          const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
-          this.lastHedgeMs = now;
-          await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
-        } catch (e) {
-          this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
-        }
-      }
+      // Delta hedge: on a live desk the books trade on the 100ms fast path, so the hedge runs
+      // once per L2 poll cycle (DR-4, via hedgeTick() wired to the driver's afterCycle) to track
+      // that inventory instead of lagging it on this slow bar timer. The bar tick only drives the
+      // hedge when NO fast driver is wired (the offline-test bar simulator) — never both, so the
+      // desk is never double-hedged.
+      if (this.fastDriver === null) await this.hedgeTick();
     } finally {
       this.ticking = false;
       const durSec = (Date.now() - startMs) / 1000;
@@ -342,6 +339,36 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
         this.telemetry.counter(M.tickOverrun, { loop: 'mm' });
         this.telemetry.alert({ kind: 'tick_overrun', severity: 'warn', message: `mm tick ${Math.round(durSec * 1000)}ms exceeded poll ${this.pollIntervalMs}ms` });
       }
+    }
+  }
+
+  /** Re-entrancy guard for the hedge step (the fast cycle and the bar tick both reach it). */
+  private hedging = false;
+
+  /**
+   * One desk delta-hedge step: read every book's current delta, rebalance the perp leg against it
+   * (banded), and put each rebalance on the desk tape (DR-2, auditable like a fill). Driven once per
+   * fast L2 poll cycle when a fast driver is wired (DR-4 — tracks the sub-second inventory the bar
+   * timer lagged), else by the bar tick. Best-effort + guarded: a hedge error never sinks the caller
+   * and overlapping calls early-return (the hedge places real paper orders — never double-fire).
+   */
+  async hedgeTick(): Promise<void> {
+    if (!this.hedger || this.hedging) return;
+    this.hedging = true;
+    try {
+      const { books, prices, funding } = this.deskDeltas();
+      const now = Date.now();
+      const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
+      this.lastHedgeMs = now;
+      const hedgeSnap = await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
+      for (const o of hedgeSnap.ordersLastTick) {
+        const resid = hedgeSnap.perUnderlying.find((u) => u.underlying === o.underlying)?.residualUsd ?? 0;
+        this.events.emit(hedgeEvent({ ts: now, underlying: o.underlying, side: o.side, notionalUsd: o.notionalUsd, residualUsd: resid, reason: o.reason }));
+      }
+    } catch (e) {
+      this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);
+    } finally {
+      this.hedging = false;
     }
   }
 
@@ -416,18 +443,24 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       funding += BigInt(s.fundingUnits);
       net += BigInt(s.netPnlUnits);
     }
+    // DR-2: fold the hedge leg into the desk totals. The hedge holds an OPEN perp position, so its
+    // P&L (mtm + funding − cost) is desk UNREALISED — without this the persisted NAV + the live
+    // gauge counted only the books and the hedge was invisible in the net (Journal #44).
+    const hedge = this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined;
+    const hedgePnlUnits = hedge && this.books.size ? BigInt(Math.round(hedge.hedgePnlUsd * 1_000_000)) : 0n;
     return {
       running: this.isRunning(),
       bookCount: this.books.size,
       capitalUnits: (this.books.size ? cap : this.capitalUnits).toString(),
-      equityUnits: (this.books.size ? eq : this.capitalUnits).toString(),
+      equityUnits: (this.books.size ? eq + hedgePnlUnits : this.capitalUnits).toString(),
       realisedPnlUnits: real.toString(),
-      unrealisedPnlUnits: unreal.toString(),
+      unrealisedPnlUnits: (unreal + hedgePnlUnits).toString(),
       feesUnits: fees.toString(),
       fundingUnits: funding.toString(),
-      netPnlUnits: net.toString(),
+      netPnlUnits: (net + hedgePnlUnits).toString(),
       books,
-      hedge: this.hedger ? (() => { const { books: d, prices } = this.deskDeltas(); return this.hedger!.snapshot(d, prices); })() : undefined,
+      hedgePnlUnits: hedgePnlUnits.toString(),
+      hedge,
     };
   }
 }

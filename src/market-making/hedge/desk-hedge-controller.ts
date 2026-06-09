@@ -53,6 +53,12 @@ export interface RebalanceCtx {
 export class DeskHedgeController {
   private readonly pos = new Map<string, PerpPosition>();
   private lastOrders: HedgeOrder[] = [];
+  /** Last live mark seen per underlying. A book going un-warm / mid-relaunch drops its symbol from
+   *  the desk price map (deskDeltas skips mid≤0); marking an OPEN hedge at the resulting 0 produced a
+   *  phantom P&L blow-up AND made computeHedge think it held nothing ⇒ it re-traded every 100ms tick
+   *  (Journal #45 bug: +$194M hedge P&L). We fall back to this last-known mark so the hedge stays
+   *  correctly valued + converged across the price flicker. */
+  private readonly lastMark = new Map<string, bigint>();
 
   constructor(
     private readonly venue: ITradingVenue,
@@ -73,6 +79,24 @@ export class DeskHedgeController {
     return p;
   }
 
+  /**
+   * Resolve a usable mark per underlying: prefer the live price, fall back to the last seen one for
+   * any underlying whose live price is missing/zero (a book going un-warm drops out of the desk price
+   * map). Ingests the live prices into the last-known cache. EVERYTHING downstream (funding, current
+   * hedge, fill price, P&L mark) uses the result, so the hedge is valued + sized off ONE consistent
+   * price set and never sees a phantom 0. Includes every underlying we hold or have ever marked, so a
+   * held position is always valued even on a tick where its book is silent.
+   */
+  private resolveMarks(prices: Record<string, bigint>): Record<string, bigint> {
+    for (const [u, p] of Object.entries(prices)) if (p && p > 0n) this.lastMark.set(u, p);
+    const out: Record<string, bigint> = {};
+    for (const u of new Set<string>([...Object.keys(prices), ...this.pos.keys(), ...this.lastMark.keys()])) {
+      const live = prices[u];
+      out[u] = live && live > 0n ? live : this.lastMark.get(u) ?? 0n;
+    }
+    return out;
+  }
+
   /** Signed hedge notional (USD) per underlying at the supplied marks. */
   private hedgeNotionalUsd(prices: Record<string, bigint>): Record<string, number> {
     const out: Record<string, number> = {};
@@ -85,23 +109,28 @@ export class DeskHedgeController {
    * current hedge notional, fill the orders on the venue, and return the post-hedge snapshot.
    */
   async rebalance(books: BookDelta[], ctx: RebalanceCtx): Promise<HedgeSnapshot> {
+    // Resolve marks ONCE (live price, else last-known) and use them for every step below — funding,
+    // current hedge, fill price, and the returned snapshot — so a book's price flicker can't make the
+    // hedge mis-value, churn, or blow up its P&L (Journal #45).
+    const marks = this.resolveMarks(ctx.prices);
+
     // 1. Funding on what we already hold (short hedge earns when the rate is positive).
     const dt = ctx.dtHours ?? 0;
     if (dt > 0 && ctx.fundingRatePerHour) {
       for (const [u, p] of this.pos) {
-        const notional = (Number(p.units) / MICROS) * (Number(ctx.prices[u] ?? 0n) / MICROS);
+        const notional = (Number(p.units) / MICROS) * (Number(marks[u] ?? 0n) / MICROS);
         p.fundingUsd += -notional * (ctx.fundingRatePerHour[u] ?? 0) * dt; // long pays, short receives
       }
     }
 
     // 2. The banded rebalance against the current hedge notional.
-    const plan = computeHedge(books, this.hedgeNotionalUsd(ctx.prices), this.cfg);
+    const plan = computeHedge(books, this.hedgeNotionalUsd(marks), this.cfg);
     this.lastOrders = plan.orders;
-    if (plan.orders.length) this.syncPrices?.(ctx.prices); // pin the venue's fill price to our marks
+    if (plan.orders.length) this.syncPrices?.(marks); // pin the venue's fill price to our marks
 
     // 3. Fill each order as a taker on the venue; update the perp position from the real fill.
     for (const o of plan.orders) {
-      const priceMicros = ctx.prices[o.underlying];
+      const priceMicros = marks[o.underlying];
       if (!priceMicros || priceMicros <= 0n) continue;
       const units = hedgeOrderUnits(o.notionalUsd, priceMicros);
       if (units <= 0n) continue;
@@ -123,10 +152,12 @@ export class DeskHedgeController {
     return this.snapshot(books, ctx.prices);
   }
 
-  /** Desk gross delta, post-hedge residual, and hedge P&L at the supplied marks. */
+  /** Desk gross delta, post-hedge residual, and hedge P&L at the supplied marks. Resolves missing
+   *  marks to the last-known price so an open hedge is never valued at 0 (Journal #45). */
   snapshot(books: BookDelta[], prices: Record<string, bigint>): HedgeSnapshot {
+    const marks = this.resolveMarks(prices);
     const net = netDeltaByUnderlying(books, this.cfg.betaMap);
-    const hedgeNotional = this.hedgeNotionalUsd(prices);
+    const hedgeNotional = this.hedgeNotionalUsd(marks);
     const underlyings = new Set<string>([...Object.keys(net), ...this.pos.keys()]);
     let grossDeltaUsd = 0;
     let residualUsd = 0;
@@ -140,7 +171,7 @@ export class DeskHedgeController {
       const hn = hedgeNotional[u] ?? 0;
       const resid = netDeltaUsd + hn;
       const p = this.pos.get(u);
-      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * (Number(prices[u] ?? 0n) / MICROS) : 0;
+      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * (Number(marks[u] ?? 0n) / MICROS) : 0;
       grossDeltaUsd += Math.abs(netDeltaUsd);
       residualUsd += Math.abs(resid);
       hedgePnlUsd += mtm + (p?.fundingUsd ?? 0) - (p?.feesUsd ?? 0);

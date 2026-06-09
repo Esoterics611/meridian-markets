@@ -163,6 +163,37 @@ describe('L2PollDriver — fast L2 poll loop', () => {
     expect(driver.isRunning()).toBe(false);
   });
 
+  it('fires afterCycle once per cycle, after every symbol has been routed (the DR-4 desk-hedge seam)', async () => {
+    const sched = new FakeScheduler();
+    const src = new FakeL2Source(async (s) => snap(s, 1000));
+    const order: string[] = [];
+    const sink = jest.fn<void, [string, LiveTick]>((s) => void order.push(`sink:${s}`));
+    const afterCycle = jest.fn(async () => void order.push('after'));
+    const driver = new L2PollDriver({ source: src, symbols: ['BTC', 'ETH'], pollIntervalMs: 500, sink, afterCycle, scheduler: sched });
+
+    await driver.pollOnce();
+
+    expect(afterCycle).toHaveBeenCalledTimes(1);
+    expect(order[order.length - 1]).toBe('after'); // runs LAST — after both sinks
+    expect(order.filter((x) => x.startsWith('sink:'))).toHaveLength(2);
+
+    await driver.pollOnce();
+    expect(afterCycle).toHaveBeenCalledTimes(2); // exactly once per cycle
+  });
+
+  it('is best-effort about afterCycle: a throwing hook is swallowed and never sinks the poll loop', async () => {
+    const sched = new FakeScheduler();
+    const src = new FakeL2Source(async (s) => snap(s, 1000));
+    const sink = jest.fn<void, [string, LiveTick]>();
+    const afterCycle = jest.fn(() => {
+      throw new Error('hedge boom');
+    });
+    const driver = new L2PollDriver({ source: src, symbols: ['BTC'], pollIntervalMs: 500, sink, afterCycle, scheduler: sched });
+
+    await expect(driver.pollOnce()).resolves.toBeUndefined(); // never throws
+    expect(sink).toHaveBeenCalledTimes(1); // the cycle's real work still completed
+  });
+
   it('the scheduled interval fn runs a poll cycle (the timer is wired to pollOnce)', async () => {
     const sched = new FakeScheduler();
     const src = new FakeL2Source(async (s) => snap(s, 1000));
