@@ -31,6 +31,39 @@ desk holds a steady, low-drawdown NAV curve and **unrealised stops being the los
 
 > **VERDICT (2026-06-08, ~10h, Journal #41):** metric 1 **PASS** (unrealised +$1,464 = 0.15× realised −$9,952 — the #39 unrealised-bag pathology is gone); metric 2 **FAIL** (per-book maxDD SUI 17.6% / BTC 10.3% / SOL 7.4% — only DOGE ≤1.5%); metric 3 holds (governor flattening). Desk **−$8,225** net. **Lesson:** the governor fixed the *unrealised* axis only — it crystallised the loss into realised by flattening, it did not stop the bleed, because **a fixed lot-cap ≠ bounded drawdown and the desk's NET DELTA is unhedged.** Fixes shipped: notional inventory cap (`MM_MAX_INVENTORY_NOTIONAL_FRAC`) + the `DeskDeltaHedger` model (`docs/HEDGING_MODEL.md`). **Run A′ supersedes this:** governor + notional cap + delta hedge; same metrics; required before any directional Run B.
 
+## Run A′ — governor + notional cap + auditable delta hedge, neutral (THE NEXT RUN, supersedes Run A)
+
+**Hypothesis (pre-registered):** with the position bounded (governor + notional cap) AND the
+desk's net delta hedged on the fast path, a neutral spread-capture desk holds a steady,
+low-drawdown curve **and stops losing money** — i.e. the market-making edge (spread + rebate −
+adverse) clears, now that the directional variance is hedged out (Journal #44: DD was bounded to
+≤1.42% but the desk still bled realised −$3.26k because the hedge was inert).
+
+- **Universe (frozen):** BTC, ETH, SOL, DOGE, BNB, XRP, ADA, SUI — the Entry #28 KEEP set. $1M/book, $8M desk.
+- **Strategy:** `mm-glft` (neutral) on every book. NO directional, NO live bias.
+- **Changes under test vs #44 (the hedge is now real — all four DR fixes shipped #44b–this session):**
+  1. **DR-1/DR-2** the legacy `src/hedge/` zombie is gone; the MM `DeskHedgeController` P&L is folded into desk NAV + on the DeskEvent tape (auditable);
+  2. **DR-3** F3 is instrumented — `grep 'F3 toxicity'` in the log confirms it fired (widen/tighten counts);
+  3. **DR-4** the hedge runs on the 100ms fast L2 cadence (was lagging on the 15s bar timer ⇒ inert);
+  4. funding accrues on the fast path (was hard-coded $0).
+- **Env (the canonical `bash scripts/start-desk.sh` now bakes these in — verify in the boot log):**
+  governor default-ON (`hardInventoryCap=true`, `maxInventoryNotionalFrac=0.25`, `inventorySkewMult=4`),
+  `MM_F3_TOXICITY=true`, `MM_DELTA_HEDGE=true`, `MM_HEDGE_BAND_USD` default, `MM_HEDGE_BETA_MAP` =
+  the OOS-fit alt→major map (`scripts/hedge-beta-fit.ts`). Everything else held vs #44 (HL, 100ms
+  re-quote, micro-price center, fees/rebate, persistence, `MM_FLOW_SHADOW=true` measure-only).
+- **Success metric (pre-registered, judged on `mm_nav` — realised-first, the #44-DR-6 rule):**
+  1. **Desk REALISED P&L ≥ 0** at the end — the new bar. #44 passed DD but realised was −$3.26k;
+     bounded drawdown on a losing desk is not the goal. Unrealised is reported but NOT counted as
+     a win (the SUI/BNB transient-long trap, #44 verdict 2).
+  2. **Per-book maxDD ≤ ~1.5%** (held in #44 — must not regress).
+  3. **The hedge is non-trivially live:** `hedge` DeskEvents on the tape, desk `hedgePnlUnits` ≠ 0
+     in NAV, and post-hedge residual < gross delta (proves DR-4 — the hedge tracks inventory).
+  4. **F3 fired:** `grep 'F3 toxicity'` shows widen-events > 0 in a toxic window (proves DR-3).
+- **Run:** `bash scripts/start-desk.sh` then `bash scripts/launch-mm-10h.sh`; review with the
+  `mm-run-review` skill (truth = `mm_nav`, never the multi-MB log). **Gate to Run B:** all four
+  metrics pass. If realised < 0, the edge is still missing — fix adverse selection / the hedge
+  map, do NOT add coins or reach for the directional lean.
+
 ## Run B — the time-stopped directional lean (the run AFTER A)
 
 Only after Run A confirms the governor works. Needs phase-B code first (the taker time-stop +
