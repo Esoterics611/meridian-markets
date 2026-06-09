@@ -1856,3 +1856,27 @@ UI does not; a 1-line engine-comment fix left for the repo-wide audit pass.
 **Tests:** tsc clean; `jest src/ui` 94/94 green (+ new maxDD-reddens-over-budget and exposure-neutral /
 blocked-amber assertions). **JOB B (run + review Run A′) is hand-run by Ronnie** — the sandbox can't run
 the dev server; smoke step: `bash scripts/start-desk.sh` → `http://localhost:3100/desk/mm` (+ `/risk`).
+
+### #46a (same day, live look #2) — stop-desk now flattens the HEDGE too, so the desk lands on a true 000
+Ronnie restarted and still saw a garbage P&L (~$666M). Root cause was **process hygiene, not the fix**:
+`ps` showed **three** desk servers alive — two from **Jun 8, before the #45a hedge fix** — none bound to
+:3100 anymore, but the browser had been served by a stale pre-fix process still holding the poisoned
+in-memory hedge position. Killed all stale `nest start --watch` / `dist/src/main` processes (the +$666M
+died with them; the hedge is in-memory, not persisted).
+
+But the diagnosis exposed a **real gap** Ronnie asked to close: the **stop-desk ritual must take the desk
+to a visible 000 by itself**, no process restart. Today `closeAll()` (what `scripts/stop-desk.sh` POSTs)
+looped `removeBook` per book (each taped, step-by-step ✓) but **never reset the hedge** — so
+`hedger.snapshot()` kept marking the still-held perp legs against the last-known price and the UI's hedge
+panel showed the phantom P&L until the process was killed (exactly the #45a trap, just surfaced via the
+panel instead of the net). Fix: **`DeskHedgeController.reset()`** (clears `pos` + `lastOrders` +
+`lastMark` → snapshot reads 0 gross/residual/P&L, perUnderlying empty) called from `closeAll()` after the
+books are dropped, emitting a `delta hedge flattened — N perp leg(s) closed, desk flat` lifecycle event.
+Now stop-desk tapes each book close, then the hedge flatten, and the summary + hedge panel both read a
+true **$0.00 / flat** — no restart needed. (`flatten` endpoint unchanged — it keeps books and the live
+loop unwinds the hedge over the next ticks; only `closeAll` needs the explicit reset since it stops.)
+
+**Tests:** tsc clean; `desk-hedge-controller` (reset → flat 000) + `mm-portfolio-trader` (closeAll resets
+hedge, tapes it, snapshot flat) green — `jest src/market-making/{hedge,live,events}` 93/93. **Operator
+note:** if a desk shows a ghost P&L, the cause is almost always a **stale duplicate server** — `ps aux |
+grep nest` should show exactly ONE; kill extras, then `bash scripts/stop-desk.sh` lands it on 000.

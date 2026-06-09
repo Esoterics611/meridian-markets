@@ -80,6 +80,23 @@ export class DeskHedgeController {
   }
 
   /**
+   * Drop the entire hedge book to flat — clear every perp position, the last orders, and the
+   * last-known marks, so a fresh snapshot() reads zero gross/residual/P&L (perUnderlying empty).
+   * The desk's `closeAll` (the "come up clean" shutdown ritual, scripts/stop-desk.sh) calls this so
+   * the UI returns to a true flat 000 WITHOUT a process restart. (Journal #45a: the in-memory hedge
+   * state is otherwise only cleared by killing the process — the exact ghost-P&L trap, where a held
+   * perp marked against a stale price keeps showing a phantom P&L after the books are flat.)
+   * Returns the number of perp legs that were tracked, for the desk tape.
+   */
+  reset(): number {
+    const legs = this.pos.size;
+    this.pos.clear();
+    this.lastOrders = [];
+    this.lastMark.clear();
+    return legs;
+  }
+
+  /**
    * Resolve a usable mark per underlying: prefer the live price, fall back to the last seen one for
    * any underlying whose live price is missing/zero (a book going un-warm drops out of the desk price
    * map). Ingests the live prices into the last-known cache. EVERYTHING downstream (funding, current

@@ -89,6 +89,24 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
     expect(ctrl.snapshot(books, { SUI }).perUnderlying.find((u) => u.underlying === 'ETH')!.hedgeNotionalUsd).toBeGreaterThan(9000);
   });
 
+  it('reset() drops the hedge book to flat — snapshot reads zero gross/residual/P&L (no ghost)', async () => {
+    const venue = venueAt({ BTC: BTC_100K });
+    const ctrl = new DeskHedgeController(venue, cfg());
+    await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } }); // open a −2 BTC hedge
+    expect(ctrl.snapshot(longBtc(2_000_000n, BTC_100K), { BTC: BTC_100K }).perUnderlying).toHaveLength(1);
+
+    const legs = ctrl.reset();
+    expect(legs).toBe(1); // reported one perp leg closed (for the desk tape)
+
+    // closeAll removes the books BEFORE resetting the hedge — so the post-close snapshot sees no
+    // books and no held perp ⇒ a true flat 000 (this is what makes the UI land on zero, not a ghost).
+    const snap = ctrl.snapshot([], {});
+    expect(snap.grossDeltaUsd).toBe(0);
+    expect(snap.residualUsd).toBe(0);
+    expect(snap.hedgePnlUsd).toBe(0);
+    expect(snap.perUnderlying).toHaveLength(0);
+  });
+
   it('the hedge P&L offsets the book: short hedge gains when price falls', async () => {
     const venue = venueAt({ BTC: BTC_100K });
     const ctrl = new DeskHedgeController(venue, cfg());

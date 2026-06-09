@@ -230,6 +230,15 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   async closeAll(): Promise<number> {
     const symbols = [...this.books.keys()]; // snapshot keys — removeBook mutates the map
     for (const s of symbols) await this.removeBook(s);
+    // The books are flat + dropped; now drop the HEDGE book too. Without this, closeAll left the
+    // in-memory perp positions in place — `hedger.snapshot()` kept marking them against the last-known
+    // price, so the UI's hedge panel still showed the phantom P&L (Journal #45a) until a full process
+    // restart. closeAll's contract is "next boot comes up CLEAN", so it resets the hedge to flat and
+    // tapes it — the desk visibly lands at a true 000 (the stop-desk ritual now needs no restart).
+    if (this.hedger) {
+      const legs = this.hedger.reset();
+      this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'stop', message: `delta hedge flattened — ${legs} perp leg(s) closed, desk flat` }));
+    }
     return symbols.length;
   }
 
