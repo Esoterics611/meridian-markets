@@ -35,6 +35,14 @@ export interface GlftQuoterParams {
    *  these σ (≈2 bps at full inventory) — too weak to mean-revert in a trend (Journal
    *  #39). 1 = standard A-S (legacy). Default 1. */
   inventorySkewMult?: number;
+  /** σ-INDEPENDENT inventory lean (Journal #48). The reservation skew above is ∝ γ·σ²·q, so in a
+   *  CALM-but-trending tape (low realised vol, steady drift) it nearly vanishes and the book keeps
+   *  accumulating one-sided inventory that marks against it. This adds a graduated ASYMMETRIC
+   *  half-spread skew driven by inventory UTILISATION u = q/cap ∈ [−1,1]: TIGHTEN the side that
+   *  sheds (more fills exiting) and WIDEN the side that adds (fewer fills building), proportional to
+   *  how full the book is — so it leans HARDER against the trend the more inventory it carries,
+   *  regardless of σ. Ramps smoothly to the hard cap. 0 = off (legacy). Typical 0.3–0.5. */
+  inventorySpreadSkew?: number;
   /** Hard inventory backstop: when |inventory| ≥ maxInventoryLots, PARK the side that would
    *  ADD to the position at the max rail so the book physically cannot breach the cap,
    *  regardless of how weak the skew is. The fix for the runaway inventory that was the
@@ -97,11 +105,23 @@ export class GlftQuoter implements IQuoter {
     const scale = ctx.spreadScale && ctx.spreadScale > 0 ? ctx.spreadScale : 1;
     const halfSpreadMicros = scale === 1 ? railed : bigMax1(BigInt(Math.round(Number(railed) * scale)));
 
-    // Hard inventory cap (backstop): at/over the cap, park the side that would ADD to the
-    // position at the max rail so the book cannot breach maxInventoryLots. The other side
-    // keeps quoting (already skewed toward flat) so the position still sheds.
     let bidHalfSpreadMicros: bigint | undefined;
     let askHalfSpreadMicros: bigint | undefined;
+
+    // σ-independent inventory lean (Journal #48): tighten the SHEDDING side + widen the ADDING side
+    // proportional to inventory utilisation u, so the book actively reduces inventory even in a calm
+    // trend where the σ²-scaled reservation skew above is too weak. u>0 (net long) ⇒ widen bid (buy
+    // less), tighten ask (sell more); u<0 flips. bigMax1 keeps the tightened side ≥ 1 micro.
+    const shed = this.p.inventorySpreadSkew && this.p.inventorySpreadSkew > 0 ? this.p.inventorySpreadSkew : 0;
+    if (shed > 0 && effMaxLots > 0) {
+      const u = clamp(rawQLots / effMaxLots, -1, 1);
+      bidHalfSpreadMicros = bigMax1(BigInt(Math.round(Number(halfSpreadMicros) * (1 + shed * u))));
+      askHalfSpreadMicros = bigMax1(BigInt(Math.round(Number(halfSpreadMicros) * (1 - shed * u))));
+    }
+
+    // Hard inventory cap (backstop): at/over the cap, park the side that would ADD to the
+    // position at the max rail so the book cannot breach maxInventoryLots. Overrides the lean
+    // above on the adding side; the shedding side keeps its tightened quote so the book still sheds.
     if (this.p.hardInventoryCap) {
       if (rawQLots >= effMaxLots) bidHalfSpreadMicros = maxMicros; // at notional/lot cap long ⇒ stop buying
       else if (rawQLots <= -effMaxLots) askHalfSpreadMicros = maxMicros; // at cap short ⇒ stop selling

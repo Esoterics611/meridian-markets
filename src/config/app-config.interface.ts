@@ -156,6 +156,11 @@ export interface AppConfig {
     /** Multiplier on the inventory-skew term (Journal #39): >1 mean-reverts inventory to
      *  flat/target harder without widening the spread. 1 = standard A-S. */
     inventorySkewMult: number;
+    /** σ-independent inventory lean (Journal #48): a graduated asymmetric half-spread skew that
+     *  tightens the shedding side + widens the adding side proportional to inventory utilisation,
+     *  so a neutral book leans against accumulating one-sided inventory even in a calm trend where
+     *  the σ²-scaled reservation skew is too weak. 0 = off. Typical 0.3–0.5. */
+    inventorySpreadSkew: number;
     /** Hard inventory backstop: park the accumulating side at the rail when |inventory| ≥
      *  maxInventoryLots so the book physically cannot breach the cap. */
     hardInventoryCap: boolean;

@@ -210,7 +210,8 @@ it **up / on**.
 | Env | Default | Effect (turn up / on) |
 |---|---|---|
 | **`MM_HARD_INVENTORY_CAP`** | `true` | book *physically* parks the heavy side at the rail at \|q\|≥cap ⇒ no runaway inventory. |
-| **`MM_INVENTORY_SKEW_MULT`** | `4` | **higher** = quotes lean harder toward flat ⇒ less carry, slightly less spread. |
+| **`MM_INVENTORY_SKEW_MULT`** | `4` | scales the σ²-based reservation skew **higher** = leans harder toward flat — but it ∝ σ², so it's weak in a calm trend. |
+| **`MM_INVENTORY_SPREAD_SKEW`** | `0.4` | **σ-INDEPENDENT lean (#48):** tightens the shedding side + widens the adding side up to this fraction at the cap, so a neutral book sheds one-sided inventory even when σ is low and the tape just drifts. **higher** (≤0.9) = sheds harder (toward single-siding); `0` = off. |
 | **`MM_MAX_INVENTORY_LOTS`** | `8` | lot-count bound; **lower** = tighter inventory, fewer fills. |
 | **`MM_MAX_INVENTORY_NOTIONAL_FRAC`** | `0.25` | cap \|inventory\| at this fraction of capital at live mid ⇒ same *risk* across a 100×-price universe (Run A′ `0.15`); `0` = off. |
 
