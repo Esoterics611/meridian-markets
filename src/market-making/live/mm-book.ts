@@ -362,6 +362,7 @@ export class MmBook {
     if (!eng || !this.running) return;
     // VPIN feed (fast path): real per-interval aggressor prints — no BVC estimate needed.
     if (tick.flow) this.vpin.onClassifiedVolume(tick.flow.aggressiveBuyUnits ?? 0n, tick.flow.aggressiveSellUnits ?? 0n);
+    const invBefore = this.book.inventoryUnits(); // carried-in inventory, for funding/carry
     const beforeBid = this._fastBidFills;
     const beforeAsk = this._fastAskFills;
     const quote = eng.onSnapshot(tick);
@@ -369,9 +370,13 @@ export class MmBook {
     const m = eng.metrics();
     this._fastBidFills = m.bidFills;
     this._fastAskFills = m.askFills;
+    const mid = eng.lastMid() ?? MICROS;
+    // Funding accrual on the carried-in inventory — the ONE term the fast path was missing (the
+    // engine already computes realised/unrealised/fees + spread/adverse/carry/markout/maxDD).
+    // Uses the wall clock since L2 snapshots carry no timestamp; fastSnapshot surfaces fundingUnits.
+    this.accrueInterval(this.now().getTime(), mid, invBefore);
     // Emit a fill event per new fill (side from the count delta, price from the resting
     // quote on that side). The realised P&L is read from the shared book.
-    const mid = eng.lastMid() ?? MICROS;
     for (let i = beforeBid; i < m.bidFills && quote; i++) this.emitFastFill('BUY', quote.bid.priceMicros, mid);
     for (let i = beforeAsk; i < m.askFills && quote; i++) this.emitFastFill('SELL', quote.ask.priceMicros, mid);
   }
@@ -393,6 +398,30 @@ export class MmBook {
     );
   }
 
+  /**
+   * Per-interval bookkeeping shared by BOTH drive paths (bar tick + fast L2 snapshot): accrue
+   * funding on the inventory carried INTO the interval, mark the inventory-carry attribution, and
+   * advance the inter-update cursor. `invUnits` is that carried-in inventory (captured before this
+   * interval's fills); `midMicros` is this interval's mid. Flat/warming (inv 0) ⇒ funding/carry are
+   * no-ops. Funding: −(signed inv notional)·rate·Δt (a long pays a positive rate). Rounding is safe
+   * at desk-scale notional even at 100ms (per-step accrual ≫ 1 unit). NOTE: fast-path books surface
+   * the ENGINE's carry attribution (fastSnapshot reads m.attribution), so the carry accumulated here
+   * is used by the bar path only — funding is the term the fast path was missing (it hard-coded 0).
+   */
+  private accrueInterval(tsMs: number, midMicros: bigint, invUnits: bigint): void {
+    if (this.prevBarMs !== undefined && this.prevMidMicros !== undefined && invUnits !== 0n) {
+      const fundingRate = this.cfg.fundingRatePerHour ?? 0;
+      const dtHours = (tsMs - this.prevBarMs) / 3_600_000;
+      if (fundingRate !== 0 && dtHours > 0) {
+        const notional = (invUnits * this.prevMidMicros) / MICROS;
+        this.fundingUnits += BigInt(Math.round(-Number(notional) * fundingRate * dtHours));
+      }
+      this.inventoryCarry += (invUnits * (midMicros - this.prevMidMicros)) / MICROS;
+    }
+    this.prevBarMs = tsMs;
+    this.prevMidMicros = midMicros;
+  }
+
   /** One iteration: pull the latest closed bar and act on it. No-op if none new. */
   async tick(): Promise<void> {
     if (this.cfg.fastEngine) return; // fast-path books are driven by onL2Snapshot, never the bar tick
@@ -403,28 +432,10 @@ export class MmBook {
     const midMicros = toMicros(bar.close);
     this.vol.push(bar.close);
 
-    // Accrue funding on the inventory CARRIED INTO this bar over the interval since
-    // the previous bar (long pays a positive rate ⇒ −(signed inv notional)·rate·Δt).
-    // Done before the warmup early-return so the inter-bar clock stays correct; while
-    // warming, inventory is 0 ⇒ no accrual. (MM course §8.10.)
     const tsMs = bar.timestamp.getTime();
-    const fundingRate = this.cfg.fundingRatePerHour ?? 0;
-    if (fundingRate !== 0 && this.prevBarMs !== undefined && this.prevMidMicros !== undefined) {
-      const dtHours = (tsMs - this.prevBarMs) / 3_600_000;
-      const inv = this.book.inventoryUnits();
-      if (dtHours > 0 && inv !== 0n) {
-        const notional = (inv * this.prevMidMicros) / MICROS;
-        this.fundingUnits += BigInt(Math.round(-Number(notional) * fundingRate * dtHours));
-      }
-    }
-    // Mark the carried inventory to this bar's mid — the inventory-carry attribution
-    // column (MTM drift on what we already held, distinct from this bar's own fills).
-    if (this.prevMidMicros !== undefined) {
-      const carried = this.book.inventoryUnits();
-      if (carried !== 0n) this.inventoryCarry += (carried * (midMicros - this.prevMidMicros)) / MICROS;
-    }
     // VPIN feed (bar path): classify this bar's volume into buy/sell via Bulk Volume
-    // Classification (BVC, ELO12) — buyFrac = Φ(standardised return) — then bucket it.
+    // Classification (BVC, ELO12) — buyFrac = Φ(standardised return) — then bucket it. Runs
+    // FIRST, while prevMidMicros still holds the previous bar's mid (accrueInterval moves it).
     // Needs a warm σ for the standardisation; while warming, VPIN simply stays at 0.
     const sigma = this.vol.value();
     if (this.prevMidMicros !== undefined && Number.isFinite(sigma) && sigma > 0 && bar.volume > 0) {
@@ -436,8 +447,9 @@ export class MmBook {
     }
     // Re-mark prior fills against this bar's mid (the forward markout curve).
     this.markout.onMid(tsMs, midMicros);
-    this.prevBarMs = tsMs;
-    this.prevMidMicros = midMicros;
+    // Funding + inventory-carry on the inventory carried into this bar, then advance the cursor.
+    // (Shared with the fast L2 path — the one place funding accrues. MM course §8.10.)
+    this.accrueInterval(tsMs, midMicros, this.book.inventoryUnits());
 
     // Resolve any prior-bar fills' adverse selection against this bar's mid.
     for (const p of this.pendingMarkout) {
@@ -614,9 +626,9 @@ export class MmBook {
     };
   }
 
-  /** The snapshot for a fast-path book — read from the engine (the single source of
-   *  truth for that book's queue-aware P&L). No funding line (the fast path doesn't
-   *  accrue it); attribution is the engine's markout-based spread/adverse/fees. */
+  /** The snapshot for a fast-path book — read from the engine (the single source of truth for
+   *  that book's queue-aware realised/unrealised/fees + spread/adverse/carry/markout/maxDD), PLUS
+   *  the funding MmBook accrues on the side (accrueInterval) and folds into net/equity here. */
   private fastSnapshot(eng: L2LiveFillEngine): MmBookSnapshot {
     const m = eng.metrics();
     const mid = eng.lastMid() ?? MICROS;
@@ -638,13 +650,15 @@ export class MmBook {
       halfSpreadMicros: q ? q.halfSpreadMicros.toString() : null,
       inventoryUnits: m.finalInventoryUnits.toString(),
       capitalUnits: this.cfg.capitalUnits.toString(),
-      equityUnits: (this.cfg.capitalUnits + m.netPnlUnits).toString(),
+      // Funding is accrued by MmBook (accrueInterval), the engine owns the rest of the P&L — so
+      // the fast desk net = engine net + funding, mirroring the bar path's book.totalPnl + funding.
+      equityUnits: (this.cfg.capitalUnits + m.netPnlUnits + this.fundingUnits).toString(),
       realisedPnlUnits: m.realisedPnlUnits.toString(),
       unrealisedPnlUnits: m.unrealisedPnlUnits.toString(),
       feesUnits: m.feesUnits.toString(),
-      fundingUnits: '0',
+      fundingUnits: this.fundingUnits.toString(),
       fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
-      netPnlUnits: m.netPnlUnits.toString(),
+      netPnlUnits: (m.netPnlUnits + this.fundingUnits).toString(),
       spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
       adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
       inventoryCarryUnits: m.attribution.inventoryCarryUnits.toString(),
