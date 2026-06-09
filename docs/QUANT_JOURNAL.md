@@ -1721,3 +1721,15 @@ Authoritative P&L is the **DB, not the log**. The 27MB run log is ~99% TypeORM q
 - **Fills / activity:** `grep '[DeskEvents]' | grep ' ▸ ' | count by symbol`.
 - **Hedge health:** `grep -c 'markAll: skipping'` (425 = the zombie firing every cycle).
 - Codified as the `mm-run-review` skill.
+
+## 2026-06-09 — Entry #44b (consolidation executed): one hedge, auditable + folded into NAV, β-targetable; + the e2e workflow doc
+
+Acted on #44's dev requirements in one focused pass (commits on `feat/mm-desk-diagnostics-and-guide`):
+- **DR-1 — one hedge system.** Deleted the legacy `src/hedge/` stack (the retired Lira-Bridge FX/exposure hedge: `HedgeService`/`HedgeMonitorCron`/`hedge-circuit-breaker`/`hedge_positions`) — it was wired only in `app.module` yet ran a 60s cron that logged 425 identical stale-fixture drift warnings every run. Unwired + removed the dead `hedge:` AppConfig block. The MM `DeskHedgeController` is now the only hedge. `hedge_positions` is a dormant orphan table (migrations kept as immutable history).
+- **DR-3 / DR-0 — real, explicit hedge target.** `betaMap:{}` was hard-coded; now `MM_HEDGE_BETA_MAP` (`SYMBOL:UNDERLYING:BETA` triples) folds alts onto a major perp, parsed by a unit-tested pure helper, with the effective target **logged at boot** (never hidden again). Empty default = an *explicit, documented* self-hedge-per-symbol, not a buried no-op. Honest caveat in-code: the cross-asset βs want an OOS fit before they're trusted.
+- **DR-2 — auditable hedge.** The hedge P&L (mtm + funding − cost) is now **folded into the desk net/unrealised/equity** as an OPEN position (it was reported alongside but never in the net ⇒ a working hedge was invisible in `mm_nav` + the gauge), and every rebalance emits a **`hedge` DeskEvent** on the same tape as fills. Post-run the hedge is now grep-able in the run log + reflected in the durable NAV.
+- **DR-4 — deliberately NOT executed.** Moving the hedge off the slow bar timer onto the fast path is architectural and ties to the "how do top desks hedge" question — flagged for discussion, not rushed.
+
+**Plus the e2e map: [docs/MM_DESK_E2E_WORKFLOW.md](MM_DESK_E2E_WORKFLOW.md)** — traces quote → fill → P&L → roll-up (fill → `InventoryBook` → `MmBook` → desk → hedge) with `file:line`, names every model and where its numbers are written/logged, and a **ghost-code audit**. The audit surfaced the next consolidation question (Ronnie's): there are **two fill paths** — the fast L2 queue-aware path (the only honest one) and the legacy bar/candle path (fiction at the top of book, but load-bearing for non-L2 venues + tests). Clean coexistence (no double-fill), but a convergence candidate: make fast/L2 the path we trust and gate live MM on having an L2 tape. Open questions Q1–Q5 + the stale-repo backlog are in the doc.
+
+**Tests:** tsc clean; the hedge/trader/events/config suites green (+ a new `parse-beta-map` spec, + a desk-net-folds-hedge invariant). The lone red suite — `telemetry.module.spec` — is a **pre-existing test-isolation flake** (fails identically on the pre-session commit 382641a); deferred to a stale-repo review, not touched.
