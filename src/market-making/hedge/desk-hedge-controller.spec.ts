@@ -56,6 +56,39 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
     expect(snap.fundingUsd).toBeCloseTo(20, 6);
   });
 
+  it('does NOT churn or blow up P&L when the underlying price flickers out of the map (Journal #45)', async () => {
+    // A cross-asset map (SUI→ETH) + the underlying's price dropping out every other tick — exactly
+    // what happens live when a book goes un-warm / mid-relaunch (deskDeltas skips mid≤0). Before the
+    // last-known-mark fix this marked the open ETH hedge at 0 (phantom P&L) and re-traded every tick.
+    const ETH = 1_673_000_000n;
+    const SUI = 750_000n;
+    const hedgeMids: Record<string, bigint> = {};
+    const venue = new PaperVenue({ pricePoller: async (s) => hedgeMids[s] ?? 0n, takerFeeBps: 2n });
+    const ctrl = new DeskHedgeController(
+      venue,
+      cfg({ bandUsd: 2000, betaMap: { SUI: { underlying: 'ETH', beta: 1.3 } } }),
+      () => new Date(),
+      (p) => Object.assign(hedgeMids, p),
+    );
+    const books: BookDelta[] = [{ symbol: 'SUI', inventoryUnits: -10_000_000_000n, midMicros: SUI }]; // −$7.5k × β1.3
+
+    let orders = 0;
+    let last;
+    for (let i = 0; i < 40; i++) {
+      // ETH price present only on even ticks; SUI always present, delta unchanged.
+      const prices: Record<string, bigint> = i % 2 === 0 ? { SUI, ETH } : { SUI };
+      last = await ctrl.rebalance(books, { prices, dtHours: 0.0001 });
+      orders += last.ordersLastTick.length;
+    }
+
+    // Converges to a SINGLE opening trade, then holds — no per-tick churn across the flicker.
+    expect(orders).toBe(1);
+    // And the hedge P&L stays ~the taker fee (no phantom mark-at-0 swing of thousands).
+    expect(Math.abs(ctrl.snapshot(books, { SUI }).hedgePnlUsd)).toBeLessThan(10);
+    // The held position is valued even on a tick whose ETH price is missing (last-known mark).
+    expect(ctrl.snapshot(books, { SUI }).perUnderlying.find((u) => u.underlying === 'ETH')!.hedgeNotionalUsd).toBeGreaterThan(9000);
+  });
+
   it('the hedge P&L offsets the book: short hedge gains when price falls', async () => {
     const venue = venueAt({ BTC: BTC_100K });
     const ctrl = new DeskHedgeController(venue, cfg());
