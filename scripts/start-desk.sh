@@ -30,8 +30,9 @@ echo "▶ MM desk starting — logging to $LOG  (Ctrl-C to stop)"
 #   4. GOOD-EXPOSURE LEAN    MM_FLOW_BIAS_LIVE — the directional axe, OOS-GATED: an unvalidated read is
 #                            zeroed, so neutral mm-glft books stay neutral until the signal clears the
 #                            markout gate (the real lean is Run B; this just leaves the seam on).
-# MM_HEDGE_BETA_MAP defaults to per-symbol self-hedge; set the OOS alt→major map from
-# scripts/hedge-beta-fit.ts to hedge the basket with one major-perp leg (the #41 "8 books = 1 β bet").
+# MM_HEDGE_BETA_MAP defaults to the OOS alt→major map measured 2026-06-09 (scripts/hedge-beta-fit.ts,
+# 30d×1h HL, R² 0.5–0.8) so the basket is hedged with ~2 major-perp legs (ETH for most alts, BTC for
+# BNB) — the #41 "8 books = 1 β bet". RE-FIT between runs (β drifts with regime — RUN_TRAINING_LOOP.md).
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
@@ -44,7 +45,7 @@ MM_HEDGE_BAND_USD="${MM_HEDGE_BAND_USD:-2000}" \
 MM_HEDGE_TAKER_BPS="${MM_HEDGE_TAKER_BPS:-2.5}" \
 MM_HEDGE_HALF_SPREAD_BPS="${MM_HEDGE_HALF_SPREAD_BPS:-1}" \
 MM_HEDGE_COST_SPREAD_MULT="${MM_HEDGE_COST_SPREAD_MULT:-0.5}" \
-MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-}" \
+MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30}" \
 MM_FLOW_BIAS_LIVE="${MM_FLOW_BIAS_LIVE:-true}" \
 MM_FLOW_BIAS_HORIZON_MS="${MM_FLOW_BIAS_HORIZON_MS:-60000}" \
 MM_FLOW_BIAS_MIN_IC="${MM_FLOW_BIAS_MIN_IC:-0.05}" \
