@@ -19,6 +19,8 @@ export const ROLE_LINKS: RoleLink[] = [
   { href: '/exec', label: 'exec', live: true },
   { href: '/ops', label: 'ops', live: true },
   { href: '/desk/mm', label: 'desk·mm', live: true },
+  { href: '/desk/markout', label: 'desk·markout', live: true },
+  { href: '/desk/toxicity', label: 'desk·toxicity', live: true },
   { href: '/desk/statarb', label: 'desk·statarb', live: true },
   { href: '/risk', label: 'risk', live: true },
   { href: '/research', label: 'research', live: true },
@@ -75,6 +77,7 @@ export function pageShell(opts: ShellOpts): string {
           <script type="module" src="/ui/copy-cmd.js"></script>
           <script type="module" src="/ui/nav-spark.js"></script>
           <script type="module" src="/ui/activity-tape.js"></script>
+          <script type="module" src="/ui/tox-strips.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {

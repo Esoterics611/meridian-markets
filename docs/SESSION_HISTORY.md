@@ -766,3 +766,51 @@ spec'd (render → assert HTML, plus the offline DI-compile test):
   1128 tests** (was 168/1116 at §20 — +1 suite / +12 tests, all in `src/ui/`). Zero
   regressions. `start:dev` exits 144 in the sandbox ⇒ live runs handed to the operator
   (same steps, [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) §10; now also `/` for the launcher).
+
+## 2026-06-10 — Trader-UI extension: /desk/markout + /desk/toxicity (TRADER_UI_SPEC §2/§3)
+
+The two BUILD pages from the spec, in the established controller/view/SSE pattern,
+plus the engine fields the toxicity page needed (the spec's "~5-line add").
+
+1. **Engine surface (3 new snapshot fields)** — `vpinWindowBuckets` (the estimator's
+   EMA window, via a new `VpinEstimator.windowBuckets()`), and fast-path-only
+   `bookImbalance` / `tradeFlowImbalance` (last quoting-step reads, kept on
+   `L2LiveFillEngine` metrics; the trade-flow read holds its last *traded* tick —
+   a quiet tick is "no new information", not "balanced"). Bar-path books surface
+   `undefined` ⇒ the UI says "n/a (bar path)" instead of faking a 0.
+2. **`/desk/markout`** (`markout-desk.controller.ts` + `render/markout-desk-view.ts`) —
+   desk strip (total fills + fill-count-weighted avg markout per horizon) and per-book
+   cards with three curve rows (all/buy/sell), one cell per horizon (signed bps +
+   sample count + |bps|-width bar), the F3 reaction line on the same card, and the
+   amber `ONE-SIDED` flag when |buy−sell| > 2bps at the longest horizon with ≥30
+   fills/side. Honesty rules: cells dim under 30 samples, "—" while a horizon is
+   unresolved (`bps: null`), every number carries its count.
+3. **`/desk/toxicity`** (`toxicity-desk.controller.ts` + `render/toxicity-desk-view.ts`) —
+   per-book VPIN gauge **greyed with "warming m/n buckets" until `vpinBuckets` clears
+   the EMA window**, F3 scale row (widen/tighten counts), signed −1→+1 imbalance bars
+   (neutral colour — direction is not good/bad), verdict chip, and the **"monitoring,
+   not yet validated as predictive"** footnote (roadmap 1c). 15-min history strips are
+   the new `<tox-strips>` Web Component (`public/tox-strips.js`): self-polls the
+   snapshot, client-side ring buffer, VPIN solid vs F3-scale dashed per book — placed
+   OUTSIDE the SSE region so a tick can't wipe the buffer (nav-spark discipline).
+4. **Wiring** — UiModule controllers, ROLE_LINKS + launcher cards, asset allow-list +
+   pageShell script. **Next-run wiring:** `scripts/start-desk.sh` now defaults
+   `MM_MARKOUT_HORIZONS_MS=1000,5000,30000,60000,300000` (Journal #49: the loss lives
+   outside the 1–30s windows; study §2.1 says read the curve where it saturates).
+   Verified both `makeBook` AND `rebuildBook` share `buildFastEngine` (#47 discipline)
+   so a rehydrated desk keeps the horizons + new fields.
+
+### Verification
+- tsc clean; **191 suites / 1287 tests, 190/1285 green** — the 1 failing suite is the
+  known flaky `telemetry.module.spec` (standing rule: not re-investigated).
+- **Live QA on the running desk** (restarted via start-desk.sh, 8 books): snapshot
+  carries the new fields (`bookImbalance` 0.91, `tradeFlowImbalance` 1.0, vpin warming
+  0/50); `/desk/markout` renders 8×3×5 horizon cells incl. 1m/5m; `/desk/toxicity`
+  renders 8 gauge cards (warming state, F3 ×0.50–×3.00, verdict chips); landing/nav
+  carry both pages; `/ui/tox-strips.js` serves. QA side-effect cleaned up: the BTC
+  book was relaunched at the standard $1M/$100k config.
+
+### Deferred (spec §4, next session)
+`/desk/mm` upgrades (per-side 60s markout cells, bucketMs label, card-header deep links),
+`/risk` exposure block ($ notional vs cap, hedge legs, factor-vs-basis σ), Grafana/
+Prometheus is operator-run (spec §5 — hand the commands to Ronnie, don't run them).

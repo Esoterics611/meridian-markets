@@ -176,6 +176,12 @@ export interface MmBookSnapshot {
   vpin: number;
   /** VPIN buckets closed so far (the gauge is meaningful once this clears the EMA window). */
   vpinBuckets: number;
+  /** The estimator's EMA window in buckets — the UI greys the gauge until vpinBuckets clears it. */
+  vpinWindowBuckets: number;
+  /** Latest signed top-N book imbalance ∈ [−1,1] (fast path only; undefined on the bar path). */
+  bookImbalance?: number;
+  /** Latest signed aggressor-flow imbalance ∈ [−1,1] (fast path only; undefined on the bar path). */
+  tradeFlowImbalance?: number;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
   /** The markout curve split by fill side (WP2) — asymmetry = one-sided informed flow. */
@@ -625,6 +631,7 @@ export class MmBook {
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
+      vpinWindowBuckets: this.vpin.windowBuckets(),
       markout: this.markout.curve(),
       markoutBySide: this.markout.sideCurves(),
       fills: this.fills,
@@ -675,6 +682,9 @@ export class MmBook {
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
+      vpinWindowBuckets: this.vpin.windowBuckets(),
+      bookImbalance: m.bookImbalance,
+      tradeFlowImbalance: m.tradeFlowImbalance,
       markout: m.markout,
       markoutBySide: m.markoutBySide,
       toxicity: m.toxicity,
