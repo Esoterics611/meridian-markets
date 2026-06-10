@@ -1949,3 +1949,64 @@ src/market-making+config 331/331 (+5 shed-skew specs). **Operator note:** don't 
 books come up stopped). Stop, change, then start a clean run. **NEXT:** clean Run A′ on the full fixed
 build; if inventory/basis still bleeds, the levers are MM_INVENTORY_SPREAD_SKEW↑, tighter notional cap,
 and a dynamic/per-name hedge — see the deep-research prompt drafted this session.
+
+## 2026-06-10 — Entry #49 (Run A′ read at ~2h20m: pick-off stays fixed; the loss now lives OUTSIDE the markout windows)
+**The run** (still in flight; read at 13:47Z): 8 fast-path GLFT books, $8M, hyperliquid, hedge ON,
+F3 toxicity ON, directional OFF, shed-skew 0.4 (the #48 fix), markout horizons left at the
+**default 1s/5s/30s** (WP2a's 300s capability shipped but `MM_MARKOUT_HORIZONS_MS` unset).
+Window 11:26→13:47Z (~2h20m), 979 fills. Log is clean now (TypeORM echo off, ddf89e4) — the
+persistence-blob attribution scrape in the mm-run-review skill is **dead**; the live
+`/api/market-making/snapshot` is the new (better) source.
+
+**Scorecard (realised-first, DB mm_nav).** Desk realised **−$3,359**, net −$3,024 (+$92 unreal),
+fees −$238 — −4bps of capital in 2.3h. maxDD: desk **1.65%** (SOL 1.65, BTC 1.36, SUI 1.37, XRP 1.41,
+ETH 1.28; ADA 0.65, BNB 0.34, DOGE 0.29) — marginally over the ~1.5% bar, not a blowout.
+Books: SOL −1,349 / BTC −1,246 / ETH −944 / SUI −745 / DOGE −18 realised; ADA **+732**, BNB +148,
+XRP +126. Flattery check: ADA net +1,264 is +$530 unreal; BNB net +366 is +$220 unreal. Reverse trap:
+**XRP realised +126 but −$967 open mark** — and XRP is the desk's worst hedge (r² 0.51, βcfg 0.86 vs
+live 0.62, **77% basis share**): that open mark is the (1−ρ²) basis bleed of study §0, live.
+
+**Edge (the #47/#48 fix HOLDS over hours).** `spreadCaptured` **positive on all 8 books** ($2,154 desk)
+— first multi-hour confirmation. But adverse ($2,869) > spread on 6/8: windowed fill-edge ≈ **−$715**.
+Markout (1s) negative on every book (−0.2…−4.5bps). The discriminator is the *curve shape*:
+**ETH** −0.23bps@1s → **+0.7@5s → +1.7@30s** on 327 fills (flow mean-reverts past 1s — real edge);
+**DOGE/ADA/BNB/XRP decay monotonically** to −3…−7bps@30s (slow pick-off); BTC adverse at all horizons
+(−2.7→−4.5). Exactly the study-§2.1 read — and it argues for the 60s/300s horizons next run.
+
+**THE find — attribution no longer explains the P&L.** Windowed components sum to ≈ **+$2.7k**
+(spread 2,154 − adverse 2,869 + carry +3,617 + funding ~0 − fees 244) vs actual desk net **−$3.2k**:
+a **~$5.9k unattributed gap**. Cause (by construction, `pnl-attribution.ts` + fast-engine wiring):
+spread/adverse/carry are only marked over the 1–30s window after each fill; **drift on warehoused
+inventory between/outside those windows lands in no component** — and that is where the desk now loses.
+Signature: ETH filled **270 bids vs 57 asks** (one-sided accumulation into a falling tape), shed-skew
+crystallises the round trip minutes later, outside every markout window. The #48 shed-skew (0.4) did
+not stop the build → study problems **#2 (trending inventory) + #1 (basis)** are confirmed as the
+frontier; the pick-off war is won.
+
+**Hedge (separated, per #44 discipline).** (a) Book bleed −$3,359 = the dominant term. (b) Hedge:
+gross delta $92.5k → residual $384 (99.6%); hedge P&L ≈ +$120–270 *after* **$3,524 cumulative cost**
+on **313 orders / $11.5M churned** — the leg paid for itself this window (short into the falling tape)
+but the churn *rate* matches #48 (no improvement): ETH leg converged (227 increase/reduce, 16 flips),
+**BTC leg churns** (23 flips vs 1 open — net delta hovers near zero and the leg keeps crossing flat).
+Study **#2 (inventory-dependent dead-band)** is the named fix. (c) **Hedge-quality KPI (WP1, study §0)
+delivers its first live verdict:** desk pnlVol $1,591/h vs basisVol $813/h (~26% of desk variance);
+per-book basisShare XRP **77%**, ADA 52%, SUI 41%, DOGE 31% — delta residual ~0 while half the alt
+books' P&L vol is unhedgeable basis. The KPI works; it priced the XRP trap before the mark showed it.
+
+**F3 toxicity (WP2a) discriminated correctly:** VPIN BTC 0.68 / ETH 0.74 → avgScale 1.19/1.22 (widened);
+quiet books (BNB/ADA/DOGE vpin ~0) tightened to ~0.75–0.80. The defence fires on the right books.
+
+**Study-§1 ranked list — status after this run:** #5 (markout horizons + VPIN→F3) **shipped & validated**
+(extend horizons to 60s/300s next run); #1 (portfolio netting before hedge) partially exists (8 books →
+2 perp legs) — basis shares say it's the next build (WP3); #2 (dead-band → internalize/externalize)
+supported by the BTC-leg churn; #3 (drift term in quote center) supported by ETH's 270/57 one-sided
+fills — directional was deliberately OFF; #4 (basis-scaled spread/caps) now has live priors
+(XRP 77% / ADA 52% / SUI 41%).
+
+**Trader UI gap (vs TRADER_UI_SPEC.md):** the decisive diagnostics of this run — markout curve shapes,
+per-side split, basis shares — are on the snapshot but rendered **nowhere**; `/desk/mm` shows
+attribution + F3 counters only. This run is the case for building `/desk/markout` + `/desk/toxicity`.
+
+**Ops note:** mm-run-review skill needs updating — log-based attribution scrape is dead (no TypeORM
+echo); use `GET /api/market-making/snapshot` (attribution, markout, markoutBySide, vpin, toxicity,
+hedge.quality) while the desk is up.
