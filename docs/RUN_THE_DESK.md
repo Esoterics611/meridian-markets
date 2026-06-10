@@ -7,12 +7,35 @@ server. You should not need to touch the DB by hand; the manual equivalents are
 `sudo docker compose up -d postgres` + `npm run migration:run`. (`MM_PERSIST=false` skips the DB
 requirement entirely — but then there is no rehydrate, no NAV curve, no maxDD metric.)
 
-**The whole run, in three commands:**
+**The whole run, in four commands:**
 ```bash
+bash scripts/reset-desk.sh                                   # FRESH TRIAL ONLY — clear persisted books so nothing rehydrates (desk must be stopped)
 bash scripts/start-desk.sh                                   # terminal 1 — DB + server (owns the terminal)
 bash scripts/launch-mm-10h.sh                                # terminal 2 — launch the 8 books
 tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)"   # terminal 2 — the live log (see "Watch it")
 ```
+Skip `reset-desk.sh` only when you *want* to resume the previous run's open books — rehydrating is
+the default with `MM_PERSIST=true`, and a "fresh trial" that silently resumes old inventory + P&L is
+the #47 trap.
+
+## Operations cheat-sheet — every desk command (single source)
+
+| When | Command | What it does |
+|---|---|---|
+| **Fresh trial** (before start) | `bash scripts/reset-desk.sh` | marks persisted OPEN books CLOSED so the next boot does NOT rehydrate old inventory/P&L. Desk must be stopped; `mm_nav` history untouched. |
+| **Start** | `bash scripts/start-desk.sh` | the canonical Run A′ server: starts Postgres + migrates if :5433 is down, refuses a second desk on :3100, warns on rehydrate, then boots with every pillar ON. Owns the terminal. |
+| **Launch books** | `bash scripts/launch-mm-10h.sh` | resets + launches all 8 books, neutral `mm-glft`, $1M capital / $100k quote each (override via `MM_BOOK_*`). |
+| **Watch** | `tail -f "$(ls -t docs/research/run-*-mm10h.log \| head -1)"` | the live log; more views (tape, per-book P&L, hedge, NAV) in **Watch it** below. |
+| **Stop (the ritual)** | `bash scripts/stop-desk.sh` → then Ctrl-C terminal 1 | flatten + soft-close every book DURABLY first, then kill the server. Bare Ctrl-C ⇒ the next start rehydrates the open positions. |
+| Stuck/stale server on :3100 | `kill -9 $(lsof -ti tcp:3100)` | frees the port when a desk process is wedged (start-desk refuses to boot while one is serving). |
+| DB by hand (rarely needed) | `sudo docker compose up -d postgres` + `npm run migration:run` | what start-desk now does automatically when :5433 is down. |
+| Check for rehydratable books | `PGPASSWORD=meridian_markets_app psql -h localhost -p 5433 -U meridian_markets_app -d meridian_markets -tAc "select symbol,status from mm_book_state where status='OPEN'"` | what the start-desk pre-flight warning is reading. |
+| **Re-fit hedge βs** (between runs) | `npx ts-node -r tsconfig-paths/register scripts/hedge-beta-fit.ts` | OOS β fit from 30d×1h HL candles; prints the `MM_HEDGE_BETA_MAP` string to paste into the next run (β drifts — re-fit each run, `RUN_TRAINING_LOOP.md`). |
+| Score the shadow signal (after a run) | `npx ts-node -r tsconfig-paths/register scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 30,60,300,900` | forward-return IC of the recorded flow signal — the gate for ever turning the directional lean on. |
+| L2 tape capture (research, detached) | `bash scripts/capture-hl-l2.sh` (`DURATION_MIN=720` overnight, `COINS=…` subset) | max-fidelity HL L2 capture across the liquid perp set; tapes feed the tuner. |
+| γ/κ tune (after a capture) | `bash scripts/tune-hl-l2.sh` (`DATE=YYYYMMDD` for a past day) | sweeps γ/κ/floor over the tapes; prints the best DD-compliant maker-net combo per coin. |
+
+Everything else in this doc explains the **start** command's knobs and how to read the run.
 
 > **There is one run.** We keep *one* canonical config (currently the **delta-hedged Run A′**) and
 > improve it — we do not maintain a menu of strategies. §1 is that run, spelled out in full. The two
