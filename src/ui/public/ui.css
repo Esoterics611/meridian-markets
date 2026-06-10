@@ -317,6 +317,14 @@ desk-form[data-err] .action-btn { box-shadow: 0 0 0 2px var(--neg) inset; }
 .mo-bar-fill.neg { background: var(--neg); }
 .mo-bar-fill.dim, .mo-bar-fill.flat { background: var(--dim); }
 
+/* ── desk/mm: markout deep-link + risk: cap-use bar (spec §4) ────────── */
+.book-sym--link { color: var(--fg); text-decoration: none; }
+.book-sym--link:hover { color: var(--accent); text-decoration: underline; }
+.cap-bar { display: block; height: 3px; background: var(--panel-2); border-radius: 2px; overflow: hidden; margin-top: 2px; }
+.cap-bar-fill { display: block; height: 100%; background: var(--dim); }
+.cap-bar-fill.warn { background: var(--warn); }
+.exposure { margin-bottom: 18px; }
+
 /* ── desk/toxicity: gauges + signed bars + strips (spec §3) ──────────── */
 .tox-card .tox-imb { border-top: 1px solid var(--line); }
 .tox-imb { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; }

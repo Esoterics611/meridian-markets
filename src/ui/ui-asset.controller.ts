@@ -1,6 +1,6 @@
 import { Controller, Get, Header, NotFoundException, Param, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 
 // Serves the shared static UI assets (terminal CSS + the desk-feed Web Component)
@@ -37,23 +37,24 @@ function locate(file: string): string {
     resolve(process.cwd(), 'src', 'ui', 'public', file),
     join(__dirname, 'public', file),
   ];
-  for (const c of candidates) if (existsSync(c)) return c;
-  return candidates[1];
+  // Of the copies that exist, serve the NEWEST: the build copies assets to dist/ once
+  // at boot, so a dist-first preference shadowed fresh src/ edits with a stale copy
+  // for the life of the watch (bit us live). mtime arbitration can't go stale either way.
+  const existing = candidates.filter((c) => existsSync(c));
+  if (existing.length === 0) return candidates[1];
+  return existing.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
 }
 
 @Controller('ui')
 export class UiAssetController {
-  private readonly cache = new Map<string, string>();
-
+  // No in-process cache: a static .js/.css edit doesn't trigger the TS watcher, so a
+  // memo here would serve stale assets for the life of the process (bit us live —
+  // the browser keeps its own 300s cache anyway; re-reading 8 small files is free).
   @Get(':file')
   serve(@Param('file') file: string, @Res() res: Response): void {
     const rel = ASSET_FILES[file];
     if (!rel) throw new NotFoundException(`unknown ui asset: ${file}`);
-    let body = this.cache.get(rel);
-    if (body === undefined) {
-      body = readFileSync(locate(rel), 'utf8');
-      this.cache.set(rel, body);
-    }
+    const body = readFileSync(locate(rel), 'utf8');
     res.setHeader('Content-Type', CONTENT_TYPES[rel]);
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.send(body);

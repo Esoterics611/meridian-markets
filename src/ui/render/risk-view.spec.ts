@@ -97,11 +97,56 @@ describe('renderRiskLive', () => {
     expect(h).toMatch(/blocked books[\s\S]*?stat-v mono warn/);
   });
 
-  it('shows adverse selection as the toxicity signal (and no fake VPIN number)', () => {
+  it('shows adverse selection as the realised toxicity cost and points to the live gauges', () => {
     const h = renderRiskLive(snap(), []).value;
     expect(h).toContain('−$200.50'); // adverse selection
     expect(h).toContain('adverse'); // labelled as the toxicity signal
-    expect(h).toMatch(/VPIN[\s\S]*not yet wired/i); // honest note, not a number
+    expect(h).toContain('href="/desk/toxicity"'); // the live VPIN gauges live there now (WP2a)
+  });
+
+  it('renders cap use per book: "no cap" when the rail is unset, % + bar when set, amber from 80%', () => {
+    // default fixture: inventoryNotionalCapUnits '0' → no rail
+    expect(renderRiskLive(snap(), []).value).toContain('no cap');
+    // exposure $15,750 vs $50,000 cap = 32% → dim
+    const under = renderRiskLive(snap({ books: [book({ inventoryNotionalCapUnits: '50000000000' })] }), []).value;
+    expect(under).toContain('32%');
+    expect(under).toContain('cap-bar-fill dim');
+    // exposure $15,750 vs $17,500 cap = 90% → amber (nearing the rail)
+    const near = renderRiskLive(snap({ books: [book({ inventoryNotionalCapUnits: '17500000000' })] }), []).value;
+    expect(near).toContain('90%');
+    expect(near).toContain('cap-bar-fill warn');
+  });
+
+  it('renders an honest exposure block when the hedge is OFF', () => {
+    const h = renderRiskLive(snap(), []).value;
+    expect(h).toContain('exposure &amp; hedge');
+    expect(h).toContain('delta hedge OFF');
+  });
+
+  it('renders the hedge legs + the factor-vs-basis σ split when the hedge is ON (TRADER_UI_SPEC §4)', () => {
+    const hedge = {
+      enabled: true,
+      grossDeltaUsd: 12000,
+      residualUsd: 600,
+      hedgePnlUsd: 41.5,
+      hedgeCostUsd: 12,
+      fundingUsd: 8,
+      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600 }],
+      ordersLastTick: [],
+      quality: {
+        samples: 120,
+        bucketMs: 60_000,
+        deskPnlVolUsdPerHour: 1000,
+        deskFactorVolUsdPerHour: 800,
+        deskBasisVolUsdPerHour: 600,
+        perBook: [],
+      },
+    };
+    const h = renderRiskLive(snap({ hedge }), []).value;
+    expect(h).toContain('BTC Δ−$12,000.00 → hedged $11,400.00 → resid −$600.00');
+    expect(h).toContain('36.00% of variance the delta hedge cannot touch'); // (600/1000)²
+    expect(h).toContain('60s buckets, n=120'); // horizon + sample count on the glass
+    expect(h).not.toContain('delta hedge OFF');
   });
 
   it('wires the per-book risk action to remove (the available per-book lever)', () => {
