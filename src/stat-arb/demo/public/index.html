@@ -651,8 +651,14 @@
       const fmtUsd0 = (x) => (Number(x) < 0 ? '-' : '') + '$' + Math.abs(Number(x)).toLocaleString(undefined, { maximumFractionDigits: 0 });
       // Desk net delta + post-hedge residual (when MM_DELTA_HEDGE is on) — the headline risk number.
       const hedgeTxt = p && p.hedge ? ` · net Δ ${fmtUsd0(p.hedge.grossDeltaUsd)} → ${fmtUsd0(p.hedge.residualUsd)} hedged` : '';
+      // The honest companion (residual_mm_risk_study.md §0): the basis vol a beta hedge CANNOT
+      // touch — a ~0 residual delta and a large still-live basis are fully consistent.
+      const q = p && p.hedge && p.hedge.quality;
+      const basisTxt = q && q.samples > 0 && q.deskPnlVolUsdPerHour > 0
+        ? ` · basis σ ${fmtUsd0(q.deskBasisVolUsdPerHour)}/√h (${Math.round(100 * (q.deskBasisVolUsdPerHour ** 2) / (q.deskPnlVolUsdPerHour ** 2))}% unhedgeable)`
+        : '';
       $('mm-summary').textContent = books.length
-        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC${hedgeTxt} · ${p.running ? 'live' : 'paused'}`
+        ? `${books.length} book${books.length > 1 ? 's' : ''} · net ${fmtUsdc(p.netPnlUnits)} USDC${hedgeTxt}${basisTxt} · ${p.running ? 'live' : 'paused'}`
         : '';
       if (!books.length) { $('mm-books').innerHTML = '<div class="muted">no maker books — launch one above</div>'; return; }
       const mini = (k, v, cls = '', title = '') => `<div class="mini"${title ? ' title="' + title + '"' : ''}><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;

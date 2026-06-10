@@ -118,6 +118,46 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('+$41.50'); // hedge P&L folded into desk net
     // off ⇒ no panel
     expect(renderMmDeskLive(snap()).value).not.toContain('delta hedge');
+    // no quality block yet (tracker still priming) ⇒ no basis stat, no per-book quality row
+    expect(h).not.toContain('basis σ');
+  });
+
+  it('renders the §0 hedge-quality read (basis σ + per-book β/R²) when the tracker has samples', () => {
+    const hedge = {
+      enabled: true,
+      grossDeltaUsd: 12000,
+      residualUsd: 600,
+      hedgePnlUsd: 41.5,
+      hedgeCostUsd: 12,
+      fundingUsd: 8,
+      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600 }],
+      ordersLastTick: [],
+      quality: {
+        samples: 120,
+        deskPnlVolUsdPerHour: 1000,
+        deskFactorVolUsdPerHour: 800,
+        deskBasisVolUsdPerHour: 600,
+        perBook: [
+          {
+            symbol: 'SOL',
+            underlying: 'BTC',
+            betaCfg: 1.1,
+            betaLive: 1.03,
+            r2: 0.72,
+            pnlVolUsdPerHour: 500,
+            factorVolUsdPerHour: 420,
+            basisVolUsdPerHour: 270,
+            basisShare: 0.29,
+            samples: 120,
+          },
+        ],
+      },
+    };
+    const h = renderMmDeskLive(snap({ hedge, hedgePnlUnits: '41500000' })).value;
+    expect(h).toContain('basis σ'); // the vol the delta hedge cannot touch, next to "neutralised"
+    expect(h).toContain('$600.00'); // desk basis vol per √hour
+    expect(h).toContain('36.00% unhedgeable'); // (600/1000)² of desk variance
+    expect(h).toContain('SOL→BTC β1.10→1.03 R²0.72 basis 29%'); // the WP6 ranking row
   });
 
   it('renders the F3 toxicity diagnostics on a book card when the scaler is wired (DR-3)', () => {

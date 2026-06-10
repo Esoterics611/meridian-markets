@@ -122,6 +122,20 @@ function hedgeUnits(usdFloat: number): string {
  */
 function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
   const neutralised = h.grossDeltaUsd > 1 ? (1 - h.residualUsd / h.grossDeltaUsd) * 100 : 0;
+  // "% neutralised" is a DELTA read and over-promises (residual_mm_risk_study.md §0): the beta
+  // hedge cannot touch the (1−ρ²) basis variance. Show the basis vol next to it so a ~100%
+  // neutralised desk with a live basis leak reads honestly.
+  const q = h.quality;
+  const basisStat =
+    q && q.samples > 0 && q.deskPnlVolUsdPerHour > 0
+      ? html`<div class="stat">
+          <span class="stat-k">basis σ</span>
+          <span class="stat-v mono"
+            >${usd(hedgeUnits(q.deskBasisVolUsdPerHour))}/√h
+            <span class="stat-sub">${pct((100 * q.deskBasisVolUsdPerHour ** 2) / q.deskPnlVolUsdPerHour ** 2)} unhedgeable</span></span
+          >
+        </div>`
+      : html``;
   const legs = h.perUnderlying.filter((p) => Math.abs(p.netDeltaUsd) > 1 || Math.abs(p.hedgeNotionalUsd) > 1);
   const legCells = legs.length
     ? raw(
@@ -133,17 +147,32 @@ function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
           .join(' &nbsp; '),
       )
     : html`<span class="dim">flat — no net delta to hedge</span>`;
+  // Per-book hedge quality: configured β vs realized β, R² (the hedgeable share), and the basis
+  // fraction — the numbers that rank names for self-vs-proxy hedging and basis-priced caps (WP6).
+  const qualBooks = (q?.perBook ?? []).filter((b) => b.samples > 0);
+  const qualRow = qualBooks.length
+    ? raw(
+        qualBooks
+          .map(
+            (b) =>
+              html`<span class="mono">${b.symbol}→${b.underlying} β${b.betaCfg.toFixed(2)}${b.betaLive !== null ? `→${b.betaLive.toFixed(2)}` : ''}${b.r2 !== null ? ` R²${b.r2.toFixed(2)}` : ''}${b.basisShare !== null ? ` basis ${Math.round(b.basisShare * 100)}%` : ''}</span>`.value,
+          )
+          .join(' &nbsp; '),
+      )
+    : null;
   return html`
     <section class="panel">
       <div class="panel-h">delta hedge <span class="badge badge--allow">ON</span> <span class="dim">perp overlay · folded into desk net</span></div>
       <div class="stat-grid">
         <div class="stat"><span class="stat-k">gross Δ</span><span class="stat-v mono">${usd(hedgeUnits(h.grossDeltaUsd))}</span></div>
         <div class="stat"><span class="stat-k">residual</span><span class="stat-v mono">${usd(hedgeUnits(h.residualUsd))} <span class="stat-sub">${pct(neutralised)} neutralised</span></span></div>
+        ${basisStat}
         <div class="stat"><span class="stat-k">hedge p&amp;l</span><span class="stat-v mono ${signClass(hedgePnlUnits)}">${money(hedgePnlUnits)}</span></div>
         <div class="stat"><span class="stat-k">funding</span><span class="stat-v mono ${signClass(hedgeUnits(h.fundingUsd))}">${money(hedgeUnits(h.fundingUsd))}</span></div>
         <div class="stat"><span class="stat-k">cost</span><span class="stat-v mono ${signClass(hedgeUnits(-h.hedgeCostUsd))}">${money(hedgeUnits(-h.hedgeCostUsd))}</span></div>
       </div>
       <p class="dim hint">${legCells}</p>
+      ${qualRow ? html`<p class="dim hint">${qualRow}</p>` : ''}
     </section>
   `;
 }

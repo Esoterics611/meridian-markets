@@ -107,6 +107,28 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
     expect(snap.perUnderlying).toHaveLength(0);
   });
 
+  it('surfaces the §0 hedge-quality KPI (factor-vs-basis residual variance) on the snapshot', async () => {
+    const venue = venueAt({ BTC: BTC_100K });
+    let nowMs = 0;
+    const ctrl = new DeskHedgeController(venue, cfg(), () => new Date(nowMs));
+    // Two ticks with a real price move: the tracker primes on the first and measures the second.
+    await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    nowMs = 1_000;
+    const snap = await ctrl.rebalance(longBtc(2_000_000n, 101_000_000_000n), { prices: { BTC: 101_000_000_000n } });
+
+    expect(snap.quality).toBeDefined();
+    expect(snap.quality!.samples).toBe(1);
+    const btcQ = snap.quality!.perBook.find((b) => b.symbol === 'BTC')!;
+    // A self-hedged book: its own move IS the factor — zero basis, β=1.
+    expect(btcQ.betaLive).toBeCloseTo(1, 6);
+    expect(btcQ.basisVolUsdPerHour).toBeCloseTo(0, 6);
+    expect(btcQ.pnlVolUsdPerHour).toBeGreaterThan(0);
+
+    // reset() (the closeAll ritual) starts the KPI fresh — no stale variance from a closed desk.
+    ctrl.reset();
+    expect(ctrl.snapshot([], {}).quality!.samples).toBe(0);
+  });
+
   it('the hedge P&L offsets the book: short hedge gains when price falls', async () => {
     const venue = venueAt({ BTC: BTC_100K });
     const ctrl = new DeskHedgeController(venue, cfg());
