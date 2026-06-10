@@ -226,16 +226,29 @@ per-regime params beat global params OOS net of switching cost.
 
 ## NEXT SESSION PROMPT
 
-> We are implementing `docs/residual_mm_risk_study.md` via `docs/RESIDUAL_RISK_ROADMAP.md`. WP1 (hedge-quality
-> KPI: factor-vs-basis residual variance, live β/R², `HedgeSnapshot.quality`) shipped on 2026-06-10.
-> **Do WP2 now:** (1) extend markout instrumentation to 300s with per-side and per-queue-position splits and
-> per-fill capture into the flow shadow; (2) the offline regression of forward 1-min markout on VPIN vs
-> realized signed-volume imbalance — decide F3's input and window from the data, biased toward caution;
-> (3) the live back-of-queue + toxic-side cancel/re-post rule, rebate-aware. Write the detailed WP2 spec into
-> the roadmap first, then build. Before starting, run a desk session (or use the latest flow-shadow JSONL in
-> `docs/research/`) so WP1's `quality` block has a real read — log the first desk factor-vs-basis numbers in
-> the session log; they baseline every later WP. Keep experiments offline-replay-first; commit at session end
-> and update this prompt.
+> We are implementing `docs/residual_mm_risk_study.md` via `docs/RESIDUAL_RISK_ROADMAP.md`.
+> Shipped 2026-06-10: WP1 (hedge-quality KPI + first live baseline: desk basis σ $172/√h ≥ factor σ
+> $115/√h), WP1.1 (60s-bucket Epps fix), WP2a (300s markouts, per-side split, vpin+f3Scale into the
+> shadow capture, fast-path VPIN risk-gate fix, `scripts/toxicity-validation.ts` — per-tick
+> |imbalance| measured useless as a 60s predictor, U-shaped quintiles).
+>
+> **Next session (Ronnie's pick, 2026-06-10): the trader-UI build — execute the prompt in
+> docs/TRADER_UI_SPEC.md §7** (new /desk/markout + /desk/toxicity pages, /desk/mm + /risk upgrades,
+> landing links; Grafana setup is handed to Ronnie, never run it yourself).
+>
+> **After the UI session, resume the research line:**
+> 1. **Re-baseline WP1** on the first post-WP1.1 run (60s buckets): expect β_live → OLS map,
+>    basisShare → 1−R². Log it.
+> 2. **WP2 analysis round 2:** add a rolling-60s imbalance covariate to toxicity-validation.ts and
+>    run the three-way race (vpin vs rolling-imb vs per-tick) on a WP2-era tape (it now carries
+>    vpin/f3Scale). Decide F3's input; bias toward caution.
+> 3. **WP2b:** sweep-vs-drain fill classification in the queue model + the back-of-queue/toxic-side
+>    cancel-repost rule (rebate-aware), then **WP3** (portfolio netting replay — the #1 lever).
+>
+> Standing rules: per-session UI-wiring QA documented in the session log; no background tasks —
+> verification runs foreground, long runs go to Ronnie's terminal; telemetry suite failure is known,
+> never investigate; commit on the branch at session end and update this prompt. Branch note:
+> master/branch divergence — reconcile deliberately in a maintenance pass, don't auto-merge.
 >
 > **Standing per-session QA (Ronnie, 2026-06-10):** before closing any session, trace the UI wiring for
 > what you changed (API field → both UIs), add/adjust the rendering where it makes sense, and document
