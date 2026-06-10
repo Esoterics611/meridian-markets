@@ -168,6 +168,24 @@ per-regime params beat global params OOS net of switching cost.
 - **Process rules set this session (binding):** no background tasks — run verification foreground, hand
   long-running runs to Ronnie's terminal; per-session UI-wiring QA is standing (see prompt below).
 
+### 2026-06-10 (later) — Session 1b: first live WP1 baseline + the Epps fix (WP1.1)
+- **First live read** (10h run, ~1,800 hedge-tick samples, desk net +$8.5 at read time; SOL short
+  −$50k dominating): `deskPnlVol ≈ $170/√h`, `deskFactorVol ≈ $115/√h`, `deskBasisVol ≈ $172/√h` —
+  **more than half the desk's marked-P&L variance is basis the delta hedge cannot touch**, exactly
+  the study's §0 claim, now measured on our own desk. SOL: pnlVol 167 / basis 170 / factor 111,
+  basisShare ≈ 1 at tick cadence.
+- **Measurement caveat found live (the Epps effect):** at 100ms sampling, alt/major returns
+  decorrelate mechanically (asynchronous ticks) — ADA printed betaLive −29 at R² 0.002, and the split
+  over-attributes variance to basis. The 30d×1h OLS map (R² 0.5–0.8) and the 100ms read are both
+  true at their own horizons; the KPI's job is inventory-carry risk, which lives at seconds-to-minutes.
+- **WP1.1 fix:** the tracker now samples on **60s buckets** (compounded returns bucket-open→close,
+  inventory valued at bucket open; `HedgeConfig.qualityBucketMs`, default 60_000) instead of per
+  hedge tick. Per-tick feeding is unchanged — the controller still calls `update()` every rebalance;
+  the tracker closes a bucket when ≥ bucketMs has elapsed. β_live/R² and the factor/basis split are
+  now read at the horizon the hedge actually defends. **The 10h run still serves the per-tick numbers
+  (old code in-process) — re-baseline on the FIRST RUN AFTER this ships**; expect β_live to move
+  toward the OLS map and basisShare to drop from ≈1 to the honest 1−R² (~0.2–0.5).
+
 ---
 
 ## NEXT SESSION PROMPT

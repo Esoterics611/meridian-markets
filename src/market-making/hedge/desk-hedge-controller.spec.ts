@@ -110,7 +110,7 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
   it('surfaces the §0 hedge-quality KPI (factor-vs-basis residual variance) on the snapshot', async () => {
     const venue = venueAt({ BTC: BTC_100K });
     let nowMs = 0;
-    const ctrl = new DeskHedgeController(venue, cfg(), () => new Date(nowMs));
+    const ctrl = new DeskHedgeController(venue, cfg({ qualityBucketMs: 1000 }), () => new Date(nowMs));
     // Two ticks with a real price move: the tracker primes on the first and measures the second.
     await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
     nowMs = 1_000;

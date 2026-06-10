@@ -76,7 +76,7 @@ export class DeskHedgeController {
     // the PaperVenue's pricePoller). Omit ⇒ the venue prices itself (the unit tests).
     private readonly syncPrices?: (prices: Record<string, bigint>) => void,
   ) {
-    this.quality = new HedgeQualityTracker(cfg.betaMap);
+    this.quality = new HedgeQualityTracker(cfg.betaMap, undefined, cfg.qualityBucketMs);
   }
 
   private posOf(u: string): PerpPosition {
@@ -102,7 +102,7 @@ export class DeskHedgeController {
     this.pos.clear();
     this.lastOrders = [];
     this.lastMark.clear();
-    this.quality = new HedgeQualityTracker(this.cfg.betaMap);
+    this.quality = new HedgeQualityTracker(this.cfg.betaMap, undefined, this.cfg.qualityBucketMs);
     return legs;
   }
 

@@ -134,6 +134,7 @@ describe('renderMmDeskLive', () => {
       ordersLastTick: [],
       quality: {
         samples: 120,
+        bucketMs: 60_000,
         deskPnlVolUsdPerHour: 1000,
         deskFactorVolUsdPerHour: 800,
         deskBasisVolUsdPerHour: 600,
