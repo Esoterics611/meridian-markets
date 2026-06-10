@@ -13,6 +13,18 @@ cd "$(dirname "$0")/.."
 HOST="${MM_HOST:-http://localhost:3100}"
 
 # ── Pre-flight (Journal #46a/#47): exactly ONE desk, and a KNOWN starting state ───────────────
+# 0. Postgres on :5433. MM_PERSIST=true (the default here) hard-requires it — without it TypeORM
+#    retries then kills the boot (ECONNREFUSED 127.0.0.1:5433). Bring it up + migrate so this stays
+#    a true one-command start. Docker needs sudo on this machine — it may prompt for the password.
+pg_up() { (exec 3<>/dev/tcp/127.0.0.1/5433) 2>/dev/null && exec 3>&- && return 0; return 1; }
+if [ "${MM_PERSIST:-true}" = "true" ] && ! pg_up; then
+  echo "▶ Postgres :5433 is down — starting it (sudo docker compose up -d postgres)…"
+  sudo docker compose up -d postgres
+  for _ in $(seq 1 30); do pg_up && break; sleep 1; done
+  pg_up || { echo "✗ Postgres still unreachable on :5433 — check 'sudo docker compose ps'."; exit 1; }
+  sleep 2 # accept TCP ≠ accepting auth; give the server a beat before migrating
+  npm run migration:run # idempotent — applies only pending migrations
+fi
 # 1. Stale server still on :3100 = the classic ghost-P&L trap (the browser talks to an old process
 #    holding poisoned in-memory hedge state). Refuse to start a second one.
 if curl -sf --max-time 3 "$HOST/health" >/dev/null 2>&1; then
@@ -27,8 +39,9 @@ if command -v psql >/dev/null 2>&1; then
     -d meridian_markets -tAc "select count(*) from mm_book_state where status='OPEN'" 2>/dev/null || echo '?')
   if [ "$open" != "0" ] && [ "$open" != "?" ] && [ -n "$open" ]; then
     echo "⚠ $open persisted OPEN book(s) will be REHYDRATED on boot — this RESUMES them with their carried"
-    echo "  inventory + P&L (NOT a fresh trial). For a clean slate: start the desk, run scripts/stop-desk.sh"
-    echo "  (close-all), then restart.  Continuing in 5s — Ctrl-C to abort."
+    echo "  inventory + P&L (NOT a fresh trial). For a clean slate: Ctrl-C now, run scripts/reset-desk.sh"
+    echo "  (clears persisted OPEN books while the desk is stopped), then re-run."
+    echo "  Continuing in 5s — Ctrl-C to abort."
     sleep 5
   fi
 fi

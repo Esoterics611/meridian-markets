@@ -1,7 +1,18 @@
 # Run the desk (paper MM, 10h)
 
-Two terminals. Postgres must be up on **:5433** for persistence —
-`sudo docker compose up -d postgres` if it isn't, then `npm run migration:run` (once).
+Two terminals. **Everything below assumes `bash scripts/start-desk.sh` — it now owns the whole
+boot**: if Postgres on **:5433** is down it starts it (`sudo docker compose up -d postgres` — may
+prompt for the sudo password) and runs pending migrations, then pre-flights the desk and starts the
+server. You should not need to touch the DB by hand; the manual equivalents are
+`sudo docker compose up -d postgres` + `npm run migration:run`. (`MM_PERSIST=false` skips the DB
+requirement entirely — but then there is no rehydrate, no NAV curve, no maxDD metric.)
+
+**The whole run, in three commands:**
+```bash
+bash scripts/start-desk.sh                                   # terminal 1 — DB + server (owns the terminal)
+bash scripts/launch-mm-10h.sh                                # terminal 2 — launch the 8 books
+tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)"   # terminal 2 — the live log (see "Watch it")
+```
 
 > **There is one run.** We keep *one* canonical config (currently the **delta-hedged Run A′**) and
 > improve it — we do not maintain a menu of strategies. §1 is that run, spelled out in full. The two
@@ -23,8 +34,9 @@ paper perp delta hedge. Owns the terminal (Ctrl-C to stop); logs to a `run-<ts>-
 **Easiest — and canonical: `bash scripts/start-desk.sh`.** That script IS the single source of
 truth for the run config; it bakes in the full Run A′ — all four "make money" pillars ON (hedge +
 hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off (Journal #44 DR-0), and it
-**pre-flights** the two traps (stale server on :3100, silent rehydrate of old books — Journal
-#46a/#47). Every value below is overridable, e.g. `MM_FLOW_BIAS_LIVE=false bash scripts/start-desk.sh`.
+**pre-flights** the three traps: Postgres down on :5433 (it starts the container + migrates —
+2026-06-10), stale server on :3100, and the silent rehydrate of old books (Journal #46a/#47).
+Every value below is overridable, e.g. `MM_FLOW_BIAS_LIVE=false bash scripts/start-desk.sh`.
 
 The block below **mirrors `start-desk.sh` exactly** (if they ever disagree, the script wins — it's
 what actually runs). Shown so you can see every knob in one place:
@@ -136,6 +148,10 @@ curl -s 'localhost:3100/api/market-making/nav?hours=24&book=BTC' | jq '.[-1].max
 # delta hedge: gross delta, post-hedge residual, hedge P&L, funding (folded into desk net)
 curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd, fundingUsd, perUnderlying}'
 
+# hedge QUALITY (study §0 — the honest read): desk basis vol the beta hedge CANNOT touch,
+# + per-book live β / R² / basis share (ranks names for self-vs-proxy hedging)
+curl -s localhost:3100/api/market-making/snapshot | jq '.hedge.quality | {samples, deskPnlVolUsdPerHour, deskFactorVolUsdPerHour, deskBasisVolUsdPerHour, perBook: [.perBook[] | {symbol, underlying, betaCfg, betaLive, r2, basisShare}]}'
+
 # F3 adverse-selection defence — did it fire? (widen/tighten counts per book, logged each NAV tick)
 grep 'F3 toxicity' "$(ls -t docs/research/run-*-mm10h.log | head -1)" | tail -3
 ```
@@ -157,6 +173,12 @@ desk first:
 bash scripts/stop-desk.sh            # flatten + soft-close every book (durable; survives kill -9)
 ```
 Then `Ctrl-C` terminal 1 (or `kill -9 $(lsof -ti tcp:3100)`). The next start comes up clean.
+
+If you skipped that and the pre-flight now warns about **persisted OPEN books being rehydrated**,
+wipe them while the desk is stopped:
+```bash
+bash scripts/reset-desk.sh           # clears persisted OPEN books (desk must be stopped); mm_nav history untouched
+```
 
 ## Analyze after the run
 ```bash
