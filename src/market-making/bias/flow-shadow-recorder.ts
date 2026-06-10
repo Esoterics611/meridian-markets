@@ -18,6 +18,12 @@ export interface FlowShadowObs {
   readonly midMicros: string;
   /** Micro-price center (bigint-micros string) if computed — a second candidate to score offline. */
   readonly microMicros: string | null;
+  /** Live VPIN ∈ [0,1] at the obs (WP2 — the toxicity-validation covariate); null pre-WP2 capture
+   *  or when no estimator is wired. */
+  readonly vpin?: number | null;
+  /** The F3 spread scale applied this step (1 = neutral); null when F3 is off. Lets the offline
+   *  gate check whether the defence reacted to the toxicity it should have (study §2.2e). */
+  readonly f3Scale?: number | null;
 }
 
 export interface IFlowShadowRecorder {

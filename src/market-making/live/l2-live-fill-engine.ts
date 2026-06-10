@@ -11,7 +11,7 @@ import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } fro
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
-import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
+import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves } from '../microstructure/markout-tracker';
 import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
 
@@ -155,6 +155,8 @@ export interface L2LiveFillEngineMetrics {
   attribution: AttributionSummary;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
+  /** The same curve split by fill side (WP2) — per-side asymmetry = one-sided informed flow. */
+  markoutBySide: MarkoutSideCurves;
   /** F3 toxicity spread-scaler diagnostics — present ONLY when the scaler is wired (the live
    *  fast path); undefined ⇒ the adverse-selection defence is off. Lets a run CONFIRM F3 fired
    *  (Journal #44 DR-3: don't credit a defence we can't measure). */
@@ -176,6 +178,10 @@ export interface ToxicityMetrics {
 }
 
 export class L2LiveFillEngine {
+  /** Live VPIN read for the risk gate + shadow capture (WP2). The estimator lives in MmBook
+   *  (volume-bucketed across both paths), so the book wires this at construction — the seam
+   *  keeps the engine pure for unit tests. Unset ⇒ vpin reads 0 (gate disarmed by default). */
+  vpinProvider?: () => number;
   private readonly cfg: L2LiveFillEngineConfig;
   private readonly vol: RollingVolatility;
   private readonly book = new InventoryBook();
@@ -283,9 +289,15 @@ export class L2LiveFillEngine {
     const bias = this.cfg.biasSource
       ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance, midMicros: mid }))
       : undefined;
+    // F3: widen into toxic (one-sided/informed) flow, tighten into calm flow — the
+    // adverse-selection defence. Always update the scaler (so its rolling average tracks)
+    // even when no fills happened this tick; undefined ⇒ feature off ⇒ spread unscaled.
+    // Computed BEFORE the shadow record so the capture carries the F3 reaction (WP2).
+    const spreadScale = this.cfg.toxicityScaler?.scale(flow.aggressiveBuyUnits, flow.aggressiveSellUnits);
     // SHADOW flow signal: read + recorded, NEVER fed to the quoter (it's `shadowBiasSource`,
     // not `biasSource`) ⇒ zero quote impact by construction. Throttled to bound the file;
-    // the offline gate (scripts/flow-bias-markout.ts) scores its forward-return IC.
+    // the offline gates score it (scripts/flow-bias-markout.ts forward-return IC;
+    // scripts/toxicity-validation.ts VPIN-vs-imbalance, study §2.2e).
     if (this.cfg.shadowBiasSource && nowMs - this.lastShadowMs >= (this.cfg.shadowMinIntervalMs ?? 1000)) {
       const sr = this.cfg.shadowBiasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance, midMicros: mid });
       const fb = Number(flow.aggressiveBuyUnits);
@@ -298,14 +310,12 @@ export class L2LiveFillEngine {
         tradeFlowImbalance: fb + fa > 0 ? (fb - fa) / (fb + fa) : 0,
         midMicros: mid.toString(),
         microMicros: referenceMicros !== undefined ? referenceMicros.toString() : null,
+        vpin: this.vpinProvider ? this.vpinProvider() : null,
+        f3Scale: spreadScale ?? null,
       });
       this.shadowObservations += 1;
       this.lastShadowMs = nowMs;
     }
-    // F3: widen into toxic (one-sided/informed) flow, tighten into calm flow — the
-    // adverse-selection defence. Always update the scaler (so its rolling average tracks)
-    // even when no fills happened this tick; undefined ⇒ feature off ⇒ spread unscaled.
-    const spreadScale = this.cfg.toxicityScaler?.scale(flow.aggressiveBuyUnits, flow.aggressiveSellUnits);
     if (spreadScale !== undefined) {
       // F3 instrumentation (DR-3): count widen/tighten steps + track the scale so a run can be
       // judged on whether the defence FIRED, not just on the outcome (Journal #44: F3 was invisible).
@@ -333,7 +343,9 @@ export class L2LiveFillEngine {
 
     if (this.cfg.riskGate) {
       const navRatio = Number(this.book.equityUnits(this.cfg.capitalUnits, mid)) / Number(this.cfg.capitalUnits);
-      const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: 0, recentAdverseUnits: 0n, killed: false };
+      // Real VPIN on the fast path (WP2 — was hardcoded 0, so MM_VPIN_PAUSE_THRESHOLD<1 never
+      // armed here). Default threshold 1.01 keeps the gate disarmed unless explicitly set.
+      const state: RiskState = { inventoryUnits: inventoryBefore, navRatio, vpin: this.vpinProvider?.() ?? 0, recentAdverseUnits: 0n, killed: false };
       if (this.cfg.riskGate.check(quote, state).kind !== 'Allow') {
         this.restingBid = undefined; // pull quotes on Deny/Pause
         this.restingAsk = undefined;
@@ -432,6 +444,7 @@ export class L2LiveFillEngine {
       maxDrawdownPct: this.maxDrawdownPct,
       attribution: sumComponents(this.components),
       markout: this.markout.curve(),
+      markoutBySide: this.markout.sideCurves(),
       toxicity: this.cfg.toxicityScaler
         ? {
             widenSteps: this.widenSteps,

@@ -60,7 +60,29 @@ that stays — confirm it is the same order as the realised "hedged but still bl
 
 **Goal.** Establish the true adverse-selection horizon and pick F3's input honestly.
 
-**Spec sketch** (refine at session start):
+**Spec as built (2026-06-10, WP2a):**
+- **Horizons to 300s:** `MM_MARKOUT_HORIZONS_MS` default extended to `1s,5s,30s,60s,300s` (config
+  factory; both the fast engine and the bar-path book already take it). The /demo card renders the
+  extra points automatically. The hypothesis to reject stays: "markout is flat after 1s".
+- **Per-side split:** `MarkoutTracker` accumulates buy/sell separately; `sideCurves()` exposes both;
+  surfaced as `markoutBySide` on the book snapshot (fast + bar paths). Asymmetry between sides is
+  the signature of one-sided informed flow the symmetric F3 widen cannot price.
+- **Toxicity capture:** `FlowShadowObs` gains `vpin` + `f3Scale` (nullable) — the engine now emits
+  the shadow AFTER the F3 scale computation and reads VPIN via a `vpinProvider` seam that `MmBook`
+  wires to its own `VpinEstimator` at construction (covers rehydrate path too). Bonus honesty fix:
+  the fast path's `RiskState.vpin` was hardcoded 0 — it now reads the real estimator, so
+  `MM_VPIN_PAUSE_THRESHOLD<1` actually arms on the fast path (default 1.01 = disarmed, behavior
+  unchanged out of the box).
+- **Validation script:** `scripts/toxicity-validation.ts` — reads flow-shadow JSONLs, joins each obs
+  to the mid ≥60s forward, and per symbol reports quintile tables + correlations of |fwd 60s move|
+  against (a) |tradeFlowImbalance| (already captured since S40+) and (b) `vpin` (new captures only).
+  Decision rule (study §2.2e / §7.4): if VPIN adds nothing over imbalance, F3 consumes imbalance.
+- **Deferred to WP2b:** the queue-position markout split + the live back-of-queue/toxic-side
+  cancel-repost rule. Reason: our engine fills at queue-front by construction; the honest available
+  split is sweep-vs-drain fill classification, which needs queue-fill internals — do it with the
+  WP2b rule so both consume the same classification.
+
+**Spec sketch (original):**
 - Extend the markout instrumentation: horizons out to **300s**; split per **side** and per **queue position
   at fill** (front/middle/back third — the queue model already knows position). Per-book curves on the API.
 - Capture per fill: `{book, side, fill_price, queue_pos_at_fill, depth_at_level, micro_price, mid}` + mids at
@@ -167,6 +189,20 @@ per-regime params beat global params OOS net of switching cost.
   the **known pre-existing telemetry suite** (Ronnie: known-failing before this work, do NOT investigate).
 - **Process rules set this session (binding):** no background tasks — run verification foreground, hand
   long-running runs to Ronnie's terminal; per-session UI-wiring QA is standing (see prompt below).
+
+### 2026-06-10 (later) — Session 1c: WP2a shipped + a real negative result
+- Built the WP2 "as built" spec above: 300s horizons (config default), per-side markout split
+  (`MarkoutTracker.sideCurves()` → `markoutBySide` on book snapshots, both paths), `FlowShadowObs`
+  +`vpin`/`f3Scale` (engine emits shadow after F3; `vpinProvider` seam wired by MmBook — also fixes
+  the fast path's hardcoded `RiskState.vpin=0`), and `scripts/toxicity-validation.ts`.
+- **Negative result (15 tapes, ~94k obs/symbol):** per-tick |tradeFlowImbalance| does NOT predict
+  the forward 60s |move| — r ≈ 0.05–0.08, quintile curves U-SHAPED (quiet ticks also precede moves),
+  Q5−Q1 ≈ 0. The instantaneous snapshot is the wrong covariate; the volume-aggregated signals are
+  the real candidates. **Next analysis step:** add a rolling-60s imbalance covariate to the script
+  and re-run against a WP2 tape (which will carry vpin) — that's the fair three-way race.
+- UI choice: /demo auto-renders the new 60s/300s markout points (generic map over `b.markout`);
+  `markoutBySide` is API-only for now — its rendering belongs to the trader-UI overhaul (see
+  docs/TRADER_UI_SPEC.md), not another wedge into /demo.
 
 ### 2026-06-10 (later) — Session 1b: first live WP1 baseline + the Epps fix (WP1.1)
 - **First live read** (10h run, ~1,800 hedge-tick samples, desk net +$8.5 at read time; SOL short

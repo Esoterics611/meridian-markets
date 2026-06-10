@@ -63,4 +63,19 @@ describe('MarkoutTracker', () => {
     const t = new MarkoutTracker([5000, 1000, 1000, -10, 0]);
     expect(t.curve().map((p) => p.ms)).toEqual([1000, 5000]);
   });
+
+  it('splits the curve by fill side (WP2): one-sided pick-off shows on ONE side only', () => {
+    const t = new MarkoutTracker([1000]);
+    // Mid rises after BOTH fills: good for the BUY (+100bps), adverse for the SELL (−100bps).
+    t.onFill('BUY', px(100), 0);
+    t.onFill('SELL', px(100), 0);
+    t.onMid(1000, px(101));
+    const s = t.sideCurves();
+    expect(s.buy[0].bps).toBeCloseTo(100, 6);
+    expect(s.buy[0].count).toBe(1);
+    expect(s.sell[0].bps).toBeCloseTo(-100, 6);
+    expect(s.sell[0].count).toBe(1);
+    // The combined curve hides the asymmetry (averages to 0) — exactly why the split exists.
+    expect(t.curve()[0].bps).toBeCloseTo(0, 6);
+  });
 });
