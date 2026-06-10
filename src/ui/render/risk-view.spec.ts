@@ -30,7 +30,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     netPnlUnits: '0',
     spreadCapturedUnits: '0',
     adverseSelectionUnits: '-200500000', // −$200.50 toxicity
-    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [],
+    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [], markoutBySide: { buy: [], sell: [] },
     fills: 42,
     bidFills: 21,
     askFills: 21,
@@ -79,17 +79,22 @@ describe('renderRiskLive', () => {
     expect(h).toContain('0.53%');
     expect(h).toContain('2.00% budget');
     expect(h).toContain('+$15,750.00'); // net exposure = 0.25 × 63,000
+    // exposure is a DIRECTION, not good/bad → neutral cell, never signClass (no pos/neg)
+    expect(h).toContain('<td class="num mono">+$15,750.00</td>');
   });
 
-  it('flags drawdown breaches + blocked books', () => {
+  it('flags drawdown breaches + blocked books, and colours by meaning (dd over budget = red, blocked = amber)', () => {
     const h = renderRiskLive(
       snap({ books: [book({ maxDrawdownPct: 3.5, lastVerdict: 'Deny', blockedQuotes: 7 })] }),
       [],
     ).value;
     expect(h).toContain('3.50%');
     expect(h).toContain('badge--deny');
+    // drawdown OVER budget is a real breach → red
     expect(h).toMatch(/books over budget[\s\S]*?stat-v mono neg/);
-    expect(h).toContain('7'); // blocked quotes shown
+    // blocked = the gate intervening (not a loss) → amber, per-book cell AND the desk stat
+    expect(h).toContain('<td class="num warn">7</td>');
+    expect(h).toMatch(/blocked books[\s\S]*?stat-v mono warn/);
   });
 
   it('shows adverse selection as the toxicity signal (and no fake VPIN number)', () => {

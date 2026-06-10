@@ -21,7 +21,7 @@ import { DbService } from './db.service';
           synchronize: false,
           autoLoadEntities: false,
           entities: [],
-          logging: app.nodeEnv !== 'production' && app.nodeEnv !== 'test',
+          logging: false,
         };
       },
     }),

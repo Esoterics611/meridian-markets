@@ -113,6 +113,12 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // net P&L. skewMult=4 is a starting value pending a γ/κ/skew sweep; the hard + notional caps
     // are deterministic bounds, not tuning. Override via env to reproduce the legacy no-op.
     inventorySkewMult: parseFloat(process.env['MM_INVENTORY_SKEW_MULT'] ?? '4'),
+    // σ-independent inventory lean (Journal #48): ON by default — the σ²-scaled reservation skew
+    // vanishes in calm trends, so a neutral book accumulates one-sided inventory that marks against
+    // it (the residual loss once the micro-price center kills the pick-off, #47). 0.4 = tighten the
+    // shedding side / widen the adding side up to 40% at the cap. Raise toward single-siding (≤0.9)
+    // to shed harder; 0 = legacy off.
+    inventorySpreadSkew: parseFloat(process.env['MM_INVENTORY_SPREAD_SKEW'] ?? '0.4'),
     hardInventoryCap: (process.env['MM_HARD_INVENTORY_CAP'] ?? 'true').toLowerCase() === 'true',
     // Notional inventory cap (Journal #41): cap |inventory| at this fraction of book capital at
     // the live mid, so the bound is the same RISK across a 100×-price universe rather than the

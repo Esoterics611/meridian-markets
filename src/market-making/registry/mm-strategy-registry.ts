@@ -92,9 +92,9 @@ const GLFT: MmStrategyDefinition = {
     'Guéant-Lehalle-Fernández-Tapia (§3.5): the infinite-horizon limit of AS — inventory skew and half-spread don\'t decay as a session clock runs out, the right choice for a continuously-running book.',
   courseRef: '§3.5 GLFT steady state',
   liveCapable: true,
-  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0 },
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0 },
   build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, maxInventoryNotionalFrac, capitalUnits, params }) => {
-    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, hardInventoryCap: 0, ...params };
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0, ...params };
     return new GlftQuoter({
       gamma: p.gamma,
       kappa: p.kappa,
@@ -106,6 +106,7 @@ const GLFT: MmStrategyDefinition = {
       capitalUnits,
       steadyHorizonBars: p.steadyHorizonBars,
       inventorySkewMult: p.inventorySkewMult,
+      inventorySpreadSkew: p.inventorySpreadSkew,
       hardInventoryCap: p.hardInventoryCap === 1,
     });
   },

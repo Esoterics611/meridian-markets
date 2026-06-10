@@ -31,7 +31,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     netPnlUnits: '699500000', // +$699.50
     spreadCapturedUnits: '900000000', // +$900.00
     adverseSelectionUnits: '-200500000', // −$200.50
-    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [],
+    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [], markoutBySide: { buy: [], sell: [] },
     fills: 42,
     bidFills: 21,
     askFills: 21,
@@ -118,6 +118,47 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('+$41.50'); // hedge P&L folded into desk net
     // off ⇒ no panel
     expect(renderMmDeskLive(snap()).value).not.toContain('delta hedge');
+    // no quality block yet (tracker still priming) ⇒ no basis stat, no per-book quality row
+    expect(h).not.toContain('basis σ');
+  });
+
+  it('renders the §0 hedge-quality read (basis σ + per-book β/R²) when the tracker has samples', () => {
+    const hedge = {
+      enabled: true,
+      grossDeltaUsd: 12000,
+      residualUsd: 600,
+      hedgePnlUsd: 41.5,
+      hedgeCostUsd: 12,
+      fundingUsd: 8,
+      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600 }],
+      ordersLastTick: [],
+      quality: {
+        samples: 120,
+        bucketMs: 60_000,
+        deskPnlVolUsdPerHour: 1000,
+        deskFactorVolUsdPerHour: 800,
+        deskBasisVolUsdPerHour: 600,
+        perBook: [
+          {
+            symbol: 'SOL',
+            underlying: 'BTC',
+            betaCfg: 1.1,
+            betaLive: 1.03,
+            r2: 0.72,
+            pnlVolUsdPerHour: 500,
+            factorVolUsdPerHour: 420,
+            basisVolUsdPerHour: 270,
+            basisShare: 0.29,
+            samples: 120,
+          },
+        ],
+      },
+    };
+    const h = renderMmDeskLive(snap({ hedge, hedgePnlUnits: '41500000' })).value;
+    expect(h).toContain('basis σ'); // the vol the delta hedge cannot touch, next to "neutralised"
+    expect(h).toContain('$600.00'); // desk basis vol per √hour
+    expect(h).toContain('36.00% unhedgeable'); // (600/1000)² of desk variance
+    expect(h).toContain('SOL→BTC β1.10→1.03 R²0.72 basis 29%'); // the WP6 ranking row
   });
 
   it('renders the F3 toxicity diagnostics on a book card when the scaler is wired (DR-3)', () => {
@@ -126,6 +167,13 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('scale 0.60 (max 2.43)');
     // a book with no scaler shows no F3 line
     expect(renderMmDeskLive(snap()).value).not.toContain('F3 widen');
+  });
+
+  it('reddens maxDD only when it breaches the drawdown budget (always-bad → red over budget, dim within)', () => {
+    const under = renderMmDeskLive(snap()).value; // 0.53% — inside the 2% budget
+    expect(under).toContain('maxDD <span class="dim">0.53%</span>');
+    const over = renderMmDeskLive(snap({ books: [book({ maxDrawdownPct: 3.2 })] })).value;
+    expect(over).toContain('maxDD <span class="neg">3.20%</span>');
   });
 
   it('wires the per-book remove button to the symbol it sits on', () => {

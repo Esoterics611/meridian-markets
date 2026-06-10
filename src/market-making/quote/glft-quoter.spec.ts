@@ -164,4 +164,44 @@ describe('GlftQuoter', () => {
       expect(parkedBid(btc)).toBe(false);
     });
   });
+
+  // σ-independent inventory lean (Journal #48): the reservation skew is ∝ γ·σ²·q, so in a calm
+  // trend it vanishes and the book accumulates one-sided inventory. The asymmetric SHED skew
+  // tightens the side that reduces inventory + widens the side that adds, proportional to how full
+  // the book is — leaning HARDER against the trend regardless of σ.
+  describe('inventory spread skew (σ-independent lean)', () => {
+    const SH = { gamma: 0.0025, kappa: 2, quoteSizeUnits: 1_000_000n, minHalfSpreadBps: 5, maxHalfSpreadBps: 200, steadyHorizonBars: 1, maxInventoryLots: 10 };
+    const shed = (over: Record<string, unknown> = {}) => new GlftQuoter({ ...SH, inventorySpreadSkew: 0.4, ...over }, CLOCK);
+    const halves = (p: ReturnType<GlftQuoter['quote']>) => ({
+      bid: Number(p.reservationMicros) - Number(p.bid.priceMicros),
+      ask: Number(p.ask.priceMicros) - Number(p.reservationMicros),
+    });
+
+    it('is symmetric at flat inventory (no lean when there is nothing to shed)', () => {
+      const f = halves(shed().quote(ctx({ inventoryUnits: 0n }), 'X'));
+      expect(f.bid).toBe(f.ask);
+    });
+
+    it('net LONG ⇒ tightens the ASK (sell to shed) and widens the BID (buy less)', () => {
+      const l = halves(shed().quote(ctx({ inventoryUnits: 5_000_000n }), 'X')); // 5 of 10 lots long
+      expect(l.ask).toBeLessThan(l.bid);
+    });
+
+    it('net SHORT ⇒ tightens the BID (buy to cover) and widens the ASK (sell less)', () => {
+      const s = halves(shed().quote(ctx({ inventoryUnits: -5_000_000n }), 'X'));
+      expect(s.bid).toBeLessThan(s.ask);
+    });
+
+    it('leans HARDER as inventory fills toward the cap (σ-independent ramp)', () => {
+      const half5 = halves(shed().quote(ctx({ inventoryUnits: 5_000_000n }), 'X'));
+      const half9 = halves(shed().quote(ctx({ inventoryUnits: 9_000_000n }), 'X'));
+      expect(half9.ask).toBeLessThan(half5.ask); // sheds the long even harder
+      expect(half9.bid).toBeGreaterThan(half5.bid); // and adds even less
+    });
+
+    it('intensity 0 / unset ⇒ symmetric even when long (legacy off)', () => {
+      const off = halves(new GlftQuoter({ ...SH, inventorySpreadSkew: 0 }, CLOCK).quote(ctx({ inventoryUnits: 5_000_000n }), 'X'));
+      expect(off.bid).toBe(off.ask);
+    });
+  });
 });

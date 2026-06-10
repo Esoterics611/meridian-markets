@@ -1,5 +1,6 @@
 import { ITradingVenue, Side } from '../../stat-arb/trading-venue.interface';
 import { BookDelta, HedgeConfig, HedgeOrder, computeHedge, netDeltaByUnderlying, hedgeOrderUnits } from './desk-delta-hedger';
+import { HedgeQualityTracker, HedgeQualitySnapshot } from './hedge-quality';
 
 // DeskHedgeController — the EXECUTING side of the delta hedge (HEDGING_MODEL.md §1–2).
 //
@@ -39,6 +40,10 @@ export interface HedgeSnapshot {
   fundingUsd: number; // cumulative funding carry (+ = received)
   perUnderlying: HedgeUnderlyingSnap[];
   ordersLastTick: HedgeOrder[];
+  /** The §0 KPI (residual_mm_risk_study.md): factor-vs-basis residual variance + live β/R² per
+   *  book. Residual DELTA can read ~0 while most of an alt's vol is still live on the desk —
+   *  this block is the honest hedge-quality read. Optional so test fixtures need not build it. */
+  quality?: HedgeQualitySnapshot;
 }
 
 export interface RebalanceCtx {
@@ -53,6 +58,8 @@ export interface RebalanceCtx {
 export class DeskHedgeController {
   private readonly pos = new Map<string, PerpPosition>();
   private lastOrders: HedgeOrder[] = [];
+  /** Residual-variance KPI (study §0); fed once per rebalance with the same books + marks. */
+  private quality: HedgeQualityTracker;
   /** Last live mark seen per underlying. A book going un-warm / mid-relaunch drops its symbol from
    *  the desk price map (deskDeltas skips mid≤0); marking an OPEN hedge at the resulting 0 produced a
    *  phantom P&L blow-up AND made computeHedge think it held nothing ⇒ it re-traded every 100ms tick
@@ -68,7 +75,9 @@ export class DeskHedgeController {
     // so the paper taker fills at the same mid we hedge against (the live module wires this to
     // the PaperVenue's pricePoller). Omit ⇒ the venue prices itself (the unit tests).
     private readonly syncPrices?: (prices: Record<string, bigint>) => void,
-  ) {}
+  ) {
+    this.quality = new HedgeQualityTracker(cfg.betaMap, undefined, cfg.qualityBucketMs);
+  }
 
   private posOf(u: string): PerpPosition {
     let p = this.pos.get(u);
@@ -77,6 +86,24 @@ export class DeskHedgeController {
       this.pos.set(u, p);
     }
     return p;
+  }
+
+  /**
+   * Drop the entire hedge book to flat — clear every perp position, the last orders, and the
+   * last-known marks, so a fresh snapshot() reads zero gross/residual/P&L (perUnderlying empty).
+   * The desk's `closeAll` (the "come up clean" shutdown ritual, scripts/stop-desk.sh) calls this so
+   * the UI returns to a true flat 000 WITHOUT a process restart. (Journal #45a: the in-memory hedge
+   * state is otherwise only cleared by killing the process — the exact ghost-P&L trap, where a held
+   * perp marked against a stale price keeps showing a phantom P&L after the books are flat.)
+   * Returns the number of perp legs that were tracked, for the desk tape.
+   */
+  reset(): number {
+    const legs = this.pos.size;
+    this.pos.clear();
+    this.lastOrders = [];
+    this.lastMark.clear();
+    this.quality = new HedgeQualityTracker(this.cfg.betaMap, undefined, this.cfg.qualityBucketMs);
+    return legs;
   }
 
   /**
@@ -113,6 +140,9 @@ export class DeskHedgeController {
     // current hedge, fill price, and the returned snapshot — so a book's price flicker can't make the
     // hedge mis-value, churn, or blow up its P&L (Journal #45).
     const marks = this.resolveMarks(ctx.prices);
+
+    // 0. The hedge-quality KPI samples the same books + marks the hedge itself trades off.
+    this.quality.update(books, marks, this.clock().getTime());
 
     // 1. Funding on what we already hold (short hedge earns when the rate is positive).
     const dt = ctx.dtHours ?? 0;
@@ -180,6 +210,6 @@ export class DeskHedgeController {
       perUnderlying.push({ underlying: u, netDeltaUsd, hedgeUnits: p ? Number(p.units) / MICROS : 0, hedgeNotionalUsd: hn, residualUsd: resid });
     }
 
-    return { enabled: true, grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, perUnderlying, ordersLastTick: this.lastOrders };
+    return { enabled: true, grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, perUnderlying, ordersLastTick: this.lastOrders, quality: this.quality.snapshot() };
   }
 }

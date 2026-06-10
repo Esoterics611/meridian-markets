@@ -19,6 +19,8 @@ import { L2PollDriver } from './live/l2-poll-driver';
 import { FundingBiasSource } from './bias/funding-bias-source';
 import { FlowImbalanceBiasSource } from './bias/flow-bias-source';
 import { RollingIcFlowBiasSource } from './bias/rolling-ic-flow-bias-source';
+import { IBiasSource } from './bias/bias-source.interface';
+import { IQuoter } from './quote/quoter.interface';
 import { IFlowShadowRecorder, NoopFlowShadowRecorder } from './bias/flow-shadow-recorder';
 import { JsonlFlowShadowRecorder } from './persistence/jsonl-flow-shadow-recorder';
 import { MmController } from './mm.controller';
@@ -187,6 +189,86 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             )
           : new NoopFlowShadowRecorder();
 
+        // SHARED book wiring (Journal #47): both the launch path (makeBook) and the rehydrate path
+        // (rebuildBook) MUST build the bias sources and the queue-aware fast engine the SAME way.
+        // They used to diverge — only makeBook wired the fast engine — so on a desk restart every
+        // book rehydrated WITHOUT fastEngine ⇒ isFastPath()=false ⇒ it silently fell back to the
+        // 15s bar tick (stale-quote adverse selection, no F3 toxicity defence, no hedge-cost in the
+        // spread). Centralising the build here is the fix: a rehydrated book is now identical to a
+        // freshly launched one. Do NOT inline-rebuild either of these — call these helpers.
+        const resolveBiasSources = (
+          symbol: string,
+          quoter: IQuoter,
+          useFast: boolean,
+        ): { biasSource: IBiasSource | undefined; liveBiasSource: IBiasSource | undefined } => {
+          // The static directional axe: only a directional-glft book on an OOS-validated coin.
+          const biasSource =
+            quoter.familyId === 'directional-glft' && mm.fundingBiasSymbols.includes(symbol.toUpperCase())
+              ? new FundingBiasSource({ fullBiasRatePerHour: mm.fundingBiasFullRate, maxBias: mm.fundingBiasMax, validated: true })
+              : undefined;
+          // The live, self-validating flow axe on the fast path (MM_FLOW_BIAS_LIVE); else the static one.
+          const liveBiasSource =
+            mm.flowBiasLive && useFast
+              ? new RollingIcFlowBiasSource({
+                  fullBiasImbalance: mm.flowFullImbalance,
+                  maxBias: mm.flowMaxBias,
+                  horizonMs: mm.flowBiasHorizonMs,
+                  evalEveryMs: mm.flowBiasHorizonMs,
+                  icThreshold: mm.flowBiasMinIc,
+                })
+              : biasSource;
+          return { biasSource, liveBiasSource };
+        };
+
+        // The queue-aware fast engine: F1 micro-price center + sub-second re-quote, F3 toxicity
+        // widening, and the hedge-cost-in-spread premium. undefined ⇒ the book stays on the bar path
+        // (the non-L2 offline-test case only). This is the single source of truth for fast wiring.
+        const buildFastEngine = (p: {
+          useFast: boolean;
+          symbol: string;
+          quoter: IQuoter;
+          quoteSizeUnits: bigint;
+          gamma: number;
+          kappa: number;
+          horizonBars: number;
+          srcId: string;
+          capitalUnits: bigint;
+          fundingRate: number;
+          liveBiasSource: IBiasSource | undefined;
+        }): L2LiveFillEngine | undefined =>
+          p.useFast
+            ? new L2LiveFillEngine({
+                symbol: p.symbol,
+                quoter: p.quoter,
+                markoutHorizonsMs: mm.markoutHorizonsMs,
+                quoteSizeUnits: p.quoteSizeUnits,
+                gamma: p.gamma,
+                kappa: p.kappa,
+                horizonBars: p.horizonBars,
+                volWindowBars: mm.volWindowBars,
+                volFloor: mm.volFloor,
+                makerFeeBps: venueFeeFor(p.srcId).makerBps,
+                capitalUnits: p.capitalUnits,
+                microDepth: mm.microPriceDepth,
+                cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
+                riskGate: makeRiskGate(p.quoteSizeUnits),
+                biasSource: p.liveBiasSource,
+                fundingRatePerHour: p.fundingRate,
+                shadowBiasSource: mm.flowShadow
+                  ? new FlowImbalanceBiasSource({ fullBiasImbalance: mm.flowFullImbalance, maxBias: mm.flowMaxBias, validated: false })
+                  : undefined,
+                shadowRecorder: flowShadowRecorder,
+                shadowMinIntervalMs: mm.flowShadowMinMs,
+                imbalanceDepth: mm.microPriceDepth,
+                toxicityScaler: mm.f3Toxicity
+                  ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
+                  : undefined,
+                // Price the perp hedge into the maker spread (only when the delta hedge is on), so a
+                // fill we may hedge with a taker earns ≥ the hedged fraction of the round-trip cost.
+                hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
+              })
+            : undefined;
+
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
           const srcId = spec.source ?? mm.defaultSource;
@@ -231,86 +313,31 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,
+              inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
               ...spec.params,
             },
           });
           const { nextBar, warmupCloses } = resolveFeed(srcId);
-          // Directional bias (the axe): only a mm-directional-glft book on an
-          // OOS-VALIDATED coin gets a live funding-paid-side bias (the #1 gate —
-          // 2026-06-07 sweep validated BTC funding, cap 0.39); every other book stays
-          // neutral. effectiveBias() still zeroes it if the source isn't validated, so
-          // this is honest by construction. Bar-path books read ctx.bias (the weekly
-          // carry tilt doesn't need sub-second cadence).
-          const biasSource =
-            quoter.familyId === 'directional-glft' && mm.fundingBiasSymbols.includes(spec.symbol.toUpperCase())
-              ? new FundingBiasSource({ fullBiasRatePerHour: mm.fundingBiasFullRate, maxBias: mm.fundingBiasMax, validated: true })
-              : undefined;
-          // C2 fast path: an L2 book on a streamed HL symbol gets a queue-aware engine
-          // (the trader drives it via the poll driver, NOT the bar tick). Same quoter +
-          // risk gate + sizing as the bar book; the engine owns the InventoryBook the
-          // MmBook shares. Off ⇒ undefined ⇒ the book stays on the bar path.
-          const fundingRate = await fundingRateFor(srcId, spec.symbol);
-          // Fast is the DEFAULT for any L2-capable venue (no opt-in flag): an L2 book ⇒ the
-          // queue-aware engine; the bar path only runs for the non-L2 offline-test case above.
+          // Resolve the bias axes + the queue-aware fast engine via the shared helpers, so the
+          // rehydrate path (rebuildBook) gets byte-identical wiring on restart (Journal #47). Fast
+          // is the DEFAULT for any L2-capable venue; the bar path only runs for the non-L2 test case.
           const useFast = hasL2;
-          // The LIVE directional bias driving the fast engine: when MM_FLOW_BIAS_LIVE is on,
-          // a self-validating rolling-IC flow source (re-checks its own forward-return IC
-          // every horizon; sizes carry only while predictive, per coin — reversal coins
-          // self-disable). Else the static funding axe. directional-glft books act on it;
-          // neutral mm-glft ignores bias, so attaching it desk-wide is safe.
-          const liveBiasSource =
-            mm.flowBiasLive && useFast
-              ? new RollingIcFlowBiasSource({
-                  fullBiasImbalance: mm.flowFullImbalance,
-                  maxBias: mm.flowMaxBias,
-                  horizonMs: mm.flowBiasHorizonMs,
-                  evalEveryMs: mm.flowBiasHorizonMs,
-                  icThreshold: mm.flowBiasMinIc,
-                })
-              : biasSource;
-          const fastEngine = useFast
-            ? new L2LiveFillEngine({
-                symbol: spec.symbol,
-                quoter,
-                markoutHorizonsMs: mm.markoutHorizonsMs,
-                quoteSizeUnits,
-                gamma: spec.params?.['gamma'] ?? mm.gamma,
-                kappa: spec.params?.['kappa'] ?? mm.kappa,
-                horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,
-                volWindowBars: mm.volWindowBars,
-                volFloor: mm.volFloor,
-                makerFeeBps: venueFeeFor(srcId).makerBps,
-                capitalUnits: mm.capitalUnits,
-                microDepth: mm.microPriceDepth,
-                cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
-                riskGate: makeRiskGate(quoteSizeUnits),
-                // The directional axe on the fast path: the same validated bias source the
-                // bar path uses, with the live funding rate as its input (kept current by
-                // the refresh cron via MmBook.setFundingRatePerHour → engine).
-                biasSource: liveBiasSource,
-                fundingRatePerHour: fundingRate,
-                // F1b shadow: the book-imbalance directional signal on EVERY fast market,
-                // measured + recorded but never quoted (zero impact). Off ⇒ no shadow source.
-                shadowBiasSource: mm.flowShadow
-                  ? new FlowImbalanceBiasSource({ fullBiasImbalance: mm.flowFullImbalance, maxBias: mm.flowMaxBias, validated: false })
-                  : undefined,
-                shadowRecorder: flowShadowRecorder,
-                shadowMinIntervalMs: mm.flowShadowMinMs,
-                imbalanceDepth: mm.microPriceDepth,
-                // F3 adverse-selection defence: widen into toxic/one-sided (informed) flow,
-                // tighten into calm flow. Per-book scaler (own rolling window). Off ⇒ unscaled.
-                toxicityScaler: mm.f3Toxicity
-                  ? new FlowToxicityScaler({ windowBars: mm.volWindowBars, minScale: mm.f3MinScale, maxScale: mm.f3MaxScale })
-                  : undefined,
-                // Price the perp hedge into the maker spread when the delta hedge is on: each fill we
-                // make may be hedged with a perp taker, so the spread should earn ≥ the (fraction of
-                // the) hedge round-trip (taker + half-spread bps) or hedging converts directional risk
-                // into a cost bleed. Scaled by hedgeCostSpreadMult (a neutral book offsets most flow
-                // before it becomes hedged delta ⇒ marginal hedged fraction < 1). 0 when hedge off.
-                hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
-              })
-            : undefined;
+          const fundingRate = await fundingRateFor(srcId, spec.symbol);
+          const { biasSource, liveBiasSource } = resolveBiasSources(spec.symbol, quoter, useFast);
+          const fastEngine = buildFastEngine({
+            useFast,
+            symbol: spec.symbol,
+            quoter,
+            quoteSizeUnits,
+            gamma: spec.params?.['gamma'] ?? mm.gamma,
+            kappa: spec.params?.['kappa'] ?? mm.kappa,
+            horizonBars: spec.params?.['horizonBars'] ?? mm.horizonBars,
+            srcId,
+            capitalUnits: mm.capitalUnits,
+            fundingRate,
+            liveBiasSource,
+          });
           return new MmBook({
             symbol: spec.symbol,
             strategyId,
@@ -360,9 +387,29 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,
+              inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
               ...(rec.params ?? {}),
             },
+          });
+          // Same fast-path wiring as makeBook (Journal #47): a rehydrated L2 book MUST get the
+          // queue-aware fast engine + bias axes, or it silently resumes on the slow 15s bar tick
+          // (stale-quote adverse selection, no F3 toxicity defence, no hedge-cost in the spread).
+          const refSource = srcId !== 'binance' && srcId !== 'mock' ? refRegistry.get(srcId) : undefined;
+          const useFast = typeof (refSource as Partial<IL2BookSource> | undefined)?.l2Snapshot === 'function';
+          const { biasSource, liveBiasSource } = resolveBiasSources(rec.symbol, quoter, useFast);
+          const fastEngine = buildFastEngine({
+            useFast,
+            symbol: rec.symbol,
+            quoter,
+            quoteSizeUnits: rec.quoteSizeUnits,
+            gamma: rec.gamma,
+            kappa: rec.kappa,
+            horizonBars: rec.horizonBars,
+            srcId,
+            capitalUnits: rec.capitalUnits,
+            fundingRate: rec.fundingRatePerHour,
+            liveBiasSource,
           });
           return new MmBook({
             symbol: rec.symbol,
@@ -384,6 +431,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             nextBar,
             warmupCloses,
             referenceMicros: resolveReferenceMicros(srcId),
+            fastEngine,
+            biasSource,
             riskGate: makeRiskGate(rec.quoteSizeUnits),
             events: deskEvents,
           });

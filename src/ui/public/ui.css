@@ -62,9 +62,10 @@ body {
 .page-title { font-size: 15px; font-weight: 600; margin: 0 0 16px; color: var(--fg); }
 .dim { color: var(--dim); }
 .mono { font-variant-numeric: tabular-nums; }
-.pos { color: var(--pos); }
-.neg { color: var(--neg); }
-.flat { color: var(--fg); }
+.pos { color: var(--pos); }   /* green  — working FOR the desk (gains, rebate, funding received) */
+.neg { color: var(--neg); }   /* red    — working AGAINST the desk (losses, costs, adverse, dd over budget) */
+.warn { color: var(--warn); } /* amber  — caution / gate intervening (blocked, non-Allow, warming) — not a loss */
+.flat { color: var(--fg); }   /* neutral — direction & exposure (a sign that isn't good/bad) */
 code { color: var(--accent); background: var(--panel-2); padding: 1px 5px; border-radius: 3px; }
 
 /* desk-feed visually dims while the SSE connection is dropped. */

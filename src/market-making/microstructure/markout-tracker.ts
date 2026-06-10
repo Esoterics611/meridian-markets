@@ -33,10 +33,20 @@ interface PendingFill {
   resolved: number; // count of horizons already marked
 }
 
+/** The buy/sell-split curves (WP2: per-side markout — asymmetry between the sides is the
+ *  signature of one-sided informed flow that a symmetric widen cannot price). */
+export interface MarkoutSideCurves {
+  buy: MarkoutPoint[];
+  sell: MarkoutPoint[];
+}
+
 export class MarkoutTracker {
   private readonly horizonsMs: number[];
   private readonly sumBps: number[];
   private readonly counts: number[];
+  // Per-side accumulators (index 0 = BUY fills, 1 = SELL fills).
+  private readonly sideSumBps: [number[], number[]];
+  private readonly sideCounts: [number[], number[]];
   private pending: PendingFill[] = [];
 
   constructor(horizonsMs: number[]) {
@@ -44,6 +54,8 @@ export class MarkoutTracker {
     this.horizonsMs = [...new Set(horizonsMs.filter((h) => h > 0))].sort((a, b) => a - b);
     this.sumBps = this.horizonsMs.map(() => 0);
     this.counts = this.horizonsMs.map(() => 0);
+    this.sideSumBps = [this.horizonsMs.map(() => 0), this.horizonsMs.map(() => 0)];
+    this.sideCounts = [this.horizonsMs.map(() => 0), this.horizonsMs.map(() => 0)];
   }
 
   /** Record a fill to be marked out at each forward horizon. */
@@ -63,6 +75,9 @@ export class MarkoutTracker {
         const bps = (p.sign * Number(midMicros - p.fairMid) * 10000) / Number(p.fairMid);
         this.sumBps[i] += bps;
         this.counts[i] += 1;
+        const s = p.sign > 0 ? 0 : 1; // 0 = BUY, 1 = SELL
+        this.sideSumBps[s][i] += bps;
+        this.sideCounts[s][i] += 1;
         p.resolved += 1;
       }
     }
@@ -79,5 +94,17 @@ export class MarkoutTracker {
       bps: this.counts[i] > 0 ? this.sumBps[i] / this.counts[i] : null,
       count: this.counts[i],
     }));
+  }
+
+  /** The same curve split by fill side (WP2). Both curves use the fill's own sign convention,
+   *  so negative = adverse for that side; a side sinking while the other holds = one-sided flow. */
+  sideCurves(): MarkoutSideCurves {
+    const sideOf = (s: 0 | 1): MarkoutPoint[] =>
+      this.horizonsMs.map((ms, i) => ({
+        ms,
+        bps: this.sideCounts[s][i] > 0 ? this.sideSumBps[s][i] / this.sideCounts[s][i] : null,
+        count: this.sideCounts[s][i],
+      }));
+    return { buy: sideOf(0), sell: sideOf(1) };
   }
 }

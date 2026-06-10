@@ -116,6 +116,13 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   /** epoch ms of the last hedge rebalance, for funding/dt accrual. */
   private lastHedgeMs: number | null = null;
 
+  /** Last usable mid (micro-USD/coin) seen per book symbol. A book's mid can flicker to 0 for a
+   *  poll cycle (an L2 gap / a relaunch); if we drop that book from the delta input its delta
+   *  vanishes from the net, so the hedge unwinds a correct leg and re-opens it the next cycle — the
+   *  churn that round-tripped ~$14.7M of perp notional in one ~73-min run (Journal #47). We fall back
+   *  to this last-known mark so a book WITH inventory stays in the hedge input across the flicker. */
+  private readonly lastBookMark = new Map<string, bigint>();
+
   /** Per-underlying book deltas + marks + funding for the hedge, read off the live book snapshots. */
   private deskDeltas(): { books: BookDelta[]; prices: Record<string, bigint>; funding: Record<string, number> } {
     const books: BookDelta[] = [];
@@ -123,8 +130,16 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     const funding: Record<string, number> = {};
     for (const b of this.books.values()) {
       const s = b.snapshot();
-      const midMicros = BigInt(s.midMicros);
-      if (midMicros <= 0n) continue; // un-warm book has no mark yet
+      let midMicros = BigInt(s.midMicros);
+      if (midMicros > 0n) {
+        this.lastBookMark.set(s.symbol, midMicros);
+      } else {
+        // Mid flickered out this cycle. Value the book's delta at its last-known mark so the hedge
+        // doesn't churn (see lastBookMark). Only truly skip a book that has NEVER warmed (no mark).
+        const last = this.lastBookMark.get(s.symbol);
+        if (!last) continue;
+        midMicros = last;
+      }
       books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros });
       prices[s.symbol] = midMicros;
       funding[s.symbol] = s.fundingRatePerHour; // the live HL perp rate; the short hedge earns it
@@ -230,6 +245,15 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   async closeAll(): Promise<number> {
     const symbols = [...this.books.keys()]; // snapshot keys — removeBook mutates the map
     for (const s of symbols) await this.removeBook(s);
+    // The books are flat + dropped; now drop the HEDGE book too. Without this, closeAll left the
+    // in-memory perp positions in place — `hedger.snapshot()` kept marking them against the last-known
+    // price, so the UI's hedge panel still showed the phantom P&L (Journal #45a) until a full process
+    // restart. closeAll's contract is "next boot comes up CLEAN", so it resets the hedge to flat and
+    // tapes it — the desk visibly lands at a true 000 (the stop-desk ritual now needs no restart).
+    if (this.hedger) {
+      const legs = this.hedger.reset();
+      this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'stop', message: `delta hedge flattened — ${legs} perp leg(s) closed, desk flat` }));
+    }
     return symbols.length;
   }
 
@@ -238,7 +262,18 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     for (const b of this.books.values()) b.setRunning(true);
     this.timer = setInterval(() => void this.tick(), this.pollIntervalMs);
     this.fastDriver?.start(); // the sub-second L2 poll loop for fast-path books (C2)
-    this.events.emit(lifecycleEvent({ ts: Date.now(), kind: 'start', message: `desk loop started — ${this.books.size} book(s) quoting every ${this.pollIntervalMs}ms` }));
+    // Report the fast/bar split explicitly: the rehydrate trap (Journal #47) was INVISIBLE because the
+    // only loop log said "quoting every 15000ms" while books had silently fallen onto the slow bar path.
+    // If a run is meant to be fast and this logs "0 on fast L2 re-quote", the trap has recurred.
+    const fast = this.fastPathSymbols().length;
+    const bar = this.books.size - fast;
+    this.events.emit(
+      lifecycleEvent({
+        ts: Date.now(),
+        kind: 'start',
+        message: `desk loop started — ${this.books.size} book(s): ${fast} on fast L2 re-quote (driver ${this.fastDriver ? 'on' : 'off'}), ${bar} on the ${this.pollIntervalMs}ms bar path`,
+      }),
+    );
   }
 
   stop(): void {

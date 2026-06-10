@@ -1809,3 +1809,143 @@ hedgePnl=−$9,752 → orders=1 / −$2 (= the stable case). Regression test add
 must be restarted (stop-desk + relaunch) to clear the bad in-memory hedge state** — persisted mm_nav rows
 are historical. This is exactly why the UI-visibility work mattered: the bug was invisible until the hedge
 was on the card.
+
+## 2026-06-09 — Entry #46 (JOB A: MM-desk UI colour semantics made honest + dead-field audit)
+
+The #45 next-session ask: the `/demo` desk pages must use intuitive colour — **green = working FOR us,
+red = against us** — the way a pro MM terminal does, and show only real/active fields. Audited every
+`signClass(...)`/colour call site across the MM-backed pages (`/desk/mm`, `/exec`, `/risk`); stat-arb
+desk left untouched (not in active development).
+
+**The colour dialect (now documented at the top of `format.ts`, the one place the dialect is decided):**
+- **green (.pos)** — money FOR the desk: realised/MTM gains, funding received, a maker **rebate**
+  (revenue), net profit. The rebate case is the subtle one: fees are coloured by their **contribution**
+  to net (`−feesUnits`), so a cost reads red and a −0.2bps HL rebate reads **green** (already wired #43 —
+  confirmed correct).
+- **red (.neg)** — money AGAINST the desk: losses, costs paid, funding paid, **adverse selection**
+  (`adverseSelectionUnits` is a signed one-bar markout — negative = picked off → red; a *favorable*
+  markout is genuinely good → green, which is honest), a drawdown **over budget**.
+- **amber (.warn, new class)** — caution / the **gate intervening**, NOT a loss: blocked quotes, a
+  non-Allow risk verdict, WARMING. Eyes-here, but we didn't lose money.
+- **neutral (.flat/.dim/plain)** — **direction & exposure**, where a sign isn't good/bad: inventory,
+  net delta, gross Δ / residual, quotes (bid/mid/ask/reservation/½-spread), counts. Never `signClass`.
+
+**Fixes applied (the three genuine bugs the audit found):**
+1. **`/risk` net & per-book exposure** was `signClass` → a net-**short** read **red** ("bad") and a
+   net-long read green. Exposure sign is a *direction*, not goodness → now **neutral** (sign still shown
+   in the number). This is the same inventory-sign trap the MM card already avoids.
+2. **`/risk` blocked quotes / blocked-books** were **red** (loss colour). A blocked quote is the risk
+   gate doing its job → recoloured **amber** (caution). Kept "books over budget" red (a real breach).
+3. **`/desk/mm` card maxDD** was un-coloured dim text; it's always-bad → now **red once it breaches the
+   shared `DRAWDOWN_BUDGET_PCT` (2%)**, dim within — matching how `/exec` + `/risk` already flag it.
+
+**Verified already-correct (no change):** the per-book cash grid still literally sums to net (#43
+invariant, untouched); the hedge panel's hedge-P&L is labelled "folded into desk net" so it isn't
+double-shown as separate; hedge P&L / funding (green=received) / cost (negated → red) and gross Δ /
+residual (neutral) were all coloured right by #45. **F3 toxicity** stays **dim** — it's the adverse
+defence *firing* (a diagnostic), not money for/against us.
+
+**Dead-field audit:** the render layer (mm/exec/risk) shows **no** dead/legacy/never-populated field —
+the snapshot carries bar-path-only (`seededBars`/`lastBarAt`/`barsSeen`) + unused (`vpin`/`vpinBuckets`/
+`inventoryNotionalCapUnits`/`markout`/`fundingRatePerHour`) fields, but **none are rendered** on the MM
+pages (`/risk` even refuses to print a fake VPIN — shows live adverse instead). Nothing to remove on the
+pages; pruning the unused *snapshot* fields is an engine-side tidy, deferred (out of UI scope). One stale
+comment noted: `inventoryNotionalCapUnits`' doc claims "the UI shows exposure as a % of this rail" — the
+UI does not; a 1-line engine-comment fix left for the repo-wide audit pass.
+
+**Tests:** tsc clean; `jest src/ui` 94/94 green (+ new maxDD-reddens-over-budget and exposure-neutral /
+blocked-amber assertions). **JOB B (run + review Run A′) is hand-run by Ronnie** — the sandbox can't run
+the dev server; smoke step: `bash scripts/start-desk.sh` → `http://localhost:3100/desk/mm` (+ `/risk`).
+
+### #46a (same day, live look #2) — stop-desk now flattens the HEDGE too, so the desk lands on a true 000
+Ronnie restarted and still saw a garbage P&L (~$666M). Root cause was **process hygiene, not the fix**:
+`ps` showed **three** desk servers alive — two from **Jun 8, before the #45a hedge fix** — none bound to
+:3100 anymore, but the browser had been served by a stale pre-fix process still holding the poisoned
+in-memory hedge position. Killed all stale `nest start --watch` / `dist/src/main` processes (the +$666M
+died with them; the hedge is in-memory, not persisted).
+
+But the diagnosis exposed a **real gap** Ronnie asked to close: the **stop-desk ritual must take the desk
+to a visible 000 by itself**, no process restart. Today `closeAll()` (what `scripts/stop-desk.sh` POSTs)
+looped `removeBook` per book (each taped, step-by-step ✓) but **never reset the hedge** — so
+`hedger.snapshot()` kept marking the still-held perp legs against the last-known price and the UI's hedge
+panel showed the phantom P&L until the process was killed (exactly the #45a trap, just surfaced via the
+panel instead of the net). Fix: **`DeskHedgeController.reset()`** (clears `pos` + `lastOrders` +
+`lastMark` → snapshot reads 0 gross/residual/P&L, perUnderlying empty) called from `closeAll()` after the
+books are dropped, emitting a `delta hedge flattened — N perp leg(s) closed, desk flat` lifecycle event.
+Now stop-desk tapes each book close, then the hedge flatten, and the summary + hedge panel both read a
+true **$0.00 / flat** — no restart needed. (`flatten` endpoint unchanged — it keeps books and the live
+loop unwinds the hedge over the next ticks; only `closeAll` needs the explicit reset since it stops.)
+
+**Tests:** tsc clean; `desk-hedge-controller` (reset → flat 000) + `mm-portfolio-trader` (closeAll resets
+hedge, tapes it, snapshot flat) green — `jest src/market-making/{hedge,live,events}` 93/93. **Operator
+note:** if a desk shows a ghost P&L, the cause is almost always a **stale duplicate server** — `ps aux |
+grep nest` should show exactly ONE; kill extras, then `bash scripts/stop-desk.sh` lands it on 000.
+
+## 2026-06-09 — Entry #47 (the rehydrate trap: restarted books fell back to slow bar quoting → the bleed)
+**Symptom.** A ~73-min governed run (8 HL books, $1M each, delta hedge ON) bled **−$80.3k realised** (DB
+`mm_nav`, ~100% realised — locked in, not a mark), maxDD scaling with each coin's vol (XRP/BTC/ETH worst,
+ADA least). Fees were tiny (−$8…−$68/book) ⇒ NOT a cost problem. Per-book attribution from the log
+persistence blobs (`realised = spreadCaptured + invCarry + funding`; `adverse` is the diagnostic markout):
+**`spreadCaptured` deeply NEGATIVE on every book** (−$3.9k…−$14.8k) — the textbook signature of **getting
+picked off** (the mark moves against each fill by more than the half-spread earned).
+
+**Root cause (the real find).** The book the operator was running had been **rehydrated from persistence**
+(`boot: "rehydrated 8 mm book(s)"`). The fast-path machinery — F1 micro-price center + sub-second re-quote,
+F3 toxicity widening, and the hedge-cost-in-spread premium — was wired **only in `makeBook` (the fresh
+launch path)**. `rebuildBook` (the restart path) built a plain `MmBook` with **no `fastEngine`** ⇒
+`isFastPath()` = `!!cfg.fastEngine` = **false** ⇒ the book ran on the **15s bar tick** off a ~1/min candle
+mid. So a 15s-stale quote sat in front of 100ms flow — **all of #27–#44 silently evaporated on every desk
+restart/reopen.** This is why "I thought everything was microsecond" and "this was supposed to be fixed":
+the fixes were real, but only on the launch path; the two construction paths had drifted.
+
+**Hedge churn (secondary, ~$4k).** 133 hedge orders, **$14.7M perp notional round-tripped** (20 BTC `open`s
++ 20 `flip`s = flattening then re-opening, not converging). Cause: `deskDeltas()` skipped any book whose
+mid flickered to 0 for a cycle (`midMicros <= 0n continue`), so that underlying's net delta vanished, the
+hedge unwound a correct leg, then re-opened it next cycle. #45a's flicker fix only stabilised the hedge's
+*own* valuation (`DeskHedgeController.resolveMarks`), not the *book-side* dropout upstream of it.
+
+**The honest verdict (said plainly to the operator).** The hedge was **~5% of the loss, not the cause**. A
+perfect, free, instant delta hedge still leaves the ~$80k — it's a **fair-value/edge problem**, not a
+directional-delta problem. A hedge converts directional *variance* into a steadier line; it cannot
+manufacture edge from a negative-edge quoter.
+
+**Fixes shipped (this entry).**
+1. **Unified book wiring** — extracted `resolveBiasSources()` + `buildFastEngine()` helpers in
+   `market-making.module.ts`; **both** `makeBook` and `rebuildBook` now call them, so a rehydrated L2 book
+   is byte-identical to a freshly launched one (fast engine + bias axes + F3 + hedge-cost-in-spread). This
+   is the primary fix — books are back on the 100ms micro-price re-quote path after a restart.
+2. **Hedge-cost-in-spread now actually fires** — `hedgeCostBps = (taker+halfspread)·mult` (= (2.5+1)·0.5 =
+   **1.75bps** premium when the hedge is on) lives in the fast engine and was already unit-tested
+   (`quote-pair.ts:119`); fix #1 means rehydrated books finally get it.
+3. **Hedge-churn fix** — `MmPortfolioTrader.deskDeltas()` keeps a `lastBookMark` per symbol and values a
+   flickered book's delta at its last-known mark instead of dropping it, so the hedge stops round-tripping
+   across price flickers (only a never-warmed book is skipped).
+
+**Tests:** tsc clean; `jest src/market-making/{live,hedge,quote}` 121/121 green. **Operator rule (now in
+the `mm-run-review` skill):** after every run, read **edge first** (is `spreadCaptured` negative? = picked
+off), and check the desk loop log line — if it says `quoting every 15000ms` AND there's no fast-path
+activity, the books rehydrated onto the slow path. A genuinely fast desk re-quotes sub-second.
+
+## 2026-06-09 — Entry #48 (the frontier moved: pick-off fixed → σ-independent inventory lean)
+**First clean read on the fixed (fast-path) desk** (8 books, $8M, ~42 min): `spreadCaptured` flipped to
+**POSITIVE on all 8 books** (BTC +191, ETH +133, SOL +77, …) vs −$4k…−$15k each pre-fix — **the #47
+micro-price/fast re-quote fix killed the pick-off.** The delta hedge also works now: gross delta
+**$382,619 → residual $586** (99.85% neutralised), churn down to 61 orders/$2.5M (from 133/$14.7M). Desk
+net −$1,627 — but it's **realised −$618, unrealised −$1,055** (open marks, partly revert). The new #1 loss
+is **inventory carry / cross-hedge basis**: 7/8 books ran NET SHORT into a rising tape (passive LP
+accumulates against the trend), and the hedge flattens the *beta-weighted* delta but not the alt/major
+**basis**, so the alt inventory marks against us.
+
+**Root cause of the inventory build:** the GLFT reservation skew is ∝ γ·σ²·q — in a **calm-but-trending**
+tape (low realised vol, steady drift) it nearly vanishes (≈2bps at full inventory at the σ-floor), so the
+book has no real lean to shed one-sided inventory. `inventorySkewMult` only scales that already-tiny term.
+
+**Fix shipped:** `MM_INVENTORY_SPREAD_SKEW` (default **0.4**) — a σ-INDEPENDENT graduated asymmetric
+half-spread skew driven by inventory utilisation u=q/cap: tighten the shedding side (more exits) + widen
+the adding side (fewer entries), proportional to how full the book is, ramping to the hard cap. Wired
+interface→factory→registry→**both** makeBook and rebuildBook (#47 discipline). tsc clean; jest
+src/market-making+config 331/331 (+5 shed-skew specs). **Operator note:** don't edit code under a live
+`nest --watch` desk you're measuring — each save hot-reloads (restart → re-rehydrate → hedge reset →
+books come up stopped). Stop, change, then start a clean run. **NEXT:** clean Run A′ on the full fixed
+build; if inventory/basis still bleeds, the levers are MM_INVENTORY_SPREAD_SKEW↑, tighter notional cap,
+and a dynamic/per-name hedge — see the deep-research prompt drafted this session.

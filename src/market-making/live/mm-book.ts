@@ -8,7 +8,7 @@ import { passiveFills } from '../backtest/fill-model';
 import { attributeFill } from '../backtest/pnl-attribution';
 import { RiskGate, RiskState, RiskVerdict } from '../risk/risk-gate';
 import { VpinEstimator } from '../risk/vpin';
-import { MarkoutTracker, MarkoutPoint } from '../microstructure/markout-tracker';
+import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves } from '../microstructure/markout-tracker';
 import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { L2LiveFillEngine, ToxicityMetrics } from './l2-live-fill-engine';
@@ -178,6 +178,8 @@ export interface MmBookSnapshot {
   vpinBuckets: number;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
+  /** The markout curve split by fill side (WP2) — asymmetry = one-sided informed flow. */
+  markoutBySide: MarkoutSideCurves;
   /** F3 toxicity spread-scaler diagnostics (fast path only; undefined on the bar path / when
    *  the defence is off). Confirms the adverse-selection defence fired (Journal #44 DR-3). */
   toxicity?: ToxicityMetrics;
@@ -244,6 +246,9 @@ export class MmBook {
       emaWindowBuckets: cfg.vpinEmaBuckets ?? 50,
     });
     this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000]);
+    // WP2: the fast engine reads the book's VPIN (risk gate + shadow capture). Wired here so the
+    // rehydrate path gets it too — the estimator is volume-bucketed across BOTH fill paths.
+    if (cfg.fastEngine) cfg.fastEngine.vpinProvider = () => this.vpin.current();
   }
 
   setRunning(v: boolean): void {
@@ -621,6 +626,7 @@ export class MmBook {
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
       markout: this.markout.curve(),
+      markoutBySide: this.markout.sideCurves(),
       fills: this.fills,
       bidFills: this.bidFills,
       askFills: this.askFills,
@@ -670,6 +676,7 @@ export class MmBook {
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
       markout: m.markout,
+      markoutBySide: m.markoutBySide,
       toxicity: m.toxicity,
       fills: m.queueFills,
       bidFills: m.bidFills,

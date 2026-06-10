@@ -14,7 +14,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, appendActivityTape, navSparkPanel } from './components';
+import { deskControls, appendActivityTape, navSparkPanel, DRAWDOWN_BUDGET_PCT } from './components';
 
 export interface StrategyOption {
   id: string;
@@ -51,6 +51,13 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
   // Activity tape's `fmtMoney(-feeUnits)`. The cash grid then literally sums to net:
   //   net = realised + inv MTM + fees(contrib) + funding   (mm-book.ts:523 / inventory-book.ts:130)
   const feesContribUnits = (-BigInt(b.feesUnits)).toString();
+  // maxDD is always-bad: it reads red once it breaches the shared drawdown budget
+  // (the same threshold /exec + /risk flag), dim while inside it. F3 stays dim — it's
+  // the toxicity DEFENCE firing (a diagnostic), not money for/against us.
+  const ddClass = b.maxDrawdownPct > DRAWDOWN_BUDGET_PCT ? 'neg' : 'dim';
+  const f3 = b.toxicity
+    ? html` · F3 widen ${b.toxicity.widenSteps}/tighten ${b.toxicity.tightenSteps} · scale ${b.toxicity.lastScale.toFixed(2)} (max ${b.toxicity.maxScale.toFixed(2)})`
+    : '';
   return html`
     <div class="book-card">
       <div class="book-card-h">
@@ -88,9 +95,7 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
       </div>
 
       <div class="book-foot">
-        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD ${pct(b.maxDrawdownPct)}${b.toxicity
-          ? ` · F3 widen ${b.toxicity.widenSteps}/tighten ${b.toxicity.tightenSteps} · scale ${b.toxicity.lastScale.toFixed(2)} (max ${b.toxicity.maxScale.toFixed(2)})`
-          : ''}</span>
+        <span class="dim">fills ${b.fills} (b${b.bidFills}/a${b.askFills}) · blocked ${b.blockedQuotes} · maxDD <span class="${ddClass}">${pct(b.maxDrawdownPct)}</span>${f3}</span>
         <desk-action
           endpoint="/api/market-making/remove"
           body="${removeBody}"
@@ -117,6 +122,20 @@ function hedgeUnits(usdFloat: number): string {
  */
 function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
   const neutralised = h.grossDeltaUsd > 1 ? (1 - h.residualUsd / h.grossDeltaUsd) * 100 : 0;
+  // "% neutralised" is a DELTA read and over-promises (residual_mm_risk_study.md §0): the beta
+  // hedge cannot touch the (1−ρ²) basis variance. Show the basis vol next to it so a ~100%
+  // neutralised desk with a live basis leak reads honestly.
+  const q = h.quality;
+  const basisStat =
+    q && q.samples > 0 && q.deskPnlVolUsdPerHour > 0
+      ? html`<div class="stat">
+          <span class="stat-k">basis σ</span>
+          <span class="stat-v mono"
+            >${usd(hedgeUnits(q.deskBasisVolUsdPerHour))}/√h
+            <span class="stat-sub">${pct((100 * q.deskBasisVolUsdPerHour ** 2) / q.deskPnlVolUsdPerHour ** 2)} unhedgeable</span></span
+          >
+        </div>`
+      : html``;
   const legs = h.perUnderlying.filter((p) => Math.abs(p.netDeltaUsd) > 1 || Math.abs(p.hedgeNotionalUsd) > 1);
   const legCells = legs.length
     ? raw(
@@ -128,17 +147,32 @@ function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
           .join(' &nbsp; '),
       )
     : html`<span class="dim">flat — no net delta to hedge</span>`;
+  // Per-book hedge quality: configured β vs realized β, R² (the hedgeable share), and the basis
+  // fraction — the numbers that rank names for self-vs-proxy hedging and basis-priced caps (WP6).
+  const qualBooks = (q?.perBook ?? []).filter((b) => b.samples > 0);
+  const qualRow = qualBooks.length
+    ? raw(
+        qualBooks
+          .map(
+            (b) =>
+              html`<span class="mono">${b.symbol}→${b.underlying} β${b.betaCfg.toFixed(2)}${b.betaLive !== null ? `→${b.betaLive.toFixed(2)}` : ''}${b.r2 !== null ? ` R²${b.r2.toFixed(2)}` : ''}${b.basisShare !== null ? ` basis ${Math.round(b.basisShare * 100)}%` : ''}</span>`.value,
+          )
+          .join(' &nbsp; '),
+      )
+    : null;
   return html`
     <section class="panel">
       <div class="panel-h">delta hedge <span class="badge badge--allow">ON</span> <span class="dim">perp overlay · folded into desk net</span></div>
       <div class="stat-grid">
         <div class="stat"><span class="stat-k">gross Δ</span><span class="stat-v mono">${usd(hedgeUnits(h.grossDeltaUsd))}</span></div>
         <div class="stat"><span class="stat-k">residual</span><span class="stat-v mono">${usd(hedgeUnits(h.residualUsd))} <span class="stat-sub">${pct(neutralised)} neutralised</span></span></div>
+        ${basisStat}
         <div class="stat"><span class="stat-k">hedge p&amp;l</span><span class="stat-v mono ${signClass(hedgePnlUnits)}">${money(hedgePnlUnits)}</span></div>
         <div class="stat"><span class="stat-k">funding</span><span class="stat-v mono ${signClass(hedgeUnits(h.fundingUsd))}">${money(hedgeUnits(h.fundingUsd))}</span></div>
         <div class="stat"><span class="stat-k">cost</span><span class="stat-v mono ${signClass(hedgeUnits(-h.hedgeCostUsd))}">${money(hedgeUnits(-h.hedgeCostUsd))}</span></div>
       </div>
       <p class="dim hint">${legCells}</p>
+      ${qualRow ? html`<p class="dim hint">${qualRow}</p>` : ''}
     </section>
   `;
 }

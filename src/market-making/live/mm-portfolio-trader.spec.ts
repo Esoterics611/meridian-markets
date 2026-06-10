@@ -5,6 +5,8 @@ import { SymmetricQuoter } from '../quote/symmetric-quoter';
 import { IMmStateStore, MmBookRecord } from '../persistence/mm-state-store.interface';
 import { DeskHedgeController } from '../hedge/desk-hedge-controller';
 import { PaperVenue } from '../../execution/paper-venue';
+import { IDeskEventSink } from '../events/desk-event-sink';
+import { DeskEventInput } from '../events/desk-event';
 
 function bars(symbol: string): Bar[] {
   return Array.from({ length: 6 }, (_, i) => ({
@@ -241,6 +243,39 @@ describe('MmPortfolioTrader', () => {
     const b = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook });
     await b.onApplicationBootstrap();
     expect(b.snapshot().bookCount).toBe(0); // ← the fix: no stale positions on boot
+  });
+
+  it('closeAll also flattens the delta hedge to a true 000 (no ghost P&L) and tapes it step-by-step', async () => {
+    const { store } = makeFakeStore();
+    const captured: DeskEventInput[] = [];
+    const events: IDeskEventSink = { emit: (e) => void captured.push(e) };
+    const hedgeMids: Record<string, bigint> = {};
+    const venue = new PaperVenue({ pricePoller: async (s) => hedgeMids[s] ?? 0n, takerFeeBps: 3n });
+    const hedger = new DeskHedgeController(
+      venue,
+      { bandUsd: 0, betaMap: {}, hedgeTakerBps: 2.5, hedgeHalfSpreadBps: 1 },
+      () => new Date(),
+      (p) => Object.assign(hedgeMids, p),
+    );
+    const pf = new MmPortfolioTrader(makeBook, 1000, 2_000_000_000n, { store, rebuildBook }, undefined, events, hedger);
+    await pf.addBook({ symbol: 'USDC', strategyId: 'mm-symmetric' }, 1_000_000_000n);
+    for (let i = 0; i < 6; i++) await pf.tick();
+    expect(pf.snapshot().hedge?.enabled).toBe(true); // the hedge is live before we close
+
+    await pf.closeAll();
+
+    // The desk lands on a TRUE flat 000 — no books AND the hedge book reset (not a ghost still
+    // marking a held perp). Before this fix the hedge panel kept showing the phantom P&L until a
+    // process restart (Journal #45a).
+    const snap = pf.snapshot();
+    expect(snap.bookCount).toBe(0);
+    expect(snap.netPnlUnits).toBe('0');
+    expect(snap.hedge!.hedgePnlUsd).toBe(0);
+    expect(snap.hedge!.perUnderlying).toHaveLength(0);
+    // …and the close is on the tape step-by-step: the book removed, then the hedge flattened.
+    const msgs = captured.map((e) => e.message);
+    expect(msgs).toContain('removed USDC (flattened + dropped)');
+    expect(msgs.some((m) => /delta hedge flattened — \d+ perp leg\(s\) closed, desk flat/.test(m))).toBe(true);
   });
 
   it('flattenAll persists the flat state immediately (durable against a later hard kill)', async () => {

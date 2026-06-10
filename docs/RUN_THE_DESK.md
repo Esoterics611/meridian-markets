@@ -1,7 +1,41 @@
 # Run the desk (paper MM, 10h)
 
-Two terminals. Postgres must be up on **:5433** for persistence —
-`sudo docker compose up -d postgres` if it isn't, then `npm run migration:run` (once).
+Two terminals. **Everything below assumes `bash scripts/start-desk.sh` — it now owns the whole
+boot**: if Postgres on **:5433** is down it starts it (`sudo docker compose up -d postgres` — may
+prompt for the sudo password) and runs pending migrations, then pre-flights the desk and starts the
+server. You should not need to touch the DB by hand; the manual equivalents are
+`sudo docker compose up -d postgres` + `npm run migration:run`. (`MM_PERSIST=false` skips the DB
+requirement entirely — but then there is no rehydrate, no NAV curve, no maxDD metric.)
+
+**The whole run, in four commands:**
+```bash
+bash scripts/reset-desk.sh                                   # FRESH TRIAL ONLY — clear persisted books so nothing rehydrates (desk must be stopped)
+bash scripts/start-desk.sh                                   # terminal 1 — DB + server (owns the terminal)
+bash scripts/launch-mm-10h.sh                                # terminal 2 — launch the 8 books
+tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)"   # terminal 2 — the live log (see "Watch it")
+```
+Skip `reset-desk.sh` only when you *want* to resume the previous run's open books — rehydrating is
+the default with `MM_PERSIST=true`, and a "fresh trial" that silently resumes old inventory + P&L is
+the #47 trap.
+
+## Operations cheat-sheet — every desk command (single source)
+
+| When | Command | What it does |
+|---|---|---|
+| **Fresh trial** (before start) | `bash scripts/reset-desk.sh` | marks persisted OPEN books CLOSED so the next boot does NOT rehydrate old inventory/P&L. Desk must be stopped; `mm_nav` history untouched. |
+| **Start** | `bash scripts/start-desk.sh` | the canonical Run A′ server: starts Postgres + migrates if :5433 is down, refuses a second desk on :3100, warns on rehydrate, then boots with every pillar ON. Owns the terminal. |
+| **Launch books** | `bash scripts/launch-mm-10h.sh` | resets + launches all 8 books, neutral `mm-glft`, $1M capital / $100k quote each (override via `MM_BOOK_*`). |
+| **Watch** | `tail -f "$(ls -t docs/research/run-*-mm10h.log \| head -1)"` | the live log; more views (tape, per-book P&L, hedge, NAV) in **Watch it** below. |
+| **Stop (the ritual)** | `bash scripts/stop-desk.sh` → then Ctrl-C terminal 1 | flatten + soft-close every book DURABLY first, then kill the server. Bare Ctrl-C ⇒ the next start rehydrates the open positions. |
+| Stuck/stale server on :3100 | `kill -9 $(lsof -ti tcp:3100)` | frees the port when a desk process is wedged (start-desk refuses to boot while one is serving). |
+| DB by hand (rarely needed) | `sudo docker compose up -d postgres` + `npm run migration:run` | what start-desk now does automatically when :5433 is down. |
+| Check for rehydratable books | `PGPASSWORD=meridian_markets_app psql -h localhost -p 5433 -U meridian_markets_app -d meridian_markets -tAc "select symbol,status from mm_book_state where status='OPEN'"` | what the start-desk pre-flight warning is reading. |
+| **Re-fit hedge βs** (between runs) | `npx ts-node -r tsconfig-paths/register scripts/hedge-beta-fit.ts` | OOS β fit from 30d×1h HL candles; prints the `MM_HEDGE_BETA_MAP` string to paste into the next run (β drifts — re-fit each run, `RUN_TRAINING_LOOP.md`). |
+| Score the shadow signal (after a run) | `npx ts-node -r tsconfig-paths/register scripts/flow-bias-markout.ts docs/research/flow-shadow-<ts>.jsonl 30,60,300,900` | forward-return IC of the recorded flow signal — the gate for ever turning the directional lean on. |
+| L2 tape capture (research, detached) | `bash scripts/capture-hl-l2.sh` (`DURATION_MIN=720` overnight, `COINS=…` subset) | max-fidelity HL L2 capture across the liquid perp set; tapes feed the tuner. |
+| γ/κ tune (after a capture) | `bash scripts/tune-hl-l2.sh` (`DATE=YYYYMMDD` for a past day) | sweeps γ/κ/floor over the tapes; prints the best DD-compliant maker-net combo per coin. |
+
+Everything else in this doc explains the **start** command's knobs and how to read the run.
 
 > **There is one run.** We keep *one* canonical config (currently the **delta-hedged Run A′**) and
 > improve it — we do not maintain a menu of strategies. §1 is that run, spelled out in full. The two
@@ -20,9 +54,15 @@ paper perp delta hedge. Owns the terminal (Ctrl-C to stop); logs to a `run-<ts>-
 > **inventory governor caps + skew are default-ON** (#43), and funding now accrues on the fast
 > path too — so the minimal command below is much shorter than older runs'.
 
-**Easiest: `bash scripts/start-desk.sh`** now bakes in the full canonical Run A′ — all four
-"make money" pillars ON (hedge + hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off
-(Journal #44 DR-0). The explicit equivalent, if you'd rather see every knob:
+**Easiest — and canonical: `bash scripts/start-desk.sh`.** That script IS the single source of
+truth for the run config; it bakes in the full Run A′ — all four "make money" pillars ON (hedge +
+hedge-cost-in-spread + F3 + the OOS β-map), nothing silently off (Journal #44 DR-0), and it
+**pre-flights** the three traps: Postgres down on :5433 (it starts the container + migrates —
+2026-06-10), stale server on :3100, and the silent rehydrate of old books (Journal #46a/#47).
+Every value below is overridable, e.g. `MM_FLOW_BIAS_LIVE=false bash scripts/start-desk.sh`.
+
+The block below **mirrors `start-desk.sh` exactly** (if they ever disagree, the script wins — it's
+what actually runs). Shown so you can see every knob in one place:
 
 ```bash
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
@@ -31,17 +71,31 @@ MM_PERSIST=true \
 MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
 MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
 MM_MICROPRICE_DEPTH=5 \
-MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15 \
 MM_F3_TOXICITY=true \
-MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 MM_HEDGE_COST_SPREAD_MULT=0.5 \
+MM_DELTA_HEDGE=true MM_HEDGE_BAND_USD=2000 \
+MM_HEDGE_TAKER_BPS=2.5 MM_HEDGE_HALF_SPREAD_BPS=1 MM_HEDGE_COST_SPREAD_MULT=0.5 \
 MM_HEDGE_BETA_MAP="SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30" \
-MM_FLOW_BIAS_LIVE=false \
+MM_FLOW_BIAS_LIVE=true MM_FLOW_BIAS_HORIZON_MS=60000 MM_FLOW_BIAS_MIN_IC=0.05 \
+MM_DIR_SPREAD_SKEW=0.5 MM_DIR_SINGLE_SIDE_BIAS=0.6 \
 MM_FLOW_SHADOW=true MM_FLOW_SHADOW_MIN_MS=1000 \
 npm run start:dev 2>&1 | tee "docs/research/run-$(date +%Y%m%d-%H%M%S)-mm10h.log"
 ```
-Wait for `Nest application successfully started`. (If it says `EADDRINUSE :3100`, an old server
-is still up — free it: `kill -9 $(lsof -ti tcp:3100)`.) Confirm in the boot log: `desk delta hedge
-ON — … target: …` (the β-map) and, once flow comes in, `F3 toxicity:` lines.
+> The inventory governor (hard cap + skew + `maxInventoryNotionalFrac`) is **default-ON in code**
+> (#43), so `start-desk.sh` doesn't need to set it — see the Knobs reference to override. And
+> `MM_FLOW_BIAS_LIVE=true` is **safe in the canonical run**: it's OOS-gated and only `directional-glft`
+> books act on it, so the neutral `mm-glft` books here stay neutral (it just leaves the seam armed).
+Wait for `Nest application successfully started`. `start-desk.sh` now **pre-flights** for you: it
+refuses to boot if a desk already holds `:3100` (the stale-server ghost-P&L trap, #46a) and warns
+when persisted OPEN books will be **rehydrated** — a "fresh trial" that secretly resumes old
+inventory + P&L (#47). The explicit command below has no such guard — if it says `EADDRINUSE :3100`,
+free it: `kill -9 $(lsof -ti tcp:3100)`.
+
+**Confirm three things in the boot log before you trust the run:**
+1. `desk delta hedge ON — … target: …` — the β-map is loaded.
+2. **`desk loop started — N book(s): N on fast L2 re-quote (driver on), 0 on the …ms bar path`** —
+   the #47 check. If it says **`0 on fast L2 re-quote`**, the books fell onto the slow 15s bar tick
+   (the rehydrate trap) and you *will* get picked off — **stop, don't trade it.**
+3. once flow comes in, `F3 toxicity:` lines — the adverse-selection defence is firing.
 
 ## How the knobs shape the run
 The desk's P&L splits into four columns (see "Watch it"): **spread captured** (+), **adverse
@@ -117,6 +171,10 @@ curl -s 'localhost:3100/api/market-making/nav?hours=24&book=BTC' | jq '.[-1].max
 # delta hedge: gross delta, post-hedge residual, hedge P&L, funding (folded into desk net)
 curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd, fundingUsd, perUnderlying}'
 
+# hedge QUALITY (study §0 — the honest read): desk basis vol the beta hedge CANNOT touch,
+# + per-book live β / R² / basis share (ranks names for self-vs-proxy hedging)
+curl -s localhost:3100/api/market-making/snapshot | jq '.hedge.quality | {samples, deskPnlVolUsdPerHour, deskFactorVolUsdPerHour, deskBasisVolUsdPerHour, perBook: [.perBook[] | {symbol, underlying, betaCfg, betaLive, r2, basisShare}]}'
+
 # F3 adverse-selection defence — did it fire? (widen/tighten counts per book, logged each NAV tick)
 grep 'F3 toxicity' "$(ls -t docs/research/run-*-mm10h.log | head -1)" | tail -3
 ```
@@ -138,6 +196,12 @@ desk first:
 bash scripts/stop-desk.sh            # flatten + soft-close every book (durable; survives kill -9)
 ```
 Then `Ctrl-C` terminal 1 (or `kill -9 $(lsof -ti tcp:3100)`). The next start comes up clean.
+
+If you skipped that and the pre-flight now warns about **persisted OPEN books being rehydrated**,
+wipe them while the desk is stopped:
+```bash
+bash scripts/reset-desk.sh           # clears persisted OPEN books (desk must be stopped); mm_nav history untouched
+```
 
 ## Analyze after the run
 ```bash
@@ -191,7 +255,8 @@ it **up / on**.
 | Env | Default | Effect (turn up / on) |
 |---|---|---|
 | **`MM_HARD_INVENTORY_CAP`** | `true` | book *physically* parks the heavy side at the rail at \|q\|≥cap ⇒ no runaway inventory. |
-| **`MM_INVENTORY_SKEW_MULT`** | `4` | **higher** = quotes lean harder toward flat ⇒ less carry, slightly less spread. |
+| **`MM_INVENTORY_SKEW_MULT`** | `4` | scales the σ²-based reservation skew **higher** = leans harder toward flat — but it ∝ σ², so it's weak in a calm trend. |
+| **`MM_INVENTORY_SPREAD_SKEW`** | `0.4` | **σ-INDEPENDENT lean (#48):** tightens the shedding side + widens the adding side up to this fraction at the cap, so a neutral book sheds one-sided inventory even when σ is low and the tape just drifts. **higher** (≤0.9) = sheds harder (toward single-siding); `0` = off. |
 | **`MM_MAX_INVENTORY_LOTS`** | `8` | lot-count bound; **lower** = tighter inventory, fewer fills. |
 | **`MM_MAX_INVENTORY_NOTIONAL_FRAC`** | `0.25` | cap \|inventory\| at this fraction of capital at live mid ⇒ same *risk* across a 100×-price universe (Run A′ `0.15`); `0` = off. |
 

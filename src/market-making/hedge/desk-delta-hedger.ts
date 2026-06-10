@@ -46,6 +46,9 @@ export interface HedgeConfig {
   hedgeTakerBps: number;
   /** Half-spread (bps) crossed on the hedge perp when rebalancing. */
   hedgeHalfSpreadBps: number;
+  /** Hedge-quality KPI sampling bucket, ms (WP1.1 — Epps: tick-cadence returns decorrelate alts
+   *  from majors mechanically, so β/R²/basis are measured on coarser buckets). Default 60s. */
+  qualityBucketMs?: number;
 }
 
 export interface HedgeUnderlyingState {
