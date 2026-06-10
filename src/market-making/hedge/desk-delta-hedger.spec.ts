@@ -35,6 +35,17 @@ describe('DeskDeltaHedger', () => {
     expect(net).toEqual({ BTC: 200_165 });
   });
 
+  it('beta 0 = explicit do-not-hedge: the book contributes no delta to any underlying', () => {
+    const net = netDeltaByUnderlying(
+      [
+        { symbol: 'xyz:GOLD', inventoryUnits: 10_000_000n, midMicros: 4_000_000_000n }, // $40k, unhedged by design
+        { symbol: 'BTC', inventoryUnits: 2_000_000n, midMicros: BTC_MID },
+      ],
+      { 'xyz:GOLD': { underlying: 'GOLD', beta: 0 } },
+    );
+    expect(net).toEqual({ BTC: 200_000 }); // no GOLD key at all — not even a zero row
+  });
+
   it('net-long desk ⇒ a SELL (short-perp) hedge that flattens the residual, costed at taker+half-spread', () => {
     const plan = computeHedge([{ symbol: 'BTC', inventoryUnits: 2_000_000n, midMicros: BTC_MID }], {}, cfg());
     expect(plan.orders).toHaveLength(1);

@@ -12,7 +12,9 @@ import {
   defaultRefHttpPost,
   intervalToSeconds,
 } from './reference-source.interface';
-import { HyperliquidTradeStream } from './hyperliquid-trades';
+import { HyperliquidTradeStream, hlCoin } from './hyperliquid-trades';
+
+export { hlCoin } from './hyperliquid-trades';
 
 // Hyperliquid — the largest on-chain perp DEX, a fully on-chain CLOB (not an AMM).
 // This is the maker-rebate ORDER-BOOK venue the MM engine was built for and needs
@@ -73,7 +75,7 @@ export class HyperliquidClient implements IReferenceBarSource, IL2BookSource, IT
     const startTime = endTime - intervalToSeconds(hlInterval) * 1000 * lim;
     const raw = await this.httpPost(`${this.baseUrl}/info`, {
       type: 'candleSnapshot',
-      req: { coin: symbol.trim().toUpperCase(), interval: hlInterval, startTime, endTime },
+      req: { coin: hlCoin(symbol), interval: hlInterval, startTime, endTime },
     });
     return parseHyperliquidCandles(symbol, raw);
   }
@@ -82,7 +84,7 @@ export class HyperliquidClient implements IReferenceBarSource, IL2BookSource, IT
   async l2Snapshot(symbol: string): Promise<L2Snapshot> {
     const raw = await this.httpPost(`${this.baseUrl}/info`, {
       type: 'l2Book',
-      coin: symbol.trim().toUpperCase(),
+      coin: hlCoin(symbol),
     });
     return parseHyperliquidL2(symbol, raw);
   }

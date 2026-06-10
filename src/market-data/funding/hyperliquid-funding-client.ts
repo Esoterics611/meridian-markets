@@ -1,4 +1,5 @@
 import { FundingPoint, FundingSnapshot, IFundingRateSource } from './funding-source.interface';
+import { hlCoin } from '../reference/hyperliquid-trades';
 
 // HyperliquidFundingClient — real IFundingRateSource over Hyperliquid's public
 // `info` POST (api.hyperliquid.xyz). No key, no signing, same posture as the spot
@@ -54,7 +55,7 @@ export class HyperliquidFundingClient implements IFundingRateSource {
    * (~20 days), so paginate by advancing the cursor past the last row's time.
    */
   async fundingHistory(symbol: string, startMs: number, endMs: number): Promise<FundingPoint[]> {
-    const coin = symbol.trim().toUpperCase();
+    const coin = hlCoin(symbol);
     const out: FundingPoint[] = [];
     let cursor = startMs;
     for (let page = 0; page < 1000 && cursor < endMs; page++) {
@@ -102,8 +103,12 @@ export function parseHyperliquidFundingHistory(symbol: string, raw: unknown, end
  * The payload is `[ {universe:[{name}]}, [ctx] ]` with the two arrays parallel by
  * index. nextFundingTime is the next hour boundary (HL funds on the hour).
  */
+// NOTE: `metaAndAssetCtxs` here is MAIN-dex only — a HIP-3 coin ("xyz:GOLD") is not in
+// this universe and currentFunding() will throw its "not in universe" error; callers
+// already tolerate a failed funding read (the cron skips). Per-dex funding (the same
+// info type with a `dex` field) is a deliberate follow-up, not wired yet.
 export function parseHyperliquidAssetCtxs(symbol: string, raw: unknown, nowMs = Date.now()): FundingSnapshot {
-  const coin = symbol.trim().toUpperCase();
+  const coin = hlCoin(symbol);
   const pair = raw as [{ universe?: { name?: string }[] }, Record<string, string>[]] | undefined;
   const universe = pair?.[0]?.universe;
   const ctxs = pair?.[1];

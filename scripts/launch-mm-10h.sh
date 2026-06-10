@@ -36,7 +36,7 @@
 # minimal server env is just:
 #   FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 #   MM_PERSIST=true MM_FAST_REQUOTE_MS=100 MM_CANCEL_REPLACE_LATENCY_MS=30 \
-#   MM_FAST_SYMBOLS=BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI \
+#   MM_FAST_SYMBOLS=<the BOOKS list below, comma-joined — start-desk.sh carries the default> \
 #   MM_F3_TOXICITY=true MM_FLOW_SHADOW=true TELEMETRY_ENABLED=true \
 #   npm run start:dev 2>&1 | tee docs/research/run-$(date +%Y%m%d-%H%M)-mm.log
 # (Fast is L2-default — no MM_FAST_REQUOTE_ENABLED; the governor caps + skew default ON; add
@@ -54,11 +54,28 @@ set -euo pipefail
 
 HOST="${MM_HOST:-http://localhost:3100}"
 SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
-CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"      # $1M/book — the established desk scale (journal #23/#27)
-NOTIONAL="${MM_BOOK_NOTIONAL_USD:-100000}"  # $100k/quote → 4-lot cap ≈ $400k max inventory on $1M
+CAP="${MM_BOOK_CAPITAL_USDC:-500000}"      # $500k/book × 16 books = the same $8M desk as the 8×$1M runs
+NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k max inventory on $500k
 
-# ALL books run mm-glft (neutral spread-capture) + the inventory governor. Entry #28 KEEP set + BTC.
-BOOKS=(BTC ETH SOL DOGE BNB XRP ADA SUI)
+# THE SWEET-16 (2026-06-10, docs/BOOK_SELECTION_ANALYSIS.md — priors, to be verified by the
+# live run + the book-scoring tool). The shape of the bet: stop being the Nth-best quoter on
+# Binance-led majors (BTC/ETH/XRP bled −$203/−$286/−$326 realised in Run A″; markout@300s
+# −9…−17bps = slow pick-off by informed flow) and quote where OUR edge fits:
+#   • 8 HIP-3 RWA books (trade.xyz dex): gold/silver/oil/index/single-name retail flow,
+#     structurally fewer pro makers, growth-mode fees (NO maker rebate assumed — venue-fees.ts
+#     HIP3_FEE), and no Binance lead to snipe us. EXACT-CASE coin keys ("xyz:GOLD").
+#     UNHEDGED BY DESIGN (beta 0 in MM_HEDGE_BETA_MAP) — no crypto factor; governor-capped.
+#   • HYPE + PURR: HL-native price discovery — our local microprice IS the global truth.
+#   • FARTCOIN + kPEPE: the meme basket (HL-primary flow, huge spreads, naive takers).
+#   • SOL + ADA: the desk's measured winners (+$752/+$494 realised in A″) — live data
+#     overrides the analysis's "majors are donated slots" prior for these two; the run decides.
+#   • SUI + DOGE: incumbents on the bubble — kept for continuity, first rotation candidates.
+# Dropped: BTC, ETH (hedge LEGS, not quoted books), XRP (worst bleeder + worst basis), BNB (inert).
+# PRE-FLIGHT (mandatory): npx ts-node -r tsconfig-paths/register scripts/smoke-sweet16.ts
+BOOKS=(
+  xyz:GOLD xyz:SILVER xyz:XYZ100 xyz:SP500 xyz:CL xyz:BRENTOIL xyz:NVDA xyz:TSLA
+  HYPE FARTCOIN kPEPE PURR SUI SOL ADA DOGE
+)
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
 launch () {
@@ -80,6 +97,15 @@ launch () {
     echo "ok"
   fi
 }
+
+# Books DROPPED from the set still rehydrate from mm_book_state under MM_PERSIST and would keep
+# trading silently — remove them explicitly (flattens + checkpoints; no-op if absent).
+DROPPED=(BTC ETH XRP BNB)
+echo "=== removing dropped incumbents (${DROPPED[*]}) ==="
+for s in "${DROPPED[@]}"; do
+  curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \
+    -d "{\"symbol\":\"$s\"}" >/dev/null 2>&1 || true
+done
 
 echo "=== launching all books ($STRATEGY, neutral + inventory governor) ==="
 for s in "${BOOKS[@]}"; do launch "$s" "$STRATEGY"; done

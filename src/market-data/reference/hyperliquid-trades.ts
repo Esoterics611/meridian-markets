@@ -27,6 +27,27 @@ import {
 // WS transport is injected (RefWsFactory) so the parse + accumulate logic is offline-
 // testable against canned frames, the same discipline as RefHttpGet/Post.
 
+// HL coin keys are EXACT-CASE, with two case quirks (both verified 2026-06-10 against
+// the live info endpoint — the wrong case returns null/HTTP 500):
+//  1. HIP-3 markets are "<dex>:<ASSET>" with a LOWER-case dex prefix and an UPPER-case
+//     asset ("xyz:GOLD" answers; "XYZ:GOLD" and "xyz:gold" both fail).
+//  2. "k-coins" (1000× denominations: kPEPE, kBONK, kSHIB …) keep a literal LOWER-case
+//     'k' prefix ("KPEPE" fails). A leading lower-case 'k' in the input is preserved;
+//     all-caps coins that genuinely start with K (KAVA) are untouched — so write
+//     k-coins with their lower-case k.
+// Every coin we send, subscribe to, or key an accumulator on must round-trip through
+// this, never a bare toUpperCase().
+function mainDexCoin(s: string): string {
+  if (s.length > 1 && s[0] === 'k') return 'k' + s.slice(1).toUpperCase();
+  return s.toUpperCase();
+}
+export function hlCoin(symbol: string): string {
+  const s = symbol.trim();
+  const i = s.indexOf(':');
+  if (i < 0) return mainDexCoin(s);
+  return s.slice(0, i).toLowerCase() + ':' + mainDexCoin(s.slice(i + 1).trim());
+}
+
 /** One parsed Hyperliquid trade print. */
 export interface HlTrade {
   readonly coin: string;
@@ -52,7 +73,7 @@ export function parseHyperliquidTrades(raw: unknown): HlTrade[] {
     const sizeUnits = decimalToMicros(r?.sz ?? 0);
     if (!side || sizeUnits <= 0n) continue;
     out.push({
-      coin: String(r?.coin ?? '').trim().toUpperCase(),
+      coin: hlCoin(String(r?.coin ?? '')),
       side,
       priceMicros: decimalToMicros(r?.px ?? 0),
       sizeUnits,
@@ -93,7 +114,7 @@ export class HyperliquidTradeStream implements ITradeStream {
   private readonly heartbeatMs: number;
 
   constructor(opts: HyperliquidTradeStreamOptions) {
-    this.symbols = opts.symbols.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    this.symbols = opts.symbols.map((s) => hlCoin(s)).filter(Boolean);
     this.heartbeatMs = opts.heartbeatMs ?? 30_000;
     for (const c of this.symbols) this.acc.set(c, { buy: 0n, sell: 0n, count: 0 });
     const factory = opts.wsFactory ?? defaultRefWsFactory;
@@ -143,7 +164,7 @@ export class HyperliquidTradeStream implements ITradeStream {
   }
 
   drain(symbol: string): AggressorFlow {
-    const key = symbol.trim().toUpperCase();
+    const key = hlCoin(symbol);
     const a = this.acc.get(key);
     if (!a || a.count === 0) return ZERO_FLOW;
     const flow: AggressorFlow = {

@@ -1,6 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
 import { parseHedgeBetaMap } from '../market-making/hedge/parse-beta-map';
+import { hlCoin } from '../market-data/reference/hyperliquid-trades';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
   if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
@@ -157,7 +158,8 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // Fast L2 path is the default for L2 venues (Journal #44 fast-only) — no on/off flag.
     fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
     cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
-    fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    // hlCoin, not toUpperCase: HIP-3 coins ("xyz:GOLD") are exact-case keys on HL.
+    fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => hlCoin(s)).filter(Boolean),
     fundingBiasSymbols: (process.env['MM_FUNDING_BIAS_SYMBOLS'] ?? 'BTC').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
     fundingBiasMax: parseFloat(process.env['MM_FUNDING_BIAS_MAX'] ?? '0.39'),
     fundingBiasFullRate: parseFloat(process.env['MM_FUNDING_BIAS_FULL_RATE'] ?? '0.0000125'),

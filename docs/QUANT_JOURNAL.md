@@ -2010,3 +2010,42 @@ attribution + F3 counters only. This run is the case for building `/desk/markout
 **Ops note:** mm-run-review skill needs updating — log-based attribution scrape is dead (no TypeORM
 echo); use `GET /api/market-making/snapshot` (attribution, markout, markoutBySide, vpin, toxicity,
 hedge.quality) while the desk is up.
+
+## 2026-06-10 — Entry #50 (Run A″ read; MASTER PLAN I → session chain; the Sweet-16 book swap ships)
+**Run A″ read (mid-flight, ~19:20Z; 8 GLFT books, $8M, hedge ON, F3 ON, directional OFF,
+markout horizons 1s/5s/30s/60s/300s LIVE; restarts 14:25/17:43/18:08 with MM_PERSIST continuity).**
+1. **DD bar: PASS** — per-book maxDD 0.03–1.33% (SOL 1.33, SUI 1.22, BTC 0.91…BNB 0.03), all under
+   the ~1.5% bar (A′ was 1.65%).
+2. **Desk realised +$477** (net −$443, fees −$187) — first ~breakeven-to-green realised window after
+   A′'s −$3,359/2.3h. SOL +752 / ADA +494 carry; XRP −326 / ETH −286 / BTC −203 bleed. Flattery:
+   SUI net −356 is −350 unreal; desk unreal −$1,104 vs books-sum −$66 ⇒ **~−$1.0k sits on hedge legs**.
+3. **Edge:** spreadCaptured + on 7/8 (Σ +$1,657) ≈ adverse (Σ $1,641) — windowed fill-edge ≈ $0, the
+   pick-off war stays won. **The 60s/300s horizons confirm #49**: markout@300s XRP −16.7bps /
+   SOL −12.3 / BTC −9.3 monotone through 60s (h* ≥ 300s); DOGE/BNB revert by 300s; **ETH flat ≈0**.
+4. **Hedge = the #1 measured leak:** 263 orders / $9.1M churned / ~$2.7k cost (5.7× realised!);
+   BTC leg 31 flips (cross-flat churn); gross $12.8k → residual $1.7k. **Regression:** hedge-quality
+   betaLive/r² = 0 on all 5 ETH-underlying books (worked in A′) — suspect the persist-restore path.
+5. **Attribution still doesn't sum** (components ≈ +$2.7k vs net −$443) — #49's warehouse-drift gap.
+
+**MASTER PLAN I evaluated → docs/MASTER_PLAN_SESSIONS.md** (the living session chain). Verdicts:
+hedge-cost work + attribution-that-sums outrank the plan's default order (our leaks say so);
+D1 cross-venue FV stays demoted to a 60–300s re-test (#27–33 measured the 1s no-op); fee-tier/HYPE/
+builder-codes/Tokyo-node PARKED (paper mission) with stale-quote pricing as the node's substitute;
+9 session prompts (S1 attribution+leak-table → S2 hedge → S3 long-horizon AS → S4 regime → S5
+funding lean → S6 book-scoring → S7 simulator microstructure → S8 shadow rig → S9 multi-venue).
+Each session ends by reviewing/rewriting the remaining prompts and printing the next one.
+
+**The Sweet-16 swap (docs/BOOK_SELECTION_ANALYSIS.md priors × live API verification) — SHIPPED:**
+desk goes 8 → 16 books next run: **8 HIP-3 RWAs** (xyz:GOLD/SILVER/XYZ100/SP500/CL/BRENTOIL/NVDA/
+TSLA — live 24h vol $24M–$1.0B; trade.xyz dex) + **8 main-dex** (HYPE FARTCOIN kPEPE PURR SUI SOL
+ADA DOGE). **BTC/ETH/XRP/BNB dropped as books** (BTC/ETH stay as hedge legs; launch script removes
+them explicitly — MM_PERSIST would silently rehydrate them). Engineering: `hlCoin()` exact-case HL
+coin keys — HIP-3 "xyz:" prefix AND k-coins (kPEPE was unreachable under toUpperCase: live HTTP 500
+→ fixed, verified); beta-map right-anchored parse + **beta 0 = explicit don't-hedge** (HIP-3 books
+have no crypto factor — governor-capped, not hedged); **HIP3_FEE** maker +0.15bps/taker 0.9bps —
+NO rebate assumed on HIP-3 until verified per deployer (paper-honesty rule: never pay yourself an
+unverified rebate); `scripts/smoke-sweet16.ts` — **all 16 books verified reachable through the
+engine's own client** (spreads: xyz:CL 0.11bps … PURR 44bps); $500k×16 = the same $8M desk.
+**Owned gaps:** per-dex funding unwired (xyz funding=0), HYPE/FARTCOIN/kPEPE/PURR betas unfitted
+(beta 0), HIP-3 fees are estimates (S6 verifies), RWA closed-hours gap risk unmodeled (S4/S8).
+tsc clean; touched suites green (49 tests across 7 suites).

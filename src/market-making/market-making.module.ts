@@ -247,7 +247,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 horizonBars: p.horizonBars,
                 volWindowBars: mm.volWindowBars,
                 volFloor: mm.volFloor,
-                makerFeeBps: venueFeeFor(p.srcId).makerBps,
+                makerFeeBps: venueFeeFor(p.srcId, p.symbol).makerBps,
                 capitalUnits: p.capitalUnits,
                 microDepth: mm.microPriceDepth,
                 cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
@@ -351,7 +351,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             volFloor: mm.volFloor,
             // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
             // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics.
-            makerFeeBps: venueFeeFor(srcId).makerBps,
+            makerFeeBps: venueFeeFor(srcId, spec.symbol).makerBps,
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,

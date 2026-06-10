@@ -91,6 +91,7 @@ export function netDeltaByUnderlying(books: BookDelta[], betaMap: HedgeConfig['b
   const net: Record<string, number> = {};
   for (const b of books) {
     const m = betaMap[b.symbol] ?? { underlying: b.symbol, beta: 1 };
+    if (m.beta === 0) continue; // explicit "do not hedge" (no crypto factor — e.g. HIP-3 RWAs)
     net[m.underlying] = (net[m.underlying] ?? 0) + m.beta * bookDeltaUsd(b);
   }
   return net;
