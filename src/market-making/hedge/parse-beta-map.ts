@@ -33,7 +33,10 @@ export function parseHedgeBetaMap(
 ): Record<string, BetaMapEntry> {
   const out: Record<string, BetaMapEntry> = {};
   for (const part of (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
-    const segs = part.split(':').map((s) => s.trim());
+    // Pipe form `SYMBOL|UNDERLYING|BETA` is the unambiguous spelling for entries where the
+    // UNDERLYING itself contains ':' (xyz:CL|xyz:BRENTOIL|1.08 — the right-anchored colon
+    // parse mis-grouped that as symbol "xyz:CL:xyz"; Journal #57 run54 boot bug).
+    const segs = (part.includes('|') ? part.split('|') : part.split(':')).map((s) => s.trim());
     const sym = segs.slice(0, -2).join(':');
     const underlying = segs[segs.length - 2];
     const betaStr = segs[segs.length - 1];
