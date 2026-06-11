@@ -284,6 +284,16 @@ export interface AppConfig {
     f3MinScale: number;
     /** Widest F3 scale (toxic flow). Default 3.0. */
     f3MaxScale: number;
+    /** S2 inventory TIME-STOP (replay verdict MIXED — Journal #53): bound holding TIME by
+     *  shifting the quote pair toward the exit side once inventory ages past the threshold
+     *  (proportional, no-overshoot). Default OFF — enable per-run only behind an A/B or the
+     *  S4 regime gate; the tape sweep showed it helps trend-warehouse windows (BTC +$1.4k)
+     *  and hurts choppy one-way flow (SOL −$1.5k). */
+    timeStop: boolean;
+    /** Holding age (minutes) at which the time-stop engages. Default 30. */
+    timeStopAgeMin: number;
+    /** Max exit-side shift (bps of mid) at full age+size. Default 3. */
+    timeStopShiftBps: number;
     /** VPIN (volume-synchronised toxicity) EMA window in buckets. Default 50. */
     vpinEmaBuckets: number;
     /** Pause quoting when live VPIN ≥ this (∈[0,1]). Default 1.01 ⇒ off (gauge only;

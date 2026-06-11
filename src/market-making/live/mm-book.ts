@@ -128,6 +128,9 @@ export interface MmBookState {
   /** MTM drift booked on carried inventory (diagnostic attribution). Optional for
    *  backward-compat with states persisted before this field existed. */
   inventoryCarryUnits?: string;
+  /** Windowed (markout-horizon) carry from the fast engine's attribution — persisted so a
+   *  finished run keeps its diagnostic split (S2; the S1 leak table found state reads 0). */
+  windowedCarryUnits?: string;
   peakEquityUnits: string;
   maxDrawdownPct: number;
   barsSeen: number;
@@ -229,6 +232,10 @@ export class MmBook {
   /** MTM drift on inventory carried across bars (+ gain / − loss). Diagnostic
    *  attribution; already inside realised/unrealised, not added to net again. */
   private inventoryCarry = 0n;
+  /** Restored windowed-attribution baseline for FAST books: the engine restarts at zero on
+   *  rehydrate, so checkpoints/snapshots report base + engine (windowed split survives
+   *  restarts and reaches mm_book_state — the S1 leak-table gap). Bar books don't use it. */
+  private attribBase = { spread: 0n, adverse: 0n, carry: 0n };
   /** Funding harvested (+) / paid (−) on held inventory over the run; 0 when no rate. */
   private fundingUnits = 0n;
   /** Live toxicity gauge — fed by BVC on the bar path, real aggressor flow on the fast path. */
@@ -318,11 +325,16 @@ export class MmBook {
 
   /** Snapshot the evolving P&L state for persistence (restart-safe books). */
   serializeState(): MmBookState {
+    const a = this.cfg.fastEngine?.metrics().attribution;
+    const spread = a ? this.attribBase.spread + a.spreadCapturedUnits : this.spreadCaptured;
+    const adverse = a ? this.attribBase.adverse + a.adverseSelectionUnits : this.adverse;
+    const windowedCarry = a ? this.attribBase.carry + a.inventoryCarryUnits : 0n;
     return {
       book: this.book.serialize(),
       fundingUnits: this.fundingUnits.toString(),
-      spreadCapturedUnits: this.spreadCaptured.toString(),
-      adverseUnits: this.adverse.toString(),
+      spreadCapturedUnits: spread.toString(),
+      adverseUnits: adverse.toString(),
+      windowedCarryUnits: windowedCarry.toString(),
       inventoryCarryUnits: this.inventoryCarry.toString(),
       peakEquityUnits: this.peakEquity.toString(),
       maxDrawdownPct: this.maxDrawdownPct,
@@ -339,8 +351,17 @@ export class MmBook {
   restore(s: MmBookState): void {
     this.book.restore(s.book);
     this.fundingUnits = BigInt(s.fundingUnits);
-    this.spreadCaptured = BigInt(s.spreadCapturedUnits);
-    this.adverse = BigInt(s.adverseUnits);
+    if (this.cfg.fastEngine) {
+      // The engine restarts at zero — carry the persisted windowed attribution as a baseline.
+      this.attribBase = {
+        spread: BigInt(s.spreadCapturedUnits),
+        adverse: BigInt(s.adverseUnits),
+        carry: BigInt(s.windowedCarryUnits ?? '0'),
+      };
+    } else {
+      this.spreadCaptured = BigInt(s.spreadCapturedUnits);
+      this.adverse = BigInt(s.adverseUnits);
+    }
     this.inventoryCarry = BigInt(s.inventoryCarryUnits ?? '0');
     this.peakEquity = BigInt(s.peakEquityUnits);
     this.maxDrawdownPct = s.maxDrawdownPct;
@@ -509,6 +530,7 @@ export class MmBook {
       midMicros,
       referenceMicros,
       bias,
+      nowMs: tsMs,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,
@@ -684,9 +706,9 @@ export class MmBook {
       fundingUnits: this.fundingUnits.toString(),
       fundingRatePerHour: this.cfg.fundingRatePerHour ?? 0,
       netPnlUnits: (m.netPnlUnits + this.fundingUnits).toString(),
-      spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
-      adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
-      inventoryCarryUnits: m.attribution.inventoryCarryUnits.toString(),
+      spreadCapturedUnits: (this.attribBase.spread + m.attribution.spreadCapturedUnits).toString(),
+      adverseSelectionUnits: (this.attribBase.adverse + m.attribution.adverseSelectionUnits).toString(),
+      inventoryCarryUnits: (this.attribBase.carry + m.attribution.inventoryCarryUnits).toString(),
       // The S1 fix: accrueInterval has computed (and persisted) this continuous MTM all along on
       // the fast path too — it was just never surfaced, leaving warehouse drift in NO component.
       inventoryMtmUnits: this.inventoryCarry.toString(),

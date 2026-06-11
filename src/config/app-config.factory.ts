@@ -179,6 +179,10 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
     f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
     f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
+    // S2 inventory time-stop — default OFF (replay verdict MIXED; enable behind A/B only).
+    timeStop: (process.env['MM_TIME_STOP'] ?? 'false').toLowerCase() === 'true',
+    timeStopAgeMin: parseFloat(process.env['MM_TIME_STOP_AGE_MIN'] ?? '30'),
+    timeStopShiftBps: parseFloat(process.env['MM_TIME_STOP_SHIFT_BPS'] ?? '3'),
     vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
     vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
     vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),

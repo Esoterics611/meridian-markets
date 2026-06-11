@@ -121,7 +121,12 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   `scripts/mm-leak-table.ts` shipped + run on A″/#51 — **warehouse drift is the #1 leak class in
   both runs** (A″ majors −$657, #51 −$2.3k); hedge churn measured A″ −$2,454 → #51 −$373 (the
   Sweet-16 single-leg netting already banked most of S2's predicted win))
-- ☐ **S2 — Warehouse drift: inventory time-stop + hedge dead-band/beta polish** (re-scoped by S1)
+- ☑ **S2 — Warehouse drift: inventory time-stop + hedge dead-band/beta polish** (2026-06-11,
+  Journal #53: `TimeStopQuoter` built (proportional skew-to-flat, `ctx.nowMs` seam, 6 specs) —
+  replay verdict **MIXED/regime-dependent** (BTC −2,127→−730, ETH realised +291, SOL −1,524 at
+  10m) ⇒ wired **default OFF** (`MM_TIME_STOP`), enable only behind S8 A/B or the S4 regime gate;
+  windowed spread/adverse now persist across restarts/checkpoints (S1 gap closed); dead-band +
+  beta bake-off deferred with numbers (#51 churn $373; betas refit 2026-06-11))
 - ☐ **S3 — Long-horizon adverse selection: F3 v2 + lead-lag re-test**
 - ☐ **S4 — Regime tagger, event calendar, kill hierarchy**
 - ☐ **S5 — Funding-aware skew (κ_f)**
@@ -269,18 +274,25 @@ time-stop kills warehouse drift, S3's long-horizon adverse selection may already
 You are in /home/nexus/code/meridian-markets (CLAUDE.md binding). Session S3 of the chain in
 docs/MASTER_PLAN_SESSIONS.md (read Parts I–III + S1/S2 result lines + the current leak table).
 
-CONTEXT (update from S1/S2 results):
-- The pick-off war at short horizons is WON (spreadCaptured > 0 on 7–8/8 books since #47/#48);
-  the residual loss is LONG-horizon: Run A″ markout@300s XRP −16.7bps, SOL −12.3, BTC −9.3
-  (monotone through 60s); DOGE/BNB revert by 300s; ETH flat ≈0 (fair value right there).
-- F3 toxicity rail (src/market-making/risk/, VpinEstimator + spread scaling) is fit to the
-  1–30s windows — it widens for fast pick-off, not for the 60–300s bleed.
-- Cross-venue caution: Journal #27–33 MEASURED Binance fusion as a no-op for HL fair value at
-  ~1s horizons (HL self-prices). The open question is 60–300s. scripts/mm-leadlag.ts exists;
-  Binance public REST/WS adapters exist (FEED_SOURCE=binance spine).
-- Per-fill markout data: snapshot .books[].markout / .markoutBySide; capture tapes in
-  docs/research/l2-tapes/; flow-shadow-*.jsonl = bias-signal shadow capture (no P&L),
-  scored by scripts/flow-bias-markout.ts.
+CONTEXT (updated after S1/S2, 2026-06-11 — do not re-derive):
+- S1 leak tables (docs/research/leak-table-{run-a2,run51-sweet16}.md): warehouse MTM is the #1
+  leak class; fill-edge pick-off is #2, concentrated in the books we CUT (SILVER/BRENTOIL/HYPE).
+  The identity (net = fillEdge + warehouse + funding − fees) is live on the snapshot
+  (inventoryMtmUnits) and persists (windowed spread/adverse survive restarts since S2).
+- S2: TimeStopQuoter exists DEFAULT OFF (MM_TIME_STOP) — replay verdict MIXED (BTC −2,127→−730
+  but SOL −1,524): it must be regime-gated (S4) or A/B-validated (S8) before live enable. Your
+  long-horizon AS work and the time-stop attack the SAME dollars — measure together.
+- Long-horizon AS evidence: A″ markout@300s XRP −16.7bps / SOL −12.3 / BTC −9.3 monotone
+  through 60s; #51 ADA −2.5→−5.1 and SUI −1.4→−3.4 by 30s; ETH ≈0. F3 (VpinEstimator + spread
+  scale, now WIDEN-ONLY min scale 1.0 per the risk-averse doctrine) keys off 1–30s flow — it
+  does not see the 60–300s bleed.
+- Cross-venue caution: #27–33 measured Binance fusion a no-op at ~1s (HL self-prices); the open
+  question is 60–300s only. scripts/mm-leadlag.ts exists.
+- Data: snapshot .books[].markout/.markoutBySide (1s/5s/30s/60s/300s live); L2 tapes in
+  docs/research/l2-tapes/ (main-dex only — **capture an xyz:* HIP-3 tape during the next run**,
+  the S2 sweep's out-of-sample gap); flow-shadow-*.jsonl scored by scripts/flow-bias-markout.ts.
+- OPS: run scripts/mm-leak-table.ts BEFORE any relaunch; a live desk means worktree-only src
+  edits (nest --watch restarts on file change).
 
 TASKS:
 1. Per-book h*: from the capture, estimate the markout-flattening horizon per book (the

@@ -346,6 +346,7 @@ export class L2LiveFillEngine {
       referenceMicros,
       bias,
       spreadScale,
+      nowMs,
       hedgeCostBps: this.cfg.hedgeCostBps,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,

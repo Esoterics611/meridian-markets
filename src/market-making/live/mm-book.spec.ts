@@ -323,3 +323,37 @@ describe('attribution identity — net = spread + inventoryMtm + funding − fee
     expect(diff <= tol && diff >= -tol).toBe(true);
   });
 });
+
+describe('fast-path windowed attribution survives a restore (S2 — the S1 leak-table gap)', () => {
+  it('restore loads spread/adverse as a baseline and serializeState re-emits it (engine fresh at 0)', async () => {
+    const { L2LiveFillEngine } = await import('./l2-live-fill-engine');
+    const mkEng = () =>
+      new L2LiveFillEngine({
+        symbol: 'BTC',
+        quoter: new SymmetricQuoter({ halfSpreadBps: 5, quoteSizeUnits: 1_000_000n }),
+        quoteSizeUnits: 1_000_000n,
+        gamma: 0.0025,
+        kappa: 2,
+        horizonBars: 1,
+        volWindowBars: 2,
+        volFloor: 0.0001,
+        makerFeeBps: -0.2,
+        capitalUnits: 1_000_000_000n,
+        microDepth: 5,
+        cancelReplaceLatencyMs: 100,
+      });
+    const a = new MmBook({ ...cfg([]), symbol: 'BTC', fastEngine: mkEng() });
+    const state = a.serializeState();
+    state.spreadCapturedUnits = '5000000'; // $5 earned before the restart
+    state.adverseUnits = '2000000';
+    state.windowedCarryUnits = '1000000';
+    const b = new MmBook({ ...cfg([]), symbol: 'BTC', fastEngine: mkEng() });
+    b.restore(state);
+    const snap = b.snapshot();
+    expect(snap.spreadCapturedUnits).toBe('5000000'); // baseline shows though the engine is fresh
+    expect(snap.adverseSelectionUnits).toBe('2000000');
+    const reserialized = b.serializeState();
+    expect(reserialized.spreadCapturedUnits).toBe('5000000'); // and survives the next checkpoint
+    expect(reserialized.windowedCarryUnits).toBe('1000000');
+  });
+});

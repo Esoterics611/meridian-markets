@@ -2171,3 +2171,37 @@ worktree branch (feat/mm-s1-leak-table) while the next run trades — rules-of-e
 (A″ majors −657, #51 −2,254 across books) — S2 re-scoped around the inventory time-stop +
 dead-band/beta polish; hedge churn demoted from "the" leak to a solved-but-watch line.**
 tsc clean; touched suites green (hedge 13, mm-book 16, UI 16+, nav cron).
+
+## 2026-06-11 — Entry #53 (MASTER PLAN S2: the inventory time-stop — built, swept, verdict MIXED ⇒ default OFF)
+**Session S2 (worktree branch feat/mm-s2-warehouse; live run untouched). S1's referee: warehouse
+MTM is the #1 leak class — S2 asked whether bounding HOLDING TIME pays.**
+
+1. **Built: `TimeStopQuoter`** (src/market-making/quote/) — a wrapper around any IQuoter that
+   shifts the whole pair toward the exit side once same-signed inventory ages past T (linear
+   ramp, width preserved = skew-to-flat, **proportional to |inv| so it cannot overshoot through
+   flat** — v1 without that swung BTC +$103k long → −$68k short, caught in replay). New
+   `QuoteContext.nowMs` seam set by all three runtimes (bar ts / L2 snapshot ts / tape ts) so
+   offline age == live age. 6 specs.
+2. **Sweep (queue-aware replay, live risk-averse GLFT config, docs/research/timestop-sweep.md):**
+   verdict **MIXED — regime-dependent, NOT wire-ready desk-wide**:
+   - BTC (the trend-warehouse window the stop exists for): net −2,127 → **−730** (T=30m/8bps,
+     maxDD 0.85→0.35) / −961 (30m/3bps) — the warehouse loss is genuinely cut.
+   - ETH: +295 with REALISED +291 (661→952) at T=10m/3bps — the cleanest win (not a mark).
+   - DOGE: +25 noise. **SOL: −1,524 at T=10m/3bps** (choppy one-way flow: the stop sheds into
+     weakness and re-warehouses) — the kill case.
+   - Caveats owned: tapes are 2026-06-04/05 main-dex (NO HIP-3 RWA tape — xyz:* out of sample;
+     capture one next run); HYPE tape too coarse to use (1 queue fill/6h); one window per coin.
+3. **Wired default OFF** behind `MM_TIME_STOP` (+`_AGE_MIN`/`_SHIFT_BPS`), both launch+rehydrate
+   paths, `TIME-STOP ▸` engage/release log lines (the greppable audit trail). Pre-registration
+   discipline: enable only behind the S8 shadow A/B or the S4 regime gate — the sweep says the
+   stop needs to know the regime before it earns the right to quote.
+4. **S1 gap closed: windowed spread/adverse now PERSIST** — fast books checkpoint
+   base+engine attribution (`attribBase` restored on rehydrate; new `windowedCarryUnits` state
+   field), so finished runs keep the fill-edge split and restarts no longer zero the snapshot
+   columns (the #50 A″ wrinkle). Spec proves serialize→restore→re-serialize round-trips.
+5. **Deferred, with numbers:** (a) dynamic hedge dead-band — #51 churn is $373/run est cost
+   (46 track/6 flip, single converged ETH leg); a dynamic band plausibly saves ~half, gray-zone
+   vs build cost — re-rank if the 13-book leak table shows churn regressing. (b) OLS/EWMA/Kalman
+   beta bake-off — betas were OOS-refit TODAY (FARTCOIN/kPEPE fits new) and the hedge-quality
+   KPI watches drift live; defer until basisShare shows inter-run drift actually hurting.
+tsc clean; market-making suite 357/357 green. Artifacts: docs/research/timestop-sweep.{md,json}.

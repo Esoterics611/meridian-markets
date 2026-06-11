@@ -263,6 +263,7 @@ export class LobReplayHarness {
         midMicros: mid,
         referenceMicros,
         spreadScale,
+        nowMs: step.book.ts.getTime(),
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
         arrivalDecay: cfg.kappa,
