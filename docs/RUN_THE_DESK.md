@@ -7,13 +7,21 @@ server. You should not need to touch the DB by hand; the manual equivalents are
 `sudo docker compose up -d postgres` + `npm run migration:run`. (`MM_PERSIST=false` skips the DB
 requirement entirely — but then there is no rehydrate, no NAV curve, no maxDD metric.)
 
-**The whole run, in four commands:**
+**The whole run, in five commands:**
 ```bash
+# 0 — BEFORE any relaunch: capture the previous run's leak table (S1 rule — the launch
+#     script resets surviving books' accumulators; this is your last chance to read them).
+npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts \
+  --since <prev-run-start-ISO> --until <prev-run-end-ISO> \
+  --log docs/research/run-<TS>-mm10h.log --label run<N>
+
 bash scripts/reset-desk.sh                                   # FRESH TRIAL ONLY — clear persisted books so nothing rehydrates (desk must be stopped)
 bash scripts/start-desk.sh                                   # terminal 1 — DB + server (owns the terminal)
-bash scripts/launch-mm-10h.sh                                # terminal 2 — launch the 8 books
+bash scripts/launch-mm-10h.sh                                # terminal 2 — launch the Elite-8 books
 tail -f "$(ls -t docs/research/run-*-mm10h.log | head -1)"   # terminal 2 — the live log (see "Watch it")
 ```
+Run-window for step 0: `mm_nav` desk-row gaps are the run boundaries —
+`psql … -c "select min(as_of), max(as_of) from mm_nav where book_key='' and as_of > now()-interval '1 day'"`.
 Skip `reset-desk.sh` only when you *want* to resume the previous run's open books — rehydrating is
 the default with `MM_PERSIST=true`, and a "fresh trial" that silently resumes old inventory + P&L is
 the #47 trap.
@@ -146,8 +154,10 @@ one of those levers — that's *how* it affects the run:
 ```bash
 bash scripts/launch-mm-10h.sh
 ```
-Resets + launches all 8 books as neutral `mm-glft` at **$1M capital / $100k quote** each. Override:
-`MM_BOOK_CAPITAL_USDC=… MM_BOOK_NOTIONAL_USD=… MM_BOOK_STRATEGY=… bash scripts/launch-mm-10h.sh`.
+Resets + launches the **Elite-8** (Journal #54: xyz:CL, xyz:GOLD, xyz:NVDA, xyz:TSLA, xyz:SPCX,
+FARTCOIN, kPEPE, PURR) as neutral `mm-glft` at **$500k capital / $50k quote** each ($4M desk).
+It also explicitly removes every cut book (the `DROPPED` list) so MM_PERSIST can't rehydrate them.
+Override: `MM_BOOK_CAPITAL_USDC=… MM_BOOK_NOTIONAL_USD=… MM_BOOK_STRATEGY=… bash scripts/launch-mm-10h.sh`.
 
 ## Watch it
 ```bash
@@ -205,6 +215,13 @@ bash scripts/reset-desk.sh           # clears persisted OPEN books (desk must be
 
 ## Analyze after the run
 ```bash
+# THE scorecard (S1): per-book identity table (net = fillEdge + warehouse + funding − fees),
+# ranked $ leaks, hedge churn, loss concentration → md+json in docs/research/.
+# Run it BEFORE the next relaunch (relaunch resets surviving books' accumulators).
+npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts \
+  --since <run-start-ISO> --until <run-end-ISO> \
+  --log docs/research/run-<TS>-mm10h.log --label run<N>
+
 # score the flow signal's forward-return IC from the shadow capture
 npx ts-node -r tsconfig-paths/register scripts/flow-bias-markout.ts \
   docs/research/flow-shadow-<ts>.jsonl 30,60,300,900
@@ -249,7 +266,7 @@ it **up / on**.
 | **`MM_MICROPRICE_DEPTH`** | `5` | center quotes on N L2 levels of imbalance ⇒ **less adverse selection**; `0` = stale mid (worst). |
 | **`MM_FAST_REQUOTE_MS`** | `750` | **lower** = fresher fair value, less pickoff, more order churn (Run A′ `100`). |
 | **`MM_CANCEL_REPLACE_LATENCY_MS`** | `100` | modeled quote-move latency; **lower** = more optimistic fills (Run A′ `30`). |
-| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` | which books get the real **trades-WS aggressor flow** (for VPIN/toxicity). The fast L2 fill path itself is now the default for *all* L2 books — this list just scopes the WS feed. |
+| **`MM_FAST_SYMBOLS`** | `BTC,ETH,SOL` (start-desk: the Elite-8) | which books get the real **trades-WS aggressor flow** (for VPIN/toxicity). The fast L2 fill path itself is now the default for *all* L2 books — this list just scopes the WS feed. |
 
 ### Inventory governor — the inventory-carry lever (on by default; #39/#41/#43)
 | Env | Default | Effect (turn up / on) |
@@ -258,7 +275,8 @@ it **up / on**.
 | **`MM_INVENTORY_SKEW_MULT`** | `4` | scales the σ²-based reservation skew **higher** = leans harder toward flat — but it ∝ σ², so it's weak in a calm trend. |
 | **`MM_INVENTORY_SPREAD_SKEW`** | `0.4` | **σ-INDEPENDENT lean (#48):** tightens the shedding side + widens the adding side up to this fraction at the cap, so a neutral book sheds one-sided inventory even when σ is low and the tape just drifts. **higher** (≤0.9) = sheds harder (toward single-siding); `0` = off. |
 | **`MM_MAX_INVENTORY_LOTS`** | `8` | lot-count bound; **lower** = tighter inventory, fewer fills. |
-| **`MM_MAX_INVENTORY_NOTIONAL_FRAC`** | `0.25` | cap \|inventory\| at this fraction of capital at live mid ⇒ same *risk* across a 100×-price universe (Run A′ `0.15`); `0` = off. |
+| **`MM_MAX_INVENTORY_NOTIONAL_FRAC`** | `0.25` (start-desk: **`0.15`**) | cap \|inventory\| at this fraction of capital at live mid ⇒ same *risk* across a 100×-price universe; `0` = off. |
+| `MM_TIME_STOP` | `false` | S2 inventory time-stop (skew-to-flat on aged inventory). Replay verdict MIXED (Journal #53) — leave OFF until the S4 regime gate / S8 A/B clears it. `MM_TIME_STOP_AGE_MIN` (30) / `MM_TIME_STOP_SHIFT_BPS` (3). |
 
 ### Delta hedge — the directional-variance lever (defines the canonical run)
 | Env | Default | Effect (turn up / on) |
@@ -288,17 +306,19 @@ it **up / on**.
 ### Per-book launch — terminal 2 (`launch-mm-10h.sh`)
 | Env | Default | Effect |
 |---|---|---|
-| `MM_BOOK_CAPITAL_USDC` | `1000000` | capital per book ($1M = desk scale). |
-| `MM_BOOK_NOTIONAL_USD` | `100000` | quote notional per side; sets the lot size the caps bound. |
+| `MM_BOOK_CAPITAL_USDC` | `500000` (script) | capital per book — Elite-8 × $500k = $4M desk. |
+| `MM_BOOK_NOTIONAL_USD` | `50000` (script) | quote notional per side; sets the lot size the caps bound. |
 | `MM_BOOK_STRATEGY` | `mm-glft` | quoter strategy id. |
 | `MM_BOOK_SOURCE` | `hyperliquid` | L2 / reference venue. |
 | `MM_HOST` | `http://localhost:3100` | server to launch against. |
 
 ### Other tunables (rarely touched)
-`MM_GAMMA` (0.0025, risk aversion → wider base spread), `MM_KAPPA` (2, order-arrival decay),
+`MM_GAMMA` (0.0025; start-desk **0.005** — the risk-averse profile #51; note the base spread is
+≈2/κ and γ-insensitive — γ drives the inventory skew), `MM_KAPPA` (2, order-arrival decay),
 `MM_MIN/MAX_HALF_SPREAD_BPS` (1 / 200, clamps), `MM_MAKER_FEE_BPS` (−0.2 HL rebate),
 `MM_MAX_DRAWDOWN_PCT` (10, risk-gate trip), **`MM_F3_TOXICITY`** (start-desk: `true`; widens into
-one-sided sweeps, **instrumented** — `grep 'F3 toxicity'`), `MM_F3_MIN/MAX_SCALE` (0.5 / 3.0),
+one-sided sweeps, **instrumented** — `grep 'F3 toxicity'`), `MM_F3_MIN/MAX_SCALE` (0.5 / 3.0;
+start-desk min **1.0** = widen-only, the fewer-fills-over-losing-fills doctrine),
 `MM_FUNDING_BIAS_SYMBOLS` (BTC), `MM_FUNDING_REFRESH_MS` (600000).
 Full list + comments in `app-config.factory.ts`.
 
