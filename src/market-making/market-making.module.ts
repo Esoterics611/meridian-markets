@@ -455,11 +455,26 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             takerFeeBps: BigInt(Math.max(0, Math.round(mm.hedgeTakerBps))),
             venueId: 'hl-perp-hedge',
           });
+          // Hedge-only underlyings (ETH/BTC are LEGS, not books, since the Sweet-16 swap) never
+          // appear in the desk's book-mid price map — resolve their marks straight off the HL L2
+          // top (throttled inside the controller), else the leg's orders skip on the missing-mark
+          // guard and the desk runs UNHEDGED.
+          const hedgeHl = refRegistry.get('hyperliquid') as Partial<IL2BookSource> | undefined;
+          const resolveHedgeMid =
+            hedgeHl && typeof hedgeHl.l2Snapshot === 'function'
+              ? async (u: string): Promise<bigint | null> => {
+                  const l2 = await hedgeHl.l2Snapshot!(u);
+                  const bid = l2.bids[0]?.priceMicros ?? 0n;
+                  const ask = l2.asks[0]?.priceMicros ?? 0n;
+                  return bid > 0n && ask > 0n ? (bid + ask) / 2n : null;
+                }
+              : undefined;
           hedger = new DeskHedgeController(
             hedgeVenue,
             { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
+            resolveHedgeMid,
           );
           new Logger('MarketMakingModule').log(
             `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,

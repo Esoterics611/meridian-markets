@@ -138,3 +138,79 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
     expect(snap.hedgePnlUsd).toBeCloseTo(19_960, 0); // +$20k mark-to-market − $40 fee
   });
 });
+
+describe('DeskHedgeController — hedge-only underlyings (no quoted book) via resolveMid', () => {
+  const ETH_4K = 4_000_000_000n;
+  const solOnEth = (units: bigint): BookDelta[] => [{ symbol: 'SOL', inventoryUnits: units, midMicros: 200_000_000n }];
+  const ethCfg = cfg({ betaMap: { SOL: { underlying: 'ETH', beta: 1 } } });
+
+  it('without resolveMid an ETH order is silently skipped (the Sweet-16 unhedged-desk bug)', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const ctrl = new DeskHedgeController(venue, ethCfg);
+    // +$10k SOL delta mapped onto ETH, but no ETH book ⇒ no ETH price ⇒ order skipped.
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(venue.bookSnapshot()).toHaveLength(0);
+    expect(snap.perUnderlying[0]).toMatchObject({ underlying: 'ETH', hedgeNotionalUsd: 0 });
+    expect(Math.abs(snap.residualUsd)).toBeCloseTo(10_000, 0); // carried UNHEDGED
+  });
+
+  it('with resolveMid the ETH leg marks off the venue mid and the hedge fills', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const calls: string[] = [];
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(),
+      undefined,
+      async (u) => {
+        calls.push(u);
+        return ETH_4K;
+      },
+    );
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toEqual(['ETH']);
+    expect(venue.bookSnapshot()).toHaveLength(1);
+    expect(venue.bookSnapshot()[0].side).toBe('SELL'); // short ETH against the long SOL delta
+    expect(snap.perUnderlying[0].hedgeNotionalUsd).toBeCloseTo(-10_000, 0);
+    expect(Math.abs(snap.residualUsd)).toBeLessThanOrEqual(ethCfg.bandUsd);
+  });
+
+  it('throttles the resolver: a second rebalance inside midRefreshMs reuses the cached mark', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    let calls = 0;
+    let nowMs = 1_000_000;
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(nowMs),
+      undefined,
+      async () => {
+        calls += 1;
+        return ETH_4K;
+      },
+      1_000,
+    );
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    nowMs += 200; // inside the 1s refresh window
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toBe(1);
+    nowMs += 2_000; // window elapsed ⇒ refresh
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toBe(2);
+  });
+
+  it('a failing resolver never sinks the tick (order skipped, no throw)', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(),
+      undefined,
+      async () => {
+        throw new Error('venue down');
+      },
+    );
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(snap.perUnderlying[0].hedgeNotionalUsd).toBe(0);
+  });
+});
