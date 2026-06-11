@@ -188,6 +188,8 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     lossStopFrac: parseFloat(process.env['MM_LOSS_STOP_FRAC'] ?? '0'),
     lossStopCooldownMin: parseFloat(process.env['MM_LOSS_STOP_COOLDOWN_MIN'] ?? '15'),
     sessionGate: process.env['MM_SESSION_GATE'] ?? '',
+    // Journal #57: event-blackout windows (same sym=HHMM-HHMM format; '*' = every book).
+    eventBlackout: process.env['MM_EVENT_BLACKOUT'] ?? '',
     // S4 sweep-regime gate (Journal #56) — off unless armed; thresholds are PRIORS (see detector).
     regimeGate: (process.env['MM_REGIME_GATE'] ?? 'false').toLowerCase() === 'true',
     regimeFlowThreshold: parseFloat(process.env['MM_REGIME_FLOW_THRESHOLD'] ?? '0.65'),

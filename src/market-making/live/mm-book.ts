@@ -87,6 +87,12 @@ export interface MmBookConfig {
    */
   sessionUtc?: { openMin: number; closeMin: number };
   /**
+   * Event-blackout windows (Journal #57): UTC minutes-of-day windows INSIDE which the book
+   * flattens + stands aside (the inverse of sessionUtc) — scheduled-number protection (the
+   * 13:30Z macro slot for CL/GOLD). Pro doctrine: nobody earns the spread through CPI.
+   */
+  blackoutUtc?: Array<{ openMin: number; closeMin: number }>;
+  /**
    * S4 sweep-regime gate (Journal #56): one-sided aggressor flow + same-sign price drift ⇒
    * pull quotes BEFORE inventory builds against the move (the loss-stop fires after; this is
    * the before). Fast path only (needs the real per-tick aggressor flow). Omit ⇒ off.
@@ -691,7 +697,7 @@ export class MmBook {
 
   /** Taker-flatten the inventory at `midMicros` (5bps taker fee, not the rebate) and emit the
    *  exit as a business event — a guardrail flatten is a real trade, it goes on the tape. */
-  private flattenAt(midMicros: bigint, reason: 'loss-stop' | 'session-close' | 'manual'): void {
+  private flattenAt(midMicros: bigint, reason: 'loss-stop' | 'session-close' | 'event-blackout' | 'manual'): void {
     const inv = this.book.inventoryUnits();
     if (inv === 0n || midMicros <= 0n) return;
     const side = inv > 0n ? 'SELL' : 'BUY';
@@ -731,12 +737,19 @@ export class MmBook {
    *      cooldown. Caps what a warehoused position may LOSE (the governor only caps its size).
    */
   private guardrail(nowMs: number, midMicros: bigint): boolean {
+    const minOfDay = Math.floor((nowMs % 86_400_000) / 60_000);
     const s = this.cfg.sessionUtc;
     if (s) {
-      const minOfDay = Math.floor((nowMs % 86_400_000) / 60_000);
       const inSession = minOfDay >= s.openMin && minOfDay < s.closeMin;
       if (!inSession) {
         this.flattenAt(midMicros, 'session-close');
+        return true;
+      }
+    }
+    // Event blackout (Journal #57): INSIDE any window ⇒ flat + aside (scheduled-number risk).
+    for (const w of this.cfg.blackoutUtc ?? []) {
+      if (minOfDay >= w.openMin && minOfDay < w.closeMin) {
+        this.flattenAt(midMicros, 'event-blackout');
         return true;
       }
     }

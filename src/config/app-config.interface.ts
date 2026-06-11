@@ -312,6 +312,9 @@ export interface AppConfig {
     regimeMinDriftBps: number;
     /** Re-entry hold after the last sweep tick (ms). Default 90000. */
     regimeCooldownMs: number;
+    /** Event-blackout rules (Journal #57), same format as sessionGate but INSIDE the window
+     *  the book is flat + aside (scheduled-number protection; '*' = whole desk). */
+    eventBlackout: string;
     /** Session gate rules (Journal #55), raw MM_SESSION_GATE string:
      *  "sym,sym=HHMM-HHMM[;sym=HHMM-HHMM]" (UTC). Symbols listed quote ONLY inside their
      *  window; outside they flatten + stand aside (xyz equity books off US RTH are pure

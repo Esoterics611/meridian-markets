@@ -2321,3 +2321,18 @@ The desk's layered inventory defence is now: (1) S4 gate = don't BUILD inventory
 (4) β-hedge on every book = neutralise the factor of what remains. Each layer covers the prior's
 failure mode. NEXT: event calendar + blackout windows (designed, approved scope pending),
 per-hour regime diagnostic strip on the leak table.
+## 2026-06-11 — Entry #57 (event calendar: tape warnings + blackout windows — "nobody earns the spread through CPI")
+**Shipped:** (1) `EventCalendar` (risk/event-calendar.ts, static v1): daily US open/macro slot
+13:30Z (CPI/NFP/retail) + US close 20:00Z (hints: CL/GOLD) + the published 2026 FOMC decision
+dates 18:00Z (whole-desk). Trader polls it each loop → **`⚠ EVENT ▸ … in ~Nm` warning on the
+Activity tape + log, once per occurrence, T−5min** — the operator's actionable signal.
+(2) **Blackout windows** `MM_EVENT_BLACKOUT` (session-gate grammar, `*`=desk): INSIDE the window
+the guardrail taker-flattens + stands aside (`GUARDRAIL ▸ … event-blackout`). Desk default:
+`xyz:CL,xyz:GOLD=1325-1345` — flat through the 13:30Z number, auto re-enter 13:45Z.
+HONESTY/limits v1: calendar is static (no earnings/API feed — the `IEventSource` seam is the
+follow-up); FOMC days are WARN-ONLY (add `*=1755-1845` to MM_EVENT_BLACKOUT on the day);
+13:30Z slot is daily (we stand aside even on no-print days — cheap at 20min). NAV-chart port to
+/mm-desk: NOT needed — navSparkPanel already renders the mm_nav curve there (checked).
+Tests: calendar spec (daily occurrence, midnight cross, FOMC date) — mm+ui 84 suites/496 green;
+tsc clean. Desk now: S4 sweep gate → governor → loss-stop 0.01% → β-hedge ×8 → event blackouts
++ tape warnings. Run54 is the first full-stack read.
