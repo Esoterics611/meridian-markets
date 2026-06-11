@@ -94,9 +94,16 @@ NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k 
 # CL $451/d, SPCX $142/d, GOLD $12/d, NVDA $27/d, TSLA $4/d — measured realised beat the proxy
 # on GOLD/NVDA/TSLA in #51, which is why they keep their slots over the shortlist.
 # PRE-FLIGHT (mandatory): npx ts-node -r tsconfig-paths/register scripts/smoke-sweet16.ts
+# ELITE-8 v2 (2026-06-11, operator rotation — see docs/UNIVERSE_DISCOVERY.md):
+#   OUT: xyz:SPCX (written off — kept losing live; the $66M/day prior didn't survive contact)
+#        PURR (operator cut; fillEdge −$22 in run52, thin $0.7M/day flow)
+#   IN (top-2 by the spread×volume revenue proxy, ≥$50M/day liquidity, fresh scan 2026-06-11):
+#   xyz:SKHX  $1,194/d proxy (9.4bps × $126M/day) — was already the #1 next-rotation candidate
+#   xyz:ORCL  $403/d proxy (6.2bps × $65M/day)
+#   Both unmeasured live — β=0, governor-capped, judged on their first leak table (S6 rule).
 BOOKS=(
-  xyz:CL xyz:GOLD xyz:NVDA xyz:TSLA xyz:SPCX
-  FARTCOIN kPEPE PURR
+  xyz:CL xyz:GOLD xyz:NVDA xyz:TSLA xyz:SKHX xyz:ORCL
+  FARTCOIN kPEPE
 )
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
@@ -122,7 +129,7 @@ launch () {
 
 # Books DROPPED from the set still rehydrate from mm_book_state under MM_PERSIST and would keep
 # trading silently — remove them explicitly (flattens + checkpoints; no-op if absent).
-DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL SOL ADA DOGE SUI xyz:SP500 xyz:XYZ100)
+DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL SOL ADA DOGE SUI xyz:SP500 xyz:XYZ100 xyz:SPCX PURR)
 echo "=== removing dropped incumbents (${DROPPED[*]}) ==="
 for s in "${DROPPED[@]}"; do
   curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \
