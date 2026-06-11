@@ -54,7 +54,7 @@ set -euo pipefail
 
 HOST="${MM_HOST:-http://localhost:3100}"
 SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
-CAP="${MM_BOOK_CAPITAL_USDC:-500000}"      # $500k/book × 16 books = the same $8M desk as the 8×$1M runs
+CAP="${MM_BOOK_CAPITAL_USDC:-500000}"      # $500k/book × 13 books = $6.5M desk (Sweet-16 minus the #51 cuts)
 NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k max inventory on $500k
 
 # THE SWEET-16 (2026-06-10, docs/BOOK_SELECTION_ANALYSIS.md — priors, to be verified by the
@@ -71,10 +71,16 @@ NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k 
 #     overrides the analysis's "majors are donated slots" prior for these two; the run decides.
 #   • SUI + DOGE: incumbents on the bubble — kept for continuity, first rotation candidates.
 # Dropped: BTC, ETH (hedge LEGS, not quoted books), XRP (worst bleeder + worst basis), BNB (inert).
+# CUT after the first Sweet-16 read (Journal #51, 2026-06-11 — one ~3.6h window, so these are
+# rotation-outs, not permanent kills; the S6 scoring tool re-adjudicates):
+#   HYPE         realised −$1,507, maxDD 1.76% (bar breach), VPIN 0.58, 387/219 one-sided fills
+#   xyz:BRENTOIL realised −$1,187, maxDD 1.61% (bar breach), sprd/adverse 597/867
+#   xyz:SILVER   realised −$816,  sprd/adverse 528/1273 — the desk's worst pick-off ratio
+# (xyz:CL — same dex, same asset class — stays: +$1,397 realised, maxDD 0.25%.)
 # PRE-FLIGHT (mandatory): npx ts-node -r tsconfig-paths/register scripts/smoke-sweet16.ts
 BOOKS=(
-  xyz:GOLD xyz:SILVER xyz:XYZ100 xyz:SP500 xyz:CL xyz:BRENTOIL xyz:NVDA xyz:TSLA
-  HYPE FARTCOIN kPEPE PURR SUI SOL ADA DOGE
+  xyz:GOLD xyz:XYZ100 xyz:SP500 xyz:CL xyz:NVDA xyz:TSLA
+  FARTCOIN kPEPE PURR SUI SOL ADA DOGE
 )
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
@@ -100,7 +106,7 @@ launch () {
 
 # Books DROPPED from the set still rehydrate from mm_book_state under MM_PERSIST and would keep
 # trading silently — remove them explicitly (flattens + checkpoints; no-op if absent).
-DROPPED=(BTC ETH XRP BNB)
+DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL)
 echo "=== removing dropped incumbents (${DROPPED[*]}) ==="
 for s in "${DROPPED[@]}"; do
   curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \

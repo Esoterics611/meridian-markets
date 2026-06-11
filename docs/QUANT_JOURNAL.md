@@ -2102,3 +2102,14 @@ tsc clean; touched suites green (49 tests across 7 suites).
 - **Verdict shape:** the Sweet-16 swap is *working as a portfolio* — 13/16 books net-positive
   realised, hedge leak killed, and the desk loss is 3 fixable books, not a structural bleed.
   Mid-flight realised rate ≈ −$300/h on $8M; CL alone proves HIP-3 quoting earns paying full fees.
+
+**#51 addendum (same day, post-run — actioned for the next run):** run stopped by Ronnie. (a) **Cut
+HYPE / xyz:BRENTOIL / xyz:SILVER** from the book set (rotation-out on the #51 read, S6 re-adjudicates) —
+launch-mm-10h.sh BOOKS now 13 (×$500k = $6.5M desk) and the three are added to DROPPED so MM_PERSIST
+can't rehydrate them. (b) **Hedge map re-fit** (30d×1h OOS, scripts/hedge-beta-fit.ts): SOL 1.02 /
+DOGE 0.94 / ADA 1.04 / SUI 1.29 (cfg drift was window noise — live βs were NOT pasted in);
+**FARTCOIN:ETH:1.53 (R².65) and kPEPE:ETH:1.20 (R².77) now hedged** (were β=0; the run's live KPI
+agreed); PURR stays 0 (R².13). ADA's BTC/ETH fit tied → kept on the single ETH leg (netting > tie).
+(c) hedge-beta-fit.ts no longer uppercases symbols (kPEPE 500'd — same exact-case bug ac7d001 fixed
+in the engine). (d) The previous session's orphaned hedge fix (bookless-underlying marks, the thing
+that kept this run's ETH leg alive) committed as 382a04e with its 11 tests — the working tree is clean.

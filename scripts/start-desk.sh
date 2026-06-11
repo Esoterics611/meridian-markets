@@ -70,8 +70,10 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 #                            zeroed, so neutral mm-glft books stay neutral until the signal clears the
 #                            markout gate (the real lean is Run B; this just leaves the seam on).
 # MM_HEDGE_BETA_MAP: crypto books keep the OOS alt→major map (scripts/hedge-beta-fit.ts, 30d×1h HL —
-# RE-FIT between runs, β drifts; HYPE/FARTCOIN/kPEPE/PURR are UNFITTED, run them at beta 0 = unhedged
-# + governor-capped until hedge-beta-fit covers them). HIP-3 RWA books (xyz:*) are beta 0 BY DESIGN —
+# RE-FIT between runs, β drifts; this map fit 2026-06-11). FARTCOIN/kPEPE now FITTED (R² .65/.77 —
+# the #51 run's live KPI agreed); PURR stays 0 (R² .13 = no factor, governor-capped). ADA's BTC/ETH
+# fit tied at R² .59 → kept on the single ETH leg (one-leg netting beat the A″ BTC-leg churn).
+# HIP-3 RWA books (xyz:*) are beta 0 BY DESIGN —
 # gold/equities/oil have no crypto factor; the inventory governor is their risk rail, and venue-fees
 # quotes them with NO maker rebate (HIP3_FEE) so paper P&L stays honest. Sweet-16 set:
 # docs/BOOK_SELECTION_ANALYSIS.md + smoke first: scripts/smoke-sweet16.ts.
@@ -79,7 +81,7 @@ FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \
-MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:GOLD,xyz:SILVER,xyz:XYZ100,xyz:SP500,xyz:CL,xyz:BRENTOIL,xyz:NVDA,xyz:TSLA,HYPE,FARTCOIN,kPEPE,PURR,SUI,SOL,ADA,DOGE}" \
+MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:GOLD,xyz:XYZ100,xyz:SP500,xyz:CL,xyz:NVDA,xyz:TSLA,FARTCOIN,kPEPE,PURR,SUI,SOL,ADA,DOGE}" \
 MM_MICROPRICE_DEPTH="${MM_MICROPRICE_DEPTH:-5}" \
 MM_F3_TOXICITY="${MM_F3_TOXICITY:-true}" \
 MM_DELTA_HEDGE="${MM_DELTA_HEDGE:-true}" \
@@ -87,7 +89,7 @@ MM_HEDGE_BAND_USD="${MM_HEDGE_BAND_USD:-2000}" \
 MM_HEDGE_TAKER_BPS="${MM_HEDGE_TAKER_BPS:-2.5}" \
 MM_HEDGE_HALF_SPREAD_BPS="${MM_HEDGE_HALF_SPREAD_BPS:-1}" \
 MM_HEDGE_COST_SPREAD_MULT="${MM_HEDGE_COST_SPREAD_MULT:-0.5}" \
-MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-SOL:ETH:1.01,DOGE:ETH:0.97,ADA:ETH:1.03,SUI:ETH:1.30,HYPE:ETH:0,FARTCOIN:ETH:0,kPEPE:ETH:0,PURR:ETH:0,xyz:GOLD:GOLD:0,xyz:SILVER:SILVER:0,xyz:XYZ100:XYZ100:0,xyz:SP500:SP500:0,xyz:CL:CL:0,xyz:BRENTOIL:BRENTOIL:0,xyz:NVDA:NVDA:0,xyz:TSLA:TSLA:0}" \
+MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-SOL:ETH:1.02,DOGE:ETH:0.94,ADA:ETH:1.04,SUI:ETH:1.29,FARTCOIN:ETH:1.53,kPEPE:ETH:1.20,PURR:ETH:0,xyz:GOLD:GOLD:0,xyz:XYZ100:XYZ100:0,xyz:SP500:SP500:0,xyz:CL:CL:0,xyz:NVDA:NVDA:0,xyz:TSLA:TSLA:0}" \
 MM_FLOW_BIAS_LIVE="${MM_FLOW_BIAS_LIVE:-true}" \
 MM_FLOW_BIAS_HORIZON_MS="${MM_FLOW_BIAS_HORIZON_MS:-60000}" \
 MM_FLOW_BIAS_MIN_IC="${MM_FLOW_BIAS_MIN_IC:-0.05}" \

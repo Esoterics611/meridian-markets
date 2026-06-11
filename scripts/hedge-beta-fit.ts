@@ -52,7 +52,8 @@ function regress(y: number[], x: number[]): { beta: number; r2: number; n: numbe
 }
 
 async function main(): Promise<void> {
-  const universe = (process.argv[2] ?? DEFAULT_UNIVERSE.join(',')).split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+  // Exact-case symbols — HL coin keys are case-sensitive (kPEPE, xyz:GOLD); uppercasing 500s (ac7d001).
+  const universe = (process.argv[2] ?? DEFAULT_UNIVERSE.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
   const interval = process.argv[3] ?? '1h';
   const limit = parseInt(process.argv[4] ?? '720', 10);
   const symbols = Array.from(new Set([...MAJORS, ...universe]));
