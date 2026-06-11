@@ -81,8 +81,8 @@ Status: **elite** (has a slot) · **candidate** (scan-ranked, unmeasured) · **w
 | xyz:TSLA | elite | +$165 realised (#51), 84 fills |
 | FARTCOIN | elite | +$313 realised (#51), 231 fills, hedged ETH β1.53 |
 | kPEPE | elite | +$69 realised (#51), 176 fills, hedged ETH β1.20 |
-| **xyz:SKHX** | **elite (NEW)** | proxy $1,194/d (9.4bps × $126M) — #1 candidate two scans running; unmeasured |
-| **xyz:ORCL** | **elite (NEW)** | proxy $403/d (6.2bps × $65M); unmeasured |
+| **xyz:SKHX** | **elite — probation** | run53 debut fillEdge **−$632** (worst leak) — but the whole window was pre-US-open vs a closed underlying. One US-RTH window (now session-gated) decides; fail ⇒ SNDK takes the slot |
+| **xyz:ORCL** | **elite — probation** | run53 net +$472 but fillEdge **−$128** — the green is warehouse luck, not edge. Same US-RTH retest as SKHX |
 | xyz:SNDK | candidate | proxy $385/d (2.7bps × $140M) — first reserve |
 | xyz:MRVL | candidate | proxy $309/d (3.7bps × $82M) |
 | xyz:MU | candidate | proxy $159/d (0.6bps × $249M) — tight spread, big flow |

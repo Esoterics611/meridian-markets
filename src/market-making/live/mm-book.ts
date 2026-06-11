@@ -66,6 +66,25 @@ export interface MmBookConfig {
    * can render "inventory as % of the rail". Omit/0 ⇒ no notional cap (lot-count only).
    */
   maxInventoryNotionalFrac?: number;
+  /**
+   * Warehouse loss-stop (Journal #55): when the unrealised MTM on the book's inventory
+   * breaches −lossStopFrac·capital, the book FLATTENS at the mid (taker, 5bps), pulls its
+   * quotes and stands aside for lossStopCooldownMs, then resumes flat. This is the desk's
+   * answer to the "earn slowly on spread, lose suddenly on inventory" failure shape: the
+   * governor caps inventory SIZE; this caps the LOSS a warehoused position may realise.
+   * It does not add expectation — it converts a fat left tail into a bounded, known cost
+   * (taker spread + fees per trigger). Omit/0 ⇒ off.
+   */
+  lossStopFrac?: number;
+  /** Stand-aside duration after a loss-stop fires. Default 15 min. */
+  lossStopCooldownMs?: number;
+  /**
+   * Session gate (Journal #55): UTC minutes-of-day window [openMin, closeMin) inside which
+   * this book may quote. Outside the window the book flattens once and stands aside —
+   * built for xyz equity-linked perps whose reference market is closed/stale off US RTH
+   * (run53: every negative-fillEdge xyz read happened pre-US-open). Omit ⇒ quote 24h.
+   */
+  sessionUtc?: { openMin: number; closeMin: number };
   /** VPIN EMA window in buckets (toxicity gauge + risk pause). Default 50. */
   vpinEmaBuckets?: number;
   /** VPIN bucket size in asset units; default = quoteSizeUnits·10 (self-scales per symbol). */
@@ -210,6 +229,10 @@ export interface MmBookSnapshot {
 export class MmBook {
   private readonly logger = new Logger(MmBook.name);
   private readonly vol: RollingVolatility;
+  /** Guardrail stand-aside horizon (epoch ms) after a loss-stop fires; 0 = not standing aside. */
+  private standAsideUntilMs = 0;
+  /** Count of loss-stop triggers this run (surfaced in logs; the leak table greps the line). */
+  private lossStops = 0;
   // On the fast L2 path the book is SHARED with the fill engine (one source of truth —
   // the engine fills into it, snapshot() reads it). On the bar path it's our own.
   private readonly book: InventoryBook;
@@ -403,6 +426,14 @@ export class MmBook {
   onL2Snapshot(tick: LiveTick): void {
     const eng = this.cfg.fastEngine;
     if (!eng || !this.running) return;
+    // Guardrails first (Journal #55): session gate + warehouse loss-stop. Priced off the
+    // PREVIOUS tick's mid (the engine has no mid before its first snapshot — that first
+    // tick passes ungated, which only matters for a book launched outside its session).
+    const guardMid = eng.lastMid();
+    if (guardMid !== undefined && this.guardrail(this.now().getTime(), guardMid)) {
+      eng.cancelResting(); // pull both quotes; no resting orders ⇒ no fills while standing aside
+      return;
+    }
     // VPIN feed (fast path): real per-interval aggressor prints — no BVC estimate needed.
     if (tick.flow) this.vpin.onClassifiedVolume(tick.flow.aggressiveBuyUnits ?? 0n, tick.flow.aggressiveSellUnits ?? 0n);
     const invBefore = this.book.inventoryUnits(); // carried-in inventory, for funding/carry
@@ -500,6 +531,12 @@ export class MmBook {
       this.adverse += c.adverseSelectionUnits;
     }
     this.pendingMarkout = [];
+
+    // Guardrails (Journal #55): session gate + warehouse loss-stop — flatten + stand aside.
+    if (this.guardrail(tsMs, midMicros)) {
+      this.markEquity(midMicros);
+      return;
+    }
 
     if (!this.vol.ready()) return; // warming
 
@@ -602,14 +639,73 @@ export class MmBook {
 
   /** Force inventory to zero at the last mid (taker flatten; manual desk action). */
   async flatten(): Promise<void> {
+    const midMicros = this.cfg.fastEngine?.lastMid() ?? (this.lastBar ? toMicros(this.lastBar.close) : undefined);
+    if (midMicros !== undefined) this.flattenAt(midMicros, 'manual');
+  }
+
+  /** Taker-flatten the inventory at `midMicros` (5bps taker fee, not the rebate) and emit the
+   *  exit as a business event — a guardrail flatten is a real trade, it goes on the tape. */
+  private flattenAt(midMicros: bigint, reason: 'loss-stop' | 'session-close' | 'manual'): void {
     const inv = this.book.inventoryUnits();
-    if (inv === 0n || !this.lastBar) return;
-    const midMicros = toMicros(this.lastBar.close);
+    if (inv === 0n || midMicros <= 0n) return;
     const side = inv > 0n ? 'SELL' : 'BUY';
     const size = inv > 0n ? inv : -inv;
     // Crossing the spread to flatten pays a taker fee (5 bps), not the maker rebate.
     const fee = (valueUnits(size, midMicros) * 5n) / 10_000n;
+    const realisedBefore = this.book.realisedUnits();
     this.book.apply({ side, sizeUnits: size, priceMicros: midMicros, feeUnits: fee });
+    const realisedDelta = this.book.realisedUnits() - realisedBefore;
+    this.logger.warn(
+      `GUARDRAIL ▸ ${this.cfg.symbol} ${reason}: flattened ${side} ${size} units @ mid (taker), realised ${realisedDelta} units`,
+    );
+    this.events.emit(
+      fillEvent({
+        ts: this.now().getTime(),
+        book: this.cfg.symbol,
+        source: this.cfg.source ?? '',
+        side,
+        action: classifyFill(inv, 0n),
+        sizeUnits: size,
+        priceMicros: midMicros,
+        inventoryUnits: 0n,
+        realisedDeltaUnits: realisedDelta,
+        feeUnits: fee,
+      }),
+    );
+  }
+
+  /**
+   * The per-interval guardrails (Journal #55) — session gate + warehouse loss-stop. Returns
+   * true when the book must STAND ASIDE this interval (caller pulls quotes and skips the
+   * quoting path). Runs on BOTH drive paths, before any quote is computed:
+   *   1. session gate: outside [openMin, closeMin) UTC ⇒ flatten once + stand aside (a stale
+   *      reference market is pure pick-off; run53 SKHX fillEdge −$632 was all pre-US-open);
+   *   2. loss-stop cooldown: a fired stop keeps quotes pulled until the horizon passes;
+   *   3. loss-stop: unrealised on inventory < −lossStopFrac·capital ⇒ flatten at taker +
+   *      cooldown. Caps what a warehoused position may LOSE (the governor only caps its size).
+   */
+  private guardrail(nowMs: number, midMicros: bigint): boolean {
+    const s = this.cfg.sessionUtc;
+    if (s) {
+      const minOfDay = Math.floor((nowMs % 86_400_000) / 60_000);
+      const inSession = minOfDay >= s.openMin && minOfDay < s.closeMin;
+      if (!inSession) {
+        this.flattenAt(midMicros, 'session-close');
+        return true;
+      }
+    }
+    if (nowMs < this.standAsideUntilMs) return true;
+    const frac = this.cfg.lossStopFrac;
+    if (frac && frac > 0 && this.book.inventoryUnits() !== 0n) {
+      const stopUnits = BigInt(Math.round(frac * Number(this.cfg.capitalUnits)));
+      if (this.book.unrealisedUnits(midMicros) < -stopUnits) {
+        this.lossStops += 1;
+        this.flattenAt(midMicros, 'loss-stop');
+        this.standAsideUntilMs = nowMs + (this.cfg.lossStopCooldownMs ?? 900_000);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Equity including funding: capital + trading P&L + funding accrued. */

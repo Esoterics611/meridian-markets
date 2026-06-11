@@ -484,6 +484,14 @@ export class L2LiveFillEngine {
     return this.lastMidMicros;
   }
 
+  /** Pull both resting quotes (guardrail stand-aside: session close / loss-stop cooldown).
+   *  With nothing resting, nothing can fill; the next allowed tick re-places fresh quotes
+   *  subject to the normal cancel/replace latency rail. */
+  cancelResting(): void {
+    this.restingBid = undefined;
+    this.restingAsk = undefined;
+  }
+
   /** True once σ is warmed and the engine is quoting (the fast-path "warm" signal). */
   isQuoting(): boolean {
     return this.quotingSteps > 0;

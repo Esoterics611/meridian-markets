@@ -2225,3 +2225,41 @@ hours; equity-linked books breathe with US flow.
 **Ops for THIS relaunch (binding, S1 rule): run the leak table BEFORE launch-mm-10h.sh —**
 `npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts --since <run-start> --until <now> --log <run-log> --label run52`
 — relaunch overwrites surviving books' state accumulators.
+## 2026-06-11 — Entry #55 (run53 verdict + the warehouse guardrails: loss-stop, session gate, cap cut)
+**Run53 (08:46→12:42Z, 3.9h, Elite-8 v2 first window + SPCX's last):** desk net −$973
+(realised −$928, fees +$58) on $4M. DD control HELD (worst book maxDD 0.93% < 1% bar); hedge
+healthy and tiny ($47 churn, implied leg +$343). The loss is the desk's recurring failure shape —
+**earn slowly on spread, lose suddenly on inventory**: CL −$626 in ONE 5-min window (57% of its
+loss), kPEPE worst5m −$432 (60% conc), SPCX −$380. Per-book fillEdge (the structural verdict):
+**SKHX −$632** (the #1 leak — picked off relentlessly in its debut), ORCL −$128 (its +$472 net is
+warehouse luck, NOT edge — the classic trap book), CL −$62, FARTCOIN −$23; positive: kPEPE +$37,
+NVDA +$26, GOLD +$6. Caveat owned: the whole window was PRE-US-OPEN — every xyz equity book was
+quoting a closed/stale reference market; SKHX/ORCL get ONE US-hours window before slot decisions
+(else SNDK is first reserve). Artifacts: docs/research/leak-table-run53.{md,json}.
+**Operator finding (Ronnie):** the desk was believed delta-neutral; it is NOT — only
+FARTCOIN/kPEPE are (factor-)hedged via ETH betas. Every xyz book is β=0 UNHEDGED by design (no
+instrument on the desk hedges oil/gold/equities), i.e. ~75% of capital runs naked inventory and
+prior session reporting under-stated this. **For xyz books, FLAT is the only hedge** — hence:
+**Shipped (the #55 guardrails, all three on the same principle — cap what inventory can LOSE,
+not just what it can BE):**
+1. **Warehouse loss-stop** (`MmBook.guardrail`, both drive paths): unrealised on inventory
+   < −`MM_LOSS_STOP_FRAC`·capital ⇒ taker-flatten at mid (5bps), pull quotes
+   (`L2LiveFillEngine.cancelResting()`), stand aside `MM_LOSS_STOP_COOLDOWN_MIN` (15m), resume
+   flat. Desk default 0.0006 (−$300 on $500k) = tail-only insurance. HONESTY: adds NO
+   expectation — converts the fat left tail into a bounded known cost; will sometimes sell the
+   bottom (the S2 time-stop replay said as much); sized loose so it fires rarely.
+2. **Session gate** (`MM_SESSION_GATE`, parser `risk/session-gate.ts`): xyz US-equity books
+   (NVDA/TSLA/SKHX/ORCL/+reserves) quote ONLY 13:30–20:00Z and go home flat; off-hours quoting
+   vs a closed underlying is pure pick-off (SKHX above). CL/GOLD exempt (~24h markets).
+3. **Inventory cap cut** 0.15→0.10 of capital (start-desk.sh) — the warehouse tail scales
+   linearly with the rail.
+Every guardrail flatten is a DeskEvent + `GUARDRAIL ▸` log line (the business-tape rule). Wired
+through config (factory/interface) + module (launch AND rehydrate paths — desk-wide policy, not
+persisted per-book state). Tests: session-gate parser suite + 4 MmBook guardrail specs (loss-stop
+fires + cooldown holds + default-off warehouses; gate blocks off-hours, trades in-hours, flattens
+on session close). market-making 62 suites / 365 green; tsc clean.
+**NOT fixed by this (named honestly):** negative fillEdge. A guardrail bounds inventory losses;
+it cannot make a picked-off book profitable — that stays the rotation rule's job
+(UNIVERSE_DISCOVERY.md). Next knobs if the shape persists: regime gate (S4) in front of the
+stop, per-book hedged/unhedged flag on the snapshot + leak table so delta coverage is never
+implicit again.

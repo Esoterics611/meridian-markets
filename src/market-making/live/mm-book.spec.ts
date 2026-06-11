@@ -357,3 +357,84 @@ describe('fast-path windowed attribution survives a restore (S2 — the S1 leak-
     expect(reserialized.windowedCarryUnits).toBe('1000000');
   });
 });
+
+// Journal #55 guardrails — the warehouse loss-stop + the session gate. Bar-path coverage
+// (deterministic scripted tape); the fast path shares guardrail() and pulls quotes via
+// the engine's cancelResting() (covered by the unit below + the shared method).
+describe('guardrails (#55) — warehouse loss-stop + session gate', () => {
+  const utcBar = (minute: number, close: number, high: number, low: number): Bar => ({
+    symbol: 'USDC',
+    timestamp: new Date(Date.UTC(2026, 0, 1, 14, minute)), // 14:xx UTC — inside US RTH
+    open: close,
+    high,
+    low,
+    close,
+    volume: 1000,
+  });
+
+  it('loss-stop: flattens the warehouse at taker + stands aside through the cooldown', async () => {
+    const sink = new CapturingSink();
+    // 6 long-only bars build inventory, then a crash bar marks it deeply underwater
+    // (no fills on the crash bar — the range is away from the resting quotes), then
+    // 2 more bars inside the cooldown that WOULD fill if the book were quoting.
+    const tape = [
+      ...Array.from({ length: 6 }, (_, i) => utcBar(i, 1.0, 1.0001, 0.999)),
+      utcBar(6, 0.9, 0.9001, 0.8999),
+      utcBar(7, 0.9, 0.91, 0.89),
+      utcBar(8, 0.9, 0.91, 0.89),
+    ];
+    // capital $1000; stop at 0.01% = $0.1 — ~4 units long × −$0.10 ⇒ breached at the crash.
+    const book = new MmBook({ ...cfg(tape), lossStopFrac: 0.0001, lossStopCooldownMs: 15 * 60_000, events: sink });
+    await tickAll(book, 6);
+    const invBefore = BigInt(book.snapshot().inventoryUnits);
+    expect(invBefore).toBeGreaterThan(0n);
+    const fillsBefore = book.snapshot().fills;
+
+    await book.tick(); // the crash bar → guardrail fires
+    const s = book.snapshot();
+    expect(BigInt(s.inventoryUnits)).toBe(0n); // flattened
+    expect(BigInt(s.realisedPnlUnits)).toBeLessThan(0n); // the loss was REALISED, not warehoused
+    const exits = sink.events.filter((e) => e.kind === 'fill' && e.side === 'SELL');
+    expect(exits.length).toBe(1); // the flatten went on the tape as a business event
+
+    await tickAll(book, 2); // inside the cooldown → quotes stay pulled, nothing fills
+    expect(book.snapshot().fills).toBe(fillsBefore);
+    expect(BigInt(book.snapshot().inventoryUnits)).toBe(0n);
+  });
+
+  it('loss-stop off by default: the same tape warehouses the loss instead', async () => {
+    const tape = [...Array.from({ length: 6 }, (_, i) => utcBar(i, 1.0, 1.0001, 0.999)), utcBar(6, 0.9, 0.9001, 0.8999)];
+    const book = new MmBook(cfg(tape));
+    await tickAll(book, 7);
+    expect(BigInt(book.snapshot().inventoryUnits)).toBeGreaterThan(0n); // still long
+    expect(BigInt(book.snapshot().unrealisedPnlUnits)).toBeLessThan(0n); // the mark, unrealised
+  });
+
+  it('session gate: a book outside its UTC window never quotes; inside it trades', async () => {
+    const rth = { openMin: 13 * 60 + 30, closeMin: 20 * 60 }; // 13:30–20:00 UTC
+    const offHoursBar = (minute: number): Bar => ({
+      ...utcBar(minute, 1.0, 1.001, 0.999),
+      timestamp: new Date(Date.UTC(2026, 0, 1, 9, minute)), // 09:xx UTC — pre-US-open
+    });
+    const gated = new MmBook({ ...cfg(Array.from({ length: 6 }, (_, i) => offHoursBar(i))), sessionUtc: rth });
+    await tickAll(gated, 6);
+    expect(gated.snapshot().fills).toBe(0); // stood aside all tape
+
+    const open = new MmBook({ ...cfg(Array.from({ length: 6 }, (_, i) => utcBar(i, 1.0, 1.001, 0.999))), sessionUtc: rth });
+    await tickAll(open, 6);
+    expect(open.snapshot().fills).toBeGreaterThan(0); // same tape inside the window trades
+  });
+
+  it('session gate: crossing out of the window flattens the inventory it holds', async () => {
+    const rth = { openMin: 13 * 60 + 30, closeMin: 20 * 60 };
+    const tape = [
+      ...Array.from({ length: 6 }, (_, i) => utcBar(i, 1.0, 1.0001, 0.999)), // 14:xx — builds a long
+      { ...utcBar(7, 1.0, 1.0001, 0.999), timestamp: new Date(Date.UTC(2026, 0, 1, 20, 1)) }, // 20:01 — closed
+    ];
+    const book = new MmBook({ ...cfg(tape), sessionUtc: rth });
+    await tickAll(book, 6);
+    expect(BigInt(book.snapshot().inventoryUnits)).toBeGreaterThan(0n);
+    await book.tick(); // first post-close bar
+    expect(BigInt(book.snapshot().inventoryUnits)).toBe(0n); // went home flat
+  });
+});

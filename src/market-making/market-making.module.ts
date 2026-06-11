@@ -14,6 +14,7 @@ import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { TimeStopQuoter } from './quote/time-stop-quoter';
+import { parseSessionGate, sessionForSymbol } from './risk/session-gate';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
@@ -83,6 +84,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
+        // Journal #55 guardrails: session-gate rules (RTH-only xyz equity books) parsed once;
+        // per-book window resolved at build time. Malformed rules are skipped by the parser.
+        const sessionRules = parseSessionGate(mm.sessionGate);
+        if (sessionRules.length > 0)
+          new Logger('MarketMakingModule').log(
+            `session gate: ${sessionRules.map((r) => `${r.symbols.join(',')}=${r.openMin}-${r.closeMin}min UTC`).join('; ')}`,
+          );
         // Optional so the isolated mm.controller.spec (no TelemetryModule) resolves;
         // the full app injects the @Global TELEMETRY. No-op ⇒ zero behaviour change.
         const tele = telemetry ?? NULL_TELEMETRY;
@@ -380,6 +388,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            lossStopFrac: mm.lossStopFrac,
+            lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
+            sessionUtc: sessionForSymbol(sessionRules, spec.symbol),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
@@ -454,6 +465,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: rec.fundingRatePerHour,
             capitalUnits: rec.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            // Guardrails are desk-wide policy, not per-book persisted state — a rehydrated
+            // book gets the CURRENT loss-stop/session rules (same rationale as the governor).
+            lossStopFrac: mm.lossStopFrac,
+            lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
+            sessionUtc: sessionForSymbol(sessionRules, rec.symbol),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,

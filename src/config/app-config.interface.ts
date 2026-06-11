@@ -294,6 +294,18 @@ export interface AppConfig {
     timeStopAgeMin: number;
     /** Max exit-side shift (bps of mid) at full age+size. Default 3. */
     timeStopShiftBps: number;
+    /** Warehouse loss-stop (Journal #55): flatten a book at taker + stand aside when the
+     *  unrealised MTM on its inventory breaches −lossStopFrac·capital. The governor caps
+     *  inventory SIZE; this caps the LOSS a warehoused position may realise (the xyz books
+     *  are unhedged — flat is their only hedge). 0 ⇒ off (default). */
+    lossStopFrac: number;
+    /** Stand-aside minutes after a loss-stop fires. Default 15. */
+    lossStopCooldownMin: number;
+    /** Session gate rules (Journal #55), raw MM_SESSION_GATE string:
+     *  "sym,sym=HHMM-HHMM[;sym=HHMM-HHMM]" (UTC). Symbols listed quote ONLY inside their
+     *  window; outside they flatten + stand aside (xyz equity books off US RTH are pure
+     *  pick-off — run53). '' ⇒ no gating. Parsed by market-making/risk/session-gate.ts. */
+    sessionGate: string;
     /** VPIN (volume-synchronised toxicity) EMA window in buckets. Default 50. */
     vpinEmaBuckets: number;
     /** Pause quoting when live VPIN ≥ this (∈[0,1]). Default 1.01 ⇒ off (gauge only;

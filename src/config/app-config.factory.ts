@@ -183,6 +183,11 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     timeStop: (process.env['MM_TIME_STOP'] ?? 'false').toLowerCase() === 'true',
     timeStopAgeMin: parseFloat(process.env['MM_TIME_STOP_AGE_MIN'] ?? '30'),
     timeStopShiftBps: parseFloat(process.env['MM_TIME_STOP_SHIFT_BPS'] ?? '3'),
+    // Journal #55 guardrails — warehouse loss-stop (off unless set) + session gate (RTH-only
+    // quoting for xyz equity-linked books whose reference market closes).
+    lossStopFrac: parseFloat(process.env['MM_LOSS_STOP_FRAC'] ?? '0'),
+    lossStopCooldownMin: parseFloat(process.env['MM_LOSS_STOP_COOLDOWN_MIN'] ?? '15'),
+    sessionGate: process.env['MM_SESSION_GATE'] ?? '',
     vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
     vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
     vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),

@@ -69,6 +69,19 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 #   4. GOOD-EXPOSURE LEAN    MM_FLOW_BIAS_LIVE — the directional axe, OOS-GATED: an unvalidated read is
 #                            zeroed, so neutral mm-glft books stay neutral until the signal clears the
 #                            markout gate (the real lean is Run B; this just leaves the seam on).
+# GUARDRAILS (Journal #55 — run53's "earn slowly on spread, lose suddenly on inventory" fix;
+# the xyz books are UNHEDGED by design, so flat is their only hedge):
+#   MM_MAX_INVENTORY_NOTIONAL_FRAC=0.10  cap cut 0.15→0.10 — the warehouse tail scales linearly
+#                                        with the rail ($50k max inventory on a $500k book).
+#   MM_LOSS_STOP_FRAC=0.0006             warehouse loss-stop: flatten at taker + 15min stand-aside
+#                                        when a position's unrealised < −0.06% of capital (−$300 on
+#                                        $500k). Tail-only insurance — it does NOT add expectation,
+#                                        it converts the fat left tail into a bounded, known cost.
+#   MM_SESSION_GATE=…=1330-2000          xyz US-equity books quote ONLY US RTH (13:30–20:00Z) and go
+#                                        home flat — off-hours their reference market is closed/stale
+#                                        and quoting it is pure pick-off (run53: SKHX fillEdge −$632,
+#                                        all pre-US-open). CL/GOLD exempt (~24h real markets).
+# Audit trail: grep 'GUARDRAIL ▸' $LOG — every loss-stop / session flatten is a tape event + log line.
 # MM_HEDGE_BETA_MAP: crypto books keep the OOS alt→major map (scripts/hedge-beta-fit.ts, 30d×1h HL —
 # RE-FIT between runs, β drifts; this map fit 2026-06-11). FARTCOIN/kPEPE now FITTED (R² .65/.77 —
 # the #51 run's live KPI agreed); PURR stays 0 (R² .13 = no factor, governor-capped). ADA's BTC/ETH
@@ -95,8 +108,11 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 MM_GAMMA="${MM_GAMMA:-0.005}" \
 MM_F3_MIN_SCALE="${MM_F3_MIN_SCALE:-1.0}" \
-MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.15}" \
+MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.10}" \
 MM_INVENTORY_SKEW_MULT="${MM_INVENTORY_SKEW_MULT:-6}" \
+MM_LOSS_STOP_FRAC="${MM_LOSS_STOP_FRAC:-0.0006}" \
+MM_LOSS_STOP_COOLDOWN_MIN="${MM_LOSS_STOP_COOLDOWN_MIN:-15}" \
+MM_SESSION_GATE="${MM_SESSION_GATE:-xyz:NVDA,xyz:TSLA,xyz:SKHX,xyz:ORCL,xyz:SNDK,xyz:MU,xyz:MRVL=1330-2000}" \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \
