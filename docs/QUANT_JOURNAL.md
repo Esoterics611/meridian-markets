@@ -2383,3 +2383,14 @@ strip + A-quadrant split of markouts + persist hedge.quality (calibration data f
 replay tape (binary 0.65 sweep secondary); (e) flow-flip event + hedge-freeze cooldown = the #1
 leak fix (churn −$437); (d) capital ∝ fillEdge after. NOTHING implemented pending operator spec+go.
 Artifacts: leak-table-run55.{md,json}; logs run-20260611-{164632,171116,172106,172435}-mm10h.log.
+### #58 addendum — MASTER PLAN II adopted (operator spec → the active chain)
+Operator's Flow-Reactive Quoting spec accepted as design of record →
+**docs/FLOW_REACTIVE_QUOTING.md** (verbatim + run55 label/seam notes). Session chain grafted into
+**docs/MASTER_PLAN_SESSIONS.md PART V** as the ACTIVE chain: F0 instrument (persist markout/
+attribution/hedge-quality/funding/decision-tape; worst5m bug; per-hour + A-quadrant strips) →
+F1 hedge anti-churn (−437) → F2 quote anti-churn (−229) → F3 inventory skew (−95, + loss-stop
+sweep) → F4 flow-reactive throttle-first/κ-gated (−99, supersedes binary S4 gate) → F5 capital ∝
+fillEdge. Old chain: S3/S5 superseded-into-F4/F0, S4 partially shipped (#56/#57) + superseded,
+S6 live as ledger, S7/S8 pending as validation infra, S9 parked. BINDING new cross-cutting req
+(operator): full auto-response observability — `CONTROL ▸`/`PARAM ▸`/`BLOCKED ▸`/`FLATTEN ▸` +
+existing grammar, on-change + periodic, tape + persisted; a finished run auditable from SQL alone.

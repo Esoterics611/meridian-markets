@@ -1,4 +1,11 @@
-# MASTER PLAN I — Session Chain (living document)
+# MASTER PLAN — Session Chain (living document)
+
+> **2026-06-11 update:** this file now carries **two plans**. PART IV is the original MASTER PLAN I
+> chain (S1–S9; S1/S2 done). **PART V is MASTER PLAN II — the flow-reactive, leak-driven chain
+> (F0–F5)** from the operator's Flow-Reactive Quoting spec
+> ([FLOW_REACTIVE_QUOTING.md](FLOW_REACTIVE_QUOTING.md)) reconciled with the run55 leak table
+> (Journal #58). **PART V is the active chain — paste the next ☐ F-prompt.** The chain protocol
+> below applies unchanged to both parts.
 
 > **What this is.** MASTER PLAN I ("MM on Hyperliquid: from not-losing-money to extracting maximum
 > profit") evaluated against the desk's own data (Run A″, 2026-06-10), re-ranked, adapted to the
@@ -127,13 +134,28 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   10m) ⇒ wired **default OFF** (`MM_TIME_STOP`), enable only behind S8 A/B or the S4 regime gate;
   windowed spread/adverse now persist across restarts/checkpoints (S1 gap closed); dead-band +
   beta bake-off deferred with numbers (#51 churn $373; betas refit 2026-06-11))
-- ☐ **S3 — Long-horizon adverse selection: F3 v2 + lead-lag re-test**
-- ☐ **S4 — Regime tagger, event calendar, kill hierarchy**
-- ☐ **S5 — Funding-aware skew (κ_f)**
-- ☐ **S6 — Book-selection model + rotation**
-- ☐ **S7 — Simulator microstructure honesty: ALO/cancel-priority/block cadence + stale-quote pricing**
-- ☐ **S8 — Shadow A/B rig + HIP-3 onboarding + the drift-quoting decision**
-- ☐ **S9 — Multi-venue expansion: adapters + paper pilots in search of alpha**
+- ⊘ **S3 — Long-horizon adverse selection** — SUPERSEDED: the directional fair-value question is
+  now owned by **F4 Stage B** (κ·flow re-centering, markout-gated)
+- ◐ **S4 — Regime tagger, event calendar, kill hierarchy** — calendar+blackouts SHIPPED outside the
+  chain (#57); binary sweep gate SHIPPED (#56) but run55 showed it wrong-shaped (kPEPE 0 engagements,
+  3 stops) — the remainder (kill hierarchy) is superseded by **F4 Stage A**'s regime machine
+- ⊘ **S5 — Funding-aware skew (κ_f)** — FOLDED into F0 (persist HIP-3 funding so it's measured) +
+  F4 (E[funding·τ] in the flatten inequality)
+- ◐ **S6 — Book-selection model + rotation** — live as the UNIVERSE_DISCOVERY ledger + per-run
+  fillEdge verdicts (run55: ADA fail, DOGE/SUI probation); capital weighting = **F5**
+- ☐ **S7 — Simulator microstructure honesty** — still pending; raises the trust ceiling on every
+  F-chain replay gate, schedule after F2 if replay/live deltas diverge
+- ☐ **S8 — Shadow A/B rig** — still pending; the clean way to validate F3/F4 live
+- ⊘ **S9 — Multi-venue expansion** — parked (appendix)
+
+**MASTER PLAN II — flow-reactive, leak-driven chain (PART V, the active chain):**
+
+- ☐ **F0 — Persistence & attribution instrumentation** *(hard prerequisite)*
+- ☐ **F1 — Hedge anti-churn** *(biggest leak: −437)*
+- ☐ **F2 — Quote anti-churn** *(fee leak: −229)*
+- ☐ **F3 — Inventory skew** *(warehouse leak: −95)*
+- ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*
+- ☐ **F5 — Capital ∝ measured fillEdge**
 
 ---
 
@@ -601,6 +623,226 @@ the chain COMPLETE, write the chain retrospective if S8 hasn't already, and seed
 standing process, venue #3); (c) commit; (d) print the Chain 2 seed prompt (or the explicit
 "chain complete" memo) as your final message.
 ```
+
+---
+
+## PART V — MASTER PLAN II: flow-reactive, leak-driven chain (F0–F5) — ACTIVE
+
+> Source design: [FLOW_REACTIVE_QUOTING.md](FLOW_REACTIVE_QUOTING.md) (operator spec, 2026-06-11).
+> Baseline: **run55** leak table (`docs/research/leak-table-run55.{md,json}`, Journal #58):
+> desk net −879/3.6h = hedge churn −437 + taker fees −229 + warehouse −95 + fillEdge −99.
+> Order is leak-size, not design order: cost fixes first, directional alpha last and gated.
+> **Re-run `scripts/mm-leak-table.ts` after every prompt and record the delta vs run55.**
+> Chain protocol (file header) applies: journal entry + update this file + rewrite the next
+> prompt with fresh numbers + print it verbatim as the session's final message.
+
+Shared stack context (embed in every session): Postgres `localhost:5433`, db/user/pass
+`meridian_markets_app`; tables `mm_nav`, `mm_book_state`; leak table
+`npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts` (window from `mm_nav`
+desk-row gaps — copy-paste block in RUN_THE_DESK.md step 0); replay `LobReplayHarness`;
+run55 tape/log `docs/research/run-20260611-172435-mm10h.log`. Books: ADA, kPEPE, xyz:GOLD,
+FARTCOIN, xyz:CL, SOL, SUI, DOGE. Hedge legs: CL→BRENTOIL, GOLD→PAXG, alts→ETH.
+Rules of engagement (PART III) binding: replay-first, flag-gated default-off, tsc+tests green.
+
+**OBSERVABILITY REQUIREMENT (operator, 2026-06-11 — binding for EVERY F-prompt).** The system
+responds automatically, with no human in the loop — so **every automatic response must leave an
+audit trail**, not just guardrails. Extend the existing `▸` log grammar + `DeskEvent` tape
+(`GUARDRAIL ▸`/`REGIME ▸`/`HEDGE ▸`) so each control action emits a structured line + tape event
+**with the triggering metrics and the effect**, e.g.:
+- `REGIME ▸ <book> NORMAL→DEFENSIVE (f −0.52, T 0.61, A −1, q −12.6, persist 8s)` — state WITH cause;
+- `CONTROL ▸ <book> re-center +2.1bps / widen ask ×1.4 / size ask ×0.6 (T 0.61, side ask)` — the
+  quote-level response as it takes effect (log on CHANGE, plus a periodic state line — never per-tick spam);
+- `PARAM ▸ <book> w_ask 1.2→1.5 (auto-tune: MO60 ask −10bp < band)` — every settings/auto-tune change;
+- `BLOCKED ▸ <book> add-side quote suppressed (conc 94% > hard cap)` / `BLOCKED ▸ hedge add frozen
+  (flow flip, cooldown 90s)` — every trade/quote NOT placed, with reason;
+- `FLATTEN ▸ <book> 40% of q (drift 8.2bps·τ12s > cost 3.1bps)` — the §4 inequality with its numbers.
+Every event lands in the ring buffer (`/api/market-making/events`) + the /mm-desk Activity feed,
+and (per F0) persists enough to audit a finished run. Tests assert the log fires on each path.
+
+### F0 PROMPT — Persistence & attribution instrumentation *(hard prerequisite)*
+```
+My MM leak table (scripts/mm-leak-table.ts, Postgres meridian_markets @ localhost:5433)
+shows n/a for spread, adverse, wedge, vpin, and markout, and the gaps section says the
+data is in-memory only. I cannot evaluate any quoting/hedge change until this is
+persisted. Implement persistence so the leak table is fully computable for FINISHED
+runs, not just live snapshots:
+
+1. Per-fill markout: persist book × side × horizon (1s/5s/60s) × hour to a new table.
+   One row per fill with signed markout in bps and notional; the table must support
+   the κ-leads-markout regression in F4.
+2. Windowed attribution for finished runs: spread / adverse / wedge per book per
+   window, persisted (mm_book_state currently writes 0 for fast books — fix so fast
+   books persist real windowed values, not live-snapshot-only).
+3. Hedge-leg realised P&L: persist per leg (currently in-memory, DR-2, only implied as
+   desk-net − books-sum). The leak table must read true hedge P&L, not infer it.
+   ALSO persist hedge.quality (basisShare/betaLive/r2 per book) hourly + on shutdown —
+   run55's hedge-quality audit was impossible because the server was down before review.
+4. HIP-3 (xyz:*) per-dex funding: wire it so the funding term is measured, not 0 by
+   construction.
+5. Queue tercile at fill and top-of-hour toxicity (±3min around funding prints): log
+   per fill.
+6. BUG: worst5m is wrong — kPEPE shows −3,033,717 against −127 net, SOL −20,416 against
+   +25 net. Find the units/aggregation error (likely notional vs bps or un-normalised
+   per-fill sum) and fix; add a sanity assert that |worst5m| ≤ |window net| × bound.
+7. Leak-table additions: a PER-HOUR diagnostic strip (σ / VPIN / flow / fillEdge by hour —
+   which hours pay us) and an ALIGNMENT split of fillEdge+markout by quadrant
+   A = sign(q)·sign(flow) (A<0 vs A>0) — the calibration data F4's control law needs.
+
+8. OBSERVABILITY (binding, see PART V requirement): persist the DeskEvent/decision tape
+   to the DB so a finished run's automatic responses (regime transitions, blocked
+   quotes, control/param changes) are auditable post-run from SQL, not only the log.
+
+Backfill from run-20260611-172435-mm10h.log where possible. Add a `--self-check` flag to
+the leak table that asserts every column is non-n/a for a finished run and fails loudly
+if a persistence path regressed.
+```
+
+### F1 PROMPT — Hedge anti-churn *(biggest leak: −437, no signal needed)*
+```
+The hedge is the largest desk leak: run55 shows 56 hedge orders, 19 flips, $1.62M
+churned, est taker cost −437, while implied hedge directional P&L is only ~−21. The
+hedge is churning, not mis-positioned (part of the churn is loss-stop-induced: a stop
+snaps the book delta to 0 → leg unwinds at taker → re-opens as the book rebuilds).
+Cut churn with near-zero directional downside:
+
+1. No-trade band on net beta-weighted delta: only rebalance when |net delta| exceeds a
+   per-book band; hold inside it.
+2. Min-hold / min-requote interval per hedge leg: no re-fire faster than T_min.
+3. Flip cooldown: after a hedge direction flip, freeze further flips for cooldown_flip;
+   also freeze hedge ADDS on a flow sign-flip (FLOW_REACTIVE_QUOTING.md §5). Emit a
+   `FLOW ▸ flip` DeskEvent on the tape when book lean/flow changes sign (regime flips
+   already hit the tape — this is the missing flip event).
+4. Net-first: when the primary book flattens inventory (incl. the loss-stop), recompute
+   net delta and let the band absorb it — never emit an opposing hedge leg in the same
+   cycle as a primary flatten.
+5. Basis gate per book: if basis quality is poor (basis ≳ basis_threshold) prefer
+   flatten-primary over add-hedge. Given run55 basis (FARTCOIN ~100%, kPEPE/ADA high),
+   default these to 'flatten'; SOL/SUI/DOGE/GOLD/CL to 'hedge'. Expose per-book.
+6. DIAGNOSTIC: add a hedge variance-reduction report per book — realised variance of
+   (primary + hedge) vs primary alone, against hedge cost. Surface books where the
+   cross-hedge does not earn its churn so they can be moved to flatten-only.
+7. OBSERVABILITY (binding, PART V requirement): every band-hold, min-hold skip, flip
+   cooldown, freeze, net-first absorption and basis-gate decision emits a `HEDGE ▸` /
+   `BLOCKED ▸` line + tape event WITH the triggering numbers (net delta vs band, time
+   since last fire, basis%) — the run must be auditable without a debugger.
+
+Keep directional coverage otherwise intact. Backtest on the run55 tape and report the
+delta on the −437 churn line and on per-book net. Target: cut churn cost ≥50% without
+worsening warehouse MTM.
+```
+
+### F2 PROMPT — Quote anti-churn *(fee leak: −229 taker)*
+```
+Taker fees are the second leak (−229 books-sum; xyz:CL pays +76 in fees on a −67 net
+book — it is breakeven minus its own fee churn; NOTE part of CL's fees are its 3
+loss-stop flattens). The quoter is crossing / re-quoting too often. Implement the
+chatter-suppression machinery and diagnose the cause:
+
+1. Hysteresis on requote: only move a quote when it would shift by > requote_min ticks;
+   separate arm/disarm thresholds.
+2. Dwell time: minimum lifetime per quote before cancel/replace.
+3. Maker-bias: prefer passive repost over crossing unless a flatten rule (F4/§4)
+   explicitly authorises a taker cross.
+4. Instrument WHY CL crosses: log every taker fill with the trigger (requote race,
+   inventory flatten, hedge, loss-stop, blackout) so the fee source is attributable per
+   book per reason in the leak table — this separates "stop tax" from "requote churn".
+5. OBSERVABILITY (binding, PART V requirement): suppressed requotes / dwell-holds emit
+   rate-bounded `BLOCKED ▸` lines (count + reason on change, periodic summary line);
+   every taker cross emits its trigger on the tape.
+
+Backtest on run55 tape; report taker-fee delta per book. Target: CL fee line down
+materially without giving back fill edge. Do not touch the hedge (F1 owns crosses
+on that side).
+```
+
+### F3 PROMPT — Inventory skew *(warehouse / concentration leak: −95)*
+```
+Warehouse MTM bleeds on one-sided books: ADA −138 at 94% concentration, kPEPE −72,
+FARTCOIN −71. DOGE proves the fix — 20% concentration, warehouse +104, net +59 despite
+being picked off. The inventory mean-reversion term is too weak. Strengthen it:
+
+1. Increase the inventory-skew gain in the GLFT reservation term so quotes lean harder
+   to mean-revert |q|, scaled per book by realised vol and a concentration penalty that
+   ramps as conc% rises past a soft band.
+2. Asymmetric: skew the reducing side competitively to attract inventory-reducing fills;
+   widen/cut size on the adding side as |q| grows.
+3. Hard concentration cap per book: above conc_hard, stop quoting the adding side
+   entirely (let it only reduce).
+4. This is also where flow re-centering pays via the WAREHOUSE channel, not fill edge —
+   but keep κ=0 here; F4 owns the flow term. This prompt is inventory-only.
+5. LOSS-STOP SWEEP: with the stronger skew in place, sweep the loss-stop threshold
+   (current prior 0.01% = $50) on the replay tape — run55 had 12 stops crystallising
+   ~−$664; turn the prior into a measured curve (stop level vs realised + induced
+   hedge churn vs warehouse saved) and pick per-book levels.
+6. OBSERVABILITY (binding, PART V requirement): conc-cap suppressions emit `BLOCKED ▸`
+   (book, conc%, side); skew-gain responses emit `CONTROL ▸` on change with q/conc/vol.
+
+Backtest on run55 tape; report warehouse MTM and conc% per book, especially ADA/kPEPE/
+FARTCOIN. Target: ADA conc < 70% and warehouse loss cut ≥50% without raising taker fees.
+```
+
+### F4 PROMPT — Flow-reactive quoting *(fill-edge leak: −99; throttle-first, κ gated)*
+```
+Now add the flow layer from docs/FLOW_REACTIVE_QUOTING.md (§1–§6). This SUPERSEDES the
+binary S4 sweep gate (SweepRegimeDetector, |flow|>0.65 × drift — run55 showed it
+wrong-shaped: kPEPE bled through 3 loss-stops with ZERO engagements while triggers all
+fired marginally at 0.65–0.76). Build in two stages and DO NOT ship the directional
+term until it is validated against the markout data persisted in F0.
+
+Stage A — throttle-only (κ = 0):
+- Implement FlowState (§1): EWMA f, persist, flip, T, A=sign(q)·sign(flow), ramp g, with
+  hysteresis (θ_enter 0.40 / θ_exit 0.25) and min dwell.
+- Apply ONLY the risk-throttle responses: toxicity spread widen (§2.2), asymmetric widen
+  on the toxic side (§2.3), size cut on the toxic side (§2.4), and the regime machine
+  (§3) with the hard invariant that flatten is reachable only when A<0 and HARVEST (A>0)
+  never flattens.
+- No directional re-centering yet (alpha = 0).
+- Calibrate θ_enter/θ_exit/dwell per book by replay sweep (replaces the old 0.65/5bps
+  binary-gate priors); the flatten inequality (§4) uses κ, τ_persist from F0 markouts
+  and E[funding·τ] (absorbs old S5).
+
+Stage B — directional κ, per book, GATED:
+- Using the persisted per-fill markout (F0), regress forward markout on f per book.
+- Enable the alpha = κ·f·g re-centering term (§2.1) ONLY for books where κ is
+  statistically > 0; cap at κ_max with skew_max and jitter (anti skew-sniffing).
+- Books that fail the test run throttle-only permanently (κ=0). Log the per-book decision.
+
+OBSERVABILITY (binding, PART V requirement): every state transition logs the full
+FlowState (f, T, A, q, persist, g); every re-center/widen/size-cut emits `CONTROL ▸` on
+change; every flatten decision emits `FLATTEN ▸` with the §4 inequality's actual numbers
+(drift_cost vs flatten_cost, qty chosen); auto-tune param moves emit `PARAM ▸` old→new
+with the markout evidence. HARVEST entries/exits are tape events — the A>0 no-flatten
+invariant must be assertable from the log alone.
+
+Backtest both stages on run55 tape vs the post-F3 baseline. Report fill-edge
+(picked-off) delta and ADVERSE per book. Gate to live: see validation gate table below.
+```
+
+### F5 PROMPT — Capital ∝ measured fillEdge
+```
+Weight per-book capital in scripts/launch-mm-10h.sh by measured fillEdge (multi-run,
+shrunk toward equal-weight; floor for measurement, 0 for ledger rotate-outs), reading
+the persisted leak-table history (F0). Run55 evidence: GOLD +6 / FARTCOIN +7 / SOL +5
+green; SUI/kPEPE flat; ADA −16 (re-admission FAIL), DOGE −46, CL −51 red. Respect the
+UNIVERSE_DISCOVERY ledger verdicts; the weighting must re-derive each run, not freeze.
+Report the counterfactual run55 P&L under the new weights.
+```
+
+### Validation gates (per prompt, on replay vs immediately-prior baseline)
+
+| prompt | pass condition |
+|--------|----------------|
+| F0 | leak table `--self-check` passes: no n/a on a finished run; worst5m sane; hedge P&L read from persistence not implied; per-hour strip + A-quadrant split render |
+| F1 | hedge churn cost cut ≥50%; warehouse MTM not worse; variance-reduction report identifies flatten-only books |
+| F2 | taker-fee line down materially (esp. CL); fill edge not worse; fee attributable per trigger |
+| F3 | ADA conc < 70%; warehouse loss cut ≥50%; taker fees not up; loss-stop levels measured not prior |
+| F4A | ADVERSE down; SPREAD capture given up < ADVERSE saved; zero flatten events in A>0 windows (assert) |
+| F4B | per book: κ statistically > 0 or that book is κ=0 throttle-only; no directional skew shipped on an unvalidated book |
+| F5 | counterfactual ≥ equal-weight on replay; no book above its ledger-status cap |
+
+Whole-desk target after F0–F3 (cost + inventory, before any directional alpha): the −437
++ −229 + −95 buckets are where the recoverable money is. The −99 fill-edge bucket (F4) is
+the smallest and the least certain — treat its P&L as a bonus, not the thesis.
 
 ---
 
