@@ -11,9 +11,21 @@ requirement entirely — but then there is no rehydrate, no NAV curve, no maxDD 
 ```bash
 # 0 — BEFORE any relaunch: capture the previous run's leak table (S1 rule — the launch
 #     script resets surviving books' accumulators; this is your last chance to read them).
+#     COPY-PASTE — change ONLY the label. Window is derived from mm_nav desk-row gaps
+#     (timestamps must be literal ISO-UTC: "--until now" does NOT parse, and the log
+#     filename is LOCAL time, not UTC — both are #53-era traps).
+LABEL=run54   # ← the only thing you change
+LOG=$(ls -t docs/research/run-*-mm10h.log | head -1)
+export PGPASSWORD=meridian_markets_app
+read SINCE UNTIL < <(psql -h localhost -p 5433 -U meridian_markets_app -d meridian_markets -tA -F' ' -c "
+  with d as (select as_of, lag(as_of) over (order by as_of) prev from mm_nav where book_key=''),
+       s as (select max(as_of) st from d where as_of - prev > interval '10 min')
+  select to_char((select st from s) at time zone 'UTC' - interval '1 min','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),
+         to_char(max(as_of) at time zone 'UTC' + interval '1 min','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')
+  from mm_nav where book_key='';")
+echo "window $SINCE → $UNTIL · log $LOG"
 npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts \
-  --since <prev-run-start-ISO> --until <prev-run-end-ISO> \
-  --log docs/research/run-<TS>-mm10h.log --label run<N>
+  --since "$SINCE" --until "$UNTIL" --log "$LOG" --label "$LABEL"
 
 bash scripts/reset-desk.sh                                   # FRESH TRIAL ONLY — clear persisted books so nothing rehydrates (desk must be stopped)
 bash scripts/start-desk.sh                                   # terminal 1 — DB + server (owns the terminal)
