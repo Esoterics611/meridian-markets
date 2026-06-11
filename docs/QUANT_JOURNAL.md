@@ -2131,3 +2131,24 @@ fixes need not be isolated. Shipped for the next run:
    MM_MIN_HALF_SPREAD_BPS — a blind global widening un-quotes the tight winners (xyz:CL 0.11bps);
    κ goes to the next mm-l2-tune γ/κ sweep.
 tsc clean; mm.controller + registry + glft-quoter suites green (31 tests).
+
+## 2026-06-11 — Entry #54 (the Elite-8 book swap — next run's set, picked on the #51 leak table)
+Operator call (Ronnie): highest-P&L 8 for the next run, no majors, lean into trade.xyz. Picked
+realised-first from the #51 leak table + a live universe scan (xyz dex by 24h volume, spreads
+smoked through the engine's own client):
+**BOOKS (8 × $500k = $4M):** xyz:CL (+$1,397 realised/3.7h, maxDD 0.25% — the desk's best book),
+xyz:GOLD (+161), xyz:NVDA (+155), xyz:TSLA (+165), FARTCOIN (+313, hedged β1.53), PURR (+117,
+maxDD 0.15%), kPEPE (+69, hedged β1.20), **xyz:SPCX** (SpaceX pre-IPO perp — operator discovery
+slot, data-backed: $66M/day, spread 1.9–4.3bps across two reads, 20×20 L2 via HyperliquidClient,
+exact-case xyz: path already proven by 318 CL fills; β=0, governor-capped, judged on its first
+leak table). **Cut:** SOL/ADA/DOGE/SUI (flat realised, warehouse bleed, "no big markets"),
+SP500/XYZ100 (near-dead our hours). **Universe scan:** spread×volume proxy ranks CL $451/d ≫
+SNDK $160 / MU $148 / SKHX $138 / SPCX $142 ≫ GOLD $12 / NVDA $27 / TSLA $4 — the measured
+books keep slots over the unmeasured shortlist (the BRENTOIL/SILVER lesson: priors ≠ P&L);
+SNDK/MU/SKHX recorded as next-rotation candidates for S6. Scripts updated (BOOKS, DROPPED now
+also removes the six cuts so MM_PERSIST can't rehydrate them, MM_FAST_SYMBOLS, beta map —
+hedge leg now serves only FARTCOIN/kPEPE). Time-of-day caveat owned: spreads sampled pre-US
+hours; equity-linked books breathe with US flow.
+**Ops for THIS relaunch (binding, S1 rule): run the leak table BEFORE launch-mm-10h.sh —**
+`npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts --since <run-start> --until <now> --log <run-log> --label run52`
+— relaunch overwrites surviving books' state accumulators.
