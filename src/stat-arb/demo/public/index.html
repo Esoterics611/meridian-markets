@@ -682,10 +682,17 @@
           ? (Number(b.askMicros) - Number(b.bidMicros)) / Number(b.midMicros) * 10000 : null;
         const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
         const verdictCls = b.lastVerdict === 'Allow' ? 'OK' : 'WARN';
+        // #55b: flow direction ("the front of the move") + the OOS-gated lean actually applied,
+        // and the book's delta coverage (hedge leg β or NAKED) — explicit, per book, every refresh.
+        const flow = (typeof b.tradeFlowImbalance === 'number') ? b.tradeFlowImbalance : null;
+        const flowArrow = flow == null ? '—' : (flow > 0.05 ? '▲ buy' : flow < -0.05 ? '▼ sell' : '◆ flat') + ' ' + num(Math.abs(flow), 2);
+        const bias = (typeof b.bias === 'number') ? b.bias : null;
+        const hedged = (typeof b.hedgeBeta === 'number') && b.hedgeBeta > 0;
+        const hedgeTxtB = (typeof b.hedgeBeta !== 'number') ? '—' : (hedged ? `${b.hedgeUnderlying} β${num(b.hedgeBeta, 2)}` : 'NAKED');
         return `<div class="book">
           <div class="bh">
             <span class="bp mono accent">${b.symbol}</span>
-            <span><span class="chip ${verdictCls}">${b.lastVerdict}</span>${b.warm ? '' : ' <span class="chip WARN">warming</span>'}
+            <span><span class="chip ${verdictCls}">${b.lastVerdict}</span>${b.regime && b.regime !== 'calm' ? ' <span class="chip WARN" title="S4 sweep-regime gate: quotes pulled — one-sided flow + same-sign drift">' + b.regime.toUpperCase() + '</span>' : ''}${b.warm ? '' : ' <span class="chip WARN">warming</span>'}
               <button onclick='removeMm(${JSON.stringify(b.symbol)})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="flatten + remove this book">✕</button></span>
           </div>
           <div class="meta"><span class="mono">${b.family}</span> · ${b.fills} fills (${b.bidFills}▾/${b.askFills}▴) · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${b.blockedQuotes > 0 ? ` · <span class="chip WARN">${b.blockedQuotes} blocked</span>` : ''}</div>
@@ -695,6 +702,9 @@
             ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
             ${mini('skew', skewBps != null ? num(skewBps, 1) + ' bps' : '—', '', 'quote-center lean off the mid — the inventory/bias skew the quoter applies to shed position')}
             ${mini('VPIN', b.vpinBuckets > 0 ? num(vpin, 2) : '—', vpin >= 0.7 ? 'neg' : '', 'volume-synchronised toxicity (informed-flow probability, 0–1) — BVC on bars, real aggressor flow on the fast path. High = one-sided/informed flow; arm a pause via MM_VPIN_PAUSE_THRESHOLD<1.')}
+            ${mini('flow', flowArrow, flow != null && Math.abs(flow) > 0.4 ? 'neg' : '', 'signed aggressor-flow imbalance ∈[−1,1] — the FRONT of the move. ▲ = buyers sweeping, ▼ = sellers sweeping; a sign flip = the move flipping. |flow|>0.4 highlighted: one-sided (informed) tape.')}
+            ${mini('lean', bias == null ? '—' : (bias === 0 ? 'neutral' : (bias > 0 ? '+' : '') + num(bias, 2)), bias != null && bias !== 0 ? (bias > 0 ? 'pos' : 'neg') : '', 'the OOS-GATED directional bias the quoter is ACTUALLY applying (q* = bias × max lots). 0/neutral = the signal has not cleared the validation gate — the desk does not lean on an unproven view.')}
+            ${mini('hedge', hedgeTxtB, hedged ? 'pos' : 'neg', hedged ? 'delta-hedged: the desk shorts/longs ' + b.hedgeUnderlying + ' β-weighted against this inventory (factor hedge — idiosyncratic risk remains)' : 'NO delta hedge for this book — its inventory is naked directional risk; the only hedge is being flat (loss-stop + session gate + cap)')}
             ${mini('inventory', num(inv, 4), '', 'signed position in base units (long +, short −)')}
             ${mini('exposure', fmtUsd0(exposure), '', 'inventory marked at the live mid — your directional $ risk')}
             ${mini('rail', railPct != null ? num(railPct, 0) + '%' : '—', railPct != null && railPct >= 80 ? 'neg' : '', 'inventory as a % of the notional cap — at 100% the governor parks the heavy side at the rail')}

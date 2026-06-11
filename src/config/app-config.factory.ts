@@ -183,6 +183,19 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     timeStop: (process.env['MM_TIME_STOP'] ?? 'false').toLowerCase() === 'true',
     timeStopAgeMin: parseFloat(process.env['MM_TIME_STOP_AGE_MIN'] ?? '30'),
     timeStopShiftBps: parseFloat(process.env['MM_TIME_STOP_SHIFT_BPS'] ?? '3'),
+    // Journal #55 guardrails — warehouse loss-stop (off unless set) + session gate (RTH-only
+    // quoting for xyz equity-linked books whose reference market closes).
+    lossStopFrac: parseFloat(process.env['MM_LOSS_STOP_FRAC'] ?? '0'),
+    lossStopCooldownMin: parseFloat(process.env['MM_LOSS_STOP_COOLDOWN_MIN'] ?? '15'),
+    sessionGate: process.env['MM_SESSION_GATE'] ?? '',
+    // Journal #57: event-blackout windows (same sym=HHMM-HHMM format; '*' = every book).
+    eventBlackout: process.env['MM_EVENT_BLACKOUT'] ?? '',
+    // S4 sweep-regime gate (Journal #56) — off unless armed; thresholds are PRIORS (see detector).
+    regimeGate: (process.env['MM_REGIME_GATE'] ?? 'false').toLowerCase() === 'true',
+    regimeFlowThreshold: parseFloat(process.env['MM_REGIME_FLOW_THRESHOLD'] ?? '0.65'),
+    regimeWindowMs: parseInt(process.env['MM_REGIME_WINDOW_MS'] ?? '30000', 10),
+    regimeMinDriftBps: parseFloat(process.env['MM_REGIME_MIN_DRIFT_BPS'] ?? '5'),
+    regimeCooldownMs: parseInt(process.env['MM_REGIME_COOLDOWN_MS'] ?? '90000', 10),
     vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
     vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
     vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),

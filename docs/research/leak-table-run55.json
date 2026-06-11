@@ -1,0 +1,261 @@
+{
+ "since": "2026-06-11T13:46:37.000Z",
+ "until": "2026-06-11T17:25:44.000Z",
+ "desk": {
+  "netUsd": -879.454951,
+  "realisedUsd": -123.026678,
+  "unrealUsd": -538.023063,
+  "feesUsd": 218.496439,
+  "hours": 3.6185433333333332
+ },
+ "hedgeLegImplied": -457.5397240000001,
+ "hedge": {
+  "orders": 56,
+  "notionalUsd": 1620282,
+  "estCostUsd": 437.47614,
+  "flips": 19,
+  "opens": 8,
+  "tracks": 29,
+  "zombieLines": 0
+ },
+ "books": [
+  {
+   "book": "ADA",
+   "source": "hyperliquid",
+   "netUsd": -206.484524,
+   "realisedUsd": -161.880025,
+   "unrealUsd": 8.442184,
+   "feesUsd": 53.066091,
+   "fundingUsd": 0.019387,
+   "inventoryMtmUsd": -137.746186,
+   "fillEdgeUsd": -15.691633999999993,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.245255083650118,
+   "worstBucketUsd": -7559.108614,
+   "worstBucketShare": 0.9449762339266793,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "kPEPE",
+   "source": "hyperliquid",
+   "netUsd": -126.700386,
+   "realisedUsd": -68.160487,
+   "unrealUsd": -6.552612,
+   "feesUsd": 52.074646,
+   "fundingUsd": 0.087201,
+   "inventoryMtmUsd": -72.414423,
+   "fillEdgeUsd": -2.2985179999999943,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.15922728884645143,
+   "worstBucketUsd": -3033717.3747260002,
+   "worstBucketShare": 0.730106374555749,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "xyz:GOLD",
+   "source": "hyperliquid",
+   "netUsd": -78.999242,
+   "realisedUsd": -52.295246,
+   "unrealUsd": 0,
+   "feesUsd": 26.703996,
+   "fundingUsd": 0,
+   "inventoryMtmUsd": -58.440553,
+   "fillEdgeUsd": 6.145307000000006,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.08439379348794429,
+   "worstBucketUsd": -78.430522,
+   "worstBucketShare": 0.9925901732050099,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "FARTCOIN",
+   "source": "hyperliquid",
+   "netUsd": -74.256554,
+   "realisedUsd": -63.56609,
+   "unrealUsd": 0,
+   "feesUsd": 10.696679,
+   "fundingUsd": 0.006215,
+   "inventoryMtmUsd": -70.688058,
+   "fillEdgeUsd": 7.121968000000003,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.0809976414900514,
+   "worstBucketUsd": -30327.388881,
+   "worstBucketShare": 0.681367236843518,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "xyz:CL",
+   "source": "hyperliquid",
+   "netUsd": -67.367641,
+   "realisedUsd": 16.650488,
+   "unrealUsd": -8.042645,
+   "feesUsd": 75.975484,
+   "fundingUsd": 0,
+   "inventoryMtmUsd": 59.34013,
+   "fillEdgeUsd": -50.732287000000014,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.2651970123651349,
+   "worstBucketUsd": -2084.815299,
+   "worstBucketShare": 0.8895947864550213,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SOL",
+   "source": "hyperliquid",
+   "netUsd": 24.803925,
+   "realisedUsd": 24.637573,
+   "unrealUsd": 0.298659,
+   "feesUsd": 0.121116,
+   "fundingUsd": -0.011191,
+   "inventoryMtmUsd": 20.121461,
+   "fillEdgeUsd": 4.8147709999999995,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.0365857310055356,
+   "worstBucketUsd": -20415.813733,
+   "worstBucketShare": 0.9979800612747495,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SUI",
+   "source": "hyperliquid",
+   "netUsd": 47.801034,
+   "realisedUsd": 58.69519,
+   "unrealUsd": 0.381904,
+   "feesUsd": 11.187825,
+   "fundingUsd": -0.088157,
+   "inventoryMtmUsd": 61.384447,
+   "fillEdgeUsd": -2.3074309999999993,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.09640251419708054,
+   "worstBucketUsd": -222.147798,
+   "worstBucketShare": 0.7879992180160903,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "DOGE",
+   "source": "hyperliquid",
+   "netUsd": 59.288161,
+   "realisedUsd": 59.325829,
+   "unrealUsd": -0.754275,
+   "feesUsd": -0.632719,
+   "fundingUsd": 0.083869,
+   "inventoryMtmUsd": 104.160361,
+   "fillEdgeUsd": -45.588787999999994,
+   "spreadCapturedUsd": null,
+   "adverseUsd": null,
+   "wedgeUsd": null,
+   "maxDdPct": 0.04637149078508906,
+   "worstBucketUsd": -15.884672000000009,
+   "worstBucketShare": 0.1975211645158218,
+   "fills": null,
+   "vpin": null,
+   "stateAgeOk": true
+  }
+ ],
+ "leaks": [
+  {
+   "term": "hedge churn (est taker cost)",
+   "usd": -437.47614
+  },
+  {
+   "term": "ADA warehouse MTM",
+   "usd": -137.746186
+  },
+  {
+   "term": "xyz:CL fees paid",
+   "usd": -75.975484
+  },
+  {
+   "term": "kPEPE warehouse MTM",
+   "usd": -72.414423
+  },
+  {
+   "term": "FARTCOIN warehouse MTM",
+   "usd": -70.688058
+  },
+  {
+   "term": "xyz:GOLD warehouse MTM",
+   "usd": -58.440553
+  },
+  {
+   "term": "ADA fees paid",
+   "usd": -53.066091
+  },
+  {
+   "term": "kPEPE fees paid",
+   "usd": -52.074646
+  },
+  {
+   "term": "xyz:CL fill edge (picked off)",
+   "usd": -50.732287000000014
+  },
+  {
+   "term": "DOGE fill edge (picked off)",
+   "usd": -45.588787999999994
+  },
+  {
+   "term": "xyz:GOLD fees paid",
+   "usd": -26.703996
+  },
+  {
+   "term": "ADA fill edge (picked off)",
+   "usd": -15.691633999999993
+  },
+  {
+   "term": "SUI fees paid",
+   "usd": -11.187825
+  },
+  {
+   "term": "FARTCOIN fees paid",
+   "usd": -10.696679
+  },
+  {
+   "term": "SUI fill edge (picked off)",
+   "usd": -2.3074309999999993
+  },
+  {
+   "term": "kPEPE fill edge (picked off)",
+   "usd": -2.2985179999999943
+  },
+  {
+   "term": "SOL fees paid",
+   "usd": -0.121116
+  },
+  {
+   "term": "SUI funding paid",
+   "usd": -0.088157
+  },
+  {
+   "term": "SOL funding paid",
+   "usd": -0.011191
+  }
+ ]
+}

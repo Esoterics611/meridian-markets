@@ -94,9 +94,22 @@ NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k 
 # CL $451/d, SPCX $142/d, GOLD $12/d, NVDA $27/d, TSLA $4/d — measured realised beat the proxy
 # on GOLD/NVDA/TSLA in #51, which is why they keep their slots over the shortlist.
 # PRE-FLIGHT (mandatory): npx ts-node -r tsconfig-paths/register scripts/smoke-sweet16.ts
+# ELITE-8 v3 — THE HEDGED DESK (2026-06-11, operator rule #55b: "we do not make markets in
+# what we cannot delta-hedge"; board: scripts/hedgeable-universe.ts, R²≥0.5 on 30d×1h):
+#   xyz:CL    hedge xyz:BRENTOIL β1.08 R².91 — best measured book ever (+$1,397 #51)
+#   xyz:GOLD  hedge PAXG       β1.03 R².98 — the cleanest hedge on the desk
+#   SOL       hedge ETH        β1.02 R².81 — +$752 realised A″ (re-admitted: now hedged+guardrailed)
+#   ADA       hedge ETH        β1.04 R².59 — +$494 realised A″ (same)
+#   DOGE      hedge ETH        β0.94 R².72 — incumbent, flat-positive
+#   SUI       hedge ETH        β1.29 R².66 — incumbent
+#   FARTCOIN  hedge ETH        β1.54 R².65 — +$313 realised #51
+#   kPEPE     hedge ETH        β1.20 R².77 — positive fillEdge in BOTH #51 (+$69) and run53 (+$37)
+# OUT by the hedge rule (single-name idio doesn't hedge to an index): xyz:NVDA R².41,
+# xyz:TSLA R².45, xyz:SKHX R².28, xyz:ORCL R².38, PURR R².14, HYPE R².27.
+# OUT by the edge rule despite hedgeable: XRP (worst bleeder #50), xyz:SILVER (worst pick-off #51).
 BOOKS=(
-  xyz:CL xyz:GOLD xyz:NVDA xyz:TSLA xyz:SPCX
-  FARTCOIN kPEPE PURR
+  xyz:CL xyz:GOLD
+  SOL ADA DOGE SUI FARTCOIN kPEPE
 )
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
@@ -122,7 +135,7 @@ launch () {
 
 # Books DROPPED from the set still rehydrate from mm_book_state under MM_PERSIST and would keep
 # trading silently — remove them explicitly (flattens + checkpoints; no-op if absent).
-DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL SOL ADA DOGE SUI xyz:SP500 xyz:XYZ100)
+DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL xyz:SP500 xyz:XYZ100 xyz:SPCX PURR xyz:NVDA xyz:TSLA xyz:SKHX xyz:ORCL)
 echo "=== removing dropped incumbents (${DROPPED[*]}) ==="
 for s in "${DROPPED[@]}"; do
   curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \

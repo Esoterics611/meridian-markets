@@ -14,6 +14,9 @@ import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { TimeStopQuoter } from './quote/time-stop-quoter';
+import { parseSessionGate, sessionForSymbol } from './risk/session-gate';
+import { SweepRegimeDetector } from './risk/sweep-regime-detector';
+import { EventCalendar } from './risk/event-calendar';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
@@ -83,6 +86,30 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
+        // Journal #55 guardrails: session-gate rules (RTH-only xyz equity books) parsed once;
+        // per-book window resolved at build time. Malformed rules are skipped by the parser.
+        const sessionRules = parseSessionGate(mm.sessionGate);
+        // Journal #57: blackout rules share the session-gate grammar; '*' = every book.
+        const blackoutRules = parseSessionGate(mm.eventBlackout);
+        const blackoutsFor = (symbol: string): Array<{ openMin: number; closeMin: number }> | undefined => {
+          const w = blackoutRules.filter((r) => r.symbols.includes(symbol) || r.symbols.includes('*')).map((r) => ({ openMin: r.openMin, closeMin: r.closeMin }));
+          return w.length ? w : undefined;
+        };
+        // S4 sweep-regime gate (Journal #56): one detector PER BOOK (per-symbol flow memory),
+        // fast path only — the bar path has no real aggressor flow to read.
+        const makeRegimeDetector = (useFast: boolean): SweepRegimeDetector | undefined =>
+          mm.regimeGate && useFast
+            ? new SweepRegimeDetector({
+                flowThreshold: mm.regimeFlowThreshold,
+                windowMs: mm.regimeWindowMs,
+                minDriftBps: mm.regimeMinDriftBps,
+                cooldownMs: mm.regimeCooldownMs,
+              })
+            : undefined;
+        if (sessionRules.length > 0)
+          new Logger('MarketMakingModule').log(
+            `session gate: ${sessionRules.map((r) => `${r.symbols.join(',')}=${r.openMin}-${r.closeMin}min UTC`).join('; ')}`,
+          );
         // Optional so the isolated mm.controller.spec (no TelemetryModule) resolves;
         // the full app injects the @Global TELEMETRY. No-op ⇒ zero behaviour change.
         const tele = telemetry ?? NULL_TELEMETRY;
@@ -380,6 +407,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            lossStopFrac: mm.lossStopFrac,
+            lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
+            sessionUtc: sessionForSymbol(sessionRules, spec.symbol),
+            blackoutUtc: blackoutsFor(spec.symbol),
+            regimeDetector: makeRegimeDetector(useFast),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
@@ -454,6 +486,13 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             fundingRatePerHour: rec.fundingRatePerHour,
             capitalUnits: rec.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
+            // Guardrails are desk-wide policy, not per-book persisted state — a rehydrated
+            // book gets the CURRENT loss-stop/session rules (same rationale as the governor).
+            lossStopFrac: mm.lossStopFrac,
+            lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
+            sessionUtc: sessionForSymbol(sessionRules, rec.symbol),
+            blackoutUtc: blackoutsFor(rec.symbol),
+            regimeDetector: makeRegimeDetector(useFast),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
@@ -517,6 +556,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           tele,
           deskEvents,
           hedger,
+          new EventCalendar(), // #57: known-time event warnings on the tape (static v1)
         );
 
         // C2 fast path: build the sub-second L2 poll driver + the real HL trades-WS

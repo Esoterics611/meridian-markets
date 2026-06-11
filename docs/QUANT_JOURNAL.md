@@ -2225,3 +2225,172 @@ hours; equity-linked books breathe with US flow.
 **Ops for THIS relaunch (binding, S1 rule): run the leak table BEFORE launch-mm-10h.sh —**
 `npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts --since <run-start> --until <now> --log <run-log> --label run52`
 — relaunch overwrites surviving books' state accumulators.
+## 2026-06-11 — Entry #55 (run53 verdict + the warehouse guardrails: loss-stop, session gate, cap cut)
+**Run53 (08:46→12:42Z, 3.9h, Elite-8 v2 first window + SPCX's last):** desk net −$973
+(realised −$928, fees +$58) on $4M. DD control HELD (worst book maxDD 0.93% < 1% bar); hedge
+healthy and tiny ($47 churn, implied leg +$343). The loss is the desk's recurring failure shape —
+**earn slowly on spread, lose suddenly on inventory**: CL −$626 in ONE 5-min window (57% of its
+loss), kPEPE worst5m −$432 (60% conc), SPCX −$380. Per-book fillEdge (the structural verdict):
+**SKHX −$632** (the #1 leak — picked off relentlessly in its debut), ORCL −$128 (its +$472 net is
+warehouse luck, NOT edge — the classic trap book), CL −$62, FARTCOIN −$23; positive: kPEPE +$37,
+NVDA +$26, GOLD +$6. Caveat owned: the whole window was PRE-US-OPEN — every xyz equity book was
+quoting a closed/stale reference market; SKHX/ORCL get ONE US-hours window before slot decisions
+(else SNDK is first reserve). Artifacts: docs/research/leak-table-run53.{md,json}.
+**Operator finding (Ronnie):** the desk was believed delta-neutral; it is NOT — only
+FARTCOIN/kPEPE are (factor-)hedged via ETH betas. Every xyz book is β=0 UNHEDGED by design (no
+instrument on the desk hedges oil/gold/equities), i.e. ~75% of capital runs naked inventory and
+prior session reporting under-stated this. **For xyz books, FLAT is the only hedge** — hence:
+**Shipped (the #55 guardrails, all three on the same principle — cap what inventory can LOSE,
+not just what it can BE):**
+1. **Warehouse loss-stop** (`MmBook.guardrail`, both drive paths): unrealised on inventory
+   < −`MM_LOSS_STOP_FRAC`·capital ⇒ taker-flatten at mid (5bps), pull quotes
+   (`L2LiveFillEngine.cancelResting()`), stand aside `MM_LOSS_STOP_COOLDOWN_MIN` (15m), resume
+   flat. Desk default 0.0006 (−$300 on $500k) = tail-only insurance. HONESTY: adds NO
+   expectation — converts the fat left tail into a bounded known cost; will sometimes sell the
+   bottom (the S2 time-stop replay said as much); sized loose so it fires rarely.
+2. **Session gate** (`MM_SESSION_GATE`, parser `risk/session-gate.ts`): xyz US-equity books
+   (NVDA/TSLA/SKHX/ORCL/+reserves) quote ONLY 13:30–20:00Z and go home flat; off-hours quoting
+   vs a closed underlying is pure pick-off (SKHX above). CL/GOLD exempt (~24h markets).
+3. **Inventory cap cut** 0.15→0.10 of capital (start-desk.sh) — the warehouse tail scales
+   linearly with the rail.
+Every guardrail flatten is a DeskEvent + `GUARDRAIL ▸` log line (the business-tape rule). Wired
+through config (factory/interface) + module (launch AND rehydrate paths — desk-wide policy, not
+persisted per-book state). Tests: session-gate parser suite + 4 MmBook guardrail specs (loss-stop
+fires + cooldown holds + default-off warehouses; gate blocks off-hours, trades in-hours, flattens
+on session close). market-making 62 suites / 365 green; tsc clean.
+**NOT fixed by this (named honestly):** negative fillEdge. A guardrail bounds inventory losses;
+it cannot make a picked-off book profitable — that stays the rotation rule's job
+(UNIVERSE_DISCOVERY.md). Next knobs if the shape persists: regime gate (S4) in front of the
+stop, per-book hedged/unhedged flag on the snapshot + leak table so delta coverage is never
+implicit again.
+## 2026-06-11 — Entry #55b (the HEDGED DESK: "no market we cannot delta-hedge" + flow/lean/hedge on the UI)
+Operator directives (Ronnie): loss cap 0.01%; show the front-of-move flip on the UI and lean with
+it; binding asset rule — **we do not make markets in what we cannot hedge the delta**; tighten
+pick-off; rebuild the Elite-8 from ALL assets under the rule.
+**Shipped:**
+1. **Loss-stop tightened to 0.0001** (−$50 on $500k, operator-set). Honest math ON RECORD: at the
+   $50k inventory rail this fires on a 0.1% adverse move — expect FREQUENT triggers; each costs
+   taker 5bps on the flattened notional + 15min stand-aside. Run54's `GUARDRAIL ▸` count + leak
+   table judge whether saved warehouse > taker bill; re-tune via MM_LOSS_STOP_FRAC if it bleeds.
+2. **Hedgeable-universe board** (`scripts/hedgeable-universe.ts`, 30d×1h OLS, zero-return bars
+   dropped vs closed-session flats): GOLD↔PAXG **β1.03 R².98**, CL↔BRENTOIL **β1.08 R².91**,
+   SOL .81 / kPEPE .77 / XRP .72 / DOGE .72 / SUI .66 / FARTCOIN .65 / ADA .59 vs ETH/BTC.
+   **Single names FAIL the rule** (index leg ≠ idio hedge): NVDA .41, TSLA .45, ORCL .38,
+   SKHX .28; PURR .14, HYPE .27. Artifact: docs/research/hedgeable-universe-*.json.
+3. **ELITE-8 v3 — every book hedged:** xyz:CL(→BRENTOIL), xyz:GOLD(→PAXG), SOL, ADA, DOGE, SUI,
+   FARTCOIN, kPEPE (→ETH, netted on one leg). OUT by hedge rule: NVDA/TSLA/SKHX/ORCL/PURR(/HYPE).
+   OUT by edge rule despite hedgeable: XRP (worst bleeder #50), SILVER (worst pick-off #51).
+   SOL/ADA re-admitted: their A″ realised (+$752/+$494) was real; their warehouse bleed is what
+   the hedge+guardrails now control. BRENTOIL/PAXG are new TAKER hedge legs via the existing
+   resolveHedgeMid path (xyz: L2 proven); hedge cost priced into spreads (hedgeCostBps).
+4. **UI (per-session QA rule):** per-book **flow** (signed aggressor imbalance, ▲/▼/◆ + flip),
+   **lean** (the OOS-gated bias ACTUALLY applied — 0 until validated), **hedge** (leg+β, or
+   **NAKED** in red). Engine surfaces `bias` on metrics; trader annotates `hedgeUnderlying`/
+   `hedgeBeta` per book snapshot (DeskHedgeController.betaFor). Delta coverage is now explicit
+   on every snapshot — the run53 lesson closed.
+5. **Pick-off tightening:** VPIN pause ARMED at 0.75 (was disarmed 1.01) — fast-path gate pulls
+   quotes when informed-flow probability spikes; F3 stays widen-only; cap 0.10. NOT done: faster
+   than 100ms re-quote — paper already assumes 100ms/30ms; claiming faster would be dishonest
+   vs HL rate limits (the cadence claim stays an upper bound).
+Tests: market-making+demo 63 suites / 374 green; tsc clean. NOTE: session gate now mostly idle
+(no single-name books) — kept wired for future equity slots.
+**Open (next session):** regime gate (S4) before the stop; loss-stop threshold sweep on the
+replay harness; per-book capital ∝ measured fillEdge; flow-flip alert (event when lean changes
+sign); short-horizon book cycling question — see RUN_THE_DESK/analysis (cycling does NOT reset
+regime; the regime gate is the honest version of "turn it off after an hour").
+## 2026-06-11 — Entry #56 (S4 SHIPPED: the sweep-regime gate — pull quotes BEFORE inventory builds)
+Operator priority (Ronnie): the trend/sweep detector is the most important knob. Shipped:
+**`SweepRegimeDetector`** (`risk/sweep-regime-detector.ts`, pure/clock-free/replayable) — two legs
+must AGREE: (1) FLOW: EWMA of signed aggressor imbalance, |ewma|>0.65 = one-sided tape;
+(2) PRICE: same-sign drift ≥5bps over 30s = the price is following (one-sided flow the book
+absorbs is NOT a sweep — we keep quoting absorption). Both ⇒ SWEEP: `cancelResting()` pulls the
+quotes the engine just placed (σ/markout/funding stay warm — unlike the session gate's full
+skip), nothing rests into the move, nothing fills against it. 90s cooldown after the last sweep
+tick = the get-out-then-re-enter discipline. Per-book detector (per-symbol flow memory), fast
+path only (needs real aggressor flow). `REGIME ▸ calm → sweep` log + verdict tape event on every
+transition; `regime` on the snapshot; **SWEEP/COOLDOWN badge on /mm-desk AND /demo**.
+ENV: MM_REGIME_GATE=true (armed in start-desk.sh) + REGIME_{FLOW_THRESHOLD,WINDOW_MS,
+MIN_DRIFT_BPS,COOLDOWN_MS}. HONESTY: thresholds are PRIORS, not fitted — run54 measures
+engagements vs warehouse saved; the detector is replayable for an offline sweep later.
+**Also (#55b follow-through):** flow/lean/hedge tiles ported to **/mm-desk** (the page Ronnie
+actually watches — /demo got them first by mistake); UNHEDGED tooltip wording; detector spec
+4 cases green (sweep+confirm fires; absorption does NOT; wrong-sign drift does NOT; cooldown→
+calm re-entry). market-making+ui 81 suites / 493 green; tsc clean.
+The desk's layered inventory defence is now: (1) S4 gate = don't BUILD inventory into a sweep →
+(2) governor cap+skew = bound what builds → (3) loss-stop −0.01% = bound what a position loses →
+(4) β-hedge on every book = neutralise the factor of what remains. Each layer covers the prior's
+failure mode. NEXT: event calendar + blackout windows (designed, approved scope pending),
+per-hour regime diagnostic strip on the leak table.
+## 2026-06-11 — Entry #57 (event calendar: tape warnings + blackout windows — "nobody earns the spread through CPI")
+**Shipped:** (1) `EventCalendar` (risk/event-calendar.ts, static v1): daily US open/macro slot
+13:30Z (CPI/NFP/retail) + US close 20:00Z (hints: CL/GOLD) + the published 2026 FOMC decision
+dates 18:00Z (whole-desk). Trader polls it each loop → **`⚠ EVENT ▸ … in ~Nm` warning on the
+Activity tape + log, once per occurrence, T−5min** — the operator's actionable signal.
+(2) **Blackout windows** `MM_EVENT_BLACKOUT` (session-gate grammar, `*`=desk): INSIDE the window
+the guardrail taker-flattens + stands aside (`GUARDRAIL ▸ … event-blackout`). Desk default:
+`xyz:CL,xyz:GOLD=1325-1345` — flat through the 13:30Z number, auto re-enter 13:45Z.
+HONESTY/limits v1: calendar is static (no earnings/API feed — the `IEventSource` seam is the
+follow-up); FOMC days are WARN-ONLY (add `*=1755-1845` to MM_EVENT_BLACKOUT on the day);
+13:30Z slot is daily (we stand aside even on no-print days — cheap at 20min). NAV-chart port to
+/mm-desk: NOT needed — navSparkPanel already renders the mm_nav curve there (checked).
+Tests: calendar spec (daily occurrence, midnight cross, FOMC date) — mm+ui 84 suites/496 green;
+tsc clean. Desk now: S4 sweep gate → governor → loss-stop 0.01% → β-hedge ×8 → event blackouts
++ tape warnings. Run54 is the first full-stack read.
+## 2026-06-11 — Entry #58 (run55: first FULL-defence-stack read — books fixed, the hedge layer gave it back)
+Label note: operator renumbered — run54 = the aborted boots 13:46–14:24Z (beta-map pipe bug live:
+CL hedged with **xyz:CL-perp itself**, 12 self-hedge orders in the boot logs; fix 37c2dd2 landed
+mid-sequence), run55 = the fixed 3h run 14:24–17:24Z. mm_nav has no >10min gap so the leak window
+(13:46→17:25Z, 3.6h) includes the boot segment; per-book rows are post-relaunch (clean).
+leak-table-run54.* deleted as mislabeled; canonical artifact: docs/research/leak-table-run55.{md,json}.
+**Desk:** net −$879 (realised −$123, unreal −$538, fees $218) · books-sum −$422 · implied hedge leg
+−$458. vs run53: books-sum bleed cut 3.1× (−$1,316→−$422), realised cut 7.5× (−$928→−$123), maxDD
+cut ~3× (worst 0.93%→0.27%) — **the per-book defence stack worked**. Desk net barely moved
+(−$973→−$879) because the hedge layer consumed the savings: churn $174k/$47 (run53) → **$1.62M/$437
+est cost** (9×), implied hedge-leg P&L +$343 → −$458. ETH leg = 32 orders/15 flips (the mid≤0
+flip-churn tell, amplified by stop-flattens snapping book deltas to 0 → unwind→re-open at taker).
+**(1) GUARDRAIL audit:** 12 loss-stops (ADA×4, kPEPE×3, CL×3, GOLD×1, FARTCOIN×1; 9 in the clean
+run) + 12 manual flattens (boot restarts + operator batches 16:46:54Z/17:00:05Z). Each stop
+crystallised −$50–66 (cap $50 + gap/taker overshoot ≤32%); Σ≈−$664. Fees $58→$218 = the stop taker
+tax. VERDICT: **insurance at the book layer** (no run53-style −$618 single-book warehouse hole;
+tail cut 3×) **but a tax at the desk layer** via induced hedge churn — the stop's true premium is
+direct fees + ~$390 extra churn. Fix is hedge decoupling (freeze adds on flow flip, net delta
+first), NOT a looser stop.
+**(2) REGIME audit:** 19 engagements clean-run (GOLD 6, SUI 5, CL/DOGE/ADA 2, SOL/FARTCOIN 1,
+**kPEPE 0**); episodes 1–3min (sweep ~30–90s + 90s cooldown); triggers all 0.65–0.76 = barely over
+the 0.65 prior. Loss conc still single-window (68–100%) but mechanically so — the stop puts the
+realised loss in one bucket. Coverage is wrong-shaped: ADA (2 engagements) and kPEPE (0) ate 7 of
+9 clean-run stops — their bleed is a slow grind the flow×drift sweep test doesn't see. The
+0.65/5bps priors need the replay sweep, and per the operator's flow-conditional frame the binary
+gate should become a graduated re-center (p* = mid + κ·flow) + toxicity-scaled spread anyway.
+**(3) Hedge quality:** legs verified correct post-fix (CL→BRENTOIL 22 orders, GOLD→PAXG 2,
+alts→ETH 32). basisShare/betaLive/R² vs the 30d fit **not capturable** — server was down before
+review; hedge.quality is in-memory only (DR-2). PROCESS FIX: persist hedge.quality (+ windowed
+attribution) on shutdown / hourly — goes into diagnostic item (b).
+**(4) fillEdge slot rule:** GOLD +6, FARTCOIN +7, SOL +5 (green); SUI −2, kPEPE −2 (flat);
+ADA −16, DOGE −46, CL −51 (red). SOL re-admission PASS (thin); ADA FAIL (worst book, 4 stops) —
+rotate-out recommended; DOGE/SUI green-by-warehouse only (probation); kPEPE streak broken
+(+69→+37→−2); CL fillEdge red 2nd run running (−62→−51) — #51 best-ever read not repeating, watch.
+GOLD is quietly the best-behaved book (only consistent + fillEdge among xyz:*).
+**Event layer:** 0 blackout fires, 0 tape warnings — the 13:25–13:45Z window closed 1min before
+boot and the run ended before 18:00Z/20:00Z events. UNTESTED, not passed.
+**REALIGNMENT (operator frame, spec incoming — Cont-Kukanov-Stoikov OFI):** flow is E[Δmid|flow]≠0,
+i.e. a fair-value correction, not a panic signal; toxicity = flow ALIGNED AGAINST inventory
+(A=sign(q)·sign(flow)<0), A>0 is the harvest/exit window — a flatten-on-|flow| rule burns the one
+state that pays. run55 evidence agrees: kPEPE/ADA died in A<0 grind the gate missed; GOLD survived
+by refusing to add. Re-ordered next steps: (b) diagnostics first — per-hour σ/VPIN/flow/fillEdge
+strip + A-quadrant split of markouts + persist hedge.quality (calibration data for κ, λ, τ);
+(c) becomes per-book κ (markout regression Δmid60 vs flow) + flatten-inequality calibration on the
+replay tape (binary 0.65 sweep secondary); (e) flow-flip event + hedge-freeze cooldown = the #1
+leak fix (churn −$437); (d) capital ∝ fillEdge after. NOTHING implemented pending operator spec+go.
+Artifacts: leak-table-run55.{md,json}; logs run-20260611-{164632,171116,172106,172435}-mm10h.log.
+### #58 addendum — MASTER PLAN II adopted (operator spec → the active chain)
+Operator's Flow-Reactive Quoting spec accepted as design of record →
+**docs/FLOW_REACTIVE_QUOTING.md** (verbatim + run55 label/seam notes). Session chain grafted into
+**docs/MASTER_PLAN_SESSIONS.md PART V** as the ACTIVE chain: F0 instrument (persist markout/
+attribution/hedge-quality/funding/decision-tape; worst5m bug; per-hour + A-quadrant strips) →
+F1 hedge anti-churn (−437) → F2 quote anti-churn (−229) → F3 inventory skew (−95, + loss-stop
+sweep) → F4 flow-reactive throttle-first/κ-gated (−99, supersedes binary S4 gate) → F5 capital ∝
+fillEdge. Old chain: S3/S5 superseded-into-F4/F0, S4 partially shipped (#56/#57) + superseded,
+S6 live as ledger, S7/S8 pending as validation infra, S9 parked. BINDING new cross-cutting req
+(operator): full auto-response observability — `CONTROL ▸`/`PARAM ▸`/`BLOCKED ▸`/`FLATTEN ▸` +
+existing grammar, on-change + periodic, tape + persisted; a finished run auditable from SQL alone.

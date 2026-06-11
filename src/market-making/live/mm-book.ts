@@ -14,6 +14,7 @@ import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { L2LiveFillEngine, ToxicityMetrics } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
+import { SweepRegimeDetector, RegimeState } from '../risk/sweep-regime-detector';
 import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
 
 // MmBook — a single-instrument live paper market-making book. The market-making
@@ -66,6 +67,37 @@ export interface MmBookConfig {
    * can render "inventory as % of the rail". Omit/0 ⇒ no notional cap (lot-count only).
    */
   maxInventoryNotionalFrac?: number;
+  /**
+   * Warehouse loss-stop (Journal #55): when the unrealised MTM on the book's inventory
+   * breaches −lossStopFrac·capital, the book FLATTENS at the mid (taker, 5bps), pulls its
+   * quotes and stands aside for lossStopCooldownMs, then resumes flat. This is the desk's
+   * answer to the "earn slowly on spread, lose suddenly on inventory" failure shape: the
+   * governor caps inventory SIZE; this caps the LOSS a warehoused position may realise.
+   * It does not add expectation — it converts a fat left tail into a bounded, known cost
+   * (taker spread + fees per trigger). Omit/0 ⇒ off.
+   */
+  lossStopFrac?: number;
+  /** Stand-aside duration after a loss-stop fires. Default 15 min. */
+  lossStopCooldownMs?: number;
+  /**
+   * Session gate (Journal #55): UTC minutes-of-day window [openMin, closeMin) inside which
+   * this book may quote. Outside the window the book flattens once and stands aside —
+   * built for xyz equity-linked perps whose reference market is closed/stale off US RTH
+   * (run53: every negative-fillEdge xyz read happened pre-US-open). Omit ⇒ quote 24h.
+   */
+  sessionUtc?: { openMin: number; closeMin: number };
+  /**
+   * Event-blackout windows (Journal #57): UTC minutes-of-day windows INSIDE which the book
+   * flattens + stands aside (the inverse of sessionUtc) — scheduled-number protection (the
+   * 13:30Z macro slot for CL/GOLD). Pro doctrine: nobody earns the spread through CPI.
+   */
+  blackoutUtc?: Array<{ openMin: number; closeMin: number }>;
+  /**
+   * S4 sweep-regime gate (Journal #56): one-sided aggressor flow + same-sign price drift ⇒
+   * pull quotes BEFORE inventory builds against the move (the loss-stop fires after; this is
+   * the before). Fast path only (needs the real per-tick aggressor flow). Omit ⇒ off.
+   */
+  regimeDetector?: SweepRegimeDetector;
   /** VPIN EMA window in buckets (toxicity gauge + risk pause). Default 50. */
   vpinEmaBuckets?: number;
   /** VPIN bucket size in asset units; default = quoteSizeUnits·10 (self-scales per symbol). */
@@ -192,6 +224,17 @@ export interface MmBookSnapshot {
   bookImbalance?: number;
   /** Latest signed aggressor-flow imbalance ∈ [−1,1] (fast path only; undefined on the bar path). */
   tradeFlowImbalance?: number;
+  /** The bias the quoter was ACTUALLY handed last tick (post OOS-gate; 0 = neutral, no lean).
+   *  A sign flip here is "the front of the move flipped" — the UI renders it per book. */
+  bias?: number;
+  /** S4 sweep-regime state: 'calm' (quoting) / 'sweep' (one-sided flow + drift — quotes pulled)
+   *  / 'cooldown' (re-entry hold). Undefined ⇒ gate not wired for this book. */
+  regime?: RegimeState;
+  /** Delta-hedge coverage (Journal #55b, annotated by the portfolio trader): the hedge leg's
+   *  underlying + β, or β=0/undefined ⇒ NAKED. Makes "are we delta-neutral?" explicit on every
+   *  snapshot — the run53 lesson (the xyz books were unhedged and nothing said so). */
+  hedgeUnderlying?: string;
+  hedgeBeta?: number;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
   /** The markout curve split by fill side (WP2) — asymmetry = one-sided informed flow. */
@@ -210,6 +253,12 @@ export interface MmBookSnapshot {
 export class MmBook {
   private readonly logger = new Logger(MmBook.name);
   private readonly vol: RollingVolatility;
+  /** Guardrail stand-aside horizon (epoch ms) after a loss-stop fires; 0 = not standing aside. */
+  private standAsideUntilMs = 0;
+  /** S4 regime state last tick (transition logging + the snapshot's regime field). */
+  private lastRegime: RegimeState = 'calm';
+  /** Count of loss-stop triggers this run (surfaced in logs; the leak table greps the line). */
+  private lossStops = 0;
   // On the fast L2 path the book is SHARED with the fill engine (one source of truth —
   // the engine fills into it, snapshot() reads it). On the bar path it's our own.
   private readonly book: InventoryBook;
@@ -403,6 +452,14 @@ export class MmBook {
   onL2Snapshot(tick: LiveTick): void {
     const eng = this.cfg.fastEngine;
     if (!eng || !this.running) return;
+    // Guardrails first (Journal #55): session gate + warehouse loss-stop. Priced off the
+    // PREVIOUS tick's mid (the engine has no mid before its first snapshot — that first
+    // tick passes ungated, which only matters for a book launched outside its session).
+    const guardMid = eng.lastMid();
+    if (guardMid !== undefined && this.guardrail(this.now().getTime(), guardMid)) {
+      eng.cancelResting(); // pull both quotes; no resting orders ⇒ no fills while standing aside
+      return;
+    }
     // VPIN feed (fast path): real per-interval aggressor prints — no BVC estimate needed.
     if (tick.flow) this.vpin.onClassifiedVolume(tick.flow.aggressiveBuyUnits ?? 0n, tick.flow.aggressiveSellUnits ?? 0n);
     const invBefore = this.book.inventoryUnits(); // carried-in inventory, for funding/carry
@@ -410,6 +467,32 @@ export class MmBook {
     const beforeAsk = this._fastAskFills;
     const quote = eng.onSnapshot(tick);
     if (quote) this.lastQuote = quote;
+    // S4 sweep-regime gate (Journal #56): drive the detector off this tick's REAL aggressor
+    // flow + the fresh mid. In 'sweep'/'cooldown' the quotes the engine just re-placed are
+    // pulled immediately — nothing rests into the sweep, so nothing fills against it, while
+    // the engine's σ/markout/funding state stays warm (unlike the session-gate full skip).
+    if (this.cfg.regimeDetector) {
+      const m0 = eng.lastMid() ?? 0n;
+      const state = this.cfg.regimeDetector.update(
+        this.now().getTime(),
+        m0,
+        tick.flow?.aggressiveBuyUnits ?? 0n,
+        tick.flow?.aggressiveSellUnits ?? 0n,
+      );
+      if (state !== this.lastRegime) {
+        this.logger.warn(
+          `REGIME ▸ ${this.cfg.symbol} ${this.lastRegime} → ${state}` +
+            (state === 'sweep' ? ` (flow ${this.cfg.regimeDetector.flow().toFixed(2)} — quotes pulled before inventory builds)` : ''),
+        );
+        this.events.emit(verdictEvent({ ts: this.now().getTime(), book: this.cfg.symbol, source: this.cfg.source ?? '', prev: `regime:${this.lastRegime}`, next: `regime:${state}` }));
+        this.lastRegime = state;
+      }
+      if (state !== 'calm') {
+        eng.cancelResting();
+        this.blockedQuotes += 1;
+        return;
+      }
+    }
     const m = eng.metrics();
     this._fastBidFills = m.bidFills;
     this._fastAskFills = m.askFills;
@@ -500,6 +583,12 @@ export class MmBook {
       this.adverse += c.adverseSelectionUnits;
     }
     this.pendingMarkout = [];
+
+    // Guardrails (Journal #55): session gate + warehouse loss-stop — flatten + stand aside.
+    if (this.guardrail(tsMs, midMicros)) {
+      this.markEquity(midMicros);
+      return;
+    }
 
     if (!this.vol.ready()) return; // warming
 
@@ -602,14 +691,80 @@ export class MmBook {
 
   /** Force inventory to zero at the last mid (taker flatten; manual desk action). */
   async flatten(): Promise<void> {
+    const midMicros = this.cfg.fastEngine?.lastMid() ?? (this.lastBar ? toMicros(this.lastBar.close) : undefined);
+    if (midMicros !== undefined) this.flattenAt(midMicros, 'manual');
+  }
+
+  /** Taker-flatten the inventory at `midMicros` (5bps taker fee, not the rebate) and emit the
+   *  exit as a business event — a guardrail flatten is a real trade, it goes on the tape. */
+  private flattenAt(midMicros: bigint, reason: 'loss-stop' | 'session-close' | 'event-blackout' | 'manual'): void {
     const inv = this.book.inventoryUnits();
-    if (inv === 0n || !this.lastBar) return;
-    const midMicros = toMicros(this.lastBar.close);
+    if (inv === 0n || midMicros <= 0n) return;
     const side = inv > 0n ? 'SELL' : 'BUY';
     const size = inv > 0n ? inv : -inv;
     // Crossing the spread to flatten pays a taker fee (5 bps), not the maker rebate.
     const fee = (valueUnits(size, midMicros) * 5n) / 10_000n;
+    const realisedBefore = this.book.realisedUnits();
     this.book.apply({ side, sizeUnits: size, priceMicros: midMicros, feeUnits: fee });
+    const realisedDelta = this.book.realisedUnits() - realisedBefore;
+    this.logger.warn(
+      `GUARDRAIL ▸ ${this.cfg.symbol} ${reason}: flattened ${side} ${size} units @ mid (taker), realised ${realisedDelta} units`,
+    );
+    this.events.emit(
+      fillEvent({
+        ts: this.now().getTime(),
+        book: this.cfg.symbol,
+        source: this.cfg.source ?? '',
+        side,
+        action: classifyFill(inv, 0n),
+        sizeUnits: size,
+        priceMicros: midMicros,
+        inventoryUnits: 0n,
+        realisedDeltaUnits: realisedDelta,
+        feeUnits: fee,
+      }),
+    );
+  }
+
+  /**
+   * The per-interval guardrails (Journal #55) — session gate + warehouse loss-stop. Returns
+   * true when the book must STAND ASIDE this interval (caller pulls quotes and skips the
+   * quoting path). Runs on BOTH drive paths, before any quote is computed:
+   *   1. session gate: outside [openMin, closeMin) UTC ⇒ flatten once + stand aside (a stale
+   *      reference market is pure pick-off; run53 SKHX fillEdge −$632 was all pre-US-open);
+   *   2. loss-stop cooldown: a fired stop keeps quotes pulled until the horizon passes;
+   *   3. loss-stop: unrealised on inventory < −lossStopFrac·capital ⇒ flatten at taker +
+   *      cooldown. Caps what a warehoused position may LOSE (the governor only caps its size).
+   */
+  private guardrail(nowMs: number, midMicros: bigint): boolean {
+    const minOfDay = Math.floor((nowMs % 86_400_000) / 60_000);
+    const s = this.cfg.sessionUtc;
+    if (s) {
+      const inSession = minOfDay >= s.openMin && minOfDay < s.closeMin;
+      if (!inSession) {
+        this.flattenAt(midMicros, 'session-close');
+        return true;
+      }
+    }
+    // Event blackout (Journal #57): INSIDE any window ⇒ flat + aside (scheduled-number risk).
+    for (const w of this.cfg.blackoutUtc ?? []) {
+      if (minOfDay >= w.openMin && minOfDay < w.closeMin) {
+        this.flattenAt(midMicros, 'event-blackout');
+        return true;
+      }
+    }
+    if (nowMs < this.standAsideUntilMs) return true;
+    const frac = this.cfg.lossStopFrac;
+    if (frac && frac > 0 && this.book.inventoryUnits() !== 0n) {
+      const stopUnits = BigInt(Math.round(frac * Number(this.cfg.capitalUnits)));
+      if (this.book.unrealisedUnits(midMicros) < -stopUnits) {
+        this.lossStops += 1;
+        this.flattenAt(midMicros, 'loss-stop');
+        this.standAsideUntilMs = nowMs + (this.cfg.lossStopCooldownMs ?? 900_000);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Equity including funding: capital + trading P&L + funding accrued. */
@@ -717,6 +872,8 @@ export class MmBook {
       vpinBuckets: this.vpin.bucketsSeen(),
       vpinWindowBuckets: this.vpin.windowBuckets(),
       bookImbalance: m.bookImbalance,
+      bias: m.bias,
+      regime: this.cfg.regimeDetector ? this.lastRegime : undefined,
       tradeFlowImbalance: m.tradeFlowImbalance,
       markout: m.markout,
       markoutBySide: m.markoutBySide,

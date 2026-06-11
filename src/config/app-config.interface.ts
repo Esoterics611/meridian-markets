@@ -294,6 +294,32 @@ export interface AppConfig {
     timeStopAgeMin: number;
     /** Max exit-side shift (bps of mid) at full age+size. Default 3. */
     timeStopShiftBps: number;
+    /** Warehouse loss-stop (Journal #55): flatten a book at taker + stand aside when the
+     *  unrealised MTM on its inventory breaches −lossStopFrac·capital. The governor caps
+     *  inventory SIZE; this caps the LOSS a warehoused position may realise (the xyz books
+     *  are unhedged — flat is their only hedge). 0 ⇒ off (default). */
+    lossStopFrac: number;
+    /** Stand-aside minutes after a loss-stop fires. Default 15. */
+    lossStopCooldownMin: number;
+    /** S4 sweep-regime gate (Journal #56): pull quotes when one-sided aggressor flow + same-sign
+     *  price drift say a sweep is on — BEFORE inventory builds (the loss-stop is the after). */
+    regimeGate: boolean;
+    /** |flow EWMA| one-sided threshold ∈(0,1). Default 0.65. */
+    regimeFlowThreshold: number;
+    /** Price-drift confirmation window (ms). Default 30000. */
+    regimeWindowMs: number;
+    /** Min |drift| over the window (bps) to confirm the sweep. Default 5. */
+    regimeMinDriftBps: number;
+    /** Re-entry hold after the last sweep tick (ms). Default 90000. */
+    regimeCooldownMs: number;
+    /** Event-blackout rules (Journal #57), same format as sessionGate but INSIDE the window
+     *  the book is flat + aside (scheduled-number protection; '*' = whole desk). */
+    eventBlackout: string;
+    /** Session gate rules (Journal #55), raw MM_SESSION_GATE string:
+     *  "sym,sym=HHMM-HHMM[;sym=HHMM-HHMM]" (UTC). Symbols listed quote ONLY inside their
+     *  window; outside they flatten + stand aside (xyz equity books off US RTH are pure
+     *  pick-off — run53). '' ⇒ no gating. Parsed by market-making/risk/session-gate.ts. */
+    sessionGate: string;
     /** VPIN (volume-synchronised toxicity) EMA window in buckets. Default 50. */
     vpinEmaBuckets: number;
     /** Pause quoting when live VPIN ≥ this (∈[0,1]). Default 1.01 ⇒ off (gauge only;

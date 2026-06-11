@@ -63,6 +63,13 @@ function mo60Cell(label: string, curve: MarkoutPoint[]): SafeHtml {
   </div>`;
 }
 
+/** ▲ buy / ▼ sell / ◆ flat with magnitude — the per-book aggressor-flow readout. */
+function flowLabel(flow: number | undefined): string {
+  if (typeof flow !== 'number') return '—';
+  const arrow = flow > 0.05 ? '▲' : flow < -0.05 ? '▼' : '◆';
+  return `${arrow} ${Math.abs(flow).toFixed(2)}`;
+}
+
 function bookCard(b: MmBookSnapshot): SafeHtml {
   const label = b.source ? `${b.symbol}·${b.source}` : b.symbol;
   const removeBody = JSON.stringify({ symbol: b.symbol });
@@ -84,6 +91,9 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         <span class="dim">${b.family}</span>
         ${b.running ? html`<span class="badge badge--allow">RUNNING</span>` : html`<span class="badge badge--pause">STOPPED</span>`}
         ${verdictBadge(b.lastVerdict)}
+        ${b.regime && b.regime !== 'calm'
+          ? html`<span class="badge badge--pause" title="S4 sweep-regime gate: one-sided flow + same-sign drift — quotes pulled before inventory builds; cooldown = re-entry hold">${b.regime === 'sweep' ? 'SWEEP' : 'COOLDOWN'}</span>`
+          : ''}
         ${b.warm ? '' : html`<span class="badge badge--paper">WARMING</span>`}
       </div>
 
@@ -94,6 +104,23 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         <div class="q"><span class="qk">reservation</span><span class="qv mono">${price(b.reservationMicros)}</span></div>
         <div class="q"><span class="qk">½-spread</span><span class="qv mono">${price(b.halfSpreadMicros)}</span></div>
         <div class="q"><span class="qk">inventory</span><span class="qv mono">${fmtQty(BigInt(b.inventoryUnits))}</span></div>
+      </div>
+
+      <!-- #55b: the front of the move (flow), the OOS-gated lean ACTUALLY applied, and the
+           delta coverage — NAKED reads red (the run53 lesson: never implicit again). -->
+      <div class="quote-grid">
+        <div class="q" title="signed aggressor-flow imbalance ∈[−1,1] — a sign flip = the front of the move flipping; |flow|>0.4 = one-sided (informed) tape">
+          <span class="qk">flow</span>
+          <span class="qv mono ${typeof b.tradeFlowImbalance === 'number' && Math.abs(b.tradeFlowImbalance) > 0.4 ? 'neg' : 'dim'}">${flowLabel(b.tradeFlowImbalance)}</span>
+        </div>
+        <div class="q" title="the OOS-gated directional bias the quoter is applying (q* = bias × max lots); neutral until the live signal clears the validation gate">
+          <span class="qk">lean</span>
+          <span class="qv mono ${typeof b.bias === 'number' && b.bias !== 0 ? (b.bias > 0 ? 'pos' : 'neg') : 'dim'}">${typeof b.bias === 'number' ? (b.bias === 0 ? 'neutral' : (b.bias > 0 ? '+' : '') + b.bias.toFixed(2)) : '—'}</span>
+        </div>
+        <div class="q" title="${typeof b.hedgeBeta === 'number' && b.hedgeBeta > 0 ? `delta-hedged via ${b.hedgeUnderlying} (β-weighted; factor hedge — idio remains)` : 'UNHEDGED — naked directional inventory; the only protection is being flat (loss-stop/governor)'}">
+          <span class="qk">hedge</span>
+          <span class="qv mono ${typeof b.hedgeBeta === 'number' && b.hedgeBeta > 0 ? 'pos' : 'neg'}">${typeof b.hedgeBeta === 'number' ? (b.hedgeBeta > 0 ? `${b.hedgeUnderlying} β${b.hedgeBeta.toFixed(2)}` : 'NAKED') : '—'}</span>
+        </div>
       </div>
 
       <!-- Cash P&L — these four lines SUM to net P&L (the inv-MTM line is the mark-to-

@@ -9,6 +9,7 @@ import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
 import { M } from '../../telemetry/metric-catalog';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { lifecycleEvent, hedgeEvent } from '../events/desk-event';
+import { EventCalendar } from '../risk/event-calendar';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
 // twin of LivePortfolioTrader. Runs N single-instrument MM books concurrently on
@@ -106,6 +107,9 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     // Desk delta hedge (HEDGING_MODEL.md). undefined ⇒ off (every existing test constructs the
     // trader without it and is unchanged). The module injects it when MM_DELTA_HEDGE=true.
     private readonly hedger?: DeskHedgeController,
+    // Event calendar (Journal #57): known-time risk events → T−5min tape warnings so the
+    // operator sees CPI/FOMC/open coming. undefined ⇒ off (tests unchanged).
+    private readonly calendar?: EventCalendar,
   ) {
     this.capitalUnits = initialCapitalUnits;
     this.store = persistence.store ?? new NullMmStateStore();
@@ -115,6 +119,23 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
 
   /** epoch ms of the last hedge rebalance, for funding/dt accrual. */
   private lastHedgeMs: number | null = null;
+
+  /** Warn-once cursor per calendar-event occurrence (Journal #57). */
+  private readonly warnedEvents = new Set<string>();
+
+  /** Emit a tape warning for any known-time risk event inside the next 5 minutes (once per
+   *  occurrence). The operator's actionable signal: flatten manually or trust the blackout. */
+  private warnUpcomingEvents(nowMs: number): void {
+    if (!this.calendar) return;
+    for (const e of this.calendar.upcoming(nowMs, 5 * 60_000)) {
+      if (this.warnedEvents.has(e.key)) continue;
+      this.warnedEvents.add(e.key);
+      const inMin = Math.max(1, Math.round((e.tsMs - nowMs) / 60_000));
+      const msg = `⚠ EVENT ▸ ${e.label} in ~${inMin}m${e.booksHint ? ` — books at risk: ${e.booksHint}` : ' — WHOLE DESK'}`;
+      this.logger.warn(msg);
+      this.events.emit({ ts: nowMs, desk: 'mm', kind: 'verdict', book: e.booksHint ? e.booksHint.split(',')[0].trim() : '', source: 'calendar', message: msg, verdict: 'Event' });
+    }
+  }
 
   /** Last usable mid (micro-USD/coin) seen per book symbol. A book's mid can flicker to 0 for a
    *  poll cycle (an L2 gap / a relaunch); if we drop that book from the delta input its delta
@@ -347,6 +368,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     if (this.ticking) return;
     this.ticking = true;
     const startMs = Date.now();
+    this.warnUpcomingEvents(startMs);
     try {
       await Promise.all(
         // Coexistence rule: fast-path (L2) books are driven by the poll driver via
@@ -469,6 +491,14 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     let net = 0n;
     for (const b of this.books.values()) {
       const s = b.snapshot();
+      // Journal #55b: make delta coverage EXPLICIT per book — underlying + β from the live
+      // beta map, or β=0/undefined = NAKED. (Run53 lesson: the xyz books were unhedged by
+      // design and no surface said so; the operator believed the desk was delta-neutral.)
+      if (this.hedger) {
+        const m = this.hedger.betaFor(s.symbol);
+        s.hedgeUnderlying = m?.underlying;
+        s.hedgeBeta = m?.beta ?? 0;
+      }
       books.push(s);
       cap += BigInt(s.capitalUnits);
       eq += BigInt(s.equityUnits);
