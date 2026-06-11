@@ -2049,3 +2049,56 @@ engine's own client** (spreads: xyz:CL 0.11bps … PURR 44bps); $500k×16 = the 
 **Owned gaps:** per-dex funding unwired (xyz funding=0), HYPE/FARTCOIN/kPEPE/PURR betas unfitted
 (beta 0), HIP-3 fees are estimates (S6 verifies), RWA closed-hours gap risk unmodeled (S4/S8).
 tsc clean; touched suites green (49 tests across 7 suites).
+
+## 2026-06-11 — Entry #51 (Sweet-16 first live read, mid-flight ~3.6h — read-only analysis, no code changes)
+**Run: 16 books × $500k = $8M (8 HIP-3 xyz: RWAs + 8 main-dex), hedge ON (ETH-perp leg only;
+β=0 explicit on HYPE/FARTCOIN/kPEPE/PURR + all xyz:), F3 ON, directional OFF. Started 22:26Z
+2026-06-10; nav read at 02:02Z (~3h36m). Run still live — mid-flight read, not a final verdict.**
+
+1. **DD bar: 14/16 PASS, 2 breaches** — HYPE maxDD **1.76%** and xyz:BRENTOIL **1.61%** vs the
+   ~1.5% bar; both are **unhedged** (β=0) books. Everything else ≤1.25% (xyz:SILVER 1.25, ADA 0.96,
+   BTC-class anchors gone). The two breaches are exactly where the hedge doesn't reach.
+2. **Desk realised −$1,084** (net −$1,386, unreal −$289, fees +$13 ≈ wash). The bleed is
+   **concentrated in 3 books**: HYPE −1,507 / xyz:BRENTOIL −1,187 / xyz:SILVER −816 = **−$3,510
+   realised**; the other 13 books sum **+$2,426**. **xyz:CL is the desk's best live book ever:
+   realised +$1,397, 318 fills, maxDD 0.25%** — and it earned that *paying* HIP-3 maker fees
+   (+$101, no rebate assumed per #50's honesty rule). Flattery flags: kPEPE net +631 is +560
+   unreal (realised only +69), PURR +434 is +317 unreal; reverse-flattery on ADA (realised +100,
+   unreal −707), SOL (+13/−352), DOGE (−22/−236) — warehoused inventory marked against, the
+   familiar carry drift.
+3. **Edge: the pick-off war RE-OPENED on the new books.** spreadCaptured is positive on all 16
+   (Σ +$4,528) but adverse Σ +$6,029 ⇒ **windowed fill-edge ≈ −$1,501** (A″ on the old 8 was ≈$0).
+   Worst ratios: xyz:SILVER sprd 528 vs adverse 1273 (0.41), FARTCOIN 73/221, HYPE 1593/1925,
+   xyz:BRENTOIL 597/867. CL is window-breakeven (1150/1172) yet strongly realised-green — its edge
+   lives outside the markout windows (carry/queue). Markout: PURR −4.8/−7.6/−11.0bps (1s/5s/30s)
+   but its 44bps spread still nets green; ADA monotone −2.5→−5.1 and SUI −1.4→−3.4 (h*>30s,
+   re-confirms #49/#50 long-horizon AS); NVDA/GOLD revert to ~0/+ by 30s (healthy); HYPE flat
+   ~−2bps on 606 fills but heavily one-sided (387 bid / 219 ask = sellers hitting us), VPIN 0.58.
+4. **Hedge: the A″ #1 leak is FIXED.** 53 orders / $1.38M churned / ~**$0.4k** cost (A″: 263 /
+   $9.1M / $2.7k) — mostly increase/reduce around a steady level, 6 flips, residual $676 on gross
+   delta $121k. The book swap (BTC/ETH books out ⇒ single ETH leg, no BTC cross-flat churn) did it.
+   **betaLive/r² regression from A″ is also gone** — live fits are back, and they say the β=0 calls
+   were wrong on two books: **kPEPE βlive 1.12 r²=0.77, FARTCOIN βlive 1.60 r²=0.68** (real ETH
+   factor, currently 100% basisShare); HYPE marginal (1.21/0.32); PURR confirmed factor-free
+   (0.14/0.01). ADA cfg 1.03 vs live 1.17, SOL 1.01 vs 1.33 — stale-beta drift for the S2 bake-off.
+5. **Attribution still doesn't sum** (S1's reason stands): HYPE components imply ≈+$1.1k
+   (1593−1925+1429) vs realised −$1,507 — a ~−$2.6k warehouse-drift hole on one book.
+
+**MASTER PLAN read-through (suggestions only — nothing changed this session):**
+- **S1 stays next and stays #1.** The leak table now has a sharper job: split desk bleed into
+  (a) windowed pick-off −$1.5k — concentrated in SILVER/BRENTOIL/HYPE/FARTCOIN, (b) warehouse
+  drift (the non-summing hole), (c) hedge ~$0.4k (now small — demoted as a leak).
+- **S2 gets live inputs ready-made:** fit kPEPE/FARTCOIN betas (r² .77/.68 say β=0 is wrong);
+  decide HYPE (r² .32) with data; refresh ADA/SOL drifted betas. The two DD breaches being the two
+  big unhedged losers is the S2 motivation in one line.
+- **S6 early book-scoring evidence (one window — record, don't kill):** CL = strong keep;
+  SILVER/BRENTOIL = retune-or-rotate candidates (same dex as CL, same asset class, opposite sign —
+  likely a spread-width-vs-flow mismatch, their sprd/adverse ratios are the desk's worst);
+  HYPE = check why F3 isn't widening it harder at VPIN 0.58 with one-sided flow; NVDA/TSLA/GOLD =
+  quiet green confirms.
+- **S4 evidence:** the run spans US-evening→overnight; equity-hour books (SP500 9 fills,
+  XYZ100 5) were near-dead while metals/oil traded — the RWA closed-hours/regime tagger has its
+  first live dataset.
+- **Verdict shape:** the Sweet-16 swap is *working as a portfolio* — 13/16 books net-positive
+  realised, hedge leak killed, and the desk loss is 3 fixable books, not a structural bleed.
+  Mid-flight realised rate ≈ −$300/h on $8M; CL alone proves HIP-3 quoting earns paying full fees.
