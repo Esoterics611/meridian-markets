@@ -25,4 +25,14 @@ describe('venueFeeFor', () => {
   it('makerBpsFor matches the schedule', () => {
     expect(makerBpsFor('hyperliquid')).toBe(-0.2);
   });
+
+  it('HIP-3 (dex-prefixed) HL books get the no-rebate HIP-3 schedule, main-dex keeps the rebate', () => {
+    const hip3 = venueFeeFor('hyperliquid', 'xyz:GOLD');
+    expect(hip3.makerBps).toBeGreaterThan(0); // a COST — never pay ourselves an unverified rebate
+    expect(hip3.takerBps).toBeGreaterThan(0);
+    expect(venueFeeFor('hyperliquid', 'BTC').makerBps).toBe(-0.2);
+    expect(makerBpsFor('hyperliquid', 'xyz:GOLD')).toBe(hip3.makerBps);
+    // the prefix rule is HL-specific — other venues are untouched by the symbol hint
+    expect(venueFeeFor('binance', 'xyz:GOLD').makerBps).toBe(1);
+  });
 });

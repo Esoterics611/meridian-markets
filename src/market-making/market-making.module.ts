@@ -13,6 +13,7 @@ import {
 import { ReferenceBarFeed } from '../market-data/reference/reference-bar-feed';
 import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/reference-source.interface';
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
+import { TimeStopQuoter } from './quote/time-stop-quoter';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
@@ -223,6 +224,25 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         // The queue-aware fast engine: F1 micro-price center + sub-second re-quote, F3 toxicity
         // widening, and the hedge-cost-in-spread premium. undefined ⇒ the book stays on the bar path
         // (the non-L2 offline-test case only). This is the single source of truth for fast wiring.
+        // S2 inventory time-stop (default OFF — replay verdict MIXED, Journal #53): wrap any
+        // quoter so aged inventory gets skewed out. flat band = half a lot; full strength at
+        // the lot cap. Engage/disengage prints a TIME-STOP ▸ line (the greppable audit trail,
+        // like HEDGE ▸) — a tape DeskEvent kind can follow if the feature ever defaults on.
+        const withTimeStop = (inner: IQuoter, symbol: string, quoteSizeUnits: bigint): IQuoter =>
+          !mm.timeStop
+            ? inner
+            : new TimeStopQuoter(inner, {
+                ageMs: mm.timeStopAgeMin * 60_000,
+                rampMs: mm.timeStopAgeMin * 60_000,
+                maxShiftBps: mm.timeStopShiftBps,
+                flatUnits: quoteSizeUnits / 2n,
+                fullUnits: quoteSizeUnits * BigInt(Math.max(1, mm.maxInventoryLots)),
+                onChange: (st) =>
+                  new Logger('TimeStop').log(
+                    `TIME-STOP ▸ ${symbol} ${st.active ? 'ENGAGED' : 'released'} age=${Math.round(st.ageMs / 60_000)}m shift=${st.shiftBps.toFixed(1)}bps`,
+                  ),
+              });
+
         const buildFastEngine = (p: {
           useFast: boolean;
           symbol: string;
@@ -247,7 +267,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 horizonBars: p.horizonBars,
                 volWindowBars: mm.volWindowBars,
                 volFloor: mm.volFloor,
-                makerFeeBps: venueFeeFor(p.srcId).makerBps,
+                makerFeeBps: venueFeeFor(p.srcId, p.symbol).makerBps,
                 capitalUnits: p.capitalUnits,
                 microDepth: mm.microPriceDepth,
                 cancelReplaceLatencyMs: mm.cancelReplaceLatencyMs,
@@ -299,7 +319,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             quoteSizeUnits = quoteUnitsForNotional(spec.quoteNotionalUsd, price, mm.quoteSizeUnits);
           }
 
-          const quoter = mmStrategyRegistry.build(strategyId, {
+          const quoter0 = mmStrategyRegistry.build(strategyId, {
             quoteSizeUnits,
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
@@ -309,7 +329,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // Desk-wide directional-quote defaults (skew + single-siding) + the inventory
             // governor (skew-mult + hard cap, Journal #39); a per-book spec.params still
             // overrides. Directional-only knobs are ignored by non-directional families.
+            // gamma/kappa: without these the quoter silently quotes the registry's baked
+            // defaults and MM_GAMMA/MM_KAPPA are dead knobs on the launch path (Journal #51).
             params: {
+              gamma: mm.gamma,
+              kappa: mm.kappa,
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,
@@ -318,6 +342,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               ...spec.params,
             },
           });
+          const quoter = withTimeStop(quoter0, spec.symbol, quoteSizeUnits);
           const { nextBar, warmupCloses } = resolveFeed(srcId);
           // Resolve the bias axes + the queue-aware fast engine via the shared helpers, so the
           // rehydrate path (rebuildBook) gets byte-identical wiring on restart (Journal #47). Fast
@@ -351,7 +376,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             volFloor: mm.volFloor,
             // Price the book at its OWN venue's real maker fee (venue-fees.ts): HL
             // −0.2bps rebate, Binance +1bps, DEX LP-fee. Honest per-book economics.
-            makerFeeBps: venueFeeFor(srcId).makerBps,
+            makerFeeBps: venueFeeFor(srcId, spec.symbol).makerBps,
             fundingRatePerHour: fundingRate,
             capitalUnits: mm.capitalUnits,
             maxInventoryNotionalFrac: mm.maxInventoryNotionalFrac,
@@ -373,7 +398,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         const rebuildBook = async (rec: MmBookRecord): Promise<MmBook> => {
           const srcId = rec.source ?? mm.defaultSource;
           const { nextBar, warmupCloses } = resolveFeed(srcId);
-          const quoter = mmStrategyRegistry.build(rec.strategyId, {
+          const quoter1 = mmStrategyRegistry.build(rec.strategyId, {
             quoteSizeUnits: rec.quoteSizeUnits,
             minHalfSpreadBps: effMinHalfSpreadBps,
             maxHalfSpreadBps: mm.maxHalfSpreadBps,
@@ -384,6 +409,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // governor) under the persisted per-book overrides, matching the launch path so a
             // rehydrated book resumes with the same governor a fresh one gets.
             params: {
+              gamma: mm.gamma,
+              kappa: mm.kappa,
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,
@@ -392,6 +419,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               ...(rec.params ?? {}),
             },
           });
+          const quoter = withTimeStop(quoter1, rec.symbol, rec.quoteSizeUnits);
           // Same fast-path wiring as makeBook (Journal #47): a rehydrated L2 book MUST get the
           // queue-aware fast engine + bias axes, or it silently resumes on the slow 15s bar tick
           // (stale-quote adverse selection, no F3 toxicity defence, no hedge-cost in the spread).
@@ -455,11 +483,26 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             takerFeeBps: BigInt(Math.max(0, Math.round(mm.hedgeTakerBps))),
             venueId: 'hl-perp-hedge',
           });
+          // Hedge-only underlyings (ETH/BTC are LEGS, not books, since the Sweet-16 swap) never
+          // appear in the desk's book-mid price map — resolve their marks straight off the HL L2
+          // top (throttled inside the controller), else the leg's orders skip on the missing-mark
+          // guard and the desk runs UNHEDGED.
+          const hedgeHl = refRegistry.get('hyperliquid') as Partial<IL2BookSource> | undefined;
+          const resolveHedgeMid =
+            hedgeHl && typeof hedgeHl.l2Snapshot === 'function'
+              ? async (u: string): Promise<bigint | null> => {
+                  const l2 = await hedgeHl.l2Snapshot!(u);
+                  const bid = l2.bids[0]?.priceMicros ?? 0n;
+                  const ask = l2.asks[0]?.priceMicros ?? 0n;
+                  return bid > 0n && ask > 0n ? (bid + ask) / 2n : null;
+                }
+              : undefined;
           hedger = new DeskHedgeController(
             hedgeVenue,
             { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
+            resolveHedgeMid,
           );
           new Logger('MarketMakingModule').log(
             `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,

@@ -1,6 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
 import { parseHedgeBetaMap } from '../market-making/hedge/parse-beta-map';
+import { hlCoin } from '../market-data/reference/hyperliquid-trades';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
   if (raw !== undefined && (EXECUTION_MODES as readonly string[]).includes(raw)) {
@@ -157,7 +158,8 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // Fast L2 path is the default for L2 venues (Journal #44 fast-only) — no on/off flag.
     fastRequoteMs: parseInt(process.env['MM_FAST_REQUOTE_MS'] ?? '750', 10),
     cancelReplaceLatencyMs: parseInt(process.env['MM_CANCEL_REPLACE_LATENCY_MS'] ?? '100', 10),
-    fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
+    // hlCoin, not toUpperCase: HIP-3 coins ("xyz:GOLD") are exact-case keys on HL.
+    fastSymbols: (process.env['MM_FAST_SYMBOLS'] ?? 'BTC,ETH,SOL').split(',').map((s) => hlCoin(s)).filter(Boolean),
     fundingBiasSymbols: (process.env['MM_FUNDING_BIAS_SYMBOLS'] ?? 'BTC').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
     fundingBiasMax: parseFloat(process.env['MM_FUNDING_BIAS_MAX'] ?? '0.39'),
     fundingBiasFullRate: parseFloat(process.env['MM_FUNDING_BIAS_FULL_RATE'] ?? '0.0000125'),
@@ -177,6 +179,10 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     f3Toxicity: (process.env['MM_F3_TOXICITY'] ?? 'false').toLowerCase() === 'true',
     f3MinScale: parseFloat(process.env['MM_F3_MIN_SCALE'] ?? '0.5'),
     f3MaxScale: parseFloat(process.env['MM_F3_MAX_SCALE'] ?? '3.0'),
+    // S2 inventory time-stop — default OFF (replay verdict MIXED; enable behind A/B only).
+    timeStop: (process.env['MM_TIME_STOP'] ?? 'false').toLowerCase() === 'true',
+    timeStopAgeMin: parseFloat(process.env['MM_TIME_STOP_AGE_MIN'] ?? '30'),
+    timeStopShiftBps: parseFloat(process.env['MM_TIME_STOP_SHIFT_BPS'] ?? '3'),
     vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
     vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
     vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),

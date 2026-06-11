@@ -6,6 +6,8 @@ import { LandingController } from './landing.controller';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
+import { MarkoutDeskController } from './markout-desk.controller';
+import { ToxicityDeskController } from './toxicity-desk.controller';
 import { RiskController } from './risk.controller';
 import { ResearchPageController } from './research.controller';
 import { UiAssetController } from './ui-asset.controller';
@@ -19,6 +21,8 @@ describe('UiModule — offline DI compile', () => {
   let exec: ExecController;
   let ops: OpsController;
   let mmDesk: MmDeskController;
+  let markout: MarkoutDeskController;
+  let toxicity: ToxicityDeskController;
   let risk: RiskController;
   let research: ResearchPageController;
   let assets: UiAssetController;
@@ -31,6 +35,8 @@ describe('UiModule — offline DI compile', () => {
     exec = mod.get(ExecController);
     ops = mod.get(OpsController);
     mmDesk = mod.get(MmDeskController);
+    markout = mod.get(MarkoutDeskController);
+    toxicity = mod.get(ToxicityDeskController);
     risk = mod.get(RiskController);
     research = mod.get(ResearchPageController);
     assets = mod.get(UiAssetController);
@@ -63,6 +69,13 @@ describe('UiModule — offline DI compile', () => {
     const html = mmDesk.page();
     expect(html).toContain('id="mm-live"');
     expect(html).toContain('class="panel launch"');
+  });
+
+  it('resolves MarkoutDeskController + ToxicityDeskController (TRADER_UI_SPEC §2/§3) and renders', () => {
+    expect(markout).toBeInstanceOf(MarkoutDeskController);
+    expect(markout.page()).toContain('id="markout-live"');
+    expect(toxicity).toBeInstanceOf(ToxicityDeskController);
+    expect(toxicity.page()).toContain('id="tox-live"');
   });
 
   it('resolves RiskController (MM trader + DeskEventLog) and renders', () => {
@@ -115,6 +128,10 @@ describe('UiModule — offline DI compile', () => {
     assets.serve('activity-tape.js', res);
     expect(sent.type).toContain('javascript');
     expect(sent.body).toContain("customElements.define('activity-tape'");
+
+    assets.serve('tox-strips.js', res);
+    expect(sent.type).toContain('javascript');
+    expect(sent.body).toContain("customElements.define('tox-strips'");
   });
 
   it('rejects an unknown asset (no path traversal surface)', () => {

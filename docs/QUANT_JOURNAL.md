@@ -1949,3 +1949,279 @@ src/market-making+config 331/331 (+5 shed-skew specs). **Operator note:** don't 
 books come up stopped). Stop, change, then start a clean run. **NEXT:** clean Run A′ on the full fixed
 build; if inventory/basis still bleeds, the levers are MM_INVENTORY_SPREAD_SKEW↑, tighter notional cap,
 and a dynamic/per-name hedge — see the deep-research prompt drafted this session.
+
+## 2026-06-10 — Entry #49 (Run A′ read at ~2h20m: pick-off stays fixed; the loss now lives OUTSIDE the markout windows)
+**The run** (still in flight; read at 13:47Z): 8 fast-path GLFT books, $8M, hyperliquid, hedge ON,
+F3 toxicity ON, directional OFF, shed-skew 0.4 (the #48 fix), markout horizons left at the
+**default 1s/5s/30s** (WP2a's 300s capability shipped but `MM_MARKOUT_HORIZONS_MS` unset).
+Window 11:26→13:47Z (~2h20m), 979 fills. Log is clean now (TypeORM echo off, ddf89e4) — the
+persistence-blob attribution scrape in the mm-run-review skill is **dead**; the live
+`/api/market-making/snapshot` is the new (better) source.
+
+**Scorecard (realised-first, DB mm_nav).** Desk realised **−$3,359**, net −$3,024 (+$92 unreal),
+fees −$238 — −4bps of capital in 2.3h. maxDD: desk **1.65%** (SOL 1.65, BTC 1.36, SUI 1.37, XRP 1.41,
+ETH 1.28; ADA 0.65, BNB 0.34, DOGE 0.29) — marginally over the ~1.5% bar, not a blowout.
+Books: SOL −1,349 / BTC −1,246 / ETH −944 / SUI −745 / DOGE −18 realised; ADA **+732**, BNB +148,
+XRP +126. Flattery check: ADA net +1,264 is +$530 unreal; BNB net +366 is +$220 unreal. Reverse trap:
+**XRP realised +126 but −$967 open mark** — and XRP is the desk's worst hedge (r² 0.51, βcfg 0.86 vs
+live 0.62, **77% basis share**): that open mark is the (1−ρ²) basis bleed of study §0, live.
+
+**Edge (the #47/#48 fix HOLDS over hours).** `spreadCaptured` **positive on all 8 books** ($2,154 desk)
+— first multi-hour confirmation. But adverse ($2,869) > spread on 6/8: windowed fill-edge ≈ **−$715**.
+Markout (1s) negative on every book (−0.2…−4.5bps). The discriminator is the *curve shape*:
+**ETH** −0.23bps@1s → **+0.7@5s → +1.7@30s** on 327 fills (flow mean-reverts past 1s — real edge);
+**DOGE/ADA/BNB/XRP decay monotonically** to −3…−7bps@30s (slow pick-off); BTC adverse at all horizons
+(−2.7→−4.5). Exactly the study-§2.1 read — and it argues for the 60s/300s horizons next run.
+
+**THE find — attribution no longer explains the P&L.** Windowed components sum to ≈ **+$2.7k**
+(spread 2,154 − adverse 2,869 + carry +3,617 + funding ~0 − fees 244) vs actual desk net **−$3.2k**:
+a **~$5.9k unattributed gap**. Cause (by construction, `pnl-attribution.ts` + fast-engine wiring):
+spread/adverse/carry are only marked over the 1–30s window after each fill; **drift on warehoused
+inventory between/outside those windows lands in no component** — and that is where the desk now loses.
+Signature: ETH filled **270 bids vs 57 asks** (one-sided accumulation into a falling tape), shed-skew
+crystallises the round trip minutes later, outside every markout window. The #48 shed-skew (0.4) did
+not stop the build → study problems **#2 (trending inventory) + #1 (basis)** are confirmed as the
+frontier; the pick-off war is won.
+
+**Hedge (separated, per #44 discipline).** (a) Book bleed −$3,359 = the dominant term. (b) Hedge:
+gross delta $92.5k → residual $384 (99.6%); hedge P&L ≈ +$120–270 *after* **$3,524 cumulative cost**
+on **313 orders / $11.5M churned** — the leg paid for itself this window (short into the falling tape)
+but the churn *rate* matches #48 (no improvement): ETH leg converged (227 increase/reduce, 16 flips),
+**BTC leg churns** (23 flips vs 1 open — net delta hovers near zero and the leg keeps crossing flat).
+Study **#2 (inventory-dependent dead-band)** is the named fix. (c) **Hedge-quality KPI (WP1, study §0)
+delivers its first live verdict:** desk pnlVol $1,591/h vs basisVol $813/h (~26% of desk variance);
+per-book basisShare XRP **77%**, ADA 52%, SUI 41%, DOGE 31% — delta residual ~0 while half the alt
+books' P&L vol is unhedgeable basis. The KPI works; it priced the XRP trap before the mark showed it.
+
+**F3 toxicity (WP2a) discriminated correctly:** VPIN BTC 0.68 / ETH 0.74 → avgScale 1.19/1.22 (widened);
+quiet books (BNB/ADA/DOGE vpin ~0) tightened to ~0.75–0.80. The defence fires on the right books.
+
+**Study-§1 ranked list — status after this run:** #5 (markout horizons + VPIN→F3) **shipped & validated**
+(extend horizons to 60s/300s next run); #1 (portfolio netting before hedge) partially exists (8 books →
+2 perp legs) — basis shares say it's the next build (WP3); #2 (dead-band → internalize/externalize)
+supported by the BTC-leg churn; #3 (drift term in quote center) supported by ETH's 270/57 one-sided
+fills — directional was deliberately OFF; #4 (basis-scaled spread/caps) now has live priors
+(XRP 77% / ADA 52% / SUI 41%).
+
+**Trader UI gap (vs TRADER_UI_SPEC.md):** the decisive diagnostics of this run — markout curve shapes,
+per-side split, basis shares — are on the snapshot but rendered **nowhere**; `/desk/mm` shows
+attribution + F3 counters only. This run is the case for building `/desk/markout` + `/desk/toxicity`.
+
+**Ops note:** mm-run-review skill needs updating — log-based attribution scrape is dead (no TypeORM
+echo); use `GET /api/market-making/snapshot` (attribution, markout, markoutBySide, vpin, toxicity,
+hedge.quality) while the desk is up.
+
+## 2026-06-10 — Entry #50 (Run A″ read; MASTER PLAN I → session chain; the Sweet-16 book swap ships)
+**Run A″ read (mid-flight, ~19:20Z; 8 GLFT books, $8M, hedge ON, F3 ON, directional OFF,
+markout horizons 1s/5s/30s/60s/300s LIVE; restarts 14:25/17:43/18:08 with MM_PERSIST continuity).**
+1. **DD bar: PASS** — per-book maxDD 0.03–1.33% (SOL 1.33, SUI 1.22, BTC 0.91…BNB 0.03), all under
+   the ~1.5% bar (A′ was 1.65%).
+2. **Desk realised +$477** (net −$443, fees −$187) — first ~breakeven-to-green realised window after
+   A′'s −$3,359/2.3h. SOL +752 / ADA +494 carry; XRP −326 / ETH −286 / BTC −203 bleed. Flattery:
+   SUI net −356 is −350 unreal; desk unreal −$1,104 vs books-sum −$66 ⇒ **~−$1.0k sits on hedge legs**.
+3. **Edge:** spreadCaptured + on 7/8 (Σ +$1,657) ≈ adverse (Σ $1,641) — windowed fill-edge ≈ $0, the
+   pick-off war stays won. **The 60s/300s horizons confirm #49**: markout@300s XRP −16.7bps /
+   SOL −12.3 / BTC −9.3 monotone through 60s (h* ≥ 300s); DOGE/BNB revert by 300s; **ETH flat ≈0**.
+4. **Hedge = the #1 measured leak:** 263 orders / $9.1M churned / ~$2.7k cost (5.7× realised!);
+   BTC leg 31 flips (cross-flat churn); gross $12.8k → residual $1.7k. **Regression:** hedge-quality
+   betaLive/r² = 0 on all 5 ETH-underlying books (worked in A′) — suspect the persist-restore path.
+5. **Attribution still doesn't sum** (components ≈ +$2.7k vs net −$443) — #49's warehouse-drift gap.
+
+**MASTER PLAN I evaluated → docs/MASTER_PLAN_SESSIONS.md** (the living session chain). Verdicts:
+hedge-cost work + attribution-that-sums outrank the plan's default order (our leaks say so);
+D1 cross-venue FV stays demoted to a 60–300s re-test (#27–33 measured the 1s no-op); fee-tier/HYPE/
+builder-codes/Tokyo-node PARKED (paper mission) with stale-quote pricing as the node's substitute;
+9 session prompts (S1 attribution+leak-table → S2 hedge → S3 long-horizon AS → S4 regime → S5
+funding lean → S6 book-scoring → S7 simulator microstructure → S8 shadow rig → S9 multi-venue).
+Each session ends by reviewing/rewriting the remaining prompts and printing the next one.
+
+**The Sweet-16 swap (docs/BOOK_SELECTION_ANALYSIS.md priors × live API verification) — SHIPPED:**
+desk goes 8 → 16 books next run: **8 HIP-3 RWAs** (xyz:GOLD/SILVER/XYZ100/SP500/CL/BRENTOIL/NVDA/
+TSLA — live 24h vol $24M–$1.0B; trade.xyz dex) + **8 main-dex** (HYPE FARTCOIN kPEPE PURR SUI SOL
+ADA DOGE). **BTC/ETH/XRP/BNB dropped as books** (BTC/ETH stay as hedge legs; launch script removes
+them explicitly — MM_PERSIST would silently rehydrate them). Engineering: `hlCoin()` exact-case HL
+coin keys — HIP-3 "xyz:" prefix AND k-coins (kPEPE was unreachable under toUpperCase: live HTTP 500
+→ fixed, verified); beta-map right-anchored parse + **beta 0 = explicit don't-hedge** (HIP-3 books
+have no crypto factor — governor-capped, not hedged); **HIP3_FEE** maker +0.15bps/taker 0.9bps —
+NO rebate assumed on HIP-3 until verified per deployer (paper-honesty rule: never pay yourself an
+unverified rebate); `scripts/smoke-sweet16.ts` — **all 16 books verified reachable through the
+engine's own client** (spreads: xyz:CL 0.11bps … PURR 44bps); $500k×16 = the same $8M desk.
+**Owned gaps:** per-dex funding unwired (xyz funding=0), HYPE/FARTCOIN/kPEPE/PURR betas unfitted
+(beta 0), HIP-3 fees are estimates (S6 verifies), RWA closed-hours gap risk unmodeled (S4/S8).
+tsc clean; touched suites green (49 tests across 7 suites).
+
+## 2026-06-11 — Entry #51 (Sweet-16 first live read, mid-flight ~3.6h — read-only analysis, no code changes)
+**Run: 16 books × $500k = $8M (8 HIP-3 xyz: RWAs + 8 main-dex), hedge ON (ETH-perp leg only;
+β=0 explicit on HYPE/FARTCOIN/kPEPE/PURR + all xyz:), F3 ON, directional OFF. Started 22:26Z
+2026-06-10; nav read at 02:02Z (~3h36m). Run still live — mid-flight read, not a final verdict.**
+
+1. **DD bar: 14/16 PASS, 2 breaches** — HYPE maxDD **1.76%** and xyz:BRENTOIL **1.61%** vs the
+   ~1.5% bar; both are **unhedged** (β=0) books. Everything else ≤1.25% (xyz:SILVER 1.25, ADA 0.96,
+   BTC-class anchors gone). The two breaches are exactly where the hedge doesn't reach.
+2. **Desk realised −$1,084** (net −$1,386, unreal −$289, fees +$13 ≈ wash). The bleed is
+   **concentrated in 3 books**: HYPE −1,507 / xyz:BRENTOIL −1,187 / xyz:SILVER −816 = **−$3,510
+   realised**; the other 13 books sum **+$2,426**. **xyz:CL is the desk's best live book ever:
+   realised +$1,397, 318 fills, maxDD 0.25%** — and it earned that *paying* HIP-3 maker fees
+   (+$101, no rebate assumed per #50's honesty rule). Flattery flags: kPEPE net +631 is +560
+   unreal (realised only +69), PURR +434 is +317 unreal; reverse-flattery on ADA (realised +100,
+   unreal −707), SOL (+13/−352), DOGE (−22/−236) — warehoused inventory marked against, the
+   familiar carry drift.
+3. **Edge: the pick-off war RE-OPENED on the new books.** spreadCaptured is positive on all 16
+   (Σ +$4,528) but adverse Σ +$6,029 ⇒ **windowed fill-edge ≈ −$1,501** (A″ on the old 8 was ≈$0).
+   Worst ratios: xyz:SILVER sprd 528 vs adverse 1273 (0.41), FARTCOIN 73/221, HYPE 1593/1925,
+   xyz:BRENTOIL 597/867. CL is window-breakeven (1150/1172) yet strongly realised-green — its edge
+   lives outside the markout windows (carry/queue). Markout: PURR −4.8/−7.6/−11.0bps (1s/5s/30s)
+   but its 44bps spread still nets green; ADA monotone −2.5→−5.1 and SUI −1.4→−3.4 (h*>30s,
+   re-confirms #49/#50 long-horizon AS); NVDA/GOLD revert to ~0/+ by 30s (healthy); HYPE flat
+   ~−2bps on 606 fills but heavily one-sided (387 bid / 219 ask = sellers hitting us), VPIN 0.58.
+4. **Hedge: the A″ #1 leak is FIXED.** 53 orders / $1.38M churned / ~**$0.4k** cost (A″: 263 /
+   $9.1M / $2.7k) — mostly increase/reduce around a steady level, 6 flips, residual $676 on gross
+   delta $121k. The book swap (BTC/ETH books out ⇒ single ETH leg, no BTC cross-flat churn) did it.
+   **betaLive/r² regression from A″ is also gone** — live fits are back, and they say the β=0 calls
+   were wrong on two books: **kPEPE βlive 1.12 r²=0.77, FARTCOIN βlive 1.60 r²=0.68** (real ETH
+   factor, currently 100% basisShare); HYPE marginal (1.21/0.32); PURR confirmed factor-free
+   (0.14/0.01). ADA cfg 1.03 vs live 1.17, SOL 1.01 vs 1.33 — stale-beta drift for the S2 bake-off.
+5. **Attribution still doesn't sum** (S1's reason stands): HYPE components imply ≈+$1.1k
+   (1593−1925+1429) vs realised −$1,507 — a ~−$2.6k warehouse-drift hole on one book.
+
+**MASTER PLAN read-through (suggestions only — nothing changed this session):**
+- **S1 stays next and stays #1.** The leak table now has a sharper job: split desk bleed into
+  (a) windowed pick-off −$1.5k — concentrated in SILVER/BRENTOIL/HYPE/FARTCOIN, (b) warehouse
+  drift (the non-summing hole), (c) hedge ~$0.4k (now small — demoted as a leak).
+- **S2 gets live inputs ready-made:** fit kPEPE/FARTCOIN betas (r² .77/.68 say β=0 is wrong);
+  decide HYPE (r² .32) with data; refresh ADA/SOL drifted betas. The two DD breaches being the two
+  big unhedged losers is the S2 motivation in one line.
+- **S6 early book-scoring evidence (one window — record, don't kill):** CL = strong keep;
+  SILVER/BRENTOIL = retune-or-rotate candidates (same dex as CL, same asset class, opposite sign —
+  likely a spread-width-vs-flow mismatch, their sprd/adverse ratios are the desk's worst);
+  HYPE = check why F3 isn't widening it harder at VPIN 0.58 with one-sided flow; NVDA/TSLA/GOLD =
+  quiet green confirms.
+- **S4 evidence:** the run spans US-evening→overnight; equity-hour books (SP500 9 fills,
+  XYZ100 5) were near-dead while metals/oil traded — the RWA closed-hours/regime tagger has its
+  first live dataset.
+- **Verdict shape:** the Sweet-16 swap is *working as a portfolio* — 13/16 books net-positive
+  realised, hedge leak killed, and the desk loss is 3 fixable books, not a structural bleed.
+  Mid-flight realised rate ≈ −$300/h on $8M; CL alone proves HIP-3 quoting earns paying full fees.
+
+**#51 addendum (same day, post-run — actioned for the next run):** run stopped by Ronnie. (a) **Cut
+HYPE / xyz:BRENTOIL / xyz:SILVER** from the book set (rotation-out on the #51 read, S6 re-adjudicates) —
+launch-mm-10h.sh BOOKS now 13 (×$500k = $6.5M desk) and the three are added to DROPPED so MM_PERSIST
+can't rehydrate them. (b) **Hedge map re-fit** (30d×1h OOS, scripts/hedge-beta-fit.ts): SOL 1.02 /
+DOGE 0.94 / ADA 1.04 / SUI 1.29 (cfg drift was window noise — live βs were NOT pasted in);
+**FARTCOIN:ETH:1.53 (R².65) and kPEPE:ETH:1.20 (R².77) now hedged** (were β=0; the run's live KPI
+agreed); PURR stays 0 (R².13). ADA's BTC/ETH fit tied → kept on the single ETH leg (netting > tie).
+(c) hedge-beta-fit.ts no longer uppercases symbols (kPEPE 500'd — same exact-case bug ac7d001 fixed
+in the engine). (d) The previous session's orphaned hedge fix (bookless-underlying marks, the thing
+that kept this run's ETH leg alive) committed as 382a04e with its 11 tests — the working tree is clean.
+
+**#51 addendum 2 (risk-averse profile + the dead-γ bug):** Ronnie's standing doctrine extended:
+**prefer fewer fills over losing fills** — widen when needed, accept lower fill rate; and between-run
+fixes need not be isolated. Shipped for the next run:
+1. **MM_GAMMA was a dead knob on the live path** — the module's `params` object never passed
+   gamma/kappa to `mmStrategyRegistry.build()`, so every launched/rehydrated quoter silently ran the
+   registry's baked γ=0.0025/κ=2 regardless of env. Fixed at both build sites (launch + rehydrate);
+   per-book `spec.params`/`rec.params` still override. All prior runs were honest by luck (env never
+   set ≠ default).
+2. **Risk-averse defaults in start-desk.sh** (each knob verified against asHalfSpread/asReservation
+   math): **MM_F3_MIN_SCALE=1.0** (F3 widen-only — never quote tighter than baseline; was 0.5),
+   **MM_GAMMA=0.005** (2× — doubles the inventory-risk term + reservation skew; honest note: base
+   spread ≈2/κ is γ-insensitive, so this is the shed-inventory knob, not a width knob),
+   **MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15** ($75k/book cap vs $125k — warehouse drift is the #51
+   surviving leak), **MM_INVENTORY_SKEW_MULT=6** (was 4). Deliberately NOT touched: κ and
+   MM_MIN_HALF_SPREAD_BPS — a blind global widening un-quotes the tight winners (xyz:CL 0.11bps);
+   κ goes to the next mm-l2-tune γ/κ sweep.
+tsc clean; mm.controller + registry + glft-quoter suites green (31 tests).
+
+## 2026-06-11 — Entry #52 (MASTER PLAN S1: attribution that SUMS + the leak table — the compass is fixed)
+**Session S1 of the chain (docs/MASTER_PLAN_SESSIONS.md). All work developed off-process on a
+worktree branch (feat/mm-s1-leak-table) while the next run trades — rules-of-engagement §2.**
+
+1. **Attribution sums now.** The missing term was ALREADY in the engine: `accrueInterval`
+   (mm-book.ts) accrues continuous Σ inv_carried×Δmid on BOTH drive paths and persists it
+   (`mm_book_state.inventoryCarryUnits`) — the fast-path snapshot just never surfaced it,
+   reporting only the engine's windowed carry. Exposed as **`inventoryMtmUnits`** (both paths);
+   identity **net = fillEdge + warehouseMTM + funding − fees** pinned EXACT by two unit specs
+   (fill-then-slide tape; rebate variant). `/desk/mm` renders it as the "warehouse" cell.
+2. **The A″ hedge-quality r²=0 bug — reproduced, root-caused, regression-tested.** Mechanism:
+   `resolveMarks` falls back to `lastMark` forever, so an underlying with no live book price
+   FREEZES after a restore ⇒ rU≡0 every bucket ⇒ var(U)=0 ⇒ betaLive/r² UNMEASURABLE (null,
+   rendered as 0). The 382a04e resolveMid path is the fix and is now pinned by a
+   simulated-restore spec (13/13 green). #51's live fits were alive because of it.
+3. **scripts/mm-leak-table.ts** — one command: mm_nav window + mm_book_state + run-log HEDGE
+   lines (+ live snapshot only when the window ends ≈now) → per-book identity table, ranked $
+   leak list, hedge churn (track/flip/open), loss concentration, md+json to docs/research/.
+   Run-review skill updated: leak table is STEP 0.
+4. **The measured leak tables** (docs/research/leak-table-{run-a2,run51-sweet16}.{md,json}):
+   - **A″ re-read with real accounting:** hedge churn **−$2,454 = A″'s #1 leak** (263 orders,
+     $9.1M churned; prompt predicted ~$2.7k ✓). Implied hedge-leg P&L **−$1,184** (the #50
+     "~−$1.0k on hedge legs" estimate, now measured). ETH/BTC books: fillEdge POSITIVE
+     (+94/+67) but warehouse −355/−263 — **A″'s majors bled warehouse, not pick-off**.
+   - **#51 Sweet-16:** ranked leaks 1–2 are **warehouse MTM: BRENTOIL −1,128 / HYPE −1,126**;
+     then SILVER fill edge −742; hedge churn down to **−$373** (53 orders, 46 track/6 flip —
+     the single-ETH-leg netting from the book swap already delivered most of S2's predicted
+     netting win). Cross-validation: identity-implied fillEdge vs the independent live windowed
+     read — SILVER −742 vs −745 (0.4%), BRENTOIL −277 vs −270 (2.6%), HYPE −373 vs −332 (the
+     12% gap = the quote→fill WEDGE, stale-quote pick-off — S7's input, now measured).
+5. **Negative results / gaps (owned):** engine windowed spread/adverse are NOT persisted (state
+   reads 0 for fast books — finished runs get the identity, not the split); a RELAUNCH
+   overwrites surviving books' state accumulators (only removed books keep final state —
+   run the leak table BEFORE relaunching); markout-by-hour, queue tercile, top-of-hour
+   toxicity not logged yet; xyz funding still 0 by construction.
+**Verdict for the plan: warehouse drift is the desk's #1 measured leak class in BOTH runs
+(A″ majors −657, #51 −2,254 across books) — S2 re-scoped around the inventory time-stop +
+dead-band/beta polish; hedge churn demoted from "the" leak to a solved-but-watch line.**
+tsc clean; touched suites green (hedge 13, mm-book 16, UI 16+, nav cron).
+
+## 2026-06-11 — Entry #53 (MASTER PLAN S2: the inventory time-stop — built, swept, verdict MIXED ⇒ default OFF)
+**Session S2 (worktree branch feat/mm-s2-warehouse; live run untouched). S1's referee: warehouse
+MTM is the #1 leak class — S2 asked whether bounding HOLDING TIME pays.**
+
+1. **Built: `TimeStopQuoter`** (src/market-making/quote/) — a wrapper around any IQuoter that
+   shifts the whole pair toward the exit side once same-signed inventory ages past T (linear
+   ramp, width preserved = skew-to-flat, **proportional to |inv| so it cannot overshoot through
+   flat** — v1 without that swung BTC +$103k long → −$68k short, caught in replay). New
+   `QuoteContext.nowMs` seam set by all three runtimes (bar ts / L2 snapshot ts / tape ts) so
+   offline age == live age. 6 specs.
+2. **Sweep (queue-aware replay, live risk-averse GLFT config, docs/research/timestop-sweep.md):**
+   verdict **MIXED — regime-dependent, NOT wire-ready desk-wide**:
+   - BTC (the trend-warehouse window the stop exists for): net −2,127 → **−730** (T=30m/8bps,
+     maxDD 0.85→0.35) / −961 (30m/3bps) — the warehouse loss is genuinely cut.
+   - ETH: +295 with REALISED +291 (661→952) at T=10m/3bps — the cleanest win (not a mark).
+   - DOGE: +25 noise. **SOL: −1,524 at T=10m/3bps** (choppy one-way flow: the stop sheds into
+     weakness and re-warehouses) — the kill case.
+   - Caveats owned: tapes are 2026-06-04/05 main-dex (NO HIP-3 RWA tape — xyz:* out of sample;
+     capture one next run); HYPE tape too coarse to use (1 queue fill/6h); one window per coin.
+3. **Wired default OFF** behind `MM_TIME_STOP` (+`_AGE_MIN`/`_SHIFT_BPS`), both launch+rehydrate
+   paths, `TIME-STOP ▸` engage/release log lines (the greppable audit trail). Pre-registration
+   discipline: enable only behind the S8 shadow A/B or the S4 regime gate — the sweep says the
+   stop needs to know the regime before it earns the right to quote.
+4. **S1 gap closed: windowed spread/adverse now PERSIST** — fast books checkpoint
+   base+engine attribution (`attribBase` restored on rehydrate; new `windowedCarryUnits` state
+   field), so finished runs keep the fill-edge split and restarts no longer zero the snapshot
+   columns (the #50 A″ wrinkle). Spec proves serialize→restore→re-serialize round-trips.
+5. **Deferred, with numbers:** (a) dynamic hedge dead-band — #51 churn is $373/run est cost
+   (46 track/6 flip, single converged ETH leg); a dynamic band plausibly saves ~half, gray-zone
+   vs build cost — re-rank if the 13-book leak table shows churn regressing. (b) OLS/EWMA/Kalman
+   beta bake-off — betas were OOS-refit TODAY (FARTCOIN/kPEPE fits new) and the hedge-quality
+   KPI watches drift live; defer until basisShare shows inter-run drift actually hurting.
+tsc clean; market-making suite 357/357 green. Artifacts: docs/research/timestop-sweep.{md,json}.
+## 2026-06-11 — Entry #54 (the Elite-8 book swap — next run's set, picked on the #51 leak table)
+Operator call (Ronnie): highest-P&L 8 for the next run, no majors, lean into trade.xyz. Picked
+realised-first from the #51 leak table + a live universe scan (xyz dex by 24h volume, spreads
+smoked through the engine's own client):
+**BOOKS (8 × $500k = $4M):** xyz:CL (+$1,397 realised/3.7h, maxDD 0.25% — the desk's best book),
+xyz:GOLD (+161), xyz:NVDA (+155), xyz:TSLA (+165), FARTCOIN (+313, hedged β1.53), PURR (+117,
+maxDD 0.15%), kPEPE (+69, hedged β1.20), **xyz:SPCX** (SpaceX pre-IPO perp — operator discovery
+slot, data-backed: $66M/day, spread 1.9–4.3bps across two reads, 20×20 L2 via HyperliquidClient,
+exact-case xyz: path already proven by 318 CL fills; β=0, governor-capped, judged on its first
+leak table). **Cut:** SOL/ADA/DOGE/SUI (flat realised, warehouse bleed, "no big markets"),
+SP500/XYZ100 (near-dead our hours). **Universe scan:** spread×volume proxy ranks CL $451/d ≫
+SNDK $160 / MU $148 / SKHX $138 / SPCX $142 ≫ GOLD $12 / NVDA $27 / TSLA $4 — the measured
+books keep slots over the unmeasured shortlist (the BRENTOIL/SILVER lesson: priors ≠ P&L);
+SNDK/MU/SKHX recorded as next-rotation candidates for S6. Scripts updated (BOOKS, DROPPED now
+also removes the six cuts so MM_PERSIST can't rehydrate them, MM_FAST_SYMBOLS, beta map —
+hedge leg now serves only FARTCOIN/kPEPE). Time-of-day caveat owned: spreads sampled pre-US
+hours; equity-linked books breathe with US flow.
+**Ops for THIS relaunch (binding, S1 rule): run the leak table BEFORE launch-mm-10h.sh —**
+`npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts --since <run-start> --until <now> --log <run-log> --label run52`
+— relaunch overwrites surviving books' state accumulators.

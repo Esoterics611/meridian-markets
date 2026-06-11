@@ -37,13 +37,29 @@ const VENUE_FEES: Record<string, VenueFee> = {
 
 const DEFAULT_FEE: VenueFee = { makerBps: 0, takerBps: 5, note: 'unknown venue: 0bps maker (structural-only) / 5bps taker' };
 
-/** Fee schedule for a source id ('hyperliquid' | 'binance' | 'geckoterminal' | …); default = structural-only. */
-export function venueFeeFor(sourceId?: string): VenueFee {
+// HIP-3 (builder-deployed dex) books — HL symbols carrying a "<dex>:" prefix like "xyz:GOLD".
+// The −0.2bps main-dex maker rebate is NOT assumed there: deployers set their own fees (and
+// take 50%), and "growth mode" cuts all-in fees ~90%. Until measured per deployer, these
+// books quote at a conservative maker COST (no rebate) so paper P&L never pays itself a
+// rebate the venue might not — verify per ticker (docs/BOOK_SELECTION_ANALYSIS.md §4).
+const HIP3_FEE: VenueFee = {
+  makerBps: 0.15,
+  takerBps: 0.9,
+  note: 'HL HIP-3 growth-mode estimate: maker +0.15bps (NO rebate assumed) / taker 0.9bps — verify per deployer',
+};
+
+/**
+ * Fee schedule for a source id ('hyperliquid' | 'binance' | 'geckoterminal' | …); default =
+ * structural-only. Pass the book `symbol` where available: an HL symbol with a dex prefix
+ * ("xyz:GOLD") is a HIP-3 book and gets the no-rebate HIP-3 schedule.
+ */
+export function venueFeeFor(sourceId?: string, symbol?: string): VenueFee {
   const key = (sourceId ?? 'binance').trim().toLowerCase();
+  if (key === 'hyperliquid' && (symbol ?? '').includes(':')) return HIP3_FEE;
   return VENUE_FEES[key] ?? DEFAULT_FEE;
 }
 
 /** Just the maker bps for a source — the driving fee for a passive (post-only) book. */
-export function makerBpsFor(sourceId?: string): number {
-  return venueFeeFor(sourceId).makerBps;
+export function makerBpsFor(sourceId?: string, symbol?: string): number {
+  return venueFeeFor(sourceId, symbol).makerBps;
 }

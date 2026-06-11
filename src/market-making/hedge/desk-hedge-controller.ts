@@ -67,6 +67,11 @@ export class DeskHedgeController {
    *  correctly valued + converged across the price flicker. */
   private readonly lastMark = new Map<string, bigint>();
 
+  /** Throttle for resolveMid fetches per underlying (a hedge underlying with NO book — ETH once the
+   *  ETH book was dropped from the Sweet-16 set — must be re-marked from the venue, but rebalance
+   *  runs every fast cycle and must not hammer the REST endpoint). */
+  private readonly lastMidFetchMs = new Map<string, number>();
+
   constructor(
     private readonly venue: ITradingVenue,
     private readonly cfg: HedgeConfig,
@@ -75,8 +80,44 @@ export class DeskHedgeController {
     // so the paper taker fills at the same mid we hedge against (the live module wires this to
     // the PaperVenue's pricePoller). Omit ⇒ the venue prices itself (the unit tests).
     private readonly syncPrices?: (prices: Record<string, bigint>) => void,
+    // Optional venue mid lookup for hedge underlyings with NO quoted book. Book mids reach us via
+    // ctx.prices; an underlying that is only a hedge leg (ETH/BTC after the Sweet-16 swap) never
+    // appears there, and without this resolver its orders are silently skipped at the
+    // missing-mark guard below — the desk then carries its full net delta unhedged.
+    private readonly resolveMid?: (underlying: string) => Promise<bigint | null>,
+    private readonly midRefreshMs: number = 1_000,
   ) {
     this.quality = new HedgeQualityTracker(cfg.betaMap, undefined, cfg.qualityBucketMs);
+  }
+
+  /** Hedge underlyings the supplied books map onto (betaMap, self-hedge default, beta-0 skipped)
+   *  plus every leg we already hold — the set that must have a usable mark this tick. */
+  private neededUnderlyings(books: BookDelta[]): Set<string> {
+    const needed = new Set<string>(this.pos.keys());
+    for (const b of books) {
+      const m = this.cfg.betaMap[b.symbol] ?? { underlying: b.symbol, beta: 1 };
+      if (m.beta !== 0) needed.add(m.underlying);
+    }
+    return needed;
+  }
+
+  /** Refresh lastMark from the venue (throttled) for any needed underlying without a live book mid. */
+  private async refreshBooklessMarks(books: BookDelta[], prices: Record<string, bigint>): Promise<void> {
+    if (!this.resolveMid) return;
+    for (const u of this.neededUnderlyings(books)) {
+      const live = prices[u];
+      if (live && live > 0n) continue; // a book supplies this mark
+      const nowMs = this.clock().getTime();
+      const last = this.lastMidFetchMs.get(u) ?? 0;
+      if (nowMs - last < this.midRefreshMs && this.lastMark.has(u)) continue; // throttled; lastMark carries
+      this.lastMidFetchMs.set(u, nowMs);
+      try {
+        const mid = await this.resolveMid(u);
+        if (mid && mid > 0n) this.lastMark.set(u, mid);
+      } catch {
+        /* keep the previous lastMark; a failed fetch must never sink the hedge tick */
+      }
+    }
   }
 
   private posOf(u: string): PerpPosition {
@@ -139,6 +180,7 @@ export class DeskHedgeController {
     // Resolve marks ONCE (live price, else last-known) and use them for every step below — funding,
     // current hedge, fill price, and the returned snapshot — so a book's price flicker can't make the
     // hedge mis-value, churn, or blow up its P&L (Journal #45).
+    await this.refreshBooklessMarks(books, ctx.prices); // mark hedge-only underlyings (no book ⇒ no ctx price)
     const marks = this.resolveMarks(ctx.prices);
 
     // 0. The hedge-quality KPI samples the same books + marks the hedge itself trades off.

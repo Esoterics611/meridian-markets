@@ -10,11 +10,13 @@
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { MmBookSnapshot } from '../../market-making/live/mm-book';
 import { HedgeSnapshot } from '../../market-making/hedge/desk-hedge-controller';
+import { MarkoutPoint } from '../../market-making/microstructure/markout-tracker';
 import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
 import { deskControls, appendActivityTape, navSparkPanel, DRAWDOWN_BUDGET_PCT } from './components';
+import { MIN_SAMPLES } from './markout-desk-view';
 
 export interface StrategyOption {
   id: string;
@@ -44,6 +46,23 @@ function price(micros: string | null): string {
   return micros === null ? '—' : fmtPrice(BigInt(micros));
 }
 
+/**
+ * The one markout number worth having next to the P&L (TRADER_UI_SPEC §4): the 60s
+ * per-side markout, bps + fill count. "—" when the 60s horizon isn't configured or no
+ * fill has resolved it; dim under the noise floor — same honesty rules as /desk/markout.
+ */
+function mo60Cell(label: string, curve: MarkoutPoint[]): SafeHtml {
+  const p = curve.find((x) => x.ms === 60_000);
+  if (!p || p.bps === null) {
+    return html`<div class="attr"><span class="ak">${label}</span><span class="av mono dim" title="no resolved 60s markout">—</span></div>`;
+  }
+  const cls = p.count < MIN_SAMPLES ? 'dim' : p.bps > 0 ? 'pos' : p.bps < 0 ? 'neg' : 'flat';
+  return html`<div class="attr">
+    <span class="ak">${label}</span>
+    <span class="av mono ${cls}" title="${p.count} fills">${p.bps >= 0 ? '+' : '−'}${Math.abs(p.bps).toFixed(1)}bp·${p.count}f</span>
+  </div>`;
+}
+
 function bookCard(b: MmBookSnapshot): SafeHtml {
   const label = b.source ? `${b.symbol}·${b.source}` : b.symbol;
   const removeBody = JSON.stringify({ symbol: b.symbol });
@@ -61,7 +80,7 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
   return html`
     <div class="book-card">
       <div class="book-card-h">
-        <span class="mono book-sym">${label}</span>
+        <a class="mono book-sym book-sym--link" href="/desk/markout" title="markout deep-dive">${label}</a>
         <span class="dim">${b.family}</span>
         ${b.running ? html`<span class="badge badge--allow">RUNNING</span>` : html`<span class="badge badge--pause">STOPPED</span>`}
         ${verdictBadge(b.lastVerdict)}
@@ -86,12 +105,14 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         <div class="attr"><span class="ak">funding</span><span class="av mono ${signClass(b.fundingUnits)}">${money(b.fundingUnits)}</span></div>
         <div class="attr attr--net"><span class="ak">net P&amp;L</span><span class="av mono ${signClass(b.netPnlUnits)}">${money(b.netPnlUnits)}</span></div>
       </div>
-      <!-- Mark-out attribution — a per-fill diagnostic on quote quality (was the price
-           good vs. where the mid went next?). It does NOT sum to net P&L. -->
+      <!-- Edge attribution. spread + warehouse (+funding −fees) ≈ net (S1 identity);
+           adverse stays a per-fill markout-window diagnostic (a slice of warehouse). -->
       <div class="attr-grid attr-grid--diag">
         <div class="attr"><span class="ak">spread</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
         <div class="attr"><span class="ak">adverse</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
-        <div class="attr"><span class="ak dim">mark-out</span><span class="av dim">diagnostic · ≠ net</span></div>
+        <div class="attr"><span class="ak">warehouse</span><span class="av mono ${signClass(b.inventoryMtmUnits)}">${money(b.inventoryMtmUnits)}</span></div>
+        ${mo60Cell('mo60 b', b.markoutBySide.buy)}
+        ${mo60Cell('mo60 a', b.markoutBySide.sell)}
       </div>
 
       <div class="book-foot">
@@ -132,7 +153,7 @@ function hedgePanel(h: HedgeSnapshot, hedgePnlUnits: string): SafeHtml {
           <span class="stat-k">basis σ</span>
           <span class="stat-v mono"
             >${usd(hedgeUnits(q.deskBasisVolUsdPerHour))}/√h
-            <span class="stat-sub">${pct((100 * q.deskBasisVolUsdPerHour ** 2) / q.deskPnlVolUsdPerHour ** 2)} unhedgeable</span></span
+            <span class="stat-sub">${pct((100 * q.deskBasisVolUsdPerHour ** 2) / q.deskPnlVolUsdPerHour ** 2)} unhedgeable · ${Math.round(q.bucketMs / 1000)}s buckets</span></span
           >
         </div>`
       : html``;

@@ -4,6 +4,8 @@ import { LandingController } from './landing.controller';
 import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
+import { MarkoutDeskController } from './markout-desk.controller';
+import { ToxicityDeskController } from './toxicity-desk.controller';
 import { RiskController } from './risk.controller';
 import { ResearchPageController } from './research.controller';
 import { UiAssetController } from './ui-asset.controller';
@@ -16,6 +18,16 @@ import { UiAssetController } from './ui-asset.controller';
 // controllers here, importing whatever engine module exports their data source.
 @Module({
   imports: [MarketMakingModule],
-  controllers: [LandingController, ExecController, OpsController, MmDeskController, RiskController, ResearchPageController, UiAssetController],
+  controllers: [
+    LandingController,
+    ExecController,
+    OpsController,
+    MmDeskController,
+    MarkoutDeskController,
+    ToxicityDeskController,
+    RiskController,
+    ResearchPageController,
+    UiAssetController,
+  ],
 })
 export class UiModule {}

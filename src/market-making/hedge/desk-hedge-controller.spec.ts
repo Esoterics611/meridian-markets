@@ -138,3 +138,142 @@ describe('DeskHedgeController (executes the hedge on a PaperVenue)', () => {
     expect(snap.hedgePnlUsd).toBeCloseTo(19_960, 0); // +$20k mark-to-market − $40 fee
   });
 });
+
+describe('DeskHedgeController — hedge-only underlyings (no quoted book) via resolveMid', () => {
+  const ETH_4K = 4_000_000_000n;
+  const solOnEth = (units: bigint): BookDelta[] => [{ symbol: 'SOL', inventoryUnits: units, midMicros: 200_000_000n }];
+  const ethCfg = cfg({ betaMap: { SOL: { underlying: 'ETH', beta: 1 } } });
+
+  it('without resolveMid an ETH order is silently skipped (the Sweet-16 unhedged-desk bug)', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const ctrl = new DeskHedgeController(venue, ethCfg);
+    // +$10k SOL delta mapped onto ETH, but no ETH book ⇒ no ETH price ⇒ order skipped.
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(venue.bookSnapshot()).toHaveLength(0);
+    expect(snap.perUnderlying[0]).toMatchObject({ underlying: 'ETH', hedgeNotionalUsd: 0 });
+    expect(Math.abs(snap.residualUsd)).toBeCloseTo(10_000, 0); // carried UNHEDGED
+  });
+
+  it('with resolveMid the ETH leg marks off the venue mid and the hedge fills', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const calls: string[] = [];
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(),
+      undefined,
+      async (u) => {
+        calls.push(u);
+        return ETH_4K;
+      },
+    );
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toEqual(['ETH']);
+    expect(venue.bookSnapshot()).toHaveLength(1);
+    expect(venue.bookSnapshot()[0].side).toBe('SELL'); // short ETH against the long SOL delta
+    expect(snap.perUnderlying[0].hedgeNotionalUsd).toBeCloseTo(-10_000, 0);
+    expect(Math.abs(snap.residualUsd)).toBeLessThanOrEqual(ethCfg.bandUsd);
+  });
+
+  it('throttles the resolver: a second rebalance inside midRefreshMs reuses the cached mark', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    let calls = 0;
+    let nowMs = 1_000_000;
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(nowMs),
+      undefined,
+      async () => {
+        calls += 1;
+        return ETH_4K;
+      },
+      1_000,
+    );
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    nowMs += 200; // inside the 1s refresh window
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toBe(1);
+    nowMs += 2_000; // window elapsed ⇒ refresh
+    await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(calls).toBe(2);
+  });
+
+  it('a failing resolver never sinks the tick (order skipped, no throw)', async () => {
+    const venue = venueAt({ ETH: ETH_4K });
+    const ctrl = new DeskHedgeController(
+      venue,
+      ethCfg,
+      () => new Date(),
+      undefined,
+      async () => {
+        throw new Error('venue down');
+      },
+    );
+    const snap = await ctrl.rebalance(solOnEth(50_000_000n), { prices: { SOL: 200_000_000n } });
+    expect(snap.perUnderlying[0].hedgeNotionalUsd).toBe(0);
+  });
+
+  // The Run A″ regression (Journal #50 / S1 task 1): hedge-quality betaLive/r² printed EXACTLY 0 on
+  // every ETH-underlying book after a restore. Mechanism: resolveMarks falls back to lastMark, so an
+  // underlying that never gets a live price again is FROZEN — rU = 0 in every quality bucket ⇒
+  // cov = 0 ⇒ betaLive = 0, r² = 0. These two tests pin the mechanism and the fix (resolveMid).
+  describe('hedge-quality across a simulated state restore (the A″ r²=0 regression)', () => {
+    const solBook = (mid: bigint): BookDelta[] => [{ symbol: 'SOL', inventoryUnits: 50_000_000n, midMicros: mid }];
+    const qCfg = cfg({ betaMap: { SOL: { underlying: 'ETH', beta: 1 } }, qualityBucketMs: 1_000 });
+
+    it('FROZEN mark (no resolver, ETH seen once then never again) zeroes betaLive/r² — the bug signature', async () => {
+      const venue = venueAt({ ETH: 4_000_000_000n });
+      let nowMs = 1_000_000;
+      const ctrl = new DeskHedgeController(venue, qCfg, () => new Date(nowMs));
+      // Restore-shaped history: ETH priced once (the persisted lastMark), then its book is gone.
+      await ctrl.rebalance(solBook(200_000_000n), { prices: { SOL: 200_000_000n, ETH: 4_000_000_000n } });
+      let snap = await ctrl.rebalance(solBook(200_000_000n), { prices: { SOL: 200_000_000n } });
+      // SOL moves bucket after bucket; the frozen ETH mark never does.
+      for (const solMid of [202_000_000n, 199_000_000n, 203_000_000n, 198_000_000n]) {
+        nowMs += 1_500; // crosses the 1s quality bucket
+        snap = await ctrl.rebalance(solBook(solMid), { prices: { SOL: solMid } });
+      }
+      const q = snap.quality!.perBook.find((b) => b.symbol === 'SOL')!;
+      expect(q.samples).toBeGreaterThanOrEqual(3);
+      // A frozen underlying gives rU ≡ 0 ⇒ var(U) = 0 ⇒ the KPI is UNMEASURABLE: betaLive/r² are
+      // null (the A″ console rendered that null as "0"). The book's own vol still registers.
+      expect(q.betaLive).toBeNull();
+      expect(q.r2).toBeNull();
+      expect(q.pnlVolUsdPerHour).toBeGreaterThan(0);
+    });
+
+    it('with resolveMid the bookless underlying keeps marking and betaLive/r² are measurable (the fix)', async () => {
+      let ethMid = 4_000_000_000n;
+      const venue = venueAt({ ETH: ethMid });
+      let nowMs = 1_000_000;
+      const ctrl = new DeskHedgeController(
+        venue,
+        qCfg,
+        () => new Date(nowMs),
+        undefined,
+        async () => ethMid, // the HL L2-top resolver the live module wires (382a04e)
+        500,
+      );
+      await ctrl.rebalance(solBook(200_000_000n), { prices: { SOL: 200_000_000n } });
+      // SOL tracks ETH 1:1 in returns across buckets — a perfectly hedgeable book.
+      const moves: Array<[bigint, bigint]> = [
+        [202_000_000n, 4_040_000_000n],
+        [199_000_000n, 3_980_000_000n],
+        [203_000_000n, 4_060_000_000n],
+        [198_000_000n, 3_960_000_000n],
+      ];
+      let snap = await ctrl.rebalance(solBook(200_000_000n), { prices: { SOL: 200_000_000n } });
+      for (const [solMid, newEth] of moves) {
+        ethMid = newEth;
+        nowMs += 1_500;
+        snap = await ctrl.rebalance(solBook(solMid), { prices: { SOL: solMid } });
+      }
+      const q = snap.quality!.perBook.find((b) => b.symbol === 'SOL')!;
+      expect(q.samples).toBeGreaterThanOrEqual(3);
+      expect(q.betaLive).not.toBeNull();
+      expect(q.betaLive!).toBeGreaterThan(0.5); // co-moving, not frozen
+      expect(q.r2!).toBeGreaterThan(0.5);
+    });
+  });
+});

@@ -31,7 +31,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     netPnlUnits: '699500000', // +$699.50
     spreadCapturedUnits: '900000000', // +$900.00
     adverseSelectionUnits: '-200500000', // −$200.50
-    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [], markoutBySide: { buy: [], sell: [] },
+    inventoryCarryUnits: '0', inventoryMtmUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, vpinWindowBuckets: 50, markout: [], markoutBySide: { buy: [], sell: [] },
     fills: 42,
     bidFills: 21,
     askFills: 21,
@@ -91,10 +91,10 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('−$2.00'); // fees (contribution sign: a $2 cost reduces net)
     expect(h).toContain('+$1.50'); // funding
     expect(h).toContain('+$699.50'); // net P&L = 400 − 2 + 300 + 1.5
-    // mark-out attribution — a diagnostic, explicitly NOT part of net
+    // edge attribution — spread + warehouse (the S1 continuous-MTM term); adverse stays diagnostic
     expect(h).toContain('+$900.00'); // spread captured
     expect(h).toContain('−$200.50'); // adverse selection
-    expect(h).toContain('diagnostic · ≠ net');
+    expect(h).toContain('warehouse');
     expect(h).toContain('badge--allow'); // verdict
     expect(h).toContain('fills 42 (b21/a21)');
   });
@@ -158,7 +158,38 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('basis σ'); // the vol the delta hedge cannot touch, next to "neutralised"
     expect(h).toContain('$600.00'); // desk basis vol per √hour
     expect(h).toContain('36.00% unhedgeable'); // (600/1000)² of desk variance
+    expect(h).toContain('· 60s buckets'); // the σ names its horizon (TRADER_UI_SPEC §4)
     expect(h).toContain('SOL→BTC β1.10→1.03 R²0.72 basis 29%'); // the WP6 ranking row
+  });
+
+  it('links the book-card header to /desk/markout (deep-dive is one click — TRADER_UI_SPEC §4)', () => {
+    const h = renderMmDeskLive(snap()).value;
+    expect(h).toContain('class="mono book-sym book-sym--link" href="/desk/markout"');
+  });
+
+  it('renders the 60s per-side markout cells next to the P&L, with the markout-page honesty rules', () => {
+    // default fixture: no 60s horizon resolved → both cells "—"
+    const blank = renderMmDeskLive(snap()).value;
+    expect(blank).toContain('mo60 b');
+    expect(blank).toContain('mo60 a');
+    expect(blank).toMatch(/mo60 b<\/span><span class="av mono dim"[^>]*>—/);
+    // with resolved 60s curves: signed bps + fill count, coloured by sign at ≥30 fills
+    const withMo = renderMmDeskLive(
+      snap({
+        books: [
+          book({
+            markoutBySide: {
+              buy: [{ ms: 60_000, bps: -3.42, count: 40 }],
+              sell: [{ ms: 60_000, bps: 1.05, count: 12 }],
+            },
+          }),
+        ],
+      }),
+    ).value;
+    expect(withMo).toContain('−3.4bp·40f'); // buy side, sampled → red (picked off)
+    expect(withMo).toMatch(/mo60 b[\s\S]{0,120}av mono neg/);
+    expect(withMo).toContain('+1.1bp·12f'); // sell side, 12 fills < 30 → dim (noise)
+    expect(withMo).toMatch(/mo60 a[\s\S]{0,120}av mono dim/);
   });
 
   it('renders the F3 toxicity diagnostics on a book card when the scaler is wired (DR-3)', () => {

@@ -3,14 +3,17 @@
 // levers. Everything traces to MmPortfolioTrader.snapshot() + the MM DeskEventLog.
 //
 // HONEST SCOPING (recorded, UI_ARCHITECTURE.md §6/§8):
-//   • VPIN is NOT surfaced live — the engine's gate currently passes vpin=0
-//     (mm-book.ts), so we do NOT show a VPIN number. The real, live toxicity signal
-//     is one-bar adverse selection (adverseSelectionUnits), which we DO show.
+//   • Adverse selection (realised toxicity cost) is shown here; the LIVE toxicity
+//     gauges (VPIN, warmed-state-aware, + imbalances) live on /desk/toxicity.
 //   • Per-book pause/deny + limit-lowering have no control endpoint yet. The page
 //     drives the real levers that exist: stop / flatten (per desk) + remove (per
 //     book), and says so — no button that claims more than it does.
+//   • The exposure block (TRADER_UI_SPEC §4) is the WP3 portfolio layer's reserved
+//     home: when WP3 lands (inventory vector q, live Σ, net factor delta) it extends
+//     this block — add panels, don't move it.
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { MmBookSnapshot } from '../../market-making/live/mm-book';
+import { HedgeSnapshot } from '../../market-making/hedge/desk-hedge-controller';
 import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
@@ -43,6 +46,20 @@ function exposure(books: MmBookSnapshot[]): { net: string; gross: string } {
   return { net: net.toString(), gross: gross.toString() };
 }
 
+/** Cap utilisation: |exposure| / inventory-notional cap. Amber from 80% (nearing the
+ *  rail — the gate is about to intervene); dim "no cap" when the rail isn't set. */
+function capUseCell(expUnits: string, capUnits: string): SafeHtml {
+  const cap = BigInt(capUnits);
+  if (cap <= 0n) return html`<td class="num dim" title="MM_MAX_INVENTORY_NOTIONAL_FRAC not set">no cap</td>`;
+  const use = (Number(BigInt(absUnits(expUnits))) / Number(cap)) * 100;
+  const cls = use >= 80 ? 'warn' : 'dim';
+  const width = Math.min(100, use);
+  return html`<td class="num ${cls}" title="|exposure| / cap">
+    <span class="mono">${pct(use, 0)}</span>
+    <span class="cap-bar"><span class="cap-bar-fill ${cls}" style="width:${width.toFixed(0)}%"></span></span>
+  </td>`;
+}
+
 function riskRow(b: MmBookSnapshot): SafeHtml {
   const label = b.source ? `${b.symbol}·${b.source}` : b.symbol;
   const exp = notionalUnits(b.inventoryUnits, b.midMicros);
@@ -57,6 +74,7 @@ function riskRow(b: MmBookSnapshot): SafeHtml {
            adverse is signed markout (− = picked off) → red when toxic. blocked = the gate
            intervening → amber caution, not a red loss. -->
       <td class="num mono">${money(exp)}</td>
+      ${capUseCell(exp, b.inventoryNotionalCapUnits)}
       <td class="num ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</td>
       <td class="num ${b.blockedQuotes > 0 ? 'warn' : 'dim'}">${b.blockedQuotes}</td>
       <td class="num">
@@ -73,6 +91,57 @@ function riskRow(b: MmBookSnapshot): SafeHtml {
   `;
 }
 
+/** USD float → the serialised-units string the shared money formatters expect. */
+function hedgeUnits(usdFloat: number): string {
+  return Math.round(usdFloat * 1_000_000).toString();
+}
+
+/**
+ * The exposure block (TRADER_UI_SPEC §4): what the hedge covers vs what it can't.
+ * Hedge legs per underlying (net Δ → residual) + the WP1 desk σ split (factor vs
+ * basis). Renders an honest "hedge OFF" line when the overlay isn't running —
+ * net exposure is then unhedged and the table above is the whole story.
+ */
+function exposurePanel(h: HedgeSnapshot | undefined): SafeHtml {
+  if (!h?.enabled) {
+    return html`
+      <section class="panel exposure">
+        <div class="panel-h">exposure &amp; hedge</div>
+        <p class="dim hint">delta hedge OFF — the desk's net exposure is unhedged (set MM_DELTA_HEDGE=true).</p>
+      </section>
+    `;
+  }
+  const legs = h.perUnderlying.filter((p) => Math.abs(p.netDeltaUsd) > 1 || Math.abs(p.hedgeNotionalUsd) > 1);
+  const legCells = legs.length
+    ? raw(
+        legs
+          .map(
+            (p) =>
+              html`<span class="mono">${p.underlying} Δ${money(hedgeUnits(p.netDeltaUsd))} → hedged ${usd(hedgeUnits(Math.abs(p.hedgeNotionalUsd)))} → resid ${money(hedgeUnits(p.residualUsd))}</span>`.value,
+          )
+          .join(' &nbsp; '),
+      )
+    : html`<span class="dim">flat — no net delta to hedge</span>`;
+  const q = h.quality;
+  const sigma =
+    q && q.samples > 0 && q.deskPnlVolUsdPerHour > 0
+      ? html`<p class="dim hint">
+          desk P&amp;L σ <span class="mono">${usd(hedgeUnits(q.deskPnlVolUsdPerHour))}/√h</span> = factor (hedgeable)
+          <span class="mono">${usd(hedgeUnits(q.deskFactorVolUsdPerHour))}</span> vs basis (unhedgeable)
+          <span class="mono">${usd(hedgeUnits(q.deskBasisVolUsdPerHour))}</span> ·
+          ${pct((100 * q.deskBasisVolUsdPerHour ** 2) / q.deskPnlVolUsdPerHour ** 2)} of variance the delta hedge cannot touch
+          <span class="dim">(${Math.round(q.bucketMs / 1000)}s buckets, n=${q.samples})</span>
+        </p>`
+      : html`<p class="dim hint">hedge-quality σ split priming — no samples yet</p>`;
+  return html`
+    <section class="panel exposure">
+      <div class="panel-h">exposure &amp; hedge <span class="dim">— what the hedge covers vs what it can't (WP3's home)</span></div>
+      <p class="dim hint">${legCells}</p>
+      ${sigma}
+    </section>
+  `;
+}
+
 /** The live region: drawdown/exposure headline + per-book risk table + verdict feed. */
 export function renderRiskLive(snap: MmPortfolioSnapshot, verdicts: DeskEvent[]): SafeHtml {
   const worstDd = worstDrawdownPct(snap.books);
@@ -83,7 +152,7 @@ export function renderRiskLive(snap: MmPortfolioSnapshot, verdicts: DeskEvent[])
 
   const rows = snap.books.length
     ? raw(snap.books.map((b) => riskRow(b).value).join(''))
-    : html`<tr><td colspan="7" class="dim empty">no books — nothing at risk</td></tr>`;
+    : html`<tr><td colspan="8" class="dim empty">no books — nothing at risk</td></tr>`;
 
   return html`
     <section class="stat-grid">
@@ -105,10 +174,12 @@ export function renderRiskLive(snap: MmPortfolioSnapshot, verdicts: DeskEvent[])
       </div>
     </section>
 
+    ${exposurePanel(snap.hedge)}
+
     <table class="book-table">
       <thead>
         <tr>
-          <th>book</th><th>verdict</th><th class="num">max dd</th><th class="num">exposure</th>
+          <th>book</th><th>verdict</th><th class="num">max dd</th><th class="num">exposure</th><th class="num">cap use</th>
           <th class="num">adverse (toxicity)</th><th class="num">blocked</th><th class="num">action</th>
         </tr>
       </thead>
@@ -116,8 +187,8 @@ export function renderRiskLive(snap: MmPortfolioSnapshot, verdicts: DeskEvent[])
     </table>
 
     <p class="asof dim">
-      drawdown vs the ${pct(DRAWDOWN_BUDGET_PCT)} budget · <b>adverse selection</b> is the live toxicity signal
-      (VPIN is computed by the engine's estimator but not yet wired into the live tick — shown as adverse here, not a fake number).
+      drawdown vs the ${pct(DRAWDOWN_BUDGET_PCT)} budget · <b>adverse selection</b> is the realised toxicity cost;
+      the live gauges (VPIN, warmed-state-aware, + imbalances) are on <a class="metrics-link" href="/desk/toxicity">/desk/toxicity</a>.
     </p>
 
     ${activityTape(verdicts, 'risk-verdict transitions', 'no verdict changes yet — all books quoting (Allow)')}

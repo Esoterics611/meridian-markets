@@ -157,6 +157,10 @@ export interface L2LiveFillEngineMetrics {
   markout: MarkoutPoint[];
   /** The same curve split by fill side (WP2) — per-side asymmetry = one-sided informed flow. */
   markoutBySide: MarkoutSideCurves;
+  /** Latest signed top-N book imbalance ∈ [−1,1] (the F1b signal; 0 before the first quote step). */
+  bookImbalance: number;
+  /** Latest signed aggressor-flow imbalance ∈ [−1,1] over a tick that traded (0 before any flow). */
+  tradeFlowImbalance: number;
   /** F3 toxicity spread-scaler diagnostics — present ONLY when the scaler is wired (the live
    *  fast path); undefined ⇒ the adverse-selection defence is off. Lets a run CONFIRM F3 fired
    *  (Journal #44 DR-3: don't credit a defence we can't measure). */
@@ -204,6 +208,8 @@ export class L2LiveFillEngine {
   private fundingRatePerHour: number;
   private shadowObservations = 0;
   private lastShadowMs = 0;
+  private lastBookImbalance = 0;
+  private lastTradeFlowImbalance = 0;
   // F3 toxicity-scaler diagnostics (Journal #44 DR-3: prove the adverse-selection defence fires).
   private widenSteps = 0;
   private tightenSteps = 0;
@@ -284,6 +290,14 @@ export class L2LiveFillEngine {
     // (book pressure leads the next mid move). Feeds the live bias ctx AND the shadow.
     const imbalanceDepth = this.cfg.imbalanceDepth ?? this.cfg.microDepth ?? 5;
     const bookImbalance = bookImbalanceFromL2(snap, imbalanceDepth) ?? 0;
+    // Surface both flow gauges on metrics() for the toxicity console. The trade-flow read
+    // keeps its last TRADED tick (a quiet tick is "no new information", not "balanced").
+    this.lastBookImbalance = bookImbalance;
+    {
+      const fbN = Number(flow.aggressiveBuyUnits);
+      const faN = Number(flow.aggressiveSellUnits);
+      if (fbN + faN > 0) this.lastTradeFlowImbalance = (fbN - faN) / (fbN + faN);
+    }
     // Directional bias (the axe) on the fast path — OOS-gated (effectiveBias zeroes an
     // unvalidated reading). The funding input is the live, refreshed rate.
     const bias = this.cfg.biasSource
@@ -332,6 +346,7 @@ export class L2LiveFillEngine {
       referenceMicros,
       bias,
       spreadScale,
+      nowMs,
       hedgeCostBps: this.cfg.hedgeCostBps,
       volatility: this.vol.valueOr(this.cfg.volFloor),
       riskAversion: this.cfg.gamma,
@@ -445,6 +460,8 @@ export class L2LiveFillEngine {
       attribution: sumComponents(this.components),
       markout: this.markout.curve(),
       markoutBySide: this.markout.sideCurves(),
+      bookImbalance: this.lastBookImbalance,
+      tradeFlowImbalance: this.lastTradeFlowImbalance,
       toxicity: this.cfg.toxicityScaler
         ? {
             widenSteps: this.widenSteps,

@@ -78,4 +78,9 @@ export class VpinEstimator {
   bucketsSeen(): number {
     return this.buckets;
   }
+
+  /** The EMA window (buckets) — the reading is meaningful once bucketsSeen() clears this. */
+  windowBuckets(): number {
+    return this.cfg.emaWindowBuckets;
+  }
 }

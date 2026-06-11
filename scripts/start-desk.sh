@@ -69,14 +69,38 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 #   4. GOOD-EXPOSURE LEAN    MM_FLOW_BIAS_LIVE — the directional axe, OOS-GATED: an unvalidated read is
 #                            zeroed, so neutral mm-glft books stay neutral until the signal clears the
 #                            markout gate (the real lean is Run B; this just leaves the seam on).
-# MM_HEDGE_BETA_MAP defaults to the OOS alt→major map measured 2026-06-09 (scripts/hedge-beta-fit.ts,
-# 30d×1h HL, R² 0.5–0.8) so the basket is hedged with ~2 major-perp legs (ETH for most alts, BTC for
-# BNB) — the #41 "8 books = 1 β bet". RE-FIT between runs (β drifts with regime — RUN_TRAINING_LOOP.md).
+# MM_HEDGE_BETA_MAP: crypto books keep the OOS alt→major map (scripts/hedge-beta-fit.ts, 30d×1h HL —
+# RE-FIT between runs, β drifts; this map fit 2026-06-11). FARTCOIN/kPEPE now FITTED (R² .65/.77 —
+# the #51 run's live KPI agreed); PURR stays 0 (R² .13 = no factor, governor-capped). ADA's BTC/ETH
+# fit tied at R² .59 → kept on the single ETH leg (one-leg netting beat the A″ BTC-leg churn).
+# HIP-3 RWA books (xyz:*) are beta 0 BY DESIGN —
+# gold/equities/oil have no crypto factor; the inventory governor is their risk rail, and venue-fees
+# quotes them with NO maker rebate (HIP3_FEE) so paper P&L stays honest. Sweet-16 set:
+# docs/BOOK_SELECTION_ANALYSIS.md + smoke first: scripts/smoke-sweet16.ts.
+#
+# RISK-AVERSE PROFILE (Ronnie, 2026-06-11, Journal #51 — binding doctrine: prefer FEWER fills over
+# LOSING fills; broaden the spread when needed; warehouse less). Each knob does what the engine
+# math actually says (avellaneda-stoikov.ts asHalfSpreadMicros / asReservationMicros):
+#   MM_F3_MIN_SCALE=1.0   F3 becomes WIDEN-ONLY — never quotes tighter than the GLFT baseline
+#                         (was 0.5 = tighten into calm flow to farm the rebate). The direct
+#                         "fewer, better fills" lever.
+#   MM_GAMMA=0.005        2× risk aversion. Honest note: this ~doubles the inventory-risk term and
+#                         the reservation skew (mean-revert to flat harder = shed inventory), but
+#                         barely widens the BASE spread — the arrival term ≈2/κ is γ-insensitive.
+#                         The base-width knob is κ: leave it to the next mm-l2-tune γ/κ sweep, a
+#                         blind global κ cut un-quotes the tight books (xyz:CL trades at 0.11bps).
+#   MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15  max inventory $75k/book (was $125k) — caps warehouse-drift
+#                         exposure, the #51 run's biggest surviving leak (ADA −707 unreal).
+#   MM_INVENTORY_SKEW_MULT=6  (was 4) reservation mean-reverts toward flat harder.
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
+MM_GAMMA="${MM_GAMMA:-0.005}" \
+MM_F3_MIN_SCALE="${MM_F3_MIN_SCALE:-1.0}" \
+MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.15}" \
+MM_INVENTORY_SKEW_MULT="${MM_INVENTORY_SKEW_MULT:-6}" \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \
-MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-BTC,ETH,SOL,DOGE,BNB,XRP,ADA,SUI}" \
+MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:CL,xyz:GOLD,xyz:NVDA,xyz:TSLA,xyz:SPCX,FARTCOIN,kPEPE,PURR}" \
 MM_MICROPRICE_DEPTH="${MM_MICROPRICE_DEPTH:-5}" \
 MM_F3_TOXICITY="${MM_F3_TOXICITY:-true}" \
 MM_DELTA_HEDGE="${MM_DELTA_HEDGE:-true}" \
@@ -84,7 +108,7 @@ MM_HEDGE_BAND_USD="${MM_HEDGE_BAND_USD:-2000}" \
 MM_HEDGE_TAKER_BPS="${MM_HEDGE_TAKER_BPS:-2.5}" \
 MM_HEDGE_HALF_SPREAD_BPS="${MM_HEDGE_HALF_SPREAD_BPS:-1}" \
 MM_HEDGE_COST_SPREAD_MULT="${MM_HEDGE_COST_SPREAD_MULT:-0.5}" \
-MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-SOL:ETH:1.01,DOGE:ETH:0.97,BNB:BTC:0.95,XRP:ETH:0.86,ADA:ETH:1.03,SUI:ETH:1.30}" \
+MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-FARTCOIN:ETH:1.53,kPEPE:ETH:1.20,PURR:ETH:0,xyz:CL:CL:0,xyz:GOLD:GOLD:0,xyz:NVDA:NVDA:0,xyz:TSLA:TSLA:0,xyz:SPCX:SPCX:0}" \
 MM_FLOW_BIAS_LIVE="${MM_FLOW_BIAS_LIVE:-true}" \
 MM_FLOW_BIAS_HORIZON_MS="${MM_FLOW_BIAS_HORIZON_MS:-60000}" \
 MM_FLOW_BIAS_MIN_IC="${MM_FLOW_BIAS_MIN_IC:-0.05}" \
@@ -92,5 +116,6 @@ MM_DIR_SPREAD_SKEW="${MM_DIR_SPREAD_SKEW:-0.5}" \
 MM_DIR_SINGLE_SIDE_BIAS="${MM_DIR_SINGLE_SIDE_BIAS:-0.6}" \
 MM_FLOW_SHADOW="${MM_FLOW_SHADOW:-true}" \
 MM_FLOW_SHADOW_MIN_MS="${MM_FLOW_SHADOW_MIN_MS:-1000}" \
+MM_MARKOUT_HORIZONS_MS="${MM_MARKOUT_HORIZONS_MS:-1000,5000,30000,60000,300000}" \
 TELEMETRY_ENABLED=true \
 npm run start:dev 2>&1 | tee "$LOG"

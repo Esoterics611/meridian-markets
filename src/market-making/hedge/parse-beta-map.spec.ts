@@ -15,13 +15,29 @@ describe('parseHedgeBetaMap', () => {
 
   it('skips malformed entries and warns, keeping the good ones', () => {
     const warns: string[] = [];
-    const map = parseHedgeBetaMap('SOL:BTC:1.4,BAD,ETH:BTC:notnum,XRP:BTC:0,DOGE:BTC:1.6', (m) => warns.push(m));
+    const map = parseHedgeBetaMap('SOL:BTC:1.4,BAD,ETH:BTC:notnum,XRP:BTC:-1,DOGE:BTC:1.6', (m) => warns.push(m));
     expect(map).toEqual({
       SOL: { underlying: 'BTC', beta: 1.4 },
       DOGE: { underlying: 'BTC', beta: 1.6 },
     });
-    // BAD (no triple), ETH (non-numeric beta), XRP (beta 0 not > 0) all skipped.
+    // BAD (no triple), ETH (non-numeric beta), XRP (negative beta) all skipped.
     expect(warns).toHaveLength(3);
+  });
+
+  it('beta 0 is the explicit do-not-hedge marker, not malformed', () => {
+    const warns: string[] = [];
+    expect(parseHedgeBetaMap('XRP:BTC:0', (m) => warns.push(m))).toEqual({
+      XRP: { underlying: 'BTC', beta: 0 },
+    });
+    expect(warns).toHaveLength(0);
+  });
+
+  it('parses HIP-3 symbols (dex prefix contains the separator) right-anchored, exact-case', () => {
+    expect(parseHedgeBetaMap('xyz:GOLD:GOLD:0, XYZ:silver:SILVER:0, SOL:btc:1.4')).toEqual({
+      'xyz:GOLD': { underlying: 'GOLD', beta: 0 },
+      'xyz:SILVER': { underlying: 'SILVER', beta: 0 },
+      SOL: { underlying: 'BTC', beta: 1.4 },
+    });
   });
 
   it('describeBetaMap renders self-hedge vs an explicit map', () => {

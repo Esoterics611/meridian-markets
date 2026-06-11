@@ -21,3 +21,4 @@ docs/research/l2-tapes/
 
 # Per-run HL discovery scan outputs (reproducible; one reference copy stays committed)
 docs/research/hl-universe/discovery-*.json
+node_modules

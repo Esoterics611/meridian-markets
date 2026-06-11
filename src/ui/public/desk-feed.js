@@ -7,15 +7,28 @@
 //
 // Reusable as-is across /ops, /risk, /desk/* etc: point each page's <desk-feed> at
 // its own /stream endpoint and its own server-rendered live region.
+//
+// CONNECTION BUDGET (the many-tabs trap): browsers cap HTTP/1.1 connections at ~6
+// per host, and every role page holds one EventSource. With 7+ live pages, a desk
+// full of open tabs exhausts the pool and fresh page loads HANG while the backend
+// is perfectly healthy. So a HIDDEN tab releases its stream (visibilitychange) and
+// reconnects the moment it's foregrounded — background tabs cost zero connections.
 
 class DeskFeed extends HTMLElement {
   connectedCallback() {
-    const src = this.getAttribute('src');
+    this._src = this.getAttribute('src');
     const targetId = this.getAttribute('target');
-    if (!src || !targetId) return;
+    if (!this._src || !targetId) return;
     this._target = () => document.getElementById(targetId);
 
-    this._es = new EventSource(src);
+    this._onVis = () => (document.hidden ? this.pause() : this.resume());
+    document.addEventListener('visibilitychange', this._onVis);
+    if (!document.hidden) this.resume();
+  }
+
+  resume() {
+    if (this._es) return;
+    this._es = new EventSource(this._src);
     this._es.onmessage = (ev) => {
       let payload;
       try {
@@ -34,8 +47,18 @@ class DeskFeed extends HTMLElement {
     this._es.onerror = () => this.setAttribute('data-stale', '');
   }
 
+  /** Close the stream (hidden tab / removed element) and show the view as stale. */
+  pause() {
+    if (this._es) {
+      this._es.close();
+      this._es = null;
+    }
+    this.setAttribute('data-stale', '');
+  }
+
   disconnectedCallback() {
-    if (this._es) this._es.close();
+    this.pause();
+    if (this._onVis) document.removeEventListener('visibilitychange', this._onVis);
   }
 }
 

@@ -72,6 +72,13 @@ export interface QuoteContext {
    * quoter reads it; every other quoter ignores it (b=0 ⇒ today's neutral book).
    */
   readonly bias?: number;
+  /**
+   * Optional wall/tape time of this tick in epoch ms. Set by every runtime (bar tick: bar ts;
+   * fast L2 engine: snapshot ts; replay harness: tape-step ts) so a TIME-AWARE quoter (the S2
+   * inventory time-stop) measures holding age identically offline and live. Undefined ⇒ any
+   * time-based behaviour stays dormant (nothing regresses).
+   */
+  readonly nowMs?: number;
   readonly schemaVersion: 1;
 }
 

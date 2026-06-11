@@ -1,4 +1,4 @@
-import { HyperliquidTradeStream, parseHyperliquidTrades } from './hyperliquid-trades';
+import { HyperliquidTradeStream, hlCoin, parseHyperliquidTrades } from './hyperliquid-trades';
 import { MinimalWs, RefWsEvent } from './reference-source.interface';
 
 // As HL actually returns trades over the WS: { channel:'trades', data:[{coin,side,px,sz,time}, ...] }
@@ -98,5 +98,27 @@ describe('HyperliquidTradeStream', () => {
     stream.close();
     stream.close();
     expect(f.isClosed()).toBe(true);
+  });
+
+  it('hlCoin: upper-cases main-dex coins, exact-cases HIP-3 dex-prefixed coins', () => {
+    expect(hlCoin('btc')).toBe('BTC');
+    expect(hlCoin(' eth ')).toBe('ETH');
+    expect(hlCoin('xyz:GOLD')).toBe('xyz:GOLD');
+    expect(hlCoin('XYZ:gold')).toBe('xyz:GOLD');
+    expect(hlCoin(' xyz: gold ')).toBe('xyz:GOLD');
+  });
+
+  it('hlCoin: preserves the literal lower-case k of HL k-coins, leaves KAVA-style names alone', () => {
+    expect(hlCoin('kPEPE')).toBe('kPEPE');
+    expect(hlCoin('kpepe')).toBe('kPEPE');
+    expect(hlCoin('KAVA')).toBe('KAVA');
+  });
+
+  it('subscribes + accumulates HIP-3 dex-prefixed coins under the exact-case key', () => {
+    const { f, stream } = makeStream(['XYZ:gold']); // sloppy input case
+    f.open();
+    expect(f.sent).toContain(JSON.stringify({ method: 'subscribe', subscription: { type: 'trades', coin: 'xyz:GOLD' } }));
+    f.message({ channel: 'trades', data: [{ coin: 'xyz:GOLD', side: 'B', px: '4088.7', sz: '2', time: 1 }] });
+    expect(stream.drain('xyz:GOLD').aggressiveBuyUnits).toBe(2000000n);
   });
 });

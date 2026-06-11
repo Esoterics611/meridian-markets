@@ -15,7 +15,7 @@ function book(over: Partial<MmBookSnapshot>): MmBookSnapshot {
     inventoryUnits: '0', capitalUnits: '50000000000', equityUnits: '50000000000',
     realisedPnlUnits: '0', unrealisedPnlUnits: '0', feesUnits: '0', fundingUnits: '0', fundingRatePerHour: 0,
     netPnlUnits: '0', spreadCapturedUnits: '0', adverseSelectionUnits: '0',
-    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, markout: [], markoutBySide: { buy: [], sell: [] },
+    inventoryCarryUnits: '0', inventoryMtmUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, vpinWindowBuckets: 50, markout: [], markoutBySide: { buy: [], sell: [] },
     fills: 0, bidFills: 0, askFills: 0, blockedQuotes: 0, lastVerdict: 'Allow', maxDrawdownPct: 0,
     ...over,
   };
