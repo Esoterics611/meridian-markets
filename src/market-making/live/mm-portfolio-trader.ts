@@ -469,6 +469,14 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
     let net = 0n;
     for (const b of this.books.values()) {
       const s = b.snapshot();
+      // Journal #55b: make delta coverage EXPLICIT per book — underlying + β from the live
+      // beta map, or β=0/undefined = NAKED. (Run53 lesson: the xyz books were unhedged by
+      // design and no surface said so; the operator believed the desk was delta-neutral.)
+      if (this.hedger) {
+        const m = this.hedger.betaFor(s.symbol);
+        s.hedgeUnderlying = m?.underlying;
+        s.hedgeBeta = m?.beta ?? 0;
+      }
       books.push(s);
       cap += BigInt(s.capitalUnits);
       eq += BigInt(s.equityUnits);

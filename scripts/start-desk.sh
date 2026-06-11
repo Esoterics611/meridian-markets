@@ -69,27 +69,25 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 #   4. GOOD-EXPOSURE LEAN    MM_FLOW_BIAS_LIVE — the directional axe, OOS-GATED: an unvalidated read is
 #                            zeroed, so neutral mm-glft books stay neutral until the signal clears the
 #                            markout gate (the real lean is Run B; this just leaves the seam on).
-# GUARDRAILS (Journal #55 — run53's "earn slowly on spread, lose suddenly on inventory" fix;
-# the xyz books are UNHEDGED by design, so flat is their only hedge):
+# GUARDRAILS (Journal #55 — run53's "earn slowly on spread, lose suddenly on inventory" fix):
 #   MM_MAX_INVENTORY_NOTIONAL_FRAC=0.10  cap cut 0.15→0.10 — the warehouse tail scales linearly
 #                                        with the rail ($50k max inventory on a $500k book).
-#   MM_LOSS_STOP_FRAC=0.0006             warehouse loss-stop: flatten at taker + 15min stand-aside
-#                                        when a position's unrealised < −0.06% of capital (−$300 on
-#                                        $500k). Tail-only insurance — it does NOT add expectation,
-#                                        it converts the fat left tail into a bounded, known cost.
+#   MM_LOSS_STOP_FRAC=0.0001             warehouse loss-stop at −0.01% of capital (−$50 on $500k;
+#                                        operator-set 2026-06-11): flatten at taker + 15min
+#                                        stand-aside. TIGHT — expect frequent triggers; judge the
+#                                        taker cost vs saved warehouse on run54's GUARDRAIL count.
+#                                        It does NOT add expectation — it bounds the left tail.
 #   MM_SESSION_GATE=…=1330-2000          xyz US-equity books quote ONLY US RTH (13:30–20:00Z) and go
 #                                        home flat — off-hours their reference market is closed/stale
 #                                        and quoting it is pure pick-off (run53: SKHX fillEdge −$632,
 #                                        all pre-US-open). CL/GOLD exempt (~24h real markets).
 # Audit trail: grep 'GUARDRAIL ▸' $LOG — every loss-stop / session flatten is a tape event + log line.
-# MM_HEDGE_BETA_MAP: crypto books keep the OOS alt→major map (scripts/hedge-beta-fit.ts, 30d×1h HL —
-# RE-FIT between runs, β drifts; this map fit 2026-06-11). FARTCOIN/kPEPE now FITTED (R² .65/.77 —
-# the #51 run's live KPI agreed); PURR stays 0 (R² .13 = no factor, governor-capped). ADA's BTC/ETH
-# fit tied at R² .59 → kept on the single ETH leg (one-leg netting beat the A″ BTC-leg churn).
-# HIP-3 RWA books (xyz:*) are beta 0 BY DESIGN —
-# gold/equities/oil have no crypto factor; the inventory governor is their risk rail, and venue-fees
-# quotes them with NO maker rebate (HIP3_FEE) so paper P&L stays honest. Sweet-16 set:
-# docs/BOOK_SELECTION_ANALYSIS.md + smoke first: scripts/smoke-sweet16.ts.
+# MM_HEDGE_BETA_MAP — ELITE-8 v3, EVERY book hedged (operator rule #55b: no market we cannot
+# delta-hedge; board scripts/hedgeable-universe.ts, fit 2026-06-11, RE-FIT between runs):
+#   xyz:CL→xyz:BRENTOIL β1.08 (R².91) · xyz:GOLD→PAXG β1.03 (R².98) · SOL/ADA/DOGE/SUI/
+#   FARTCOIN/kPEPE→ETH (R² .59–.81). The 6 crypto books NET on one ETH leg; BRENTOIL+PAXG are
+#   new taker hedge legs (xyz legs pay HIP3 taker — priced into spreads via hedgeCostBps).
+# Single-name equities (NVDA/TSLA/SKHX/ORCL R² .28–.45 vs index) + PURR (.14) FAIL the rule ⇒ cut.
 #
 # RISK-AVERSE PROFILE (Ronnie, 2026-06-11, Journal #51 — binding doctrine: prefer FEWER fills over
 # LOSING fills; broaden the spread when needed; warehouse less). Each knob does what the engine
@@ -110,21 +108,22 @@ MM_GAMMA="${MM_GAMMA:-0.005}" \
 MM_F3_MIN_SCALE="${MM_F3_MIN_SCALE:-1.0}" \
 MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.10}" \
 MM_INVENTORY_SKEW_MULT="${MM_INVENTORY_SKEW_MULT:-6}" \
-MM_LOSS_STOP_FRAC="${MM_LOSS_STOP_FRAC:-0.0006}" \
+MM_LOSS_STOP_FRAC="${MM_LOSS_STOP_FRAC:-0.0001}" \
 MM_LOSS_STOP_COOLDOWN_MIN="${MM_LOSS_STOP_COOLDOWN_MIN:-15}" \
 MM_SESSION_GATE="${MM_SESSION_GATE:-xyz:NVDA,xyz:TSLA,xyz:SKHX,xyz:ORCL,xyz:SNDK,xyz:MU,xyz:MRVL=1330-2000}" \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \
-MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:CL,xyz:GOLD,xyz:NVDA,xyz:TSLA,xyz:SKHX,xyz:ORCL,FARTCOIN,kPEPE}" \
+MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:CL,xyz:GOLD,SOL,ADA,DOGE,SUI,FARTCOIN,kPEPE}" \
 MM_MICROPRICE_DEPTH="${MM_MICROPRICE_DEPTH:-5}" \
 MM_F3_TOXICITY="${MM_F3_TOXICITY:-true}" \
+MM_VPIN_PAUSE_THRESHOLD="${MM_VPIN_PAUSE_THRESHOLD:-0.75}" \
 MM_DELTA_HEDGE="${MM_DELTA_HEDGE:-true}" \
 MM_HEDGE_BAND_USD="${MM_HEDGE_BAND_USD:-2000}" \
 MM_HEDGE_TAKER_BPS="${MM_HEDGE_TAKER_BPS:-2.5}" \
 MM_HEDGE_HALF_SPREAD_BPS="${MM_HEDGE_HALF_SPREAD_BPS:-1}" \
 MM_HEDGE_COST_SPREAD_MULT="${MM_HEDGE_COST_SPREAD_MULT:-0.5}" \
-MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-FARTCOIN:ETH:1.53,kPEPE:ETH:1.20,xyz:CL:CL:0,xyz:GOLD:GOLD:0,xyz:NVDA:NVDA:0,xyz:TSLA:TSLA:0,xyz:SKHX:SKHX:0,xyz:ORCL:ORCL:0}" \
+MM_HEDGE_BETA_MAP="${MM_HEDGE_BETA_MAP:-xyz:CL:xyz:BRENTOIL:1.08,xyz:GOLD:PAXG:1.03,SOL:ETH:1.02,ADA:ETH:1.04,DOGE:ETH:0.94,SUI:ETH:1.29,FARTCOIN:ETH:1.54,kPEPE:ETH:1.20}" \
 MM_FLOW_BIAS_LIVE="${MM_FLOW_BIAS_LIVE:-true}" \
 MM_FLOW_BIAS_HORIZON_MS="${MM_FLOW_BIAS_HORIZON_MS:-60000}" \
 MM_FLOW_BIAS_MIN_IC="${MM_FLOW_BIAS_MIN_IC:-0.05}" \

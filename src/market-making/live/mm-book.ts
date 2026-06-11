@@ -211,6 +211,14 @@ export interface MmBookSnapshot {
   bookImbalance?: number;
   /** Latest signed aggressor-flow imbalance ∈ [−1,1] (fast path only; undefined on the bar path). */
   tradeFlowImbalance?: number;
+  /** The bias the quoter was ACTUALLY handed last tick (post OOS-gate; 0 = neutral, no lean).
+   *  A sign flip here is "the front of the move flipped" — the UI renders it per book. */
+  bias?: number;
+  /** Delta-hedge coverage (Journal #55b, annotated by the portfolio trader): the hedge leg's
+   *  underlying + β, or β=0/undefined ⇒ NAKED. Makes "are we delta-neutral?" explicit on every
+   *  snapshot — the run53 lesson (the xyz books were unhedged and nothing said so). */
+  hedgeUnderlying?: string;
+  hedgeBeta?: number;
   /** Per-fill adverse-selection markout curve (avg bps at each forward horizon). */
   markout: MarkoutPoint[];
   /** The markout curve split by fill side (WP2) — asymmetry = one-sided informed flow. */
@@ -813,6 +821,7 @@ export class MmBook {
       vpinBuckets: this.vpin.bucketsSeen(),
       vpinWindowBuckets: this.vpin.windowBuckets(),
       bookImbalance: m.bookImbalance,
+      bias: m.bias,
       tradeFlowImbalance: m.tradeFlowImbalance,
       markout: m.markout,
       markoutBySide: m.markoutBySide,

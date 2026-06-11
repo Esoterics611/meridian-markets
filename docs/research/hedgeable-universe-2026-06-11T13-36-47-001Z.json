@@ -1,0 +1,271 @@
+{
+  "interval": "1h",
+  "bars": 720,
+  "minR2": 0.5,
+  "rows": [
+    {
+      "book": "xyz:GOLD",
+      "leg": "PAXG",
+      "beta": 1.029945908245233,
+      "r2": 0.9818124799640561,
+      "n": 700,
+      "hedgeable": true
+    },
+    {
+      "book": "xyz:CL",
+      "leg": "xyz:BRENTOIL",
+      "beta": 1.0758884539995508,
+      "r2": 0.9136767799786334,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "xyz:BRENTOIL",
+      "leg": "xyz:CL",
+      "beta": 0.849230026200295,
+      "r2": 0.9136767799786334,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "SOL",
+      "leg": "ETH",
+      "beta": 1.0188477173494805,
+      "r2": 0.8142043649775859,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "kPEPE",
+      "leg": "ETH",
+      "beta": 1.1960332996334024,
+      "r2": 0.7718419759982594,
+      "n": 695,
+      "hedgeable": true
+    },
+    {
+      "book": "XRP",
+      "leg": "BTC",
+      "beta": 1.1322349560347384,
+      "r2": 0.7224901446871577,
+      "n": 707,
+      "hedgeable": true
+    },
+    {
+      "book": "DOGE",
+      "leg": "ETH",
+      "beta": 0.9423180434878546,
+      "r2": 0.7156348483017345,
+      "n": 709,
+      "hedgeable": true
+    },
+    {
+      "book": "xyz:SILVER",
+      "leg": "xyz:GOLD",
+      "beta": 1.945042569833354,
+      "r2": 0.6674504459097375,
+      "n": 707,
+      "hedgeable": true
+    },
+    {
+      "book": "SUI",
+      "leg": "ETH",
+      "beta": 1.285688104935051,
+      "r2": 0.6613203376803887,
+      "n": 709,
+      "hedgeable": true
+    },
+    {
+      "book": "FARTCOIN",
+      "leg": "ETH",
+      "beta": 1.5361060280028511,
+      "r2": 0.6531142202550275,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "SPX",
+      "leg": "ETH",
+      "beta": 1.7211925292581756,
+      "r2": 0.6518592533618389,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "PENGU",
+      "leg": "ETH",
+      "beta": 1.402346951555339,
+      "r2": 0.6359658382843401,
+      "n": 704,
+      "hedgeable": true
+    },
+    {
+      "book": "CRV",
+      "leg": "ETH",
+      "beta": 1.1997958015179209,
+      "r2": 0.5984415501846236,
+      "n": 711,
+      "hedgeable": true
+    },
+    {
+      "book": "ADA",
+      "leg": "ETH",
+      "beta": 1.0393877181593092,
+      "r2": 0.593111400867502,
+      "n": 708,
+      "hedgeable": true
+    },
+    {
+      "book": "xyz:MU",
+      "leg": "xyz:XYZ100",
+      "beta": 2.8996488587394422,
+      "r2": 0.4907272550032317,
+      "n": 704,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:TSLA",
+      "leg": "xyz:XYZ100",
+      "beta": 1.1735190744830444,
+      "r2": 0.4508379057555694,
+      "n": 702,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:SNDK",
+      "leg": "xyz:XYZ100",
+      "beta": 2.662686693597297,
+      "r2": 0.4245643841588309,
+      "n": 700,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:NVDA",
+      "leg": "xyz:XYZ100",
+      "beta": 1.199769978662521,
+      "r2": 0.41171439699031137,
+      "n": 698,
+      "hedgeable": false
+    },
+    {
+      "book": "ENA",
+      "leg": "ETH",
+      "beta": 1.4716367445526624,
+      "r2": 0.4075981740675123,
+      "n": 711,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:INTC",
+      "leg": "xyz:XYZ100",
+      "beta": 2.278731115694422,
+      "r2": 0.40106699166946025,
+      "n": 700,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:ORCL",
+      "leg": "xyz:XYZ100",
+      "beta": 1.9769292227919002,
+      "r2": 0.3757565988602195,
+      "n": 700,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:COPPER",
+      "leg": "PAXG",
+      "beta": 0.7363821888453415,
+      "r2": 0.2936355723762255,
+      "n": 705,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:MRVL",
+      "leg": "xyz:XYZ100",
+      "beta": 3.058508967728377,
+      "r2": 0.292291501400943,
+      "n": 697,
+      "hedgeable": false
+    },
+    {
+      "book": "NEAR",
+      "leg": "ETH",
+      "beta": 1.3752178424670678,
+      "r2": 0.28443028537055765,
+      "n": 712,
+      "hedgeable": false
+    },
+    {
+      "book": "xyz:SKHX",
+      "leg": "xyz:XYZ100",
+      "beta": 2.4645356019390015,
+      "r2": 0.28125253386815025,
+      "n": 672,
+      "hedgeable": false
+    },
+    {
+      "book": "HYPE",
+      "leg": "BTC",
+      "beta": 1.3907152823520326,
+      "r2": 0.2667037994295575,
+      "n": 716,
+      "hedgeable": false
+    },
+    {
+      "book": "INJ",
+      "leg": "ETH",
+      "beta": 1.276997416958933,
+      "r2": 0.24694879966560626,
+      "n": 712,
+      "hedgeable": false
+    },
+    {
+      "book": "ZEC",
+      "leg": "ETH",
+      "beta": 1.5375867533677254,
+      "r2": 0.24282900547677377,
+      "n": 711,
+      "hedgeable": false
+    },
+    {
+      "book": "VVV",
+      "leg": "BTC",
+      "beta": 2.069242302184383,
+      "r2": 0.23366379127441161,
+      "n": 714,
+      "hedgeable": false
+    },
+    {
+      "book": "LIT",
+      "leg": "BTC",
+      "beta": 2.0810189803474937,
+      "r2": 0.2282109816371363,
+      "n": 716,
+      "hedgeable": false
+    },
+    {
+      "book": "XMR",
+      "leg": "BTC",
+      "beta": 0.9404454304261716,
+      "r2": 0.17582659103863518,
+      "n": 715,
+      "hedgeable": false
+    },
+    {
+      "book": "WLD",
+      "leg": "ETH",
+      "beta": 1.4417472339857655,
+      "r2": 0.16258591906535524,
+      "n": 711,
+      "hedgeable": false
+    },
+    {
+      "book": "PURR",
+      "leg": "ETH",
+      "beta": 1.6795538207023388,
+      "r2": 0.1355906793528747,
+      "n": 711,
+      "hedgeable": false
+    }
+  ]
+}

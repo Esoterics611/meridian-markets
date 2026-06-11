@@ -159,6 +159,9 @@ export interface L2LiveFillEngineMetrics {
   markoutBySide: MarkoutSideCurves;
   /** Latest signed top-N book imbalance ∈ [−1,1] (the F1b signal; 0 before the first quote step). */
   bookImbalance: number;
+  /** The bias the quoter was ACTUALLY handed last tick (post OOS-gate; 0 = no lean). The UI's
+   *  "front of the move" readout — sign flips here are the flow flipping (Journal #55b). */
+  bias: number;
   /** Latest signed aggressor-flow imbalance ∈ [−1,1] over a tick that traded (0 before any flow). */
   tradeFlowImbalance: number;
   /** F3 toxicity spread-scaler diagnostics — present ONLY when the scaler is wired (the live
@@ -205,6 +208,8 @@ export class L2LiveFillEngine {
   private peakEquity: bigint;
   private maxDrawdownPct = 0;
   private lastMidMicros: bigint | undefined;
+  /** Last bias actually handed to the quoter (post OOS-gate); 0 = neutral. */
+  private lastBias = 0;
   private fundingRatePerHour: number;
   private shadowObservations = 0;
   private lastShadowMs = 0;
@@ -303,6 +308,7 @@ export class L2LiveFillEngine {
     const bias = this.cfg.biasSource
       ? effectiveBias(this.cfg.biasSource.bias(this.cfg.symbol, { fundingRatePerHour: this.fundingRatePerHour, nowMs, bookImbalance, midMicros: mid }))
       : undefined;
+    this.lastBias = bias ?? 0;
     // F3: widen into toxic (one-sided/informed) flow, tighten into calm flow — the
     // adverse-selection defence. Always update the scaler (so its rolling average tracks)
     // even when no fills happened this tick; undefined ⇒ feature off ⇒ spread unscaled.
@@ -461,6 +467,7 @@ export class L2LiveFillEngine {
       markout: this.markout.curve(),
       markoutBySide: this.markout.sideCurves(),
       bookImbalance: this.lastBookImbalance,
+      bias: this.lastBias,
       tradeFlowImbalance: this.lastTradeFlowImbalance,
       toxicity: this.cfg.toxicityScaler
         ? {

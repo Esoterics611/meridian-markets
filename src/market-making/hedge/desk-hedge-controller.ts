@@ -1,5 +1,5 @@
 import { ITradingVenue, Side } from '../../stat-arb/trading-venue.interface';
-import { BookDelta, HedgeConfig, HedgeOrder, computeHedge, netDeltaByUnderlying, hedgeOrderUnits } from './desk-delta-hedger';
+import { BookDelta, BetaMapEntry, HedgeConfig, HedgeOrder, computeHedge, netDeltaByUnderlying, hedgeOrderUnits } from './desk-delta-hedger';
 import { HedgeQualityTracker, HedgeQualitySnapshot } from './hedge-quality';
 
 // DeskHedgeController — the EXECUTING side of the delta hedge (HEDGING_MODEL.md §1–2).
@@ -88,6 +88,12 @@ export class DeskHedgeController {
     private readonly midRefreshMs: number = 1_000,
   ) {
     this.quality = new HedgeQualityTracker(cfg.betaMap, undefined, cfg.qualityBucketMs);
+  }
+
+  /** The beta-map entry for a book symbol, or undefined. For COVERAGE reporting (Journal #55b):
+   *  undefined or β=0 both mean this book runs NAKED — the snapshot/UI must say so explicitly. */
+  betaFor(symbol: string): BetaMapEntry | undefined {
+    return this.cfg.betaMap[symbol];
   }
 
   /** Hedge underlyings the supplied books map onto (betaMap, self-hedge default, beta-0 skipped)

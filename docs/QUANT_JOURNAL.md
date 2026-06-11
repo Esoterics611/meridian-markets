@@ -2263,3 +2263,38 @@ it cannot make a picked-off book profitable — that stays the rotation rule's j
 (UNIVERSE_DISCOVERY.md). Next knobs if the shape persists: regime gate (S4) in front of the
 stop, per-book hedged/unhedged flag on the snapshot + leak table so delta coverage is never
 implicit again.
+## 2026-06-11 — Entry #55b (the HEDGED DESK: "no market we cannot delta-hedge" + flow/lean/hedge on the UI)
+Operator directives (Ronnie): loss cap 0.01%; show the front-of-move flip on the UI and lean with
+it; binding asset rule — **we do not make markets in what we cannot hedge the delta**; tighten
+pick-off; rebuild the Elite-8 from ALL assets under the rule.
+**Shipped:**
+1. **Loss-stop tightened to 0.0001** (−$50 on $500k, operator-set). Honest math ON RECORD: at the
+   $50k inventory rail this fires on a 0.1% adverse move — expect FREQUENT triggers; each costs
+   taker 5bps on the flattened notional + 15min stand-aside. Run54's `GUARDRAIL ▸` count + leak
+   table judge whether saved warehouse > taker bill; re-tune via MM_LOSS_STOP_FRAC if it bleeds.
+2. **Hedgeable-universe board** (`scripts/hedgeable-universe.ts`, 30d×1h OLS, zero-return bars
+   dropped vs closed-session flats): GOLD↔PAXG **β1.03 R².98**, CL↔BRENTOIL **β1.08 R².91**,
+   SOL .81 / kPEPE .77 / XRP .72 / DOGE .72 / SUI .66 / FARTCOIN .65 / ADA .59 vs ETH/BTC.
+   **Single names FAIL the rule** (index leg ≠ idio hedge): NVDA .41, TSLA .45, ORCL .38,
+   SKHX .28; PURR .14, HYPE .27. Artifact: docs/research/hedgeable-universe-*.json.
+3. **ELITE-8 v3 — every book hedged:** xyz:CL(→BRENTOIL), xyz:GOLD(→PAXG), SOL, ADA, DOGE, SUI,
+   FARTCOIN, kPEPE (→ETH, netted on one leg). OUT by hedge rule: NVDA/TSLA/SKHX/ORCL/PURR(/HYPE).
+   OUT by edge rule despite hedgeable: XRP (worst bleeder #50), SILVER (worst pick-off #51).
+   SOL/ADA re-admitted: their A″ realised (+$752/+$494) was real; their warehouse bleed is what
+   the hedge+guardrails now control. BRENTOIL/PAXG are new TAKER hedge legs via the existing
+   resolveHedgeMid path (xyz: L2 proven); hedge cost priced into spreads (hedgeCostBps).
+4. **UI (per-session QA rule):** per-book **flow** (signed aggressor imbalance, ▲/▼/◆ + flip),
+   **lean** (the OOS-gated bias ACTUALLY applied — 0 until validated), **hedge** (leg+β, or
+   **NAKED** in red). Engine surfaces `bias` on metrics; trader annotates `hedgeUnderlying`/
+   `hedgeBeta` per book snapshot (DeskHedgeController.betaFor). Delta coverage is now explicit
+   on every snapshot — the run53 lesson closed.
+5. **Pick-off tightening:** VPIN pause ARMED at 0.75 (was disarmed 1.01) — fast-path gate pulls
+   quotes when informed-flow probability spikes; F3 stays widen-only; cap 0.10. NOT done: faster
+   than 100ms re-quote — paper already assumes 100ms/30ms; claiming faster would be dishonest
+   vs HL rate limits (the cadence claim stays an upper bound).
+Tests: market-making+demo 63 suites / 374 green; tsc clean. NOTE: session gate now mostly idle
+(no single-name books) — kept wired for future equity slots.
+**Open (next session):** regime gate (S4) before the stop; loss-stop threshold sweep on the
+replay harness; per-book capital ∝ measured fillEdge; flow-flip alert (event when lean changes
+sign); short-horizon book cycling question — see RUN_THE_DESK/analysis (cycling does NOT reset
+regime; the regime gate is the honest version of "turn it off after an hour").
