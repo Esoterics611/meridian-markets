@@ -2132,6 +2132,79 @@ fixes need not be isolated. Shipped for the next run:
    κ goes to the next mm-l2-tune γ/κ sweep.
 tsc clean; mm.controller + registry + glft-quoter suites green (31 tests).
 
+## 2026-06-11 — Entry #52 (MASTER PLAN S1: attribution that SUMS + the leak table — the compass is fixed)
+**Session S1 of the chain (docs/MASTER_PLAN_SESSIONS.md). All work developed off-process on a
+worktree branch (feat/mm-s1-leak-table) while the next run trades — rules-of-engagement §2.**
+
+1. **Attribution sums now.** The missing term was ALREADY in the engine: `accrueInterval`
+   (mm-book.ts) accrues continuous Σ inv_carried×Δmid on BOTH drive paths and persists it
+   (`mm_book_state.inventoryCarryUnits`) — the fast-path snapshot just never surfaced it,
+   reporting only the engine's windowed carry. Exposed as **`inventoryMtmUnits`** (both paths);
+   identity **net = fillEdge + warehouseMTM + funding − fees** pinned EXACT by two unit specs
+   (fill-then-slide tape; rebate variant). `/desk/mm` renders it as the "warehouse" cell.
+2. **The A″ hedge-quality r²=0 bug — reproduced, root-caused, regression-tested.** Mechanism:
+   `resolveMarks` falls back to `lastMark` forever, so an underlying with no live book price
+   FREEZES after a restore ⇒ rU≡0 every bucket ⇒ var(U)=0 ⇒ betaLive/r² UNMEASURABLE (null,
+   rendered as 0). The 382a04e resolveMid path is the fix and is now pinned by a
+   simulated-restore spec (13/13 green). #51's live fits were alive because of it.
+3. **scripts/mm-leak-table.ts** — one command: mm_nav window + mm_book_state + run-log HEDGE
+   lines (+ live snapshot only when the window ends ≈now) → per-book identity table, ranked $
+   leak list, hedge churn (track/flip/open), loss concentration, md+json to docs/research/.
+   Run-review skill updated: leak table is STEP 0.
+4. **The measured leak tables** (docs/research/leak-table-{run-a2,run51-sweet16}.{md,json}):
+   - **A″ re-read with real accounting:** hedge churn **−$2,454 = A″'s #1 leak** (263 orders,
+     $9.1M churned; prompt predicted ~$2.7k ✓). Implied hedge-leg P&L **−$1,184** (the #50
+     "~−$1.0k on hedge legs" estimate, now measured). ETH/BTC books: fillEdge POSITIVE
+     (+94/+67) but warehouse −355/−263 — **A″'s majors bled warehouse, not pick-off**.
+   - **#51 Sweet-16:** ranked leaks 1–2 are **warehouse MTM: BRENTOIL −1,128 / HYPE −1,126**;
+     then SILVER fill edge −742; hedge churn down to **−$373** (53 orders, 46 track/6 flip —
+     the single-ETH-leg netting from the book swap already delivered most of S2's predicted
+     netting win). Cross-validation: identity-implied fillEdge vs the independent live windowed
+     read — SILVER −742 vs −745 (0.4%), BRENTOIL −277 vs −270 (2.6%), HYPE −373 vs −332 (the
+     12% gap = the quote→fill WEDGE, stale-quote pick-off — S7's input, now measured).
+5. **Negative results / gaps (owned):** engine windowed spread/adverse are NOT persisted (state
+   reads 0 for fast books — finished runs get the identity, not the split); a RELAUNCH
+   overwrites surviving books' state accumulators (only removed books keep final state —
+   run the leak table BEFORE relaunching); markout-by-hour, queue tercile, top-of-hour
+   toxicity not logged yet; xyz funding still 0 by construction.
+**Verdict for the plan: warehouse drift is the desk's #1 measured leak class in BOTH runs
+(A″ majors −657, #51 −2,254 across books) — S2 re-scoped around the inventory time-stop +
+dead-band/beta polish; hedge churn demoted from "the" leak to a solved-but-watch line.**
+tsc clean; touched suites green (hedge 13, mm-book 16, UI 16+, nav cron).
+
+## 2026-06-11 — Entry #53 (MASTER PLAN S2: the inventory time-stop — built, swept, verdict MIXED ⇒ default OFF)
+**Session S2 (worktree branch feat/mm-s2-warehouse; live run untouched). S1's referee: warehouse
+MTM is the #1 leak class — S2 asked whether bounding HOLDING TIME pays.**
+
+1. **Built: `TimeStopQuoter`** (src/market-making/quote/) — a wrapper around any IQuoter that
+   shifts the whole pair toward the exit side once same-signed inventory ages past T (linear
+   ramp, width preserved = skew-to-flat, **proportional to |inv| so it cannot overshoot through
+   flat** — v1 without that swung BTC +$103k long → −$68k short, caught in replay). New
+   `QuoteContext.nowMs` seam set by all three runtimes (bar ts / L2 snapshot ts / tape ts) so
+   offline age == live age. 6 specs.
+2. **Sweep (queue-aware replay, live risk-averse GLFT config, docs/research/timestop-sweep.md):**
+   verdict **MIXED — regime-dependent, NOT wire-ready desk-wide**:
+   - BTC (the trend-warehouse window the stop exists for): net −2,127 → **−730** (T=30m/8bps,
+     maxDD 0.85→0.35) / −961 (30m/3bps) — the warehouse loss is genuinely cut.
+   - ETH: +295 with REALISED +291 (661→952) at T=10m/3bps — the cleanest win (not a mark).
+   - DOGE: +25 noise. **SOL: −1,524 at T=10m/3bps** (choppy one-way flow: the stop sheds into
+     weakness and re-warehouses) — the kill case.
+   - Caveats owned: tapes are 2026-06-04/05 main-dex (NO HIP-3 RWA tape — xyz:* out of sample;
+     capture one next run); HYPE tape too coarse to use (1 queue fill/6h); one window per coin.
+3. **Wired default OFF** behind `MM_TIME_STOP` (+`_AGE_MIN`/`_SHIFT_BPS`), both launch+rehydrate
+   paths, `TIME-STOP ▸` engage/release log lines (the greppable audit trail). Pre-registration
+   discipline: enable only behind the S8 shadow A/B or the S4 regime gate — the sweep says the
+   stop needs to know the regime before it earns the right to quote.
+4. **S1 gap closed: windowed spread/adverse now PERSIST** — fast books checkpoint
+   base+engine attribution (`attribBase` restored on rehydrate; new `windowedCarryUnits` state
+   field), so finished runs keep the fill-edge split and restarts no longer zero the snapshot
+   columns (the #50 A″ wrinkle). Spec proves serialize→restore→re-serialize round-trips.
+5. **Deferred, with numbers:** (a) dynamic hedge dead-band — #51 churn is $373/run est cost
+   (46 track/6 flip, single converged ETH leg); a dynamic band plausibly saves ~half, gray-zone
+   vs build cost — re-rank if the 13-book leak table shows churn regressing. (b) OLS/EWMA/Kalman
+   beta bake-off — betas were OOS-refit TODAY (FARTCOIN/kPEPE fits new) and the hedge-quality
+   KPI watches drift live; defer until basisShare shows inter-run drift actually hurting.
+tsc clean; market-making suite 357/357 green. Artifacts: docs/research/timestop-sweep.{md,json}.
 ## 2026-06-11 — Entry #54 (the Elite-8 book swap — next run's set, picked on the #51 leak table)
 Operator call (Ronnie): highest-P&L 8 for the next run, no majors, lean into trade.xyz. Picked
 realised-first from the #51 leak table + a live universe scan (xyz dex by 24h volume, spreads
