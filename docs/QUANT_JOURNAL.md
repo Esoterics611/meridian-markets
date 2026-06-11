@@ -2336,3 +2336,50 @@ follow-up); FOMC days are WARN-ONLY (add `*=1755-1845` to MM_EVENT_BLACKOUT on t
 Tests: calendar spec (daily occurrence, midnight cross, FOMC date) — mm+ui 84 suites/496 green;
 tsc clean. Desk now: S4 sweep gate → governor → loss-stop 0.01% → β-hedge ×8 → event blackouts
 + tape warnings. Run54 is the first full-stack read.
+## 2026-06-11 — Entry #58 (run55: first FULL-defence-stack read — books fixed, the hedge layer gave it back)
+Label note: operator renumbered — run54 = the aborted boots 13:46–14:24Z (beta-map pipe bug live:
+CL hedged with **xyz:CL-perp itself**, 12 self-hedge orders in the boot logs; fix 37c2dd2 landed
+mid-sequence), run55 = the fixed 3h run 14:24–17:24Z. mm_nav has no >10min gap so the leak window
+(13:46→17:25Z, 3.6h) includes the boot segment; per-book rows are post-relaunch (clean).
+leak-table-run54.* deleted as mislabeled; canonical artifact: docs/research/leak-table-run55.{md,json}.
+**Desk:** net −$879 (realised −$123, unreal −$538, fees $218) · books-sum −$422 · implied hedge leg
+−$458. vs run53: books-sum bleed cut 3.1× (−$1,316→−$422), realised cut 7.5× (−$928→−$123), maxDD
+cut ~3× (worst 0.93%→0.27%) — **the per-book defence stack worked**. Desk net barely moved
+(−$973→−$879) because the hedge layer consumed the savings: churn $174k/$47 (run53) → **$1.62M/$437
+est cost** (9×), implied hedge-leg P&L +$343 → −$458. ETH leg = 32 orders/15 flips (the mid≤0
+flip-churn tell, amplified by stop-flattens snapping book deltas to 0 → unwind→re-open at taker).
+**(1) GUARDRAIL audit:** 12 loss-stops (ADA×4, kPEPE×3, CL×3, GOLD×1, FARTCOIN×1; 9 in the clean
+run) + 12 manual flattens (boot restarts + operator batches 16:46:54Z/17:00:05Z). Each stop
+crystallised −$50–66 (cap $50 + gap/taker overshoot ≤32%); Σ≈−$664. Fees $58→$218 = the stop taker
+tax. VERDICT: **insurance at the book layer** (no run53-style −$618 single-book warehouse hole;
+tail cut 3×) **but a tax at the desk layer** via induced hedge churn — the stop's true premium is
+direct fees + ~$390 extra churn. Fix is hedge decoupling (freeze adds on flow flip, net delta
+first), NOT a looser stop.
+**(2) REGIME audit:** 19 engagements clean-run (GOLD 6, SUI 5, CL/DOGE/ADA 2, SOL/FARTCOIN 1,
+**kPEPE 0**); episodes 1–3min (sweep ~30–90s + 90s cooldown); triggers all 0.65–0.76 = barely over
+the 0.65 prior. Loss conc still single-window (68–100%) but mechanically so — the stop puts the
+realised loss in one bucket. Coverage is wrong-shaped: ADA (2 engagements) and kPEPE (0) ate 7 of
+9 clean-run stops — their bleed is a slow grind the flow×drift sweep test doesn't see. The
+0.65/5bps priors need the replay sweep, and per the operator's flow-conditional frame the binary
+gate should become a graduated re-center (p* = mid + κ·flow) + toxicity-scaled spread anyway.
+**(3) Hedge quality:** legs verified correct post-fix (CL→BRENTOIL 22 orders, GOLD→PAXG 2,
+alts→ETH 32). basisShare/betaLive/R² vs the 30d fit **not capturable** — server was down before
+review; hedge.quality is in-memory only (DR-2). PROCESS FIX: persist hedge.quality (+ windowed
+attribution) on shutdown / hourly — goes into diagnostic item (b).
+**(4) fillEdge slot rule:** GOLD +6, FARTCOIN +7, SOL +5 (green); SUI −2, kPEPE −2 (flat);
+ADA −16, DOGE −46, CL −51 (red). SOL re-admission PASS (thin); ADA FAIL (worst book, 4 stops) —
+rotate-out recommended; DOGE/SUI green-by-warehouse only (probation); kPEPE streak broken
+(+69→+37→−2); CL fillEdge red 2nd run running (−62→−51) — #51 best-ever read not repeating, watch.
+GOLD is quietly the best-behaved book (only consistent + fillEdge among xyz:*).
+**Event layer:** 0 blackout fires, 0 tape warnings — the 13:25–13:45Z window closed 1min before
+boot and the run ended before 18:00Z/20:00Z events. UNTESTED, not passed.
+**REALIGNMENT (operator frame, spec incoming — Cont-Kukanov-Stoikov OFI):** flow is E[Δmid|flow]≠0,
+i.e. a fair-value correction, not a panic signal; toxicity = flow ALIGNED AGAINST inventory
+(A=sign(q)·sign(flow)<0), A>0 is the harvest/exit window — a flatten-on-|flow| rule burns the one
+state that pays. run55 evidence agrees: kPEPE/ADA died in A<0 grind the gate missed; GOLD survived
+by refusing to add. Re-ordered next steps: (b) diagnostics first — per-hour σ/VPIN/flow/fillEdge
+strip + A-quadrant split of markouts + persist hedge.quality (calibration data for κ, λ, τ);
+(c) becomes per-book κ (markout regression Δmid60 vs flow) + flatten-inequality calibration on the
+replay tape (binary 0.65 sweep secondary); (e) flow-flip event + hedge-freeze cooldown = the #1
+leak fix (churn −$437); (d) capital ∝ fillEdge after. NOTHING implemented pending operator spec+go.
+Artifacts: leak-table-run55.{md,json}; logs run-20260611-{164632,171116,172106,172435}-mm10h.log.

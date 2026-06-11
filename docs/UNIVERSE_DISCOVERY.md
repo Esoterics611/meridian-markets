@@ -75,12 +75,12 @@ Status: **elite** (has a slot) · **candidate** (scan-ranked, unmeasured) · **w
 
 | market | status | evidence (last update 2026-06-11) |
 |---|---|---|
-| xyz:CL | elite | +$1,397 realised/3.7h (#51), maxDD 0.25% — best book ever; proxy $413/d |
-| xyz:GOLD | elite | +$161 realised (#51); proxy low but measured beats proxy |
+| xyz:CL | elite — watch | #51 +$1,397/3.7h best-ever, but fillEdge red twice since: −$62 (run53), −$51 (run55, 3 loss-stops, fees $76). BRENTOIL hedge live post beta-map fix. #51 not repeating — one more red fillEdge window ⇒ probation |
+| xyz:GOLD | elite | #51 +$161; run55 net −$79 but fillEdge **+$6** (consistent small +), most regime-gated book (6 engagements), PAXG leg barely needed (2 orders) — the bleed is warehouse −$58, not edge |
 | xyz:NVDA | elite | +$155 realised (#51), 117 fills |
 | xyz:TSLA | elite | +$165 realised (#51), 84 fills |
-| FARTCOIN | elite | +$313 realised (#51), 231 fills, hedged ETH β1.53 |
-| kPEPE | elite | +$69 realised (#51), 176 fills, hedged ETH β1.20 |
+| FARTCOIN | elite | #51 +$313; run55 net −$74 (warehouse −$71, 1 loss-stop) but fillEdge **+$7** — edge intact, the leak is carry |
+| kPEPE | elite — watch | fillEdge streak fading: +$69 (#51) → +$37 (run53) → −$2 (run55); 3 loss-stops run55 with **zero** regime-gate engagements — the S4 flow×drift gate is blind to its bleed mode (slow grind, not sweep) |
 | **xyz:SKHX** | **elite — probation** | run53 debut fillEdge **−$632** (worst leak) — but the whole window was pre-US-open vs a closed underlying. One US-RTH window (now session-gated) decides; fail ⇒ SNDK takes the slot |
 | **xyz:ORCL** | **elite — probation** | run53 net +$472 but fillEdge **−$128** — the green is warehouse luck, not edge. Same US-RTH retest as SKHX |
 | xyz:SNDK | candidate | proxy $385/d (2.7bps × $140M) — first reserve |
@@ -91,7 +91,10 @@ Status: **elite** (has a slot) · **candidate** (scan-ranked, unmeasured) · **w
 | HYPE | written-off | −$1,507 realised, maxDD 1.76%, VPIN 0.58 (#51) |
 | xyz:BRENTOIL | written-off | −$1,187 realised, sprd/adverse 597/867 (#51) |
 | xyz:SILVER | written-off | −$816 realised, worst pick-off ratio 528/1273 (#51) |
-| SOL ADA DOGE SUI | rotated out | flat realised + warehouse bleed (#53 addendum) |
+| SOL | elite (re-admitted run55) | run55 net +$25, fillEdge +$5, maxDD 0.04% — thin but clean pass |
+| **ADA** | **elite — rotate-out recommended** | run55 re-admission FAILED: net −$206 (worst book), fillEdge −$16, warehouse −$138, **4 loss-stops** ($50 cap hit repeatedly) — operator call pending |
+| **DOGE** | **elite — probation** | run55 net +$59 is warehouse luck (+$104); fillEdge **−$46** (2nd-worst pick-off) — the #41-#5 trap shape |
+| SUI | elite — probation | run55 net +$48 but fillEdge −$2 — warehouse-carried, measured edge ≈ 0 |
 | xyz:SP500 xyz:XYZ100 | rotated out | near-dead our hours; XYZ100 red (#53 addendum) |
 | BTC ETH | reserved | hedge LEGS, not quoted books |
 | XRP BNB | written-off | worst bleeder + basis / inert (#50) |
