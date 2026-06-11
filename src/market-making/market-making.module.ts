@@ -309,7 +309,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // Desk-wide directional-quote defaults (skew + single-siding) + the inventory
             // governor (skew-mult + hard cap, Journal #39); a per-book spec.params still
             // overrides. Directional-only knobs are ignored by non-directional families.
+            // gamma/kappa: without these the quoter silently quotes the registry's baked
+            // defaults and MM_GAMMA/MM_KAPPA are dead knobs on the launch path (Journal #51).
             params: {
+              gamma: mm.gamma,
+              kappa: mm.kappa,
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,
@@ -384,6 +388,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             // governor) under the persisted per-book overrides, matching the launch path so a
             // rehydrated book resumes with the same governor a fresh one gets.
             params: {
+              gamma: mm.gamma,
+              kappa: mm.kappa,
               spreadSkewIntensity: mm.dirSpreadSkew,
               singleSideBias: mm.dirSingleSideBias,
               inventorySkewMult: mm.inventorySkewMult,

@@ -77,7 +77,26 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 # gold/equities/oil have no crypto factor; the inventory governor is their risk rail, and venue-fees
 # quotes them with NO maker rebate (HIP3_FEE) so paper P&L stays honest. Sweet-16 set:
 # docs/BOOK_SELECTION_ANALYSIS.md + smoke first: scripts/smoke-sweet16.ts.
+#
+# RISK-AVERSE PROFILE (Ronnie, 2026-06-11, Journal #51 — binding doctrine: prefer FEWER fills over
+# LOSING fills; broaden the spread when needed; warehouse less). Each knob does what the engine
+# math actually says (avellaneda-stoikov.ts asHalfSpreadMicros / asReservationMicros):
+#   MM_F3_MIN_SCALE=1.0   F3 becomes WIDEN-ONLY — never quotes tighter than the GLFT baseline
+#                         (was 0.5 = tighten into calm flow to farm the rebate). The direct
+#                         "fewer, better fills" lever.
+#   MM_GAMMA=0.005        2× risk aversion. Honest note: this ~doubles the inventory-risk term and
+#                         the reservation skew (mean-revert to flat harder = shed inventory), but
+#                         barely widens the BASE spread — the arrival term ≈2/κ is γ-insensitive.
+#                         The base-width knob is κ: leave it to the next mm-l2-tune γ/κ sweep, a
+#                         blind global κ cut un-quotes the tight books (xyz:CL trades at 0.11bps).
+#   MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15  max inventory $75k/book (was $125k) — caps warehouse-drift
+#                         exposure, the #51 run's biggest surviving leak (ADA −707 unreal).
+#   MM_INVENTORY_SKEW_MULT=6  (was 4) reservation mean-reverts toward flat harder.
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
+MM_GAMMA="${MM_GAMMA:-0.005}" \
+MM_F3_MIN_SCALE="${MM_F3_MIN_SCALE:-1.0}" \
+MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.15}" \
+MM_INVENTORY_SKEW_MULT="${MM_INVENTORY_SKEW_MULT:-6}" \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \
 MM_CANCEL_REPLACE_LATENCY_MS="${MM_CANCEL_REPLACE_LATENCY_MS:-30}" \

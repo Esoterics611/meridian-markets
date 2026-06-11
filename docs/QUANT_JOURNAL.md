@@ -2113,3 +2113,21 @@ agreed); PURR stays 0 (R².13). ADA's BTC/ETH fit tied → kept on the single ET
 (c) hedge-beta-fit.ts no longer uppercases symbols (kPEPE 500'd — same exact-case bug ac7d001 fixed
 in the engine). (d) The previous session's orphaned hedge fix (bookless-underlying marks, the thing
 that kept this run's ETH leg alive) committed as 382a04e with its 11 tests — the working tree is clean.
+
+**#51 addendum 2 (risk-averse profile + the dead-γ bug):** Ronnie's standing doctrine extended:
+**prefer fewer fills over losing fills** — widen when needed, accept lower fill rate; and between-run
+fixes need not be isolated. Shipped for the next run:
+1. **MM_GAMMA was a dead knob on the live path** — the module's `params` object never passed
+   gamma/kappa to `mmStrategyRegistry.build()`, so every launched/rehydrated quoter silently ran the
+   registry's baked γ=0.0025/κ=2 regardless of env. Fixed at both build sites (launch + rehydrate);
+   per-book `spec.params`/`rec.params` still override. All prior runs were honest by luck (env never
+   set ≠ default).
+2. **Risk-averse defaults in start-desk.sh** (each knob verified against asHalfSpread/asReservation
+   math): **MM_F3_MIN_SCALE=1.0** (F3 widen-only — never quote tighter than baseline; was 0.5),
+   **MM_GAMMA=0.005** (2× — doubles the inventory-risk term + reservation skew; honest note: base
+   spread ≈2/κ is γ-insensitive, so this is the shed-inventory knob, not a width knob),
+   **MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15** ($75k/book cap vs $125k — warehouse drift is the #51
+   surviving leak), **MM_INVENTORY_SKEW_MULT=6** (was 4). Deliberately NOT touched: κ and
+   MM_MIN_HALF_SPREAD_BPS — a blind global widening un-quotes the tight winners (xyz:CL 0.11bps);
+   κ goes to the next mm-l2-tune γ/κ sweep.
+tsc clean; mm.controller + registry + glft-quoter suites green (31 tests).
