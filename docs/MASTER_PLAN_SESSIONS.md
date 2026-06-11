@@ -116,8 +116,12 @@ book-selection model alpha. The leak table (S1) is the referee at every stage.
 
 Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line result).
 
-- ☐ **S1 — Attribution that sums + the leak table**
-- ☐ **S2 — Hedge cost: netting, dynamic dead-band, beta bake-off**
+- ☑ **S1 — Attribution that sums + the leak table** (2026-06-11, Journal #52: `inventoryMtmUnits`
+  makes net = fillEdge + warehouse + funding − fees exact; r²=0 bug pinned (frozen bookless mark);
+  `scripts/mm-leak-table.ts` shipped + run on A″/#51 — **warehouse drift is the #1 leak class in
+  both runs** (A″ majors −$657, #51 −$2.3k); hedge churn measured A″ −$2,454 → #51 −$373 (the
+  Sweet-16 single-leg netting already banked most of S2's predicted win))
+- ☐ **S2 — Warehouse drift: inventory time-stop + hedge dead-band/beta polish** (re-scoped by S1)
 - ☐ **S3 — Long-horizon adverse selection: F3 v2 + lead-lag re-test**
 - ☐ **S4 — Regime tagger, event calendar, kill hierarchy**
 - ☐ **S5 — Funding-aware skew (κ_f)**
@@ -200,49 +204,61 @@ END-OF-SESSION PROTOCOL (binding):
 
 ---
 
-### S2 PROMPT — Hedge cost: netting, dynamic dead-band, beta bake-off
+### S2 PROMPT — Warehouse drift: inventory time-stop + hedge dead-band/beta polish (re-scoped by S1)
 
 ```
 You are in /home/nexus/code/meridian-markets (CLAUDE.md binding: paper-only, §12 token
 discipline, §0 commits). Session S2 of the chain in docs/MASTER_PLAN_SESSIONS.md (read Parts
-I–III + the S1 results line; read the S1 leak table in docs/research/ — it is the referee).
+I–III + the S1 ☑ line; the S1 leak tables in docs/research/leak-table-{run-a2,run51-sweet16}.md
+are the referee). If a paper run is LIVE (check :3100/health), develop on a worktree branch and
+never edit src/ in the watched checkout — nest --watch restarts the desk on any file change.
 
-CONTEXT (update from S1's leak table before trusting):
-- The desk's #1 measured leak is hedge churn: Run A″ (2026-06-10) = 263 orders, $9.1M churned
-  notional, ~$2.7k taker cost vs desk realised +$477 (5.7×). A′ = 313 orders / $11.5M / $3.5k.
-- Hedge stack: src/market-making/hedge/desk-delta-hedger.ts — per-underlying banded rebalance,
-  FIXED bandUsd dead-band (:122). BTC leg flips repeatedly (31 flips in A″ vs 1 open): the leg
-  hovers near flat and pays the spread to cross zero. ETH leg tracks (increase/reduce-dominated).
-- Books already net to 2 perp legs (BTC, ETH) via beta map (parse-beta-map.ts); residual after
-  hedge $1.7k on $12.8k gross delta. Beta fitting: scripts/hedge-beta-fit.ts,
-  src/market-making/hedge/hedge-quality.ts (r²/basisShare per book; fixed in S1).
-- Prior art: docs/residual_mm_risk_study.md §3.3/§4.2/§4.4/§5.1 + docs/RESIDUAL_RISK_ROADMAP.md
-  (WP3 = netting). docs/HEDGING_MODEL.md. Replay rig: src/market-making/backtest/
-  (LobReplayHarness, mm-backtest-runner). Live capture tapes: docs/research/l2-tapes/.
+CONTEXT (measured by S1, 2026-06-11 — do not re-derive):
+- **Warehouse MTM is the desk's #1 leak class in BOTH captures**: #51 Sweet-16 ranked leaks
+  1–2 were xyz:BRENTOIL −$1,128 / HYPE −$1,126 warehouse (fill edge only −277/−373); A″'s
+  ETH/BTC books had POSITIVE fill edge (+94/+67) yet bled warehouse (−355/−263). The governor
+  caps |inventory| but nothing bounds HOLDING TIME — a capped position riding a trend is the
+  loss. The identity now measures it live: snapshot `inventoryMtmUnits` (continuous, persisted).
+- Hedge churn is SOLVED-BUT-WATCH: A″ −$2,454 (263 orders, 48 flips — cross-flat churn) →
+  #51 −$373 (53 orders, 46 track/6 flip) after the Sweet-16 single-ETH-leg netting. The
+  remaining polish: a dynamic dead-band (fixed bandUsd $2k today, desk-delta-hedger.ts) and
+  the beta bake-off. Betas now LIVE-fitted: FARTCOIN:ETH:1.53 (R².65), kPEPE:ETH:1.20 (R².77),
+  PURR unhedged (R².13); hedge-quality KPI fixed in S1 (frozen-mark regression test).
+- Risk-averse doctrine (binding, Journal #51 addendum 2): prefer FEWER fills over LOSING
+  fills; γ=0.005, F3 widen-only, inv frac 0.15, skew mult 6 are the live defaults.
+- Replay rig: src/market-making/backtest/ (LobReplayHarness, mm-backtest-runner); L2 tapes:
+  docs/research/l2-tapes/. Leak table: scripts/mm-leak-table.ts (run BEFORE any relaunch —
+  relaunch overwrites surviving books' mm_book_state accumulators).
 
-TASKS:
-1. REPLAY: dynamic dead-band — replace fixed bandUsd with band(σ_underlying, taker cost,
-  current toxicity/VPIN, |inventory| vs cap); outside the band hedge at a rate proportional
-  to the excess (internalize-vs-externalize threshold, study §3.3). Sweep the frontier:
-  hedge cost vs residual-delta variance on the A″/A′ captures. Special case to kill: the
-  cross-flat flip — require the band to be widest around zero residual.
-2. REPLAY: true portfolio netting (study §5.1) — 8 independent per-book hedges vs one
-  net-factor-vector hedge (current 2-leg netting is partial). Measure hedge notional, taker
-  cost, residual variance. Expected (verify): netting + dynamic band cuts churn cost ≥50%.
-3. Beta estimator bake-off (study §4.2): static-OLS vs EWMA vs Kalman per book on
-  residual-P&L-variance NET of induced hedge churn (an unstable beta that twitches the hedge
-  is worse than a slightly stale one). Pick per-name winners; persist chosen params.
-4. Wire the winners behind config flags (default = current behaviour), unit-tested.
-5. Re-run scripts/mm-leak-table.ts on a replay of A″ with the new hedger: report the new
-  hedge-cost line vs the old one. Negative result = report it and leave flags off.
-
-DEFINITION OF DONE: replay A/B table (old vs new hedger: cost, residual variance, flips);
-flags + tests; leak-table delta documented; tsc + jest green.
+TASKS (in order):
+1. REPLAY: the inventory TIME-STOP — bound holding time, not just size. Design space (sweep on
+   the L2 tapes + the A″/#51-era captures): exit a position older than T minutes (age-weighted
+   by |inventory|/cap), via (a) skew-to-flat escalation vs (b) taker exit at cost. Honesty: a
+   taker exit pays the spread+fee you normally earn — the sweep must show net improvement on
+   warehouse MTM minus exit costs, per book class (HIP-3 RWA vs main-dex). Negative result =
+   report and stop.
+2. REPLAY: dynamic hedge dead-band — band(σ_underlying, taker cost, |residual| vs flat):
+   widest around zero residual (kill the cross-flat flip class: 48 flips in A″). Frontier:
+   hedge cost vs residual-delta variance. Expected gain is now SMALL (#51 churn $373) — if
+   the frontier says < ~$100/run, record the negative result and skip the wiring.
+3. Beta estimator bake-off (study §4.2): static-OLS (current, refit between runs) vs EWMA vs
+   Kalman per book, scored on residual-P&L variance NET of induced hedge churn. The
+   hedge-quality KPI (betaLive/r²/basisShare) is the live scorer.
+4. Wire winners behind config flags (default = current behaviour), unit-tested. Time-stop
+   events must hit the desk-event tape (Ronnie's business-event rule).
+5. Persist the engine's windowed spread/adverse into mm_book_state at checkpoint (S1 gap:
+   finished runs lose the split today) + checkpoint state at run END (nav cron) so the leak
+   table stops depending on remove-order.
+6. Re-run scripts/mm-leak-table.ts on the next finished run: report the warehouse line old vs
+   new. DoD: replay A/B table (warehouse MTM, exit costs, hedge cost, flips); flags + tests;
+   leak-table delta; tsc + jest green.
 
 END-OF-SESSION PROTOCOL (binding):
-(a) Journal entry. (b) Update docs/MASTER_PLAN_SESSIONS.md: S2 ☑ + result; review S3–S8
-against the replay findings (e.g. if hedge cost stops being leak #1, re-rank); rewrite the S3
-prompt in full with fresh numbers. (c) Commit. (d) Print the updated S3 prompt verbatim.
+(a) Journal entry (realised-first, negative results included). (b) Update
+docs/MASTER_PLAN_SESSIONS.md: S2 ☑ + result; review S3–S8 against the replay findings (if the
+time-stop kills warehouse drift, S3's long-horizon adverse selection may already be half-solved
+— re-rank honestly); rewrite the S3 prompt in full with fresh numbers/paths. (c) Commit.
+(d) Print the updated S3 prompt verbatim.
 ```
 
 ---

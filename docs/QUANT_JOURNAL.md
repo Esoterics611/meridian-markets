@@ -2131,3 +2131,43 @@ fixes need not be isolated. Shipped for the next run:
    MM_MIN_HALF_SPREAD_BPS — a blind global widening un-quotes the tight winners (xyz:CL 0.11bps);
    κ goes to the next mm-l2-tune γ/κ sweep.
 tsc clean; mm.controller + registry + glft-quoter suites green (31 tests).
+
+## 2026-06-11 — Entry #52 (MASTER PLAN S1: attribution that SUMS + the leak table — the compass is fixed)
+**Session S1 of the chain (docs/MASTER_PLAN_SESSIONS.md). All work developed off-process on a
+worktree branch (feat/mm-s1-leak-table) while the next run trades — rules-of-engagement §2.**
+
+1. **Attribution sums now.** The missing term was ALREADY in the engine: `accrueInterval`
+   (mm-book.ts) accrues continuous Σ inv_carried×Δmid on BOTH drive paths and persists it
+   (`mm_book_state.inventoryCarryUnits`) — the fast-path snapshot just never surfaced it,
+   reporting only the engine's windowed carry. Exposed as **`inventoryMtmUnits`** (both paths);
+   identity **net = fillEdge + warehouseMTM + funding − fees** pinned EXACT by two unit specs
+   (fill-then-slide tape; rebate variant). `/desk/mm` renders it as the "warehouse" cell.
+2. **The A″ hedge-quality r²=0 bug — reproduced, root-caused, regression-tested.** Mechanism:
+   `resolveMarks` falls back to `lastMark` forever, so an underlying with no live book price
+   FREEZES after a restore ⇒ rU≡0 every bucket ⇒ var(U)=0 ⇒ betaLive/r² UNMEASURABLE (null,
+   rendered as 0). The 382a04e resolveMid path is the fix and is now pinned by a
+   simulated-restore spec (13/13 green). #51's live fits were alive because of it.
+3. **scripts/mm-leak-table.ts** — one command: mm_nav window + mm_book_state + run-log HEDGE
+   lines (+ live snapshot only when the window ends ≈now) → per-book identity table, ranked $
+   leak list, hedge churn (track/flip/open), loss concentration, md+json to docs/research/.
+   Run-review skill updated: leak table is STEP 0.
+4. **The measured leak tables** (docs/research/leak-table-{run-a2,run51-sweet16}.{md,json}):
+   - **A″ re-read with real accounting:** hedge churn **−$2,454 = A″'s #1 leak** (263 orders,
+     $9.1M churned; prompt predicted ~$2.7k ✓). Implied hedge-leg P&L **−$1,184** (the #50
+     "~−$1.0k on hedge legs" estimate, now measured). ETH/BTC books: fillEdge POSITIVE
+     (+94/+67) but warehouse −355/−263 — **A″'s majors bled warehouse, not pick-off**.
+   - **#51 Sweet-16:** ranked leaks 1–2 are **warehouse MTM: BRENTOIL −1,128 / HYPE −1,126**;
+     then SILVER fill edge −742; hedge churn down to **−$373** (53 orders, 46 track/6 flip —
+     the single-ETH-leg netting from the book swap already delivered most of S2's predicted
+     netting win). Cross-validation: identity-implied fillEdge vs the independent live windowed
+     read — SILVER −742 vs −745 (0.4%), BRENTOIL −277 vs −270 (2.6%), HYPE −373 vs −332 (the
+     12% gap = the quote→fill WEDGE, stale-quote pick-off — S7's input, now measured).
+5. **Negative results / gaps (owned):** engine windowed spread/adverse are NOT persisted (state
+   reads 0 for fast books — finished runs get the identity, not the split); a RELAUNCH
+   overwrites surviving books' state accumulators (only removed books keep final state —
+   run the leak table BEFORE relaunching); markout-by-hour, queue tercile, top-of-hour
+   toxicity not logged yet; xyz funding still 0 by construction.
+**Verdict for the plan: warehouse drift is the desk's #1 measured leak class in BOTH runs
+(A″ majors −657, #51 −2,254 across books) — S2 re-scoped around the inventory time-stop +
+dead-band/beta polish; hedge churn demoted from "the" leak to a solved-but-watch line.**
+tsc clean; touched suites green (hedge 13, mm-book 16, UI 16+, nav cron).
