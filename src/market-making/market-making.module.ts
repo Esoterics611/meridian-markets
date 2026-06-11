@@ -15,6 +15,7 @@ import { IL2BookSource, ITradeStreamSource } from '../market-data/reference/refe
 import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { TimeStopQuoter } from './quote/time-stop-quoter';
 import { parseSessionGate, sessionForSymbol } from './risk/session-gate';
+import { SweepRegimeDetector } from './risk/sweep-regime-detector';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { FlowToxicityScaler } from './microstructure/flow-toxicity';
 import { L2PollDriver } from './live/l2-poll-driver';
@@ -87,6 +88,17 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         // Journal #55 guardrails: session-gate rules (RTH-only xyz equity books) parsed once;
         // per-book window resolved at build time. Malformed rules are skipped by the parser.
         const sessionRules = parseSessionGate(mm.sessionGate);
+        // S4 sweep-regime gate (Journal #56): one detector PER BOOK (per-symbol flow memory),
+        // fast path only — the bar path has no real aggressor flow to read.
+        const makeRegimeDetector = (useFast: boolean): SweepRegimeDetector | undefined =>
+          mm.regimeGate && useFast
+            ? new SweepRegimeDetector({
+                flowThreshold: mm.regimeFlowThreshold,
+                windowMs: mm.regimeWindowMs,
+                minDriftBps: mm.regimeMinDriftBps,
+                cooldownMs: mm.regimeCooldownMs,
+              })
+            : undefined;
         if (sessionRules.length > 0)
           new Logger('MarketMakingModule').log(
             `session gate: ${sessionRules.map((r) => `${r.symbols.join(',')}=${r.openMin}-${r.closeMin}min UTC`).join('; ')}`,
@@ -391,6 +403,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             lossStopFrac: mm.lossStopFrac,
             lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
             sessionUtc: sessionForSymbol(sessionRules, spec.symbol),
+            regimeDetector: makeRegimeDetector(useFast),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,
@@ -470,6 +483,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
             lossStopFrac: mm.lossStopFrac,
             lossStopCooldownMs: mm.lossStopCooldownMin * 60_000,
             sessionUtc: sessionForSymbol(sessionRules, rec.symbol),
+            regimeDetector: makeRegimeDetector(useFast),
             vpinEmaBuckets: mm.vpinEmaBuckets,
             markoutHorizonsMs: mm.markoutHorizonsMs,
             nextBar,

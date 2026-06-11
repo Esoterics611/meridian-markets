@@ -301,6 +301,17 @@ export interface AppConfig {
     lossStopFrac: number;
     /** Stand-aside minutes after a loss-stop fires. Default 15. */
     lossStopCooldownMin: number;
+    /** S4 sweep-regime gate (Journal #56): pull quotes when one-sided aggressor flow + same-sign
+     *  price drift say a sweep is on — BEFORE inventory builds (the loss-stop is the after). */
+    regimeGate: boolean;
+    /** |flow EWMA| one-sided threshold ∈(0,1). Default 0.65. */
+    regimeFlowThreshold: number;
+    /** Price-drift confirmation window (ms). Default 30000. */
+    regimeWindowMs: number;
+    /** Min |drift| over the window (bps) to confirm the sweep. Default 5. */
+    regimeMinDriftBps: number;
+    /** Re-entry hold after the last sweep tick (ms). Default 90000. */
+    regimeCooldownMs: number;
     /** Session gate rules (Journal #55), raw MM_SESSION_GATE string:
      *  "sym,sym=HHMM-HHMM[;sym=HHMM-HHMM]" (UTC). Symbols listed quote ONLY inside their
      *  window; outside they flatten + stand aside (xyz equity books off US RTH are pure

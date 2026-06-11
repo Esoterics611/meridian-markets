@@ -14,6 +14,7 @@ import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { L2LiveFillEngine, ToxicityMetrics } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
+import { SweepRegimeDetector, RegimeState } from '../risk/sweep-regime-detector';
 import { classifyFill, fillEvent, verdictEvent } from '../events/desk-event';
 
 // MmBook — a single-instrument live paper market-making book. The market-making
@@ -85,6 +86,12 @@ export interface MmBookConfig {
    * (run53: every negative-fillEdge xyz read happened pre-US-open). Omit ⇒ quote 24h.
    */
   sessionUtc?: { openMin: number; closeMin: number };
+  /**
+   * S4 sweep-regime gate (Journal #56): one-sided aggressor flow + same-sign price drift ⇒
+   * pull quotes BEFORE inventory builds against the move (the loss-stop fires after; this is
+   * the before). Fast path only (needs the real per-tick aggressor flow). Omit ⇒ off.
+   */
+  regimeDetector?: SweepRegimeDetector;
   /** VPIN EMA window in buckets (toxicity gauge + risk pause). Default 50. */
   vpinEmaBuckets?: number;
   /** VPIN bucket size in asset units; default = quoteSizeUnits·10 (self-scales per symbol). */
@@ -214,6 +221,9 @@ export interface MmBookSnapshot {
   /** The bias the quoter was ACTUALLY handed last tick (post OOS-gate; 0 = neutral, no lean).
    *  A sign flip here is "the front of the move flipped" — the UI renders it per book. */
   bias?: number;
+  /** S4 sweep-regime state: 'calm' (quoting) / 'sweep' (one-sided flow + drift — quotes pulled)
+   *  / 'cooldown' (re-entry hold). Undefined ⇒ gate not wired for this book. */
+  regime?: RegimeState;
   /** Delta-hedge coverage (Journal #55b, annotated by the portfolio trader): the hedge leg's
    *  underlying + β, or β=0/undefined ⇒ NAKED. Makes "are we delta-neutral?" explicit on every
    *  snapshot — the run53 lesson (the xyz books were unhedged and nothing said so). */
@@ -239,6 +249,8 @@ export class MmBook {
   private readonly vol: RollingVolatility;
   /** Guardrail stand-aside horizon (epoch ms) after a loss-stop fires; 0 = not standing aside. */
   private standAsideUntilMs = 0;
+  /** S4 regime state last tick (transition logging + the snapshot's regime field). */
+  private lastRegime: RegimeState = 'calm';
   /** Count of loss-stop triggers this run (surfaced in logs; the leak table greps the line). */
   private lossStops = 0;
   // On the fast L2 path the book is SHARED with the fill engine (one source of truth —
@@ -449,6 +461,32 @@ export class MmBook {
     const beforeAsk = this._fastAskFills;
     const quote = eng.onSnapshot(tick);
     if (quote) this.lastQuote = quote;
+    // S4 sweep-regime gate (Journal #56): drive the detector off this tick's REAL aggressor
+    // flow + the fresh mid. In 'sweep'/'cooldown' the quotes the engine just re-placed are
+    // pulled immediately — nothing rests into the sweep, so nothing fills against it, while
+    // the engine's σ/markout/funding state stays warm (unlike the session-gate full skip).
+    if (this.cfg.regimeDetector) {
+      const m0 = eng.lastMid() ?? 0n;
+      const state = this.cfg.regimeDetector.update(
+        this.now().getTime(),
+        m0,
+        tick.flow?.aggressiveBuyUnits ?? 0n,
+        tick.flow?.aggressiveSellUnits ?? 0n,
+      );
+      if (state !== this.lastRegime) {
+        this.logger.warn(
+          `REGIME ▸ ${this.cfg.symbol} ${this.lastRegime} → ${state}` +
+            (state === 'sweep' ? ` (flow ${this.cfg.regimeDetector.flow().toFixed(2)} — quotes pulled before inventory builds)` : ''),
+        );
+        this.events.emit(verdictEvent({ ts: this.now().getTime(), book: this.cfg.symbol, source: this.cfg.source ?? '', prev: `regime:${this.lastRegime}`, next: `regime:${state}` }));
+        this.lastRegime = state;
+      }
+      if (state !== 'calm') {
+        eng.cancelResting();
+        this.blockedQuotes += 1;
+        return;
+      }
+    }
     const m = eng.metrics();
     this._fastBidFills = m.bidFills;
     this._fastAskFills = m.askFills;
@@ -822,6 +860,7 @@ export class MmBook {
       vpinWindowBuckets: this.vpin.windowBuckets(),
       bookImbalance: m.bookImbalance,
       bias: m.bias,
+      regime: this.cfg.regimeDetector ? this.lastRegime : undefined,
       tradeFlowImbalance: m.tradeFlowImbalance,
       markout: m.markout,
       markoutBySide: m.markoutBySide,

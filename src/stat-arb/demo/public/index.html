@@ -692,7 +692,7 @@
         return `<div class="book">
           <div class="bh">
             <span class="bp mono accent">${b.symbol}</span>
-            <span><span class="chip ${verdictCls}">${b.lastVerdict}</span>${b.warm ? '' : ' <span class="chip WARN">warming</span>'}
+            <span><span class="chip ${verdictCls}">${b.lastVerdict}</span>${b.regime && b.regime !== 'calm' ? ' <span class="chip WARN" title="S4 sweep-regime gate: quotes pulled — one-sided flow + same-sign drift">' + b.regime.toUpperCase() + '</span>' : ''}${b.warm ? '' : ' <span class="chip WARN">warming</span>'}
               <button onclick='removeMm(${JSON.stringify(b.symbol)})' class="ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" title="flatten + remove this book">✕</button></span>
           </div>
           <div class="meta"><span class="mono">${b.family}</span> · ${b.fills} fills (${b.bidFills}▾/${b.askFills}▴) · ${b.barsSeen} bars · last ${age != null ? age + 's' : '—'}${b.blockedQuotes > 0 ? ` · <span class="chip WARN">${b.blockedQuotes} blocked</span>` : ''}</div>

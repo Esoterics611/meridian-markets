@@ -2298,3 +2298,26 @@ Tests: market-making+demo 63 suites / 374 green; tsc clean. NOTE: session gate n
 replay harness; per-book capital ∝ measured fillEdge; flow-flip alert (event when lean changes
 sign); short-horizon book cycling question — see RUN_THE_DESK/analysis (cycling does NOT reset
 regime; the regime gate is the honest version of "turn it off after an hour").
+## 2026-06-11 — Entry #56 (S4 SHIPPED: the sweep-regime gate — pull quotes BEFORE inventory builds)
+Operator priority (Ronnie): the trend/sweep detector is the most important knob. Shipped:
+**`SweepRegimeDetector`** (`risk/sweep-regime-detector.ts`, pure/clock-free/replayable) — two legs
+must AGREE: (1) FLOW: EWMA of signed aggressor imbalance, |ewma|>0.65 = one-sided tape;
+(2) PRICE: same-sign drift ≥5bps over 30s = the price is following (one-sided flow the book
+absorbs is NOT a sweep — we keep quoting absorption). Both ⇒ SWEEP: `cancelResting()` pulls the
+quotes the engine just placed (σ/markout/funding stay warm — unlike the session gate's full
+skip), nothing rests into the move, nothing fills against it. 90s cooldown after the last sweep
+tick = the get-out-then-re-enter discipline. Per-book detector (per-symbol flow memory), fast
+path only (needs real aggressor flow). `REGIME ▸ calm → sweep` log + verdict tape event on every
+transition; `regime` on the snapshot; **SWEEP/COOLDOWN badge on /mm-desk AND /demo**.
+ENV: MM_REGIME_GATE=true (armed in start-desk.sh) + REGIME_{FLOW_THRESHOLD,WINDOW_MS,
+MIN_DRIFT_BPS,COOLDOWN_MS}. HONESTY: thresholds are PRIORS, not fitted — run54 measures
+engagements vs warehouse saved; the detector is replayable for an offline sweep later.
+**Also (#55b follow-through):** flow/lean/hedge tiles ported to **/mm-desk** (the page Ronnie
+actually watches — /demo got them first by mistake); UNHEDGED tooltip wording; detector spec
+4 cases green (sweep+confirm fires; absorption does NOT; wrong-sign drift does NOT; cooldown→
+calm re-entry). market-making+ui 81 suites / 493 green; tsc clean.
+The desk's layered inventory defence is now: (1) S4 gate = don't BUILD inventory into a sweep →
+(2) governor cap+skew = bound what builds → (3) loss-stop −0.01% = bound what a position loses →
+(4) β-hedge on every book = neutralise the factor of what remains. Each layer covers the prior's
+failure mode. NEXT: event calendar + blackout windows (designed, approved scope pending),
+per-hour regime diagnostic strip on the leak table.
