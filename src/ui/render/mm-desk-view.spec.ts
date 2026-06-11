@@ -31,7 +31,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     netPnlUnits: '699500000', // +$699.50
     spreadCapturedUnits: '900000000', // +$900.00
     adverseSelectionUnits: '-200500000', // −$200.50
-    inventoryCarryUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, vpinWindowBuckets: 50, markout: [], markoutBySide: { buy: [], sell: [] },
+    inventoryCarryUnits: '0', inventoryMtmUnits: '0', inventoryNotionalCapUnits: '0', vpin: 0, vpinBuckets: 0, vpinWindowBuckets: 50, markout: [], markoutBySide: { buy: [], sell: [] },
     fills: 42,
     bidFills: 21,
     askFills: 21,
@@ -91,10 +91,10 @@ describe('renderMmDeskLive', () => {
     expect(h).toContain('−$2.00'); // fees (contribution sign: a $2 cost reduces net)
     expect(h).toContain('+$1.50'); // funding
     expect(h).toContain('+$699.50'); // net P&L = 400 − 2 + 300 + 1.5
-    // mark-out attribution — a diagnostic, explicitly NOT part of net
+    // edge attribution — spread + warehouse (the S1 continuous-MTM term); adverse stays diagnostic
     expect(h).toContain('+$900.00'); // spread captured
     expect(h).toContain('−$200.50'); // adverse selection
-    expect(h).toContain('diagnostic · ≠ net');
+    expect(h).toContain('warehouse');
     expect(h).toContain('badge--allow'); // verdict
     expect(h).toContain('fills 42 (b21/a21)');
   });

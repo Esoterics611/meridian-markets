@@ -167,8 +167,15 @@ export interface MmBookSnapshot {
   spreadCapturedUnits: string;
   adverseSelectionUnits: string;
   /** MTM drift on inventory carried between bars (+ gain / − loss) — the third
-   *  attribution column alongside spread and adverse. */
+   *  attribution column alongside spread and adverse. NOTE (S1): on the FAST path this is the
+   *  engine's WINDOWED carry (post-fill markout horizons only) — a diagnostic, not an accounting
+   *  term. Use inventoryMtmUnits for the term that sums. */
   inventoryCarryUnits: string;
+  /** CONTINUOUS inventory mark-to-market: Σ inv_carried × Δmid over EVERY interval, fill to flat
+   *  (accrueInterval, both drive paths; persisted). The warehouse-drift term that makes attribution
+   *  SUM (Journal #49/#51 gap): net ≈ spreadCaptured − fees + funding + inventoryMtm, up to the
+   *  quote→fill mid wedge the leak table reports as residual. */
+  inventoryMtmUnits: string;
   /** |inventory| cap in USDC-units (frac·capital); "0" when no notional cap is set.
    *  The UI shows exposure as a % of this rail. */
   inventoryNotionalCapUnits: string;
@@ -628,6 +635,7 @@ export class MmBook {
       spreadCapturedUnits: this.spreadCaptured.toString(),
       adverseSelectionUnits: this.adverse.toString(),
       inventoryCarryUnits: this.inventoryCarry.toString(),
+      inventoryMtmUnits: this.inventoryCarry.toString(), // bar path: carry IS the continuous term
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),
@@ -679,6 +687,9 @@ export class MmBook {
       spreadCapturedUnits: m.attribution.spreadCapturedUnits.toString(),
       adverseSelectionUnits: m.attribution.adverseSelectionUnits.toString(),
       inventoryCarryUnits: m.attribution.inventoryCarryUnits.toString(),
+      // The S1 fix: accrueInterval has computed (and persisted) this continuous MTM all along on
+      // the fast path too — it was just never surfaced, leaving warehouse drift in NO component.
+      inventoryMtmUnits: this.inventoryCarry.toString(),
       inventoryNotionalCapUnits: this.notionalCapUnits().toString(),
       vpin: this.vpin.current(),
       vpinBuckets: this.vpin.bucketsSeen(),

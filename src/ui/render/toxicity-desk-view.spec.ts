@@ -29,7 +29,7 @@ function book(over: Partial<MmBookSnapshot> = {}): MmBookSnapshot {
     netPnlUnits: '699500000',
     spreadCapturedUnits: '900000000',
     adverseSelectionUnits: '200500000',
-    inventoryCarryUnits: '0',
+    inventoryCarryUnits: '0', inventoryMtmUnits: '0',
     inventoryNotionalCapUnits: '0',
     vpin: 0.68,
     vpinBuckets: 80,

@@ -105,12 +105,12 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
         <div class="attr"><span class="ak">funding</span><span class="av mono ${signClass(b.fundingUnits)}">${money(b.fundingUnits)}</span></div>
         <div class="attr attr--net"><span class="ak">net P&amp;L</span><span class="av mono ${signClass(b.netPnlUnits)}">${money(b.netPnlUnits)}</span></div>
       </div>
-      <!-- Mark-out attribution — a per-fill diagnostic on quote quality (was the price
-           good vs. where the mid went next?). It does NOT sum to net P&L. -->
+      <!-- Edge attribution. spread + warehouse (+funding −fees) ≈ net (S1 identity);
+           adverse stays a per-fill markout-window diagnostic (a slice of warehouse). -->
       <div class="attr-grid attr-grid--diag">
         <div class="attr"><span class="ak">spread</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
         <div class="attr"><span class="ak">adverse</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
-        <div class="attr"><span class="ak dim">mark-out</span><span class="av dim">diagnostic · ≠ net</span></div>
+        <div class="attr"><span class="ak">warehouse</span><span class="av mono ${signClass(b.inventoryMtmUnits)}">${money(b.inventoryMtmUnits)}</span></div>
         ${mo60Cell('mo60 b', b.markoutBySide.buy)}
         ${mo60Cell('mo60 a', b.markoutBySide.sell)}
       </div>

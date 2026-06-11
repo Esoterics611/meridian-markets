@@ -262,3 +262,64 @@ describe('MmBook', () => {
     });
   });
 });
+
+// S1 (Journal #49/#51): the attribution identity. The 4-component split marked drift only inside
+// post-fill markout windows, so P&L on warehoused inventory between fills landed in NO component
+// and "components vs net" diverged by $thousands per run. inventoryMtmUnits is the continuous
+// warehouse term (accrueInterval: inv_carried × Δmid, every interval). The identity it restores:
+//   net = spreadCaptured + inventoryMtm + funding − fees   (exact up to integer rounding)
+describe('attribution identity — net = spread + inventoryMtm + funding − fees (S1)', () => {
+  it('reconciles exactly on a fill-then-slide tape (warehouse drift outside any markout window)', async () => {
+    const bars: Bar[] = [
+      // warmup
+      bar(0, 1.0, 1.0, 1.0),
+      bar(1, 1.0, 1.0, 1.0),
+      // one-sided fills: low touches the bid each bar → the book accumulates a long
+      bar(2, 1.0, 1.0001, 0.999),
+      bar(3, 1.0, 1.0001, 0.999),
+      bar(4, 1.0, 1.0001, 0.999),
+      // the slide: price walks down 5% with a range too narrow to fill — pure warehouse drift
+      bar(5, 0.98, 0.9801, 0.9799),
+      bar(6, 0.96, 0.9601, 0.9599),
+      bar(7, 0.95, 0.9501, 0.9499),
+    ];
+    const book = new MmBook({ ...cfg(bars), makerFeeBps: 1, fundingRatePerHour: 0.0005 });
+    await tickAll(book, bars.length);
+    const s = book.snapshot();
+
+    expect(BigInt(s.inventoryUnits)).toBeGreaterThan(0n); // long was warehoused
+    const net = BigInt(s.netPnlUnits);
+    const spread = BigInt(s.spreadCapturedUnits);
+    const invMtm = BigInt(s.inventoryMtmUnits);
+    const funding = BigInt(s.fundingUnits);
+    const fees = BigInt(s.feesUnits);
+
+    // The slide happened with no fills, so the drift is invisible to per-fill windows — the old
+    // gap. The continuous term must carry it (a loss roughly the inventory × the 5% slide).
+    expect(invMtm).toBeLessThan(0n);
+
+    // The identity: components reconcile to net within integer-division rounding (≪ $1).
+    const reconstructed = spread + invMtm + funding - fees;
+    const diff = net - reconstructed;
+    const tol = BigInt(bars.length + s.fills + 2); // 1 unit ($1e-6) per integer division
+    expect(diff <= tol && diff >= -tol).toBe(true);
+  });
+
+  it('funding=0 / fee-rebate variant still reconciles (sign conventions hold)', async () => {
+    const bars: Bar[] = [
+      bar(0, 1.0, 1.0, 1.0),
+      bar(1, 1.0, 1.0, 1.0),
+      bar(2, 1.0, 1.001, 0.999), // straddle: both sides fill, inventory nets out
+      bar(3, 1.0, 1.001, 0.999),
+      bar(4, 1.02, 1.0201, 1.0199), // drift with whatever inventory remains
+    ];
+    const book = new MmBook({ ...cfg(bars), makerFeeBps: -0.2 }); // rebate ⇒ feesUnits negative
+    await tickAll(book, bars.length);
+    const s = book.snapshot();
+    const net = BigInt(s.netPnlUnits);
+    const reconstructed = BigInt(s.spreadCapturedUnits) + BigInt(s.inventoryMtmUnits) + BigInt(s.fundingUnits) - BigInt(s.feesUnits);
+    const diff = net - reconstructed;
+    const tol = BigInt(bars.length + s.fills + 2);
+    expect(diff <= tol && diff >= -tol).toBe(true);
+  });
+});
