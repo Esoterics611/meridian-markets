@@ -831,3 +831,19 @@ A-quadrant + queue-tercile + top-of-hour sections, `--self-check` (exit 2 on any
 clean. UI QA note: no API field shape changed (HedgeUnderlyingSnap gained per-leg
 mark/pnl/funding/fees — additive; both UIs unaffected, fixtures updated). Next: F1 hedge
 anti-churn, replay-gated on the now-persisted run data.
+
+## 2026-06-12 (same session, cont.) — F1: hedge anti-churn
+
+Shipped F1 (QUANT_JOURNAL #60): five brakes between the hedge plan and execution in
+`DeskHedgeController` — min-hold per leg, flip cooldown, flow-sign-flip add-freeze
+(REDUCES pass), net-first (a primary flatten — loss-stop included, detected by the trader
+as inventory→0 between hedge ticks — suppresses the opposing leg and restarts min-hold),
+and the per-book basis gate (FARTCOIN/kPEPE/ADA excluded from the plan per run55 basis,
+delta announced not hidden). New DeskEvent kinds `blocked`/`flow`; every suppression
+carries its trigger numbers, rate-bounded, durable via F0's mm_desk_event. New
+`scripts/hedge-churn-replay.ts` (run55: mechanical rules −17% churn cost; ≥50% gate
+moves to the first live post-F1 run) + F1.6 per-leg variance-reduction report in the
+leak table. Config: 5 new MM_HEDGE_* knobs (factory defaults + start-desk.sh +
+RUN_THE_DESK.md). UI QA: new event kinds render verbatim on the existing tape (default
+badge); no API field shape changed. 196 suites / 1354 tests; tsc clean; telemetry flake
+only. Next: F2 quote anti-churn.

@@ -183,6 +183,18 @@ export interface AppConfig {
     /** Hedge β-map: book symbol → { underlying, beta }. Folds alts onto a major perp so one leg
      *  hedges the basket (Journal #41/#44 DR-3). Empty = self-hedge each symbol 1:1 (the default). */
     hedgeBetaMap: Record<string, { underlying: string; beta: number }>;
+    /** F1 anti-churn: min hold per hedge leg, ms — no re-fire faster than this. 0 = off. */
+    hedgeMinHoldMs: number;
+    /** F1: after a leg's direction flip, freeze further flips this long; a book flow sign-flip
+     *  freezes ADDS on its underlying for the same interval. 0 = off. */
+    hedgeFlipCooldownMs: number;
+    /** F1: |flow| below this is noise — a flow sign only counts for the flip-freeze at/above it. */
+    hedgeFlowFreezeTheta: number;
+    /** F1 basis gate: book → hedge|flatten. 'flatten' = excluded from the hedge plan (carried
+     *  delta reported, the book's own stops bound it). Unlisted books default to 'hedge'. */
+    hedgeBasisGate: Record<string, 'hedge' | 'flatten'>;
+    /** F1: per-underlying no-trade band override (USD); only ever WIDENS the global band. */
+    hedgeBandMap: Record<string, number>;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

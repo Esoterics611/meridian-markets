@@ -24,6 +24,10 @@ export interface BookDelta {
   inventoryUnits: bigint;
   /** Mid price in micro-USD per unit (= price · 1e6); the live mark. */
   midMicros: bigint;
+  /** Signed aggressor-flow imbalance ∈ [−1,1] at this book (F1: a flow sign-flip freezes hedge
+   *  ADDS on the book's underlying — the front of the move is reversing). Optional: omitted by
+   *  the bar path / older callers ⇒ no flow gating. */
+  flow?: number;
 }
 
 /** How a book symbol maps onto a hedge underlying + its beta to that underlying. */
@@ -49,6 +53,21 @@ export interface HedgeConfig {
   /** Hedge-quality KPI sampling bucket, ms (WP1.1 — Epps: tick-cadence returns decorrelate alts
    *  from majors mechanically, so β/R²/basis are measured on coarser buckets). Default 60s. */
   qualityBucketMs?: number;
+
+  // ── F1 anti-churn (Journal #60; run55: 56 orders / 19 flips / $1.62M churned ≈ −$437) ──
+  /** Min hold per hedge leg: no re-fire on an underlying faster than this. 0/undefined = off. */
+  minHoldMs?: number;
+  /** After a hedge direction FLIP on a leg, freeze further flips for this long; a book flow
+   *  sign-flip freezes ADDS (open/increase/flip) on its underlying for the same interval. */
+  flipCooldownMs?: number;
+  /** |flow| below this is noise — a flow sign only counts (for the flip-freeze) at/above it. */
+  flowFreezeThreshold?: number;
+  /** Per-book basis gate: 'flatten' books are EXCLUDED from the hedge plan (their basis is so
+   *  poor the cross-hedge is a second bet — let the book's own stops/skew bound them); unlisted
+   *  books default to 'hedge'. run55 priors: FARTCOIN/kPEPE/ADA → flatten. */
+  basisPolicy?: Record<string, 'hedge' | 'flatten'>;
+  /** Per-underlying no-trade band override (USD); falls back to bandUsd. */
+  bandUsdByUnderlying?: Record<string, number>;
 }
 
 export interface HedgeUnderlyingState {

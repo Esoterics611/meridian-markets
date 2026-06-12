@@ -542,13 +542,27 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               : undefined;
           hedger = new DeskHedgeController(
             hedgeVenue,
-            { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
+            {
+              bandUsd: mm.hedgeBandUsd,
+              betaMap: mm.hedgeBetaMap,
+              hedgeTakerBps: mm.hedgeTakerBps,
+              hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps,
+              // F1 anti-churn (Journal #60): the run55 −437 churn line.
+              minHoldMs: mm.hedgeMinHoldMs,
+              flipCooldownMs: mm.hedgeFlipCooldownMs,
+              flowFreezeThreshold: mm.hedgeFlowFreezeTheta,
+              basisPolicy: mm.hedgeBasisGate,
+              bandUsdByUnderlying: mm.hedgeBandMap,
+            },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
             resolveHedgeMid,
           );
+          const gated = Object.entries(mm.hedgeBasisGate).filter(([, p]) => p === 'flatten').map(([s]) => s);
           new Logger('MarketMakingModule').log(
-            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,
+            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper); ` +
+              `anti-churn: min-hold ${Math.round(mm.hedgeMinHoldMs / 1000)}s, flip-cooldown ${Math.round(mm.hedgeFlipCooldownMs / 1000)}s, flow θ ${mm.hedgeFlowFreezeTheta}, ` +
+              `basis-gate flatten: ${gated.length ? gated.join(',') : 'none'}`,
           );
         }
 

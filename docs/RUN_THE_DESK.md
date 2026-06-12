@@ -298,6 +298,11 @@ it **up / on**.
 | **`MM_HEDGE_BETA_MAP`** | self-hedge (start-desk: the **OOS β-map**) | `SYM:UNDERLYING:β` triples fold alts onto a major perp ⇒ hedge the basket with ~2 legs. Re-fit with `scripts/hedge-beta-fit.ts`. |
 | **`MM_HEDGE_COST_SPREAD_MULT`** | `0.5` | fraction of the hedge round-trip priced into the maker spread ⇒ each fill earns ≥ its hedge cost. **Lower if fills starve**, raise to be stricter; `0` = don't charge. |
 | `MM_HEDGE_TAKER_BPS` | `2.5` | modeled taker cost per hedge fill (also the spread-premium basis). |
+| **`MM_HEDGE_MIN_HOLD_MS`** | `30000` | **F1 anti-churn**: a hedge leg cannot re-fire faster than this. `0` = off. |
+| **`MM_HEDGE_FLIP_COOLDOWN_MS`** | `300000` | F1: after a leg's direction flip, further flips freeze this long; a book **flow sign-flip** freezes ADDS on its underlying for the same interval (`FLOW ▸ flip` on the tape). |
+| `MM_HEDGE_FLOW_FREEZE_THETA` | `0.25` | F1: \|flow\| below this is noise — no sign, no freeze. |
+| **`MM_HEDGE_BASIS_GATE`** | `FARTCOIN:flatten,kPEPE:flatten,ADA:flatten` | F1 per-book basis gate: `flatten` books are **excluded from the hedge plan** (run55 basis: the cross-hedge was a second bet) — their own stops/skew bound them; carried delta announced as `BLOCKED ▸ basis-gate`. |
+| `MM_HEDGE_BAND_MAP` | *(empty)* | F1: per-underlying band override (USD), only widens — e.g. `ETH:4000`. |
 | `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg (also the spread-premium basis). |
 
 ### Directional / flow bias — a chosen bet (OFF in the canonical run)

@@ -251,6 +251,15 @@ async function main(): Promise<void> {
     [since, until],
   );
 
+  // F1 variance-reduction report (the §F1.6 diagnostic): per hedge underlying, the realised
+  // σ of 5-min P&L deltas of the PRIMARY books (the ones the quality map says it hedges) vs
+  // primary + hedge leg, against the leg's fee bill — surfaces legs that don't earn their churn.
+  const hedgePnlCurve = await tryRows(
+    `select underlying, as_of, pnl_usd from mm_hedge_nav
+      where as_of >= $1 and as_of <= $2 order by underlying, as_of`,
+    [since, until],
+  );
+
   // ── live snapshot (optional): the CURRENT windowed split + fills/vpin ────────────────────────
   // Only when the window ends ~now — a live snapshot describes the CURRENT run and must never be
   // merged into a historical window (the books reset at relaunch).
@@ -418,6 +427,64 @@ async function main(): Promise<void> {
     deskHour.set(hr, (deskHour.get(hr) ?? 0) + (Number(deskRows[i].net) - Number(deskRows[i - 1].net)));
   }
 
+  // ── F1 variance-reduction report: does each hedge leg earn its churn? ────────────────────────
+  // σ of 5-min P&L deltas: primary books alone vs primary + hedge leg, per underlying. A leg that
+  // does NOT cut realised variance while paying taker fees is a flatten-only candidate (§F1.6).
+  const fiveMinDeltas = (rows: Array<{ t: number; v: number }>): Map<number, number> => {
+    const out = new Map<number, number>();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].t - rows[i - 1].t > 10 * 60_000) continue; // relaunch gap, not P&L
+      const b = Math.floor(rows[i].t / 300_000);
+      out.set(b, (out.get(b) ?? 0) + (rows[i].v - rows[i - 1].v));
+    }
+    return out;
+  };
+  const stdev = (xs: number[]): number => {
+    if (xs.length < 2) return 0;
+    const m = xs.reduce((s, x) => s + x, 0) / xs.length;
+    return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / (xs.length - 1));
+  };
+  interface VarRow { underlying: string; books: string[]; volPrimaryHr: number; volHedgedHr: number; reductionPct: number; feesUsd: number; verdict: string }
+  const varReduction: VarRow[] = [];
+  if (hedgePnlCurve && hedgePnlCurve.length > 0 && hedgeQuality && hedgeQuality.length > 0) {
+    const membersByUnderlying = new Map<string, string[]>();
+    for (const q of hedgeQuality) {
+      const u = String(q['underlying']);
+      if (!membersByUnderlying.has(u)) membersByUnderlying.set(u, []);
+      membersByUnderlying.get(u)!.push(String(q['book_key']));
+    }
+    for (const [u, members] of [...membersByUnderlying.entries()].sort()) {
+      // Primary: sum of the member books' 5-min net deltas.
+      const primary = new Map<number, number>();
+      for (const m of members) {
+        const rows = (byBook.get(m) ?? []).map((r) => ({ t: r.as_of.getTime(), v: Number(r.net) }));
+        for (const [b, d] of fiveMinDeltas(rows)) primary.set(b, (primary.get(b) ?? 0) + d);
+      }
+      const legRows = hedgePnlCurve.filter((r) => String(r['underlying']) === u).map((r) => ({ t: new Date(r['as_of'] as string).getTime(), v: Number(r['pnl_usd']) }));
+      const leg = fiveMinDeltas(legRows);
+      const keys = new Set<number>([...primary.keys(), ...leg.keys()]);
+      const p: number[] = [];
+      const h: number[] = [];
+      for (const k of keys) {
+        p.push(primary.get(k) ?? 0);
+        h.push((primary.get(k) ?? 0) + (leg.get(k) ?? 0));
+      }
+      const volP = stdev(p) * Math.sqrt(12); // 5-min σ → $/√hr
+      const volH = stdev(h) * Math.sqrt(12);
+      const red = volP > 0 ? 1 - volH / volP : 0;
+      const fees = Number(hedgeLegs?.find((l) => String(l['underlying']) === u)?.['fees'] ?? 0);
+      varReduction.push({
+        underlying: u,
+        books: members,
+        volPrimaryHr: volP,
+        volHedgedHr: volH,
+        reductionPct: red,
+        feesUsd: fees,
+        verdict: red > 0.15 ? 'earns churn' : 'FLATTEN-ONLY candidate (no variance cut for the fees)',
+      });
+    }
+  }
+
   // ── render ───────────────────────────────────────────────────────────────────────────────────
   const md: string[] = [];
   md.push(`# MM leak table — ${label}`);
@@ -454,6 +521,15 @@ async function main(): Promise<void> {
     for (const q of hedgeQuality)
       md.push(
         `| ${String(q['book_key'])} | ${String(q['underlying'])} | ${Number(q['beta_cfg']).toFixed(2)} | ${q['beta_live'] === null ? 'n/a' : Number(q['beta_live']).toFixed(2)} | ${q['r2'] === null ? 'n/a' : Number(q['r2']).toFixed(2)} | ${q['basis_share'] === null ? 'n/a' : (Number(q['basis_share']) * 100).toFixed(0) + '%'} |`,
+      );
+  }
+  if (varReduction.length > 0) {
+    md.push('\n## Hedge variance reduction (F1.6) — σ of 5-min P&L, primary vs primary+leg\n');
+    md.push('| leg | books | σ primary $/√hr | σ hedged $/√hr | reduction | fees | verdict |');
+    md.push('|---|---|---|---|---|---|---|');
+    for (const v of varReduction)
+      md.push(
+        `| ${v.underlying} | ${v.books.join(' ')} | ${v.volPrimaryHr.toFixed(1)} | ${v.volHedgedHr.toFixed(1)} | ${(v.reductionPct * 100).toFixed(0)}% | ${fmt1(v.feesUsd)} | ${v.verdict} |`,
       );
   }
   md.push('\n## Per-book identity — net = fillEdge + warehouseMTM + funding − fees ($)\n');
@@ -528,7 +604,7 @@ async function main(): Promise<void> {
   fs.writeFileSync(mdPath, md.join('\n') + '\n');
   fs.writeFileSync(
     path.join(outDir, `leak-table-${label}.json`),
-    JSON.stringify({ since, until, desk, hedgeMeasuredUsd, hedgeLegImplied, hedge, hedgeLegs, hedgeQuality, books, leaks, hourly, quad, terciles, topOfHour }, null, 1),
+    JSON.stringify({ since, until, desk, hedgeMeasuredUsd, hedgeLegImplied, hedge, hedgeLegs, hedgeQuality, varReduction, books, leaks, hourly, quad, terciles, topOfHour }, null, 1),
   );
   console.log(md.join('\n'));
   console.error(`\nwritten: ${mdPath} (+ .json)`);

@@ -2445,3 +2445,48 @@ universe match, fillMarkoutRow mapping, BufferedSink batch/overflow/error. tsc c
 flaky telemetry.module.spec is the only red, pre-existing.)
 
 **Next (F1):** hedge anti-churn — the −437 leak. The replay gate can now use persisted data.
+
+## 2026-06-12 — Entry #60 (F1 SHIPPED: hedge anti-churn — the −437 leak gets five brakes and a per-leg verdict)
+
+**What:** MASTER PLAN II F1. Run55's biggest leak was not a wrong hedge but a CHURNING one
+(56 orders / 19 flips / $1.62M round-tripped ≈ −$437 taker, vs implied directional P&L of only
+~−21). Five controls now sit between `computeHedge`'s plan and execution, all in
+`DeskHedgeController` (each suppression a structured `HedgeDecision` → tape + log, PART V):
+
+1. **Min-hold** (`MM_HEDGE_MIN_HOLD_MS`, default 30s) — a leg cannot re-fire faster.
+2. **Flip cooldown** (`MM_HEDGE_FLIP_COOLDOWN_MS`, default 5min) — after a direction flip,
+   further flips freeze; run55 had 19, one ~2.5min after the leg opened.
+3. **Flow-flip add-freeze** (θ=0.25) — a book's aggressor-flow sign flip (the front of the move
+   reversing, FLOW_REACTIVE_QUOTING §5) freezes ADDS (open/increase/flip) on its underlying for
+   the cooldown; REDUCES pass. `FLOW ▸ flip` hits the tape (the missing flip event).
+4. **Net-first** — a primary flatten (incl. loss-stop; detected by the trader as inventory
+   nonzero→0 between hedge ticks) suppresses the opposing leg in the same cycle AND restarts
+   the leg's min-hold: stop → unwind → re-open was the run55 churn engine (BRENTOIL: $644k
+   churned, 22 orders, hedging ONE book — CL, which had 3 stops).
+5. **Basis gate** (`MM_HEDGE_BASIS_GATE`, default `FARTCOIN:flatten,kPEPE:flatten,ADA:flatten`
+   from run55's measured basisShare ~100/high/high) — gated books are EXCLUDED from the hedge
+   plan (the cross-hedge was a second bet); their delta stays in the snapshot + is announced
+   (`BLOCKED ▸ basis-gate`), never hidden. Plus `MM_HEDGE_BAND_MAP` per-leg band widening.
+
+**Observability (binding req):** every suppression emits `BLOCKED ▸ <leg> hedge <rule>: <numbers>`
+(band-hold/min-hold rate-bounded to 1/leg/rule/min; flips, net-first, flow-flips always), new
+DeskEvent kinds `blocked`/`flow` — on the live tape, in the server log, AND durable in
+mm_desk_event (F0). Boot line prints the full anti-churn config.
+
+**Replay evidence (scripts/hedge-churn-replay.ts on the run55 log, first-order):** mechanical
+rules alone (band/min-hold/flip-cooldown over the recorded fire stream) cut est. churn cost
+14–24% (defaults: 17%, 56→43 orders, 24→15 sign-flips) while average tracking gap rises ~$0.3k
+— honest read: **the mechanical brakes alone do NOT reach the ≥50% target.** The target rests
+on what the log cannot simulate: the basis gate (the ETH leg — $873k of the churn — hedges the
+three gated books) and net-first (BRENTOIL's stop-driven $644k). Both are now MEASURABLE live:
+F0 persists the decision tape + per-leg P&L, and the **F1.6 variance-reduction report** is in
+the leak table (per leg: σ of 5-min P&L primary vs primary+hedge vs fees → 'earns churn' /
+'FLATTEN-ONLY candidate'). **The F1 validation gate therefore moves to the first post-F1 run:**
+churn cost ≥50% down on the leak table's measured hedge-fee line, warehouse MTM not worse,
+variance report rendering.
+
+**Tests:** 196 suites / 1354 tests (7 new F1 controller cases + 3 parser cases); tsc clean;
+telemetry flake unchanged. Defaults baked into start-desk.sh; knobs documented in RUN_THE_DESK.
+
+**Next (F2):** quote anti-churn (−229 taker fees; hysteresis, dwell, maker-bias, per-trigger
+taker attribution — CL's "stop tax" vs requote churn now separable on the tape).

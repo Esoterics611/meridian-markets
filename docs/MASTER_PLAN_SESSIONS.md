@@ -157,7 +157,13 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   NAV corrupt-mark guard, and the leak-table upgrade (worst5m fixed, per-hour strip, A-quadrant
   split, queue terciles, top-of-hour cut, `--self-check`). Gate: `--self-check` exits 0 only on
   a post-F0 finished run — verify on the FIRST run after this ships.
-- ☐ **F1 — Hedge anti-churn** *(biggest leak: −437)*
+- ☑ **F1 — Hedge anti-churn** — SHIPPED 2026-06-12 (Journal #60): min-hold 30s + flip-cooldown
+  5min + flow-flip add-freeze (θ 0.25) + net-first (primary flatten ⇒ no opposing leg same cycle,
+  min-hold restarted) + per-book basis gate (FARTCOIN/kPEPE/ADA → flatten, run55 priors) +
+  per-leg band map; every suppression a `BLOCKED ▸`/`FLOW ▸` tape event with numbers; F1.6
+  variance-reduction report in the leak table. Replay (mechanical rules only): −17% churn cost;
+  the ≥50% gate rests on basis-gate + net-first and is **measured on the first post-F1 run**
+  (leak-table hedge-fee line + variance report — data exists via F0).
 - ☐ **F2 — Quote anti-churn** *(fee leak: −229)*
 - ☐ **F3 — Inventory skew** *(warehouse leak: −95)*
 - ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*

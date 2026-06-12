@@ -21,6 +21,8 @@ export type DeskEventKind =
   | 'launch' // a book was launched on an instrument
   | 'remove' // a book was flattened + dropped
   | 'hedge' // the desk delta-hedge traded a perp leg to flatten net delta
+  | 'blocked' // an automatic control SUPPRESSED an action (F1 anti-churn etc.), with its numbers
+  | 'flow' // a book's aggressor-flow sign flipped (the F1 add-freeze trigger)
   | 'start' // the desk loop started ticking
   | 'stop'; // the desk loop stopped
 
@@ -183,6 +185,33 @@ export function hedgeEvent(p: { ts: number; underlying: string; side: 'buy' | 's
     book: p.underlying,
     source: 'hl-perp-hedge',
     message: `HEDGE ▸ ${p.side.toUpperCase()} ${usd(p.notionalUsd)} ${p.underlying}-perp — ${p.reason} → residual ${usd(p.residualUsd)}`,
+  };
+}
+
+/** Build an F1 anti-churn suppression event (band-hold / min-hold / flip-cooldown / flow-freeze /
+ *  net-first / basis-gate). PART V observability: every automatic suppression is a logged,
+ *  structured event WITH its triggering numbers — the run is auditable without a debugger.
+ *  Continuous conditions arrive pre-rate-bounded by the controller. */
+export function blockedEvent(p: { ts: number; book: string; rule: string; detail: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'blocked',
+    book: p.book,
+    source: 'hl-perp-hedge',
+    message: `BLOCKED ▸ ${p.book} hedge ${p.rule}: ${p.detail}`,
+  };
+}
+
+/** Build a flow sign-flip event (F1 §5: the front of the move reversed — hedge adds freeze). */
+export function flowFlipEvent(p: { ts: number; book: string; detail: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'flow',
+    book: p.book,
+    source: '',
+    message: `FLOW ▸ flip — ${p.detail}`,
   };
 }
 
