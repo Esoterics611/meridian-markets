@@ -21,7 +21,8 @@ export type DeskEventKind =
   | 'launch' // a book was launched on an instrument
   | 'remove' // a book was flattened + dropped
   | 'hedge' // the desk delta-hedge traded a perp leg to flatten net delta
-  | 'blocked' // an automatic control SUPPRESSED an action (F1 anti-churn etc.), with its numbers
+  | 'blocked' // an automatic control SUPPRESSED an action (F1 anti-churn, F3 conc-cap), with its numbers
+  | 'control' // an automatic control CHANGED state (F3 skew ramp etc.) — the CONTROL ▸ grammar
   | 'flow' // a book's aggressor-flow sign flipped (the F1 add-freeze trigger)
   | 'start' // the desk loop started ticking
   | 'stop'; // the desk loop stopped
@@ -200,14 +201,27 @@ export function hedgeEvent(p: { ts: number; underlying: string; side: 'buy' | 's
  *  net-first / basis-gate). PART V observability: every automatic suppression is a logged,
  *  structured event WITH its triggering numbers — the run is auditable without a debugger.
  *  Continuous conditions arrive pre-rate-bounded by the controller. */
-export function blockedEvent(p: { ts: number; book: string; rule: string; detail: string }): DeskEventInput {
+export function blockedEvent(p: { ts: number; book: string; rule: string; detail: string; source?: string }): DeskEventInput {
   return {
     ts: p.ts,
     desk: 'mm',
     kind: 'blocked',
     book: p.book,
-    source: 'hl-perp-hedge',
-    message: `BLOCKED ▸ ${p.book} hedge ${p.rule}: ${p.detail}`,
+    source: p.source ?? '',
+    message: `BLOCKED ▸ ${p.book} ${p.rule}: ${p.detail}`,
+  };
+}
+
+/** Build an automatic-control state-change event (F3 concentration ramp etc.) — the
+ *  `CONTROL ▸` grammar of the PART V observability requirement. Change-driven, not periodic. */
+export function controlEvent(p: { ts: number; book: string; detail: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'control',
+    book: p.book,
+    source: '',
+    message: `CONTROL ▸ ${p.book} ${p.detail}`,
   };
 }
 

@@ -116,6 +116,14 @@ export interface LobReplayConfig {
    * Same shared decision the live engine runs (decideRequote). Omit / minBps 0 ⇒ off.
    */
   requote?: RequoteHysteresisCfg;
+  /**
+   * F3 warehouse loss-stop (Journal #62 sweep): when unrealised MTM on inventory breaches
+   * −lossStopFrac·capital, FLATTEN at the mid (5bps taker, like MmBook.flattenAt), pull
+   * quotes and stand aside for the cooldown. Mirrors the live guardrail (#55) so the stop
+   * threshold can be SWEPT offline. 0/undefined ⇒ no stop (legacy).
+   */
+  lossStopFrac?: number;
+  lossStopCooldownMs?: number;
 }
 
 export interface LobReplayMetrics {
@@ -143,6 +151,9 @@ export interface LobReplayMetrics {
   /** F2: steps a quote was HELD by the requote hysteresis/dwell (0 when the feature is off). */
   requoteHysteresisHolds: number;
   requoteDwellHolds: number;
+  /** F3: warehouse loss-stops fired (0 when the stop is off) + the taker fees they paid. */
+  lossStops: number;
+  lossStopFeesUnits: bigint;
 }
 
 export class LobReplayHarness {
@@ -170,6 +181,9 @@ export class LobReplayHarness {
     let placements = 0;
     let hysteresisHolds = 0;
     let dwellHolds = 0;
+    let lossStops = 0;
+    let lossStopFees = 0n;
+    let standAsideUntilMs = 0;
 
     // Funding accrual on held inventory (MM course §8.10). Static rate per hour,
     // pro-rated by the real inter-snapshot interval; signed into equity + net.
@@ -258,6 +272,32 @@ export class LobReplayHarness {
 
       if (!vol.ready()) continue; // warmup: don't quote yet
 
+      // --- 1b) F3 warehouse loss-stop (mirrors MmBook.guardrail, Journal #55/#62): flatten at
+      //         the mid (5bps taker), pull quotes, stand aside through the cooldown.
+      if (tsMs < standAsideUntilMs) {
+        restingBid = undefined;
+        restingAsk = undefined;
+        markDd(mid);
+        continue;
+      }
+      if (cfg.lossStopFrac && cfg.lossStopFrac > 0 && book.inventoryUnits() !== 0n) {
+        const stopUnits = BigInt(Math.round(cfg.lossStopFrac * Number(cfg.capitalUnits)));
+        if (book.unrealisedUnits(mid) < -stopUnits) {
+          const inv = book.inventoryUnits();
+          const side: FillSide = inv > 0n ? 'SELL' : 'BUY';
+          const size = inv > 0n ? inv : -inv;
+          const fee = (((size * mid) / MICROS) * 5n) / 10_000n; // taker 5bps, not the rebate
+          book.apply({ side, sizeUnits: size, priceMicros: mid, feeUnits: fee });
+          lossStops += 1;
+          lossStopFees += fee;
+          standAsideUntilMs = tsMs + (cfg.lossStopCooldownMs ?? 900_000);
+          restingBid = undefined;
+          restingAsk = undefined;
+          markDd(mid);
+          continue;
+        }
+      }
+
       // --- 2) re-quote off this book ---
       const inventoryBefore = book.inventoryUnits();
       // The quote center: the micro-price when enabled (so we quote where price is
@@ -309,8 +349,9 @@ export class LobReplayHarness {
       else if (decBid.held === 'dwell') dwellHolds += 1;
       if (decAsk.held === 'hysteresis') hysteresisHolds += 1;
       else if (decAsk.held === 'dwell') dwellHolds += 1;
-      restingBid = this.place(restingBid, 'BUY', decBid.priceMicros, cfg.quoteSizeUnits, ob, mid, onPlacement);
-      restingAsk = this.place(restingAsk, 'SELL', decAsk.priceMicros, cfg.quoteSizeUnits, ob, mid, onPlacement);
+      // F3: the quoter may CUT a side's size (concentration ramp; 0 = reduce-only, side pulled).
+      restingBid = quote.bid.sizeUnits > 0n ? this.place(restingBid, 'BUY', decBid.priceMicros, quote.bid.sizeUnits, ob, mid, onPlacement) : undefined;
+      restingAsk = quote.ask.sizeUnits > 0n ? this.place(restingAsk, 'SELL', decAsk.priceMicros, quote.ask.sizeUnits, ob, mid, onPlacement) : undefined;
 
       // --- 3) mark drawdown on the structural equity at this mid ---
       markDd(mid);
@@ -340,6 +381,8 @@ export class LobReplayHarness {
       attribution: sumComponents(components),
       requoteHysteresisHolds: hysteresisHolds,
       requoteDwellHolds: dwellHolds,
+      lossStops,
+      lossStopFeesUnits: lossStopFees,
     };
   }
 

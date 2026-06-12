@@ -2537,3 +2537,47 @@ attributable now, and F3's loss-stop sweep is the lever that moves it.
 
 **Next (F3):** inventory skew (−95 warehouse leak + the loss-stop sweep) — and it's the
 unblocking dependency for arming F2's hysteresis.
+
+## 2026-06-12 — Entry #62 (F3 SHIPPED: concentration controls + the loss-stop curve — 0.01% validated, warehouse −95% on replay)
+
+**What:** MASTER PLAN II F3 (the −95 warehouse leak; run55: ADA −138 at 94% conc, kPEPE −72,
+FARTCOIN −71, while balanced DOGE at 20% conc was net-POSITIVE despite being picked off).
+
+1. **Concentration controls in `GlftQuoter`** (conc = |q|/effMaxLots): past `MM_CONC_SOFT`
+   (default 0.5) a ramp r strengthens the reservation skew (×(1+`MM_CONC_SKEW_GAIN`·r),
+   default gain 2) and CUTS the adding side's quote size linearly, reaching **reduce-only**
+   (adding side not quoted) at `MM_CONC_HARD` (default 0.85). The reducing side keeps full
+   size. κ stays 0 — flow re-centering is F4's. Per-side sizes now flow through `QuotePair` →
+   both engines (a 0-size side is pulled); this strictly SMOOTHS what the hard cap already did
+   abruptly at 100%. **Default ON** — below 50% conc it is exactly the legacy quoter.
+2. **Observability (binding):** `onInventoryControl` fires on ZONE change only (free → ramp →
+   reduce-only and back) with q/conc/skew×/addSize/σ → `CONTROL ▸` line + tape event; the
+   reduce-only transition emits `BLOCKED ▸ conc-cap` (book, conc%, side). New `control`
+   DeskEvent kind; `blockedEvent` generalised (F1's now read `hedge band-hold` etc.).
+3. **Loss-stop in the replay harness** (`LobReplayConfig.lossStopFrac` + cooldown, mirroring
+   `MmBook.guardrail`: flatten at mid, 5bps taker, stand aside) + **`scripts/mm-inventory-sweep.ts`**.
+
+**Replay evidence (14h hl-fine tapes × 5 coins, micro-price, live-governor base):**
+
+- **Conc A/B:** binds RARELY on these tapes (inventory mostly < 50% of cap — the tapes don't
+  reproduce ADA's ride-to-the-cap regime; no ADA fine tape exists). Where it bound (BNB at
+  2-lot cap): warehouse +27, net +1.6, fills +523 (cutting the adding side keeps the book
+  two-sided instead of parking at the cap), fees flat. Everywhere else an exact no-op.
+  **Mechanism validated, magnitude unproven offline — the ADA conc<70% gate is the next live
+  run's read** (now measurable: conc transitions are on the durable tape).
+- **Loss-stop sweep (the run55 12-stops≈−$664 prior, 0.01% of capital):** at 8 lots the stop
+  at 0.01% cuts the desk warehouse term **−1,632 → −79 (−95%)**, desk net −1,024 → −142,
+  maxDD roughly HALVED on every coin, total stop tax ~$129. At 2 lots it flips the desk
+  −58 → **+249**. Levels 0.05%/0.10% never fire (too loose to exist). Honest cost: the stop
+  cuts BNB's winner both times (+404→+84 at 8 lots) — it trades tail-loss for trend-profit,
+  which is the desk doctrine (conserve equity first). **Verdict: keep 0.01% as the desk-wide
+  default — the prior is now a measured curve, not a guess.** Per-book stop levels stay
+  available via launch params; no change shipped there.
+
+**Tests:** 196 suites / 1367 tests (6 new GLFT conc cases; per-side size plumbing covered by
+existing engine suites); tsc clean; telemetry flake unchanged.
+
+**Next (F4 Stage A):** flow-reactive throttle (κ=0) — FlowState + regime machine, replacing
+the wrong-shaped S4 binary gate; calibrated per book from the mm_fill_markout data F0 now
+persists. ALSO ready to arm on the next run: F2 hysteresis (`MM_REQUOTE_MIN_BPS=1`), now that
+F3 strengthens the inventory term the F2 replay said was the coupling risk.

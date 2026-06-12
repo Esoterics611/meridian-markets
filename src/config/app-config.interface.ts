@@ -203,6 +203,13 @@ export interface AppConfig {
     /** F2: drift at/above this (bps) always moves the quote — holding a real move is the
      *  stale-quote pick-off of Journal #27. */
     requoteUrgentBps: number;
+    /** F3 concentration controls (GLFT): soft band start on conc = |q|/cap — above it the skew
+     *  gain ramps and the ADDING side's size shrinks. 0 = off. */
+    concSoft: number;
+    /** F3: conc ≥ this ⇒ the adding side is not quoted at all (reduce-only). */
+    concHard: number;
+    /** F3: extra reservation-skew gain at full ramp (effSkew = skewMult·(1+gain·r)). */
+    concSkewGain: number;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

@@ -47,6 +47,8 @@ import { MmResearchRepository, MmResearchSinks, MM_RESEARCH_SINKS, fillMarkoutRo
 import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
+import { blockedEvent, controlEvent } from './events/desk-event';
+import { InventoryControlState } from './quote/glft-quoter';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
 import { M } from '../telemetry/metric-catalog';
@@ -324,6 +326,20 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               })
             : undefined;
 
+        // F3 (Journal #62): concentration-control observability — the quoter fires this ONLY on
+        // zone transitions (free → ramp → reduce-only and back), so it is change-driven by
+        // construction. CONTROL ▸ for ramp moves, BLOCKED ▸ when the adding side is pulled.
+        const invControl = (st: InventoryControlState): void => {
+          const nums = `q=${st.qLots.toFixed(2)} lots, conc=${(st.conc * 100).toFixed(0)}%, skew×${st.effSkewMult.toFixed(1)}, addSize=${(st.addSizeFrac * 100).toFixed(0)}% (${st.addingSide}), σ=${st.sigma.toExponential(1)}`;
+          if (st.zone === 'reduce-only') {
+            new Logger('InvControl').warn(`BLOCKED ▸ ${st.symbol} conc-cap: adding side ${st.addingSide} pulled — ${nums}`);
+            deskEvents.emit(blockedEvent({ ts: Date.now(), book: st.symbol, rule: 'conc-cap', detail: `adding side ${st.addingSide} pulled — ${nums}` }));
+          } else {
+            new Logger('InvControl').log(`CONTROL ▸ ${st.symbol} inventory ${st.zone} — ${nums}`);
+            deskEvents.emit(controlEvent({ ts: Date.now(), book: st.symbol, detail: `inventory ${st.zone} — ${nums}` }));
+          }
+        };
+
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
           const srcId = spec.source ?? mm.defaultSource;
@@ -374,8 +390,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               inventorySkewMult: mm.inventorySkewMult,
               inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              concSoft: mm.concSoft,
+              concHard: mm.concHard,
+              concSkewGain: mm.concSkewGain,
               ...spec.params,
             },
+            onInventoryControl: invControl,
           });
           const quoter = withTimeStop(quoter0, spec.symbol, quoteSizeUnits);
           const { nextBar, warmupCloses } = resolveFeed(srcId);
@@ -456,8 +476,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               inventorySkewMult: mm.inventorySkewMult,
               inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              concSoft: mm.concSoft,
+              concHard: mm.concHard,
+              concSkewGain: mm.concSkewGain,
               ...(rec.params ?? {}),
             },
+            onInventoryControl: invControl,
           });
           const quoter = withTimeStop(quoter1, rec.symbol, rec.quoteSizeUnits);
           // Same fast-path wiring as makeBook (Journal #47): a rehydrated L2 book MUST get the

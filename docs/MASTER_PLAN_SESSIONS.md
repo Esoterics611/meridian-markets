@@ -171,7 +171,13 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   MIXED (fill edge up on every coin; net couples to the warehouse path) ⇒ **hysteresis default
   OFF** — arm `MM_REQUOTE_MIN_BPS=1 ` live after F3. Maker-bias (F2.3) is structural: the maker
   engine is post-only; the only taker path is the attributed guardrail flatten.
-- ☐ **F3 — Inventory skew** *(warehouse leak: −95)*
+- ☑ **F3 — Inventory skew** — SHIPPED 2026-06-12 (Journal #62): GLFT concentration controls
+  (skew gain ×(1+2r) + adding-side size ramp → reduce-only over conc 0.5→0.85, default ON,
+  per-side sizes through both engines), `CONTROL ▸`/`BLOCKED ▸ conc-cap` change-driven tape
+  events, loss-stop in the replay harness + `scripts/mm-inventory-sweep.ts`. Sweep verdict:
+  **0.01% stop validated** (desk warehouse −95%, maxDD halved on the 14h tapes; 0.05%+ never
+  fire); conc mechanism validated where it binds (BNB: whse/net/fills all up), magnitude is
+  the next live run's read (ADA conc<70% gate, now on the durable tape).
 - ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*
 - ☐ **F5 — Capital ∝ measured fillEdge**
 

@@ -407,8 +407,9 @@ export class L2LiveFillEngine {
     }
     this.quotingSteps += 1;
 
-    this.restingBid = this.reprice(this.restingBid, 'BUY', quote.bid.priceMicros, ob, mid, nowMs);
-    this.restingAsk = this.reprice(this.restingAsk, 'SELL', quote.ask.priceMicros, ob, mid, nowMs);
+    // F3: the quoter may CUT a side's size (concentration ramp; 0 = reduce-only, side pulled).
+    this.restingBid = this.reprice(this.restingBid, 'BUY', quote.bid.priceMicros, quote.bid.sizeUnits, ob, mid, nowMs);
+    this.restingAsk = this.reprice(this.restingAsk, 'SELL', quote.ask.priceMicros, quote.ask.sizeUnits, ob, mid, nowMs);
 
     // --- 3) mark drawdown on the structural equity at this mid ---
     this.markDd(mid);
@@ -445,12 +446,13 @@ export class L2LiveFillEngine {
   /** Re-price (place/persist) one side, stamping the cancel/replace latency + fair value.
    *  F2: the requote hysteresis/dwell decision may HOLD the resting price through sub-threshold
    *  drift — keeping queue position + liveFrom — instead of rejoining the back every tick. */
-  private reprice(current: LiveResting | undefined, side: FillSide, desiredMicros: bigint, ob: OrderBook, mid: bigint, nowMs: number): LiveResting | undefined {
+  private reprice(current: LiveResting | undefined, side: FillSide, desiredMicros: bigint, sizeUnits: bigint, ob: OrderBook, mid: bigint, nowMs: number): LiveResting | undefined {
+    if (sizeUnits <= 0n) return undefined; // F3 reduce-only: the adding side is pulled
     const dec = decideRequote(current, desiredMicros, mid, current?.placedAtMs, nowMs, this.cfg.requote);
     if (dec.held === 'hysteresis') this.hysteresisHolds += 1;
     else if (dec.held === 'dwell') this.dwellHolds += 1;
     const priceMicros = dec.priceMicros;
-    const res = placeRestingOrder(current, side, priceMicros, this.cfg.quoteSizeUnits, ob);
+    const res = placeRestingOrder(current, side, priceMicros, sizeUnits, ob);
     if (!res.order) return undefined; // post-only rejected
     const heldSamePrice = current && current.priceMicros === priceMicros;
     if (heldSamePrice && current) {

@@ -442,7 +442,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
         this.events.emit(
           d.rule === 'flow-flip'
             ? flowFlipEvent({ ts: now, book: d.underlying, detail: d.detail })
-            : blockedEvent({ ts: now, book: d.underlying, rule: d.rule, detail: d.detail }),
+            : blockedEvent({ ts: now, book: d.underlying, rule: `hedge ${d.rule}`, detail: d.detail, source: 'hl-perp-hedge' }),
         );
       }
     } catch (e) {

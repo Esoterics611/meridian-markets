@@ -861,3 +861,17 @@ DEFAULT OFF per the #53 precedent; arm `MM_REQUOTE_MIN_BPS=1` after F3). Maker-b
 structural (post-only engine). 3 new MM_REQUOTE_* knobs. UI QA: `takerCrosses`/`requote`
 are additive snapshot fields (UIs unaffected; tape messages carry `[taker: reason]`).
 196 suites / 1361 tests; tsc clean; telemetry flake only. Next: F3 inventory skew.
+
+## 2026-06-12 (same session, cont.) — F3: inventory skew + the loss-stop curve
+
+Shipped F3 (QUANT_JOURNAL #62): GLFT concentration controls — past conc=|q|/cap 0.5 the
+reservation skew strengthens (×(1+2r)) and the ADDING side's size ramps to zero at 0.85
+(reduce-only), default ON (exact legacy no-op below the band); per-side quote sizes now
+flow through QuotePair into both the live engine and the replay harness (0-size side
+pulled). Change-driven `CONTROL ▸`/`BLOCKED ▸ conc-cap` events (new `control` DeskEvent
+kind; blockedEvent generalised). Loss-stop added to LobReplayHarness +
+`scripts/mm-inventory-sweep.ts`: the 0.01% stop prior is now a measured curve — desk
+warehouse −1,632→−79 (−95%) at 8 lots, maxDD halved, 0.05%+ never fire; honest cost: it
+cuts BNB's trend-winner. Conc mechanism validated where it binds (BNB: all metrics up);
+ADA conc<70% is the live gate. 3 new MM_CONC_* knobs. UI QA: additive fields only.
+196 suites / 1367 tests; tsc clean; telemetry flake only. Next: F4 Stage A (+arm F2 live).

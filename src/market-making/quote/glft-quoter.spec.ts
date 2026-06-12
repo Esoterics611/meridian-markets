@@ -1,4 +1,4 @@
-import { GlftQuoter } from './glft-quoter';
+import { GlftQuoter, GlftQuoterParams, InventoryControlState } from './glft-quoter';
 import { QuoteContext } from './quote-pair';
 
 const CLOCK = () => new Date('2026-01-01T00:00:00Z');
@@ -203,5 +203,87 @@ describe('GlftQuoter', () => {
       const off = halves(new GlftQuoter({ ...SH, inventorySpreadSkew: 0 }, CLOCK).quote(ctx({ inventoryUnits: 5_000_000n }), 'X'));
       expect(off.bid).toBe(off.ask);
     });
+  });
+});
+
+// F3 concentration controls (Journal #62): skew-gain ramp + adding-side size cut to
+// reduce-only over [concSoft, concHard]. One-sided accumulation was the run55 warehouse leak.
+describe('GlftQuoter — F3 concentration controls', () => {
+  const events: InventoryControlState[] = [];
+  function concQuoter(over: Partial<GlftQuoterParams> = {}) {
+    events.length = 0;
+    return new GlftQuoter(
+      {
+        gamma: 0.0025,
+        kappa: 2,
+        quoteSizeUnits: 1_000_000n,
+        minHalfSpreadBps: 0,
+        maxHalfSpreadBps: 10_000,
+        maxInventoryLots: 10,
+        steadyHorizonBars: 1,
+        concSoftFrac: 0.5,
+        concHardFrac: 0.85,
+        concSkewGain: 2,
+        onInventoryControl: (st) => events.push(st),
+        ...over,
+      },
+      CLOCK,
+    );
+  }
+
+  it('below the soft band: full size both sides, no control event', () => {
+    const q = concQuoter();
+    const pair = q.quote(ctx({ inventoryUnits: 3_000_000n }), 'USDC'); // 3 of 10 lots = 30%
+    expect(pair.bid.sizeUnits).toBe(1_000_000n);
+    expect(pair.ask.sizeUnits).toBe(1_000_000n);
+    expect(events).toHaveLength(0);
+  });
+
+  it('inside the ramp: the ADDING side size shrinks, the reducing side keeps full size', () => {
+    const q = concQuoter();
+    const pair = q.quote(ctx({ inventoryUnits: 7_000_000n }), 'USDC'); // 70%: r=(0.7−0.5)/0.35≈0.57
+    expect(pair.bid.sizeUnits).toBeLessThan(1_000_000n); // long ⇒ bid adds ⇒ cut
+    expect(pair.bid.sizeUnits).toBeGreaterThan(0n);
+    expect(pair.ask.sizeUnits).toBe(1_000_000n); // the shedding side keeps full size
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ zone: 'ramp', addingSide: 'bid' });
+    expect(events[0].conc).toBeCloseTo(0.7, 6);
+    expect(events[0].effSkewMult).toBeGreaterThan(1); // skew gain ramped
+  });
+
+  it('at/above the hard cap: reduce-only (adding side size 0) + a BLOCKED-able event', () => {
+    const q = concQuoter();
+    const pair = q.quote(ctx({ inventoryUnits: -9_000_000n }), 'USDC'); // short 90% ⇒ ask adds
+    expect(pair.ask.sizeUnits).toBe(0n);
+    expect(pair.bid.sizeUnits).toBe(1_000_000n);
+    expect(events[0]).toMatchObject({ zone: 'reduce-only', addingSide: 'ask', addSizeFrac: 0 });
+  });
+
+  it('the control event fires on zone CHANGE only (not every tick)', () => {
+    const q = concQuoter();
+    q.quote(ctx({ inventoryUnits: 7_000_000n }), 'USDC'); // → ramp
+    q.quote(ctx({ inventoryUnits: 7_100_000n }), 'USDC'); // still ramp — no second event
+    q.quote(ctx({ inventoryUnits: 9_000_000n }), 'USDC'); // → reduce-only
+    q.quote(ctx({ inventoryUnits: 2_000_000n }), 'USDC'); // → free again
+    expect(events.map((e) => e.zone)).toEqual(['ramp', 'reduce-only', 'free']);
+  });
+
+  it('ramps the reservation skew: same q, stronger lean than the base quoter', () => {
+    const qBase = new GlftQuoter(
+      { gamma: 0.0025, kappa: 2, quoteSizeUnits: 1_000_000n, minHalfSpreadBps: 0, maxHalfSpreadBps: 10_000, maxInventoryLots: 10, steadyHorizonBars: 1 },
+      CLOCK,
+    );
+    const qConc = concQuoter();
+    const c = ctx({ inventoryUnits: 7_000_000n }); // 70% — inside the ramp
+    // Long inventory skews the reservation DOWN; the conc gain pushes it further down.
+    expect(qConc.quote(c, 'USDC').reservationMicros).toBeLessThan(qBase.quote(c, 'USDC').reservationMicros);
+  });
+
+  it('concSoftFrac 0 (default) is exactly the legacy quoter', () => {
+    const q = concQuoter({ concSoftFrac: 0 });
+    const pair = q.quote(ctx({ inventoryUnits: 9_500_000n }), 'USDC');
+    expect(pair.bid.sizeUnits).toBe(1_000_000n);
+    expect(pair.ask.sizeUnits).toBe(1_000_000n);
+    expect(events).toHaveLength(0);
   });
 });

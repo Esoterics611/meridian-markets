@@ -306,6 +306,9 @@ it **up / on**.
 | **`MM_REQUOTE_MIN_BPS`** | `0` (**off**) | **F2 quote anti-churn**: hold a resting quote through price drift below this (bps of mid) instead of cancel/replacing — **keeps the FIFO queue position**. Replay verdict MIXED (Journal #61: spread−adverse up on every coin, net couples to warehouse path) — arm per-run with `1` and judge on the live `F2 requote:` line. |
 | `MM_REQUOTE_DWELL_MS` | `400` | F2: a quote younger than this only moves on an URGENT drift. |
 | `MM_REQUOTE_URGENT_BPS` | `4` | F2: drift at/above this always moves — holding a real move is the #27 stale-quote pick-off. |
+| **`MM_CONC_SOFT`** | `0.5` | **F3 concentration ramp**: above conc = \|q\|/cap of this, the GLFT skew gain strengthens and the ADDING side's size shrinks (one-sided accumulation was the run55 warehouse leak). `0` = off. |
+| **`MM_CONC_HARD`** | `0.85` | F3: conc ≥ this ⇒ the adding side is **not quoted** (reduce-only) until inventory sheds — `BLOCKED ▸ conc-cap` on the tape. |
+| `MM_CONC_SKEW_GAIN` | `2` | F3: extra reservation-skew gain at full ramp (skew ×(1+gain·r)). |
 | `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg (also the spread-premium basis). |
 
 ### Directional / flow bias — a chosen bet (OFF in the canonical run)

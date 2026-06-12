@@ -163,6 +163,13 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     requoteMinBps: parseFloat(process.env['MM_REQUOTE_MIN_BPS'] ?? '0'),
     requoteDwellMs: parseInt(process.env['MM_REQUOTE_DWELL_MS'] ?? '400', 10),
     requoteUrgentBps: parseFloat(process.env['MM_REQUOTE_URGENT_BPS'] ?? '4'),
+    // F3 inventory-concentration controls (Journal #62): one-sided accumulation was the run55
+    // warehouse leak (ADA −138 at 94% conc; DOGE balanced at 20% was net-positive). Past
+    // MM_CONC_SOFT the GLFT reservation skew strengthens (×(1+gain·r)) and the ADDING side's
+    // size ramps down, hitting reduce-only at MM_CONC_HARD. MM_CONC_SOFT=0 disables.
+    concSoft: parseFloat(process.env['MM_CONC_SOFT'] ?? '0.5'),
+    concHard: parseFloat(process.env['MM_CONC_HARD'] ?? '0.85'),
+    concSkewGain: parseFloat(process.env['MM_CONC_SKEW_GAIN'] ?? '2'),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),
