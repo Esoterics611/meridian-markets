@@ -1,7 +1,7 @@
 import { IQuoter } from '../quote/quoter.interface';
 import { SymmetricQuoter } from '../quote/symmetric-quoter';
 import { AvellanedaStoikovQuoter } from '../quote/avellaneda-stoikov';
-import { GlftQuoter } from '../quote/glft-quoter';
+import { GlftQuoter, InventoryControlState } from '../quote/glft-quoter';
 import { DirectionalGlftQuoter } from '../quote/directional-glft-quoter';
 
 // MmStrategyRegistry — the desk's catalogue of tradeable market-making
@@ -32,6 +32,9 @@ export interface MmStrategyBuildOpts {
   capitalUnits?: bigint;
   /** Per-launch overrides of the frozen defaultParams (e.g. { gamma, kappa }). */
   params?: Record<string, number>;
+  /** F3 (Journal #62): change-driven concentration-control observability — the module wires
+   *  this to a CONTROL ▸/BLOCKED ▸ log line + tape event. Only the GLFT family reads it. */
+  onInventoryControl?: (st: InventoryControlState) => void;
 }
 
 export interface MmStrategyDefinition {
@@ -92,9 +95,9 @@ const GLFT: MmStrategyDefinition = {
     'Guéant-Lehalle-Fernández-Tapia (§3.5): the infinite-horizon limit of AS — inventory skew and half-spread don\'t decay as a session clock runs out, the right choice for a continuously-running book.',
   courseRef: '§3.5 GLFT steady state',
   liveCapable: true,
-  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0 },
-  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, maxInventoryNotionalFrac, capitalUnits, params }) => {
-    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0, ...params };
+  defaultParams: { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0, concSoft: 0, concHard: 1, concSkewGain: 0 },
+  build: ({ quoteSizeUnits, minHalfSpreadBps, maxHalfSpreadBps, maxInventoryLots, maxInventoryNotionalFrac, capitalUnits, params, onInventoryControl }) => {
+    const p = { gamma: 0.0025, kappa: 2, steadyHorizonBars: 1, inventorySkewMult: 1, inventorySpreadSkew: 0, hardInventoryCap: 0, concSoft: 0, concHard: 1, concSkewGain: 0, ...params };
     return new GlftQuoter({
       gamma: p.gamma,
       kappa: p.kappa,
@@ -108,6 +111,12 @@ const GLFT: MmStrategyDefinition = {
       inventorySkewMult: p.inventorySkewMult,
       inventorySpreadSkew: p.inventorySpreadSkew,
       hardInventoryCap: p.hardInventoryCap === 1,
+      // F3 concentration controls (Journal #62): skew gain + adding-side size ramp to
+      // reduce-only over [concSoft, concHard]. concSoft 0 = off (legacy).
+      concSoftFrac: p.concSoft,
+      concHardFrac: p.concHard,
+      concSkewGain: p.concSkewGain,
+      onInventoryControl,
     });
   },
 };

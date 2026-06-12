@@ -277,3 +277,108 @@ describe('DeskHedgeController — hedge-only underlyings (no quoted book) via re
     });
   });
 });
+
+// F1 anti-churn (Journal #60; run55: 56 orders / 19 flips / $1.62M churned ≈ −$437).
+// Each rule is exercised in isolation via a controllable clock; suppressed orders surface as
+// HedgeDecisions (the PART V observability contract — the trader puts each on the tape).
+describe('F1 anti-churn', () => {
+  function harness(over: Partial<HedgeConfig> = {}) {
+    let nowMs = 1_000_000;
+    const venue = venueAt({ BTC: BTC_100K });
+    const ctrl = new DeskHedgeController(venue, cfg({ bandUsd: 5_000, ...over }), () => new Date(nowMs));
+    return { venue, ctrl, advance: (ms: number) => (nowMs += ms) };
+  }
+  const rules = (snap: { decisionsLastTick?: Array<{ rule: string }> }) => (snap.decisionsLastTick ?? []).map((d) => d.rule);
+
+  it('min-hold: a leg cannot re-fire inside the hold; it fires once the hold elapses', async () => {
+    const { ctrl, advance } = harness({ minHoldMs: 30_000 });
+    let snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1); // first open fires
+    advance(5_000);
+    snap = await ctrl.rebalance(longBtc(4_000_000n, BTC_100K), { prices: { BTC: BTC_100K } }); // +$200k more
+    expect(snap.ordersLastTick).toHaveLength(0);
+    expect(rules(snap)).toContain('min-hold');
+    advance(30_000);
+    snap = await ctrl.rebalance(longBtc(4_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1); // hold elapsed — the increase fires
+  });
+
+  it('flip cooldown: the second direction flip inside the cooldown is suppressed', async () => {
+    const { ctrl, advance } = harness({ flipCooldownMs: 300_000 });
+    await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } }); // short hedge opens
+    advance(1_000);
+    let snap = await ctrl.rebalance(longBtc(-2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1);
+    expect(snap.ordersLastTick[0].reason).toBe('flip'); // first flip allowed (starts the cooldown)
+    advance(1_000);
+    snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(0);
+    expect(rules(snap)).toContain('flip-cooldown');
+    advance(300_000);
+    snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1); // cooldown elapsed
+  });
+
+  it('flow sign-flip freezes ADDS on the underlying but lets a REDUCE through', async () => {
+    const { ctrl, advance } = harness({ flipCooldownMs: 300_000 });
+    // Establish a signed flow read, then flip it.
+    let snap = await ctrl.rebalance([{ symbol: 'BTC', inventoryUnits: 2_000_000n, midMicros: BTC_100K, flow: 0.5 }], { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1); // open fires (no flip yet)
+    advance(1_000);
+    snap = await ctrl.rebalance([{ symbol: 'BTC', inventoryUnits: 4_000_000n, midMicros: BTC_100K, flow: -0.5 }], { prices: { BTC: BTC_100K } });
+    expect(rules(snap)).toContain('flow-flip'); // the tape event
+    expect(rules(snap)).toContain('flow-freeze'); // the $200k increase was suppressed
+    expect(snap.ordersLastTick).toHaveLength(0);
+    advance(1_000);
+    // Inventory shrinks ⇒ the hedge is now an overhang ⇒ a REDUCE — allowed during the freeze.
+    snap = await ctrl.rebalance([{ symbol: 'BTC', inventoryUnits: 500_000n, midMicros: BTC_100K, flow: -0.5 }], { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1);
+    expect(snap.ordersLastTick[0].reason).toBe('reduce');
+  });
+
+  it('net-first: a primary flatten this cycle suppresses the opposing leg AND starts the min-hold', async () => {
+    const { ctrl, advance } = harness({ minHoldMs: 30_000 });
+    await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } }); // short −$200k held
+    advance(60_000);
+    // The book loss-stops to flat: residual = full hedge ⇒ the plan wants the unwind NOW.
+    let snap = await ctrl.rebalance(longBtc(0n, BTC_100K), { prices: { BTC: BTC_100K }, flattenedBooks: ['BTC'] });
+    expect(snap.ordersLastTick).toHaveLength(0);
+    expect(rules(snap)).toContain('net-first');
+    advance(5_000); // …and the next cycle is still inside the (restarted) min-hold
+    snap = await ctrl.rebalance(longBtc(0n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(0);
+    expect(rules(snap)).toContain('min-hold');
+    advance(30_000);
+    snap = await ctrl.rebalance(longBtc(0n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(1); // the unwind eventually happens — held, not hidden
+    expect(snap.ordersLastTick[0].reason).toBe('reduce');
+  });
+
+  it('basis gate: a flatten-policy book is excluded from the plan but stays in the snapshot', async () => {
+    const { ctrl, venue } = harness({ basisPolicy: { BTC: 'flatten' } });
+    const snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(0); // no hedge for the gated book
+    expect(venue.bookSnapshot()).toHaveLength(0);
+    expect(rules(snap)).toContain('basis-gate'); // …and the carried delta is announced
+    expect(snap.grossDeltaUsd).toBeCloseTo(200_000, 0); // reported, never hidden
+  });
+
+  it('per-underlying band override widens the global band for that leg only', async () => {
+    const { ctrl } = harness({ bandUsdByUnderlying: { BTC: 500_000 } });
+    const snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(snap.ordersLastTick).toHaveLength(0); // $200k ≤ the $500k override
+    expect(rules(snap)).toContain('band-hold');
+  });
+
+  it('continuous decisions are rate-bounded: one band-hold per leg per minute', async () => {
+    const { ctrl, advance } = harness({ bandUsdByUnderlying: { BTC: 500_000 } });
+    let snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(rules(snap)).toContain('band-hold');
+    advance(1_000);
+    snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(rules(snap)).toEqual([]); // suppressed — same condition, inside the rate bound
+    advance(61_000);
+    snap = await ctrl.rebalance(longBtc(2_000_000n, BTC_100K), { prices: { BTC: BTC_100K } });
+    expect(rules(snap)).toContain('band-hold'); // re-announced after the bound
+  });
+});

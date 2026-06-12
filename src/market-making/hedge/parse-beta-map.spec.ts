@@ -1,4 +1,4 @@
-import { parseHedgeBetaMap, describeBetaMap } from './parse-beta-map';
+import { parseHedgeBetaMap, describeBetaMap, parseHedgeBasisGate, parseHedgeBandMap } from './parse-beta-map';
 
 describe('parseHedgeBetaMap', () => {
   it('returns {} for an empty/blank string (the explicit self-hedge default)', () => {
@@ -43,5 +43,31 @@ describe('parseHedgeBetaMap', () => {
   it('describeBetaMap renders self-hedge vs an explicit map', () => {
     expect(describeBetaMap({})).toBe('self-hedge per-symbol (beta 1)');
     expect(describeBetaMap({ SOL: { underlying: 'BTC', beta: 1.4 } })).toBe('SOL→BTC×1.4');
+  });
+});
+
+describe('parseHedgeBasisGate (F1)', () => {
+  it('parses SYMBOL:POLICY pairs, right-anchored for HIP-3 symbols', () => {
+    expect(parseHedgeBasisGate('FARTCOIN:flatten,kPEPE:flatten,xyz:CL:hedge')).toEqual({
+      FARTCOIN: 'flatten',
+      kPEPE: 'flatten',
+      'xyz:CL': 'hedge',
+    });
+  });
+
+  it('skips malformed entries with a warning; blank ⇒ {}', () => {
+    const warns: string[] = [];
+    expect(parseHedgeBasisGate('SOL:maybe,:flatten,DOGE:hedge', (m: string) => warns.push(m))).toEqual({ DOGE: 'hedge' });
+    expect(warns).toHaveLength(2);
+    expect(parseHedgeBasisGate('')).toEqual({});
+  });
+
+  it('parseHedgeBandMap: UNDERLYING:USD pairs, malformed skipped', () => {
+    const warns: string[] = [];
+    expect(parseHedgeBandMap('ETH:3000,xyz:BRENTOIL:5000,BTC:abc', (m: string) => warns.push(m))).toEqual({
+      ETH: 3000,
+      'xyz:BRENTOIL': 5000,
+    });
+    expect(warns).toHaveLength(1);
   });
 });

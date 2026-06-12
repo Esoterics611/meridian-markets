@@ -1,6 +1,7 @@
 import {
   HyperliquidFundingClient,
   HYPERLIQUID_PERIODS_PER_YEAR,
+  hipDex,
   parseHyperliquidAssetCtxs,
   parseHyperliquidFundingHistory,
 } from './hyperliquid-funding-client';
@@ -74,5 +75,37 @@ describe('HyperliquidFundingClient', () => {
 
   it('exposes the hourly periods-per-year constant', () => {
     expect(HYPERLIQUID_PERIODS_PER_YEAR).toBe(8760);
+  });
+});
+
+// HIP-3 per-dex funding (F0.4): a builder-deployed perp lives on its own dex — the funding
+// term used to be 0 by construction because the main-dex universe never listed it.
+describe('HIP-3 per-dex funding', () => {
+  const HIP_CTX = [
+    { universe: [{ name: 'GOLD' }] }, // per-dex responses may name the coin WITHOUT its prefix
+    [{ funding: '0.00002', markPx: '2400.0', oraclePx: '2401.0' }],
+  ];
+
+  it('hipDex extracts the dex prefix; main-dex coins have none', () => {
+    expect(hipDex('xyz:GOLD')).toBe('xyz');
+    expect(hipDex('BTC')).toBeNull();
+  });
+
+  it('currentFunding routes a prefixed symbol to the same info type with a dex field', async () => {
+    let seenBody: any = null;
+    const c = new HyperliquidFundingClient({
+      baseUrl: 'https://hl.test',
+      httpPost: async (_u, body) => ((seenBody = body), HIP_CTX),
+    });
+    const snap = await c.currentFunding('xyz:GOLD');
+    expect(seenBody).toEqual({ type: 'metaAndAssetCtxs', dex: 'xyz' });
+    expect(snap.lastFundingRate).toBe(0.00002);
+    expect(snap.markPrice).toBe(2400);
+  });
+
+  it('matches the universe by either the qualified or the dex-local coin name', () => {
+    const qualified = [{ universe: [{ name: 'xyz:GOLD' }] }, HIP_CTX[1]];
+    expect(parseHyperliquidAssetCtxs('xyz:GOLD', qualified).lastFundingRate).toBe(0.00002);
+    expect(parseHyperliquidAssetCtxs('xyz:GOLD', HIP_CTX).lastFundingRate).toBe(0.00002);
   });
 });

@@ -58,6 +58,37 @@ export interface GlftQuoterParams {
   maxInventoryNotionalFrac?: number;
   /** Book capital in micro-USD (6-dec), for the notional inventory cap above. */
   capitalUnits?: bigint;
+
+  // ── F3 concentration controls (Journal #62; run55: ADA −138 warehouse at 94% conc) ──
+  /** Soft concentration band start: conc = |q|/effMaxLots above this begins the ramp.
+   *  0/undefined = F3 off (legacy behaviour). Typical 0.5. */
+  concSoftFrac?: number;
+  /** Hard concentration cap: conc ≥ this ⇒ the ADDING side is not quoted at all
+   *  (reduce-only). Must be > concSoftFrac. Typical 0.85. */
+  concHardFrac?: number;
+  /** Extra reservation-skew gain at full ramp: effSkewMult = inventorySkewMult·(1 + gain·r),
+   *  r ∈ [0,1] over [soft, hard]. 0 = sizes-only ramp. Typical 2. */
+  concSkewGain?: number;
+  /** Change-driven observability (PART V): fired when the concentration ZONE changes
+   *  (free → ramp → reduce-only and back), with the triggering numbers. The module wires
+   *  this to a CONTROL ▸/BLOCKED ▸ log line + tape event. */
+  onInventoryControl?: (st: InventoryControlState) => void;
+}
+
+/** The F3 concentration-control state, emitted on zone change (PART V observability). */
+export interface InventoryControlState {
+  symbol: string;
+  zone: 'free' | 'ramp' | 'reduce-only';
+  /** Signed inventory in lots and the concentration |q|/effMaxLots it implies. */
+  qLots: number;
+  conc: number;
+  /** The side being throttled ('bid' when long — buys add; 'ask' when short). */
+  addingSide: 'bid' | 'ask';
+  /** Fraction of full size still quoted on the adding side (0 in reduce-only). */
+  addSizeFrac: number;
+  /** The effective reservation-skew multiplier after the concentration gain. */
+  effSkewMult: number;
+  sigma: number;
 }
 
 /** Floor a half-spread at 1 micro so a confidence-tightened quote never collapses to 0. */
@@ -69,6 +100,8 @@ export class GlftQuoter implements IQuoter {
   readonly familyId = 'glft';
   private tickSeq = 0;
   private readonly lotUnits: bigint;
+  /** Last emitted F3 concentration zone, for change-driven control events. */
+  private lastConcZone: InventoryControlState['zone'] = 'free';
 
   constructor(
     private readonly p: GlftQuoterParams,
@@ -93,9 +126,34 @@ export class GlftQuoter implements IQuoter {
     const skewMult = this.p.inventorySkewMult && this.p.inventorySkewMult > 0 ? this.p.inventorySkewMult : 1;
     const T = this.p.steadyHorizonBars; // steady-state: NOT ctx.horizonBars
 
+    // F3 concentration ramp (Journal #62): conc = |q|/cap; past the SOFT band, ramp r ∈ [0,1]
+    // strengthens the reservation skew (effSkewMult) and CUTS the adding side's size, reaching
+    // reduce-only (adding size 0) at the HARD cap — one-sided accumulation was the run55
+    // warehouse leak (ADA −138 at 94% conc; DOGE balanced at 20% was net-positive). κ stays 0
+    // here: the flow term is F4's, this control is inventory-only.
+    const soft = this.p.concSoftFrac ?? 0;
+    const hard = Math.max(this.p.concHardFrac ?? 1, soft + 1e-9);
+    const conc = effMaxLots > 0 ? Math.abs(rawQLots) / effMaxLots : 0;
+    const ramp = soft > 0 ? clamp((conc - soft) / (hard - soft), 0, 1) : 0;
+    const effSkewMult = skewMult * (1 + (this.p.concSkewGain ?? 0) * ramp);
+    const addingSide: 'bid' | 'ask' = rawQLots >= 0 ? 'bid' : 'ask';
+    const addSizeFrac = soft > 0 ? 1 - ramp : 1;
+    if (this.p.onInventoryControl && soft > 0) {
+      const zone: InventoryControlState['zone'] = ramp >= 1 ? 'reduce-only' : ramp > 0 ? 'ramp' : 'free';
+      if (zone !== this.lastConcZone) {
+        this.lastConcZone = zone;
+        try {
+          this.p.onInventoryControl({ symbol, zone, qLots: rawQLots, conc, addingSide, addSizeFrac, effSkewMult, sigma: sigmaRel });
+        } catch {
+          /* observability must never break the quote path */
+        }
+      }
+    }
+
     // Same price-scale-invariant skew/spread as AS, with the steady-state horizon. The
-    // skew term is multiplied by inventorySkewMult so it actually mean-reverts (Journal #39).
-    const reservation = asReservationMicros(center, qLots * skewMult, this.p.gamma, sigmaRel, T);
+    // skew term is multiplied by inventorySkewMult (× the F3 concentration gain) so it
+    // actually mean-reverts (Journal #39 / #62).
+    const reservation = asReservationMicros(center, qLots * effSkewMult, this.p.gamma, sigmaRel, T);
     const halfRaw = asHalfSpreadMicros(s, this.p.gamma, this.p.kappa, sigmaRel, T);
     const minMicros = BigInt(Math.round((s * this.p.minHalfSpreadBps) / 10_000));
     const maxMicros = BigInt(Math.round((s * this.p.maxHalfSpreadBps) / 10_000));
@@ -127,6 +185,9 @@ export class GlftQuoter implements IQuoter {
       else if (rawQLots <= -effMaxLots) askHalfSpreadMicros = maxMicros; // at cap short ⇒ stop selling
     }
 
+    // F3: cut the ADDING side's size along the ramp; 0 at the hard cap ⇒ that side is not
+    // quoted (reduce-only). The reducing side keeps full size (we WANT those fills).
+    const addSize = addSizeFrac >= 1 ? this.p.quoteSizeUnits : BigInt(Math.round(Number(this.p.quoteSizeUnits) * addSizeFrac));
     return buildQuotePair({
       symbol,
       reservationMicros: BigInt(Math.round(reservation)),
@@ -134,6 +195,8 @@ export class GlftQuoter implements IQuoter {
       bidHalfSpreadMicros,
       askHalfSpreadMicros,
       sizeUnits: this.p.quoteSizeUnits,
+      bidSizeUnits: addingSide === 'bid' ? addSize : undefined,
+      askSizeUnits: addingSide === 'ask' ? addSize : undefined,
       ctx,
       strategyId: this.familyId,
       tickSeq: this.tickSeq++,

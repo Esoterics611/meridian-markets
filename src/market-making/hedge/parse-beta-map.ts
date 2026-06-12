@@ -56,3 +56,45 @@ export function describeBetaMap(map: Record<string, BetaMapEntry>): string {
   if (!entries.length) return 'self-hedge per-symbol (beta 1)';
   return entries.map(([s, e]) => `${s}→${e.underlying}×${e.beta}`).join(', ');
 }
+
+/**
+ * Parse `MM_HEDGE_BASIS_GATE` — the F1 per-book basis gate: comma-separated `SYMBOL:POLICY`
+ * pairs where POLICY ∈ hedge|flatten. 'flatten' excludes the book from the hedge plan (its
+ * basis is so poor the cross-hedge is a second bet — run55: FARTCOIN basisShare ~100%); its
+ * own stops/skew bound the inventory instead. Unlisted books default to 'hedge'.
+ * Right-anchored like the beta map (HIP-3 symbols contain ':'): the LAST segment is the
+ * policy, everything before it the symbol. Malformed entries are skipped via onWarn.
+ */
+export function parseHedgeBasisGate(raw: string, onWarn?: (msg: string) => void): Record<string, 'hedge' | 'flatten'> {
+  const out: Record<string, 'hedge' | 'flatten'> = {};
+  for (const part of (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+    const segs = part.split(':').map((s) => s.trim());
+    const policy = segs[segs.length - 1].toLowerCase();
+    const sym = segs.slice(0, -1).join(':');
+    if (segs.length < 2 || !sym || (policy !== 'hedge' && policy !== 'flatten')) {
+      onWarn?.(`MM_HEDGE_BASIS_GATE: skipping malformed entry "${part}" (want SYMBOL:hedge|flatten)`);
+      continue;
+    }
+    out[hlCoin(sym)] = policy;
+  }
+  return out;
+}
+
+/**
+ * Parse `MM_HEDGE_BAND_MAP` — per-underlying no-trade band overrides (USD), `UNDERLYING:USD`
+ * pairs, right-anchored. Only widens: the controller takes max(global band, override).
+ */
+export function parseHedgeBandMap(raw: string, onWarn?: (msg: string) => void): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+    const segs = part.split(':').map((s) => s.trim());
+    const usd = Number(segs[segs.length - 1]);
+    const sym = segs.slice(0, -1).join(':');
+    if (segs.length < 2 || !sym || !Number.isFinite(usd) || usd < 0) {
+      onWarn?.(`MM_HEDGE_BAND_MAP: skipping malformed entry "${part}" (want UNDERLYING:USD with USD≥0)`);
+      continue;
+    }
+    out[hlCoin(sym)] = usd;
+  }
+  return out;
+}

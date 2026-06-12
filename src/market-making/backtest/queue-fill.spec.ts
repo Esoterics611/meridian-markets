@@ -1,4 +1,4 @@
-import { settleRestingOrder, placeRestingOrder, RestingQuote, IntervalFlow } from './queue-fill';
+import { settleRestingOrder, placeRestingOrder, decideRequote, RestingQuote, IntervalFlow } from './queue-fill';
 import { OrderBook, OrderBookLevel } from '../microstructure/order-book';
 
 // queue-fill spec — the shared, pure per-side FIFO fill + placement rule extracted from
@@ -80,5 +80,43 @@ describe('settleRestingOrder — FIFO fill against aggressive flow', () => {
     const out = settleRestingOrder(rest('SELL', 101, 1, 0), ob, flow(0, 1, 100, 101));
     expect(out.touched).toBe(true);
     expect(out.filledUnits).toBe(u(1));
+  });
+});
+
+// F2 requote hysteresis + dwell (Journal #61) — the shared quote anti-churn decision. The
+// live engine and the replay harness both call this, so pinning it here pins both.
+describe('decideRequote — F2 quote anti-churn', () => {
+  const resting: RestingQuote = { side: 'BUY', priceMicros: px(100), sizeUnits: u(1), pos: { aheadUnits: 0n, joinedTs: new Date(0) } as unknown as RestingQuote['pos'] };
+  const cfg = { minBps: 1, dwellMs: 400, urgentBps: 4 };
+  const MID = px(100);
+
+  it('is a passthrough with no resting order, no cfg, or minBps 0', () => {
+    expect(decideRequote(undefined, px(101), MID, 0, 0, cfg)).toEqual({ priceMicros: px(101), held: null });
+    expect(decideRequote(resting, px(101), MID, 0, 0, undefined)).toEqual({ priceMicros: px(101), held: null });
+    expect(decideRequote(resting, px(101), MID, 0, 0, { ...cfg, minBps: 0 })).toEqual({ priceMicros: px(101), held: null });
+  });
+
+  it('holds sub-minBps drift (hysteresis) — the queue position is kept', () => {
+    // 0.5bp drift on a $100 mid = $0.005
+    const d = decideRequote(resting, px(100.005), MID, 0, 10_000, cfg);
+    expect(d).toEqual({ priceMicros: px(100), held: 'hysteresis' });
+  });
+
+  it('always follows an urgent drift — holding a real move is the #27 pick-off', () => {
+    // 5bp ≥ urgent 4bp, even though the quote is brand new (inside dwell)
+    const d = decideRequote(resting, px(100.05), MID, 9_900, 10_000, cfg);
+    expect(d).toEqual({ priceMicros: px(100.05), held: null });
+  });
+
+  it('mid-band drift: held while young (dwell), moves once the dwell elapses', () => {
+    // 2bp drift: minBps 1 ≤ 2 < urgent 4
+    const young = decideRequote(resting, px(100.02), MID, 9_900, 10_000, cfg); // age 100ms < 400
+    expect(young).toEqual({ priceMicros: px(100), held: 'dwell' });
+    const old = decideRequote(resting, px(100.02), MID, 9_000, 10_000, cfg); // age 1000ms ≥ 400
+    expect(old).toEqual({ priceMicros: px(100.02), held: null });
+  });
+
+  it('same desired price is a hold-free passthrough (no counter noise)', () => {
+    expect(decideRequote(resting, px(100), MID, 0, 10_000, cfg)).toEqual({ priceMicros: px(100), held: null });
   });
 });

@@ -10,7 +10,7 @@ import { MicroPriceCalculator } from '../microstructure/micro-price';
 import { crossVenueReference } from '../microstructure/cross-venue';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
 import { L2TapeStep, bestBidMicros, bestAskMicros } from './l2-tape';
-import { RestingQuote, settleRestingOrder, placeRestingOrder } from './queue-fill';
+import { RestingQuote, settleRestingOrder, placeRestingOrder, decideRequote, RequoteHysteresisCfg } from './queue-fill';
 
 // LobReplayHarness — the queue-aware market-making backtest (course A.10). It is
 // the honest counterpart to MmBacktestRunner: where the bar runner fills on touch
@@ -54,6 +54,8 @@ interface RestingOrder {
   pos: QueuePosition;
   /** Mid at the most recent (re)quote — the fair value the next fill is scored against. */
   fairMidMicros: bigint;
+  /** Tape ms this order's PRICE was placed (carried through holds) — the F2 dwell clock. */
+  placedAtMs?: number;
 }
 
 export interface LobReplayConfig {
@@ -108,6 +110,20 @@ export interface LobReplayConfig {
   f3Toxicity?: boolean;
   f3MinScale?: number; // default 0.5 — how tight we dare quote when calm
   f3MaxScale?: number; // default 3.0 — how wide we back off when toxic
+  /**
+   * F2 requote hysteresis + dwell (Journal #61): hold a resting quote through sub-threshold
+   * price drift instead of cancel/replacing every step — keeps the FIFO queue position.
+   * Same shared decision the live engine runs (decideRequote). Omit / minBps 0 ⇒ off.
+   */
+  requote?: RequoteHysteresisCfg;
+  /**
+   * F3 warehouse loss-stop (Journal #62 sweep): when unrealised MTM on inventory breaches
+   * −lossStopFrac·capital, FLATTEN at the mid (5bps taker, like MmBook.flattenAt), pull
+   * quotes and stand aside for the cooldown. Mirrors the live guardrail (#55) so the stop
+   * threshold can be SWEPT offline. 0/undefined ⇒ no stop (legacy).
+   */
+  lossStopFrac?: number;
+  lossStopCooldownMs?: number;
 }
 
 export interface LobReplayMetrics {
@@ -132,6 +148,12 @@ export interface LobReplayMetrics {
   /** Mean size resting ahead of our orders at placement — the queue depth we faced. */
   avgQueueAheadUnits: bigint;
   attribution: AttributionSummary;
+  /** F2: steps a quote was HELD by the requote hysteresis/dwell (0 when the feature is off). */
+  requoteHysteresisHolds: number;
+  requoteDwellHolds: number;
+  /** F3: warehouse loss-stops fired (0 when the stop is off) + the taker fees they paid. */
+  lossStops: number;
+  lossStopFeesUnits: bigint;
 }
 
 export class LobReplayHarness {
@@ -157,6 +179,11 @@ export class LobReplayHarness {
     let askFills = 0;
     let aheadSum = 0n;
     let placements = 0;
+    let hysteresisHolds = 0;
+    let dwellHolds = 0;
+    let lossStops = 0;
+    let lossStopFees = 0n;
+    let standAsideUntilMs = 0;
 
     // Funding accrual on held inventory (MM course §8.10). Static rate per hour,
     // pro-rated by the real inter-snapshot interval; signed into equity + net.
@@ -245,6 +272,32 @@ export class LobReplayHarness {
 
       if (!vol.ready()) continue; // warmup: don't quote yet
 
+      // --- 1b) F3 warehouse loss-stop (mirrors MmBook.guardrail, Journal #55/#62): flatten at
+      //         the mid (5bps taker), pull quotes, stand aside through the cooldown.
+      if (tsMs < standAsideUntilMs) {
+        restingBid = undefined;
+        restingAsk = undefined;
+        markDd(mid);
+        continue;
+      }
+      if (cfg.lossStopFrac && cfg.lossStopFrac > 0 && book.inventoryUnits() !== 0n) {
+        const stopUnits = BigInt(Math.round(cfg.lossStopFrac * Number(cfg.capitalUnits)));
+        if (book.unrealisedUnits(mid) < -stopUnits) {
+          const inv = book.inventoryUnits();
+          const side: FillSide = inv > 0n ? 'SELL' : 'BUY';
+          const size = inv > 0n ? inv : -inv;
+          const fee = (((size * mid) / MICROS) * 5n) / 10_000n; // taker 5bps, not the rebate
+          book.apply({ side, sizeUnits: size, priceMicros: mid, feeUnits: fee });
+          lossStops += 1;
+          lossStopFees += fee;
+          standAsideUntilMs = tsMs + (cfg.lossStopCooldownMs ?? 900_000);
+          restingBid = undefined;
+          restingAsk = undefined;
+          markDd(mid);
+          continue;
+        }
+      }
+
       // --- 2) re-quote off this book ---
       const inventoryBefore = book.inventoryUnits();
       // The quote center: the micro-price when enabled (so we quote where price is
@@ -288,8 +341,17 @@ export class LobReplayHarness {
         placements += 1;
         aheadSum += aheadUnits;
       };
-      restingBid = this.place(restingBid, 'BUY', quote.bid.priceMicros, cfg.quoteSizeUnits, ob, mid, onPlacement);
-      restingAsk = this.place(restingAsk, 'SELL', quote.ask.priceMicros, cfg.quoteSizeUnits, ob, mid, onPlacement);
+      // F2: the shared requote hysteresis/dwell decision (same call the live engine makes) may
+      // hold the resting price through sub-threshold drift — keeping the FIFO queue position.
+      const decBid = decideRequote(restingBid, quote.bid.priceMicros, mid, restingBid?.placedAtMs, ob.ts.getTime(), cfg.requote);
+      const decAsk = decideRequote(restingAsk, quote.ask.priceMicros, mid, restingAsk?.placedAtMs, ob.ts.getTime(), cfg.requote);
+      if (decBid.held === 'hysteresis') hysteresisHolds += 1;
+      else if (decBid.held === 'dwell') dwellHolds += 1;
+      if (decAsk.held === 'hysteresis') hysteresisHolds += 1;
+      else if (decAsk.held === 'dwell') dwellHolds += 1;
+      // F3: the quoter may CUT a side's size (concentration ramp; 0 = reduce-only, side pulled).
+      restingBid = quote.bid.sizeUnits > 0n ? this.place(restingBid, 'BUY', decBid.priceMicros, quote.bid.sizeUnits, ob, mid, onPlacement) : undefined;
+      restingAsk = quote.ask.sizeUnits > 0n ? this.place(restingAsk, 'SELL', decAsk.priceMicros, quote.ask.sizeUnits, ob, mid, onPlacement) : undefined;
 
       // --- 3) mark drawdown on the structural equity at this mid ---
       markDd(mid);
@@ -317,6 +379,10 @@ export class LobReplayHarness {
       maxDrawdownPct,
       avgQueueAheadUnits: placements > 0 ? aheadSum / BigInt(placements) : 0n,
       attribution: sumComponents(components),
+      requoteHysteresisHolds: hysteresisHolds,
+      requoteDwellHolds: dwellHolds,
+      lossStops,
+      lossStopFeesUnits: lossStopFees,
     };
   }
 
@@ -335,8 +401,10 @@ export class LobReplayHarness {
     const res = placeRestingOrder(current as RestingQuote | undefined, side, priceMicros, sizeUnits, ob);
     if (!res.order) return undefined; // post-only rejected
     if (res.aheadUnitsAtPlacement !== undefined) onNewPlacement(res.aheadUnitsAtPlacement);
-    // Same price held ⇒ keep queue progress, refresh fair mid; new price ⇒ fresh order + fair mid.
-    return { ...res.order, fairMidMicros: mid };
+    // Same price held ⇒ keep queue progress + the dwell clock, refresh fair mid; new price ⇒
+    // fresh order, fair mid and dwell clock restarted (F2).
+    const held = current && current.priceMicros === res.order.priceMicros;
+    return { ...res.order, fairMidMicros: mid, placedAtMs: held ? current!.placedAtMs : ob.ts.getTime() };
   }
 }
 

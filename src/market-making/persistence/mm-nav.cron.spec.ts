@@ -1,8 +1,10 @@
-import { MmNavCron, navRowsFromSnapshot, f3Summary } from './mm-nav.cron';
+import { MmNavCron, navRowsFromSnapshot, f3Summary, findInsaneMark } from './mm-nav.cron';
 import { ConfigService } from '@nestjs/config';
 import { MmNavRepository, MmNavInsert } from './mm-nav.repository';
+import { MmResearchRepository } from './mm-research.repository';
 import { MmPortfolioTrader, MmPortfolioSnapshot } from '../live/mm-portfolio-trader';
 import { MmBookSnapshot } from '../live/mm-book';
+import { HedgeSnapshot } from '../hedge/desk-hedge-controller';
 
 // Offline-first: a fake trader + repo. No DB, no network. The DB round-trip is
 // covered by mm-nav.repository.int-spec.ts.
@@ -133,5 +135,103 @@ describe('MmNavCron', () => {
     const cron = new MmNavCron(cfg('test'), trader(snapshot()), repo);
     cron.onModuleInit();
     expect((cron as unknown as { handle: NodeJS.Timeout | null }).handle).toBeNull();
+  });
+});
+
+// F0 corrupt-mark guard (run55 worst5m root cause): a mark whose |unreal| exceeds the book's
+// own capital is a garbage mid, and the whole interval is skipped — never persisted.
+describe('findInsaneMark + the tick() guard', () => {
+  it('is null for a sane snapshot, names the offender beyond its capital', () => {
+    expect(findInsaneMark(snapshot({ books: [book({})] }))).toBeNull();
+    const bad = snapshot({
+      books: [book({}), book({ symbol: 'kPEPE', capitalUnits: '1000000000000', unrealisedPnlUnits: '-3033717000000' })],
+    });
+    expect(findInsaneMark(bad)).toMatch(/kPEPE.*-3033717.*exceeds capital.*1000000/);
+  });
+
+  it('tick() SKIPS the interval (no rows written) on an insane mark', async () => {
+    let writes = 0;
+    const repo = { insertNavSnapshot: async () => ((writes += 1), 1) } as unknown as MmNavRepository;
+    const bad = snapshot({ books: [book({ capitalUnits: '1000000', unrealisedPnlUnits: '-2000000' })] });
+    await new MmNavCron(cfg(), trader(bad), repo).tick();
+    expect(writes).toBe(0);
+  });
+});
+
+// F0 hedge persistence (DR-2 closure): per-leg P&L every interval, quality hourly + shutdown.
+describe('MmNavCron — hedge research writes', () => {
+  const hedgeSnap: HedgeSnapshot = {
+    enabled: true,
+    grossDeltaUsd: 1000,
+    residualUsd: 50,
+    hedgePnlUsd: -3,
+    hedgeCostUsd: 1,
+    fundingUsd: 0.5,
+    perUnderlying: [
+      { underlying: 'ETH', netDeltaUsd: -900, hedgeUnits: 0.3, hedgeNotionalUsd: 850, residualUsd: -50, markUsd: 2800, pnlUsd: -3, fundingUsd: 0.5, feesUsd: 1 },
+    ],
+    ordersLastTick: [],
+    quality: { perBook: [{ symbol: 'SOL', underlying: 'ETH', betaCfg: 1.1, betaLive: 1.0, r2: 0.8, basisShare: 0.3, pnlVolUsdPerHour: 4 }] },
+  } as unknown as HedgeSnapshot;
+
+  function research(): { navWrites: number; qualityWrites: number; repo: MmResearchRepository } {
+    const calls = { navWrites: 0, qualityWrites: 0, repo: null as unknown as MmResearchRepository };
+    calls.repo = {
+      insertHedgeNav: async () => ((calls.navWrites += 1), 1),
+      insertHedgeQuality: async () => ((calls.qualityWrites += 1), 1),
+    } as unknown as MmResearchRepository;
+    return calls;
+  }
+
+  it('writes hedge legs every interval but quality only on the hourly cadence', async () => {
+    const navRepo = { insertNavSnapshot: async () => 1 } as unknown as MmNavRepository;
+    const r = research();
+    const cron = new MmNavCron(cfg(), trader(snapshot({ hedge: hedgeSnap })), navRepo, r.repo);
+    await cron.tick(new Date('2026-06-12T10:00:00Z'));
+    await cron.tick(new Date('2026-06-12T10:01:00Z')); // < 1h later — no second quality row
+    await cron.tick(new Date('2026-06-12T11:00:30Z')); // past the hour — quality again
+    expect(r.navWrites).toBe(3);
+    expect(r.qualityWrites).toBe(2);
+  });
+
+  it('onModuleDestroy writes a final hedge quality + nav row (the shutdown audit)', async () => {
+    const r = research();
+    const cron = new MmNavCron(cfg(), trader(snapshot({ hedge: hedgeSnap })), null, r.repo);
+    await cron.onModuleDestroy();
+    expect(r.qualityWrites).toBe(1);
+    expect(r.navWrites).toBe(1);
+  });
+
+  it('no hedge in the snapshot ⇒ no research writes', async () => {
+    const navRepo = { insertNavSnapshot: async () => 1 } as unknown as MmNavRepository;
+    const r = research();
+    const cron = new MmNavCron(cfg(), trader(snapshot()), navRepo, r.repo);
+    await cron.tick();
+    await cron.onModuleDestroy();
+    expect(r.navWrites + r.qualityWrites).toBe(0);
+  });
+});
+
+// F2 (Journal #61): the grep-able per-interval requote/taker line.
+describe('f2Summary (F2 requote + taker-cross line)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { f2Summary } = require('./mm-nav.cron');
+
+  it('is null when no book carries requote counters or taker crosses', () => {
+    expect(f2Summary(snapshot({ books: [book({})] }))).toBeNull();
+  });
+
+  it('renders moves/holds + per-trigger taker fees per book', () => {
+    const s = snapshot({
+      books: [
+        book({
+          symbol: 'SOL',
+          requote: { moves: 120, hysteresisHolds: 3400, dwellHolds: 80 },
+          takerCrosses: { 'loss-stop': { count: 2, feeUnits: '5000000', notionalUnits: '100000000000' } },
+        }),
+        book({ symbol: 'BTC' }), // nothing to report ⇒ skipped
+      ],
+    });
+    expect(f2Summary(s)).toBe('SOL moves=120 holdH=3400 holdD=80 taker[loss-stop×2=$5]');
   });
 });

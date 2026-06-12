@@ -29,6 +29,13 @@ export interface HedgeUnderlyingSnap {
   hedgeUnits: number; // signed perp units held (coins)
   hedgeNotionalUsd: number; // hedge mark value
   residualUsd: number; // net + hedge — what price still runs over
+  /** Mark used to value this leg, USD/coin (F0: persisted to mm_hedge_nav). */
+  markUsd: number;
+  /** This leg's P&L = mtm + funding − fees (F0: the per-leg read the leak table previously
+   *  had to imply as desk-net − books-sum). */
+  pnlUsd: number;
+  fundingUsd: number;
+  feesUsd: number;
 }
 
 export interface HedgeSnapshot {
@@ -39,7 +46,11 @@ export interface HedgeSnapshot {
   hedgeCostUsd: number; // cumulative taker + spread paid
   fundingUsd: number; // cumulative funding carry (+ = received)
   perUnderlying: HedgeUnderlyingSnap[];
+  /** Orders actually EXECUTED last tick (post anti-churn filtering, F1). */
   ordersLastTick: HedgeOrder[];
+  /** F1 anti-churn decisions from the last tick (suppressions + flow flips), rate-bounded.
+   *  Optional so existing test fixtures need not build it. */
+  decisionsLastTick?: HedgeDecision[];
   /** The §0 KPI (residual_mm_risk_study.md): factor-vs-basis residual variance + live β/R² per
    *  book. Residual DELTA can read ~0 while most of an alt's vol is still live on the desk —
    *  this block is the honest hedge-quality read. Optional so test fixtures need not build it. */
@@ -53,11 +64,37 @@ export interface RebalanceCtx {
   fundingRatePerHour?: Record<string, number>;
   /** Hours since the last rebalance, for funding accrual. */
   dtHours?: number;
+  /** Book symbols whose PRIMARY inventory flattened since the last hedge tick (incl. loss-stops).
+   *  F1 net-first: never emit an opposing hedge leg in the same cycle as a primary flatten — the
+   *  band + min-hold absorb the recomputed net delta instead (run55: stop → unwind → re-open). */
+  flattenedBooks?: string[];
+}
+
+/** One F1 anti-churn decision — a suppressed order or a state change, WITH its numbers (the
+ *  PART V observability requirement: the run must be auditable without a debugger). The trader
+ *  turns each into a `BLOCKED ▸` / `FLOW ▸` log line + tape event. Continuous conditions
+ *  (band-hold, min-hold) are rate-bounded to one emission per leg per rule per minute. */
+export interface HedgeDecision {
+  underlying: string;
+  rule: 'band-hold' | 'min-hold' | 'flip-cooldown' | 'flow-freeze' | 'net-first' | 'basis-gate' | 'flow-flip';
+  /** Pre-formatted trigger numbers (net delta vs band, ms since last fire, flow, …). */
+  detail: string;
+  /** |notional| of the order this decision suppressed (0 for pure state changes like flow-flip). */
+  suppressedNotionalUsd: number;
 }
 
 export class DeskHedgeController {
   private readonly pos = new Map<string, PerpPosition>();
   private lastOrders: HedgeOrder[] = [];
+  /** F1 anti-churn state, all keyed per hedge underlying (legs are independent). */
+  private readonly lastFireMs = new Map<string, number>(); // last EXECUTED order per leg (min-hold)
+  private readonly lastFlipMs = new Map<string, number>(); // last executed direction flip (flip cooldown)
+  private readonly addFreezeUntilMs = new Map<string, number>(); // adds frozen after a book flow sign-flip
+  private readonly lastFlowSign = new Map<string, number>(); // per BOOK symbol: last signed flow (±1, 0=neutral)
+  /** Rate-bound for continuous decisions: (underlying|rule) → last emit ms. */
+  private readonly lastDecisionMs = new Map<string, number>();
+  private decisionsLast: HedgeDecision[] = [];
+  private static readonly DECISION_RATE_MS = 60_000;
   /** Residual-variance KPI (study §0); fed once per rebalance with the same books + marks. */
   private quality: HedgeQualityTracker;
   /** Last live mark seen per underlying. A book going un-warm / mid-relaunch drops its symbol from
@@ -149,6 +186,12 @@ export class DeskHedgeController {
     this.pos.clear();
     this.lastOrders = [];
     this.lastMark.clear();
+    this.lastFireMs.clear();
+    this.lastFlipMs.clear();
+    this.addFreezeUntilMs.clear();
+    this.lastFlowSign.clear();
+    this.lastDecisionMs.clear();
+    this.decisionsLast = [];
     this.quality = new HedgeQualityTracker(this.cfg.betaMap, undefined, this.cfg.qualityBucketMs);
     return legs;
   }
@@ -201,13 +244,96 @@ export class DeskHedgeController {
       }
     }
 
-    // 2. The banded rebalance against the current hedge notional.
-    const plan = computeHedge(books, this.hedgeNotionalUsd(marks), this.cfg);
-    this.lastOrders = plan.orders;
-    if (plan.orders.length) this.syncPrices?.(marks); // pin the venue's fill price to our marks
+    // 2. F1 anti-churn (Journal #60). Decisions are collected per tick; the trader renders each
+    //    as a BLOCKED ▸ / FLOW ▸ line + tape event (PART V observability).
+    const now = this.clock().getTime();
+    this.decisionsLast = [];
 
-    // 3. Fill each order as a taker on the venue; update the perp position from the real fill.
+    // 2a. Flow sign tracking per book: a sign-flip (|flow| ≥ threshold, opposite to the last
+    //     signed read) freezes hedge ADDS on the book's underlying — the front of the move is
+    //     reversing; hedging now risks buying the top of the hedge leg (§5).
+    const flowTheta = this.cfg.flowFreezeThreshold ?? 0.25;
+    const cooldown = this.cfg.flipCooldownMs ?? 0;
+    for (const b of books) {
+      if (b.flow === undefined) continue;
+      const sign = b.flow >= flowTheta ? 1 : b.flow <= -flowTheta ? -1 : 0;
+      const prev = this.lastFlowSign.get(b.symbol) ?? 0;
+      if (sign !== 0 && prev !== 0 && sign !== prev && cooldown > 0) {
+        const u = (this.cfg.betaMap[b.symbol] ?? { underlying: b.symbol, beta: 1 }).underlying;
+        this.addFreezeUntilMs.set(u, now + cooldown);
+        this.decide(now, {
+          underlying: u,
+          rule: 'flow-flip',
+          detail: `${b.symbol} flow ${prev > 0 ? '+' : '−'}→${sign > 0 ? '+' : '−'} (${b.flow.toFixed(2)}) — ${u} adds frozen ${Math.round(cooldown / 1000)}s`,
+          suppressedNotionalUsd: 0,
+        }, true);
+      }
+      if (sign !== 0) this.lastFlowSign.set(b.symbol, sign);
+    }
+
+    // 2b. Basis gate: 'flatten'-policy books are excluded from the hedge PLAN (their basis makes
+    //     the cross-hedge a second bet — the book's own stops/skew bound them). They stay in the
+    //     snapshot + quality KPI, so the carried delta is reported, never hidden.
+    const policy = this.cfg.basisPolicy ?? {};
+    const plannedBooks = books.filter((b) => policy[b.symbol] !== 'flatten');
+    for (const b of books) {
+      if (policy[b.symbol] !== 'flatten') continue;
+      const deltaUsd = (Number(b.inventoryUnits) / MICROS) * (Number(marks[b.symbol] ?? b.midMicros) / MICROS);
+      if (Math.abs(deltaUsd) > this.cfg.bandUsd) {
+        this.decide(now, {
+          underlying: b.symbol,
+          rule: 'basis-gate',
+          detail: `${b.symbol} $${Math.round(deltaUsd)} delta carried UNHEDGED (basis policy: flatten-primary; band $${this.cfg.bandUsd})`,
+          suppressedNotionalUsd: Math.abs(deltaUsd),
+        });
+      }
+    }
+
+    // 2c. Net-first: a primary flatten this cycle (incl. loss-stops) must not trigger an opposing
+    //     hedge leg in the same cycle — the band + min-hold absorb the recomputed delta instead.
+    const flattenedUnderlyings = new Set<string>(
+      (ctx.flattenedBooks ?? []).map((s) => (this.cfg.betaMap[s] ?? { underlying: s, beta: 1 }).underlying),
+    );
+
+    // 2d. The banded rebalance plan, then the per-order suppression chain.
+    const plan = computeHedge(plannedBooks, this.hedgeNotionalUsd(marks), this.cfg);
+    const minHold = this.cfg.minHoldMs ?? 0;
+    const orders: HedgeOrder[] = [];
     for (const o of plan.orders) {
+      const u = o.underlying;
+      const resid = plan.states.find((s) => s.underlying === u)?.residualUsd ?? 0;
+      // Per-underlying band override (wider than the global band only).
+      const band = Math.max(this.cfg.bandUsd, this.cfg.bandUsdByUnderlying?.[u] ?? 0);
+      if (Math.abs(resid) <= band) {
+        this.decide(now, { underlying: u, rule: 'band-hold', detail: `|residual $${Math.round(resid)}| ≤ band $${band} — holding`, suppressedNotionalUsd: o.notionalUsd });
+        continue;
+      }
+      if (flattenedUnderlyings.has(u)) {
+        // Start the min-hold clock so the unwind also can't fire on the very next cycle.
+        this.lastFireMs.set(u, now);
+        this.decide(now, { underlying: u, rule: 'net-first', detail: `primary flatten this cycle — ${o.reason} $${Math.round(o.notionalUsd)} absorbed (residual $${Math.round(resid)})`, suppressedNotionalUsd: o.notionalUsd }, true);
+        continue;
+      }
+      const sinceFire = now - (this.lastFireMs.get(u) ?? -Infinity);
+      if (minHold > 0 && sinceFire < minHold) {
+        this.decide(now, { underlying: u, rule: 'min-hold', detail: `last fire ${Math.round(sinceFire / 1000)}s ago < ${Math.round(minHold / 1000)}s — ${o.reason} $${Math.round(o.notionalUsd)} held`, suppressedNotionalUsd: o.notionalUsd });
+        continue;
+      }
+      if (o.reason === 'flip' && cooldown > 0 && now - (this.lastFlipMs.get(u) ?? -Infinity) < cooldown) {
+        this.decide(now, { underlying: u, rule: 'flip-cooldown', detail: `flip ${Math.round((now - this.lastFlipMs.get(u)!) / 1000)}s after last flip < ${Math.round(cooldown / 1000)}s — $${Math.round(o.notionalUsd)} held`, suppressedNotionalUsd: o.notionalUsd }, true);
+        continue;
+      }
+      if ((o.reason === 'open' || o.reason === 'increase' || o.reason === 'flip') && now < (this.addFreezeUntilMs.get(u) ?? 0)) {
+        this.decide(now, { underlying: u, rule: 'flow-freeze', detail: `adds frozen ${Math.round(((this.addFreezeUntilMs.get(u) ?? 0) - now) / 1000)}s more (flow flip) — ${o.reason} $${Math.round(o.notionalUsd)} held`, suppressedNotionalUsd: o.notionalUsd });
+        continue;
+      }
+      orders.push(o);
+    }
+    this.lastOrders = orders;
+    if (orders.length) this.syncPrices?.(marks); // pin the venue's fill price to our marks
+
+    // 3. Fill each surviving order as a taker on the venue; update the position from the real fill.
+    for (const o of orders) {
       const priceMicros = marks[o.underlying];
       if (!priceMicros || priceMicros <= 0n) continue;
       const units = hedgeOrderUnits(o.notionalUsd, priceMicros);
@@ -225,9 +351,20 @@ export class DeskHedgeController {
       p.units += signed;
       p.cashUsd -= (Number(signed) / MICROS) * fillPrice;
       p.feesUsd += Number(fill.feesUnits) / MICROS;
+      this.lastFireMs.set(o.underlying, now);
+      if (o.reason === 'flip') this.lastFlipMs.set(o.underlying, now);
     }
 
     return this.snapshot(books, ctx.prices);
+  }
+
+  /** Record an F1 decision, rate-bounded per (underlying, rule) unless `discrete` (a state
+   *  change like a flow flip or an executed-path event — those always emit). */
+  private decide(now: number, d: HedgeDecision, discrete = false): void {
+    const key = `${d.underlying}|${d.rule}`;
+    if (!discrete && now - (this.lastDecisionMs.get(key) ?? -Infinity) < DeskHedgeController.DECISION_RATE_MS) return;
+    this.lastDecisionMs.set(key, now);
+    this.decisionsLast.push(d);
   }
 
   /** Desk gross delta, post-hedge residual, and hedge P&L at the supplied marks. Resolves missing
@@ -249,15 +386,27 @@ export class DeskHedgeController {
       const hn = hedgeNotional[u] ?? 0;
       const resid = netDeltaUsd + hn;
       const p = this.pos.get(u);
-      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * (Number(marks[u] ?? 0n) / MICROS) : 0;
+      const markUsd = Number(marks[u] ?? 0n) / MICROS;
+      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * markUsd : 0;
+      const legPnl = mtm + (p?.fundingUsd ?? 0) - (p?.feesUsd ?? 0);
       grossDeltaUsd += Math.abs(netDeltaUsd);
       residualUsd += Math.abs(resid);
-      hedgePnlUsd += mtm + (p?.fundingUsd ?? 0) - (p?.feesUsd ?? 0);
+      hedgePnlUsd += legPnl;
       hedgeCostUsd += p?.feesUsd ?? 0;
       fundingUsd += p?.fundingUsd ?? 0;
-      perUnderlying.push({ underlying: u, netDeltaUsd, hedgeUnits: p ? Number(p.units) / MICROS : 0, hedgeNotionalUsd: hn, residualUsd: resid });
+      perUnderlying.push({
+        underlying: u,
+        netDeltaUsd,
+        hedgeUnits: p ? Number(p.units) / MICROS : 0,
+        hedgeNotionalUsd: hn,
+        residualUsd: resid,
+        markUsd,
+        pnlUsd: legPnl,
+        fundingUsd: p?.fundingUsd ?? 0,
+        feesUsd: p?.feesUsd ?? 0,
+      });
     }
 
-    return { enabled: true, grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, perUnderlying, ordersLastTick: this.lastOrders, quality: this.quality.snapshot() };
+    return { enabled: true, grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, perUnderlying, ordersLastTick: this.lastOrders, decisionsLastTick: this.decisionsLast, quality: this.quality.snapshot() };
   }
 }

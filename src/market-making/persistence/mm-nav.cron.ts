@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
 import { MmPortfolioTrader, MmPortfolioSnapshot } from '../live/mm-portfolio-trader';
 import { MmNavRepository, MmNavInsert } from './mm-nav.repository';
+import { MmResearchRepository } from './mm-research.repository';
 
 // MmNavCron — the durable NAV / equity-curve writer (Telemetry P3). Each interval
 // it reads the live MM desk snapshot() and appends one DESK row + one row per book
@@ -23,11 +24,17 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MmNavCron.name);
   private handle: NodeJS.Timeout | null = null;
 
+  /** Epoch ms of the last hedge-quality write (hourly cadence + a final shutdown write). */
+  private lastQualityWriteMs = 0;
+  private static readonly QUALITY_INTERVAL_MS = 60 * 60_000;
+
   constructor(
     private readonly cfg: ConfigService,
     private readonly trader: MmPortfolioTrader,
     // Null when MM_PERSIST is off or no DbService is wired ⇒ the cron no-ops.
     private readonly repo: MmNavRepository | null,
+    // F0: hedge-leg P&L per interval + hedge-quality hourly/shutdown (DR-2 closure).
+    private readonly research: MmResearchRepository | null = null,
   ) {}
 
   onModuleInit(): void {
@@ -41,8 +48,21 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`mm NAV cron started: every ${intervalMs}ms (append-only mm_nav, desk + per-book)`);
   }
 
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     if (this.handle) clearInterval(this.handle);
+    // F0 shutdown write: the hedge-quality KPI is otherwise in-memory only (DR-2) — run55's
+    // basisShare audit was impossible because the server was down before the review. Best-effort.
+    if (this.research) {
+      try {
+        const snap = this.trader.snapshot();
+        if (snap.hedge) {
+          await this.research.insertHedgeQuality(new Date(), snap.hedge);
+          await this.research.insertHedgeNav(new Date(), snap.hedge);
+        }
+      } catch (err) {
+        this.logger.error(`mm hedge shutdown write failed: ${(err as Error).message}`);
+      }
+    }
   }
 
   /** One interval: persist the desk + per-book equity snapshot. Never throws. */
@@ -50,17 +70,58 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
     if (!this.repo) return;
     try {
       const snap = this.trader.snapshot();
+      // F0 sanity guard (run55 worst5m bug): during boot/relaunch a book can briefly mark its
+      // inventory against a garbage mid (kPEPE unreal −$3.03M on a $1M book, 14:01–14:10Z) —
+      // persisting that poisons the durable equity curve and every downstream worst-bucket /
+      // drawdown read. A mark that exceeds the book's own capital is physically impossible
+      // under the inventory caps, so the whole batch is SKIPPED (a 1-interval gap is honest;
+      // a poisoned curve is not) and the offending book is named loudly.
+      const insane = findInsaneMark(snap);
+      if (insane) {
+        this.logger.error(`NAV ▸ mark rejected — ${insane} — interval SKIPPED (corrupt mid, not P&L)`);
+        return;
+      }
       const rows = navRowsFromSnapshot(snap, now);
       const n = await this.repo.insertNavSnapshot(rows);
       this.logger.log(`mm NAV booked: ${n} row(s) (desk + ${n - 1} book(s)) asOf=${now.toISOString()}`);
+      // F0: persist the hedge legs every interval + the quality KPI hourly.
+      if (this.research && snap.hedge) {
+        await this.research.insertHedgeNav(now, snap.hedge);
+        if (now.getTime() - this.lastQualityWriteMs >= MmNavCron.QUALITY_INTERVAL_MS) {
+          await this.research.insertHedgeQuality(now, snap.hedge);
+          this.lastQualityWriteMs = now.getTime();
+        }
+      }
       // DR-3: a compact, grep-able F3 line each interval so a post-run `grep 'F3 toxicity'`
       // answers "did the adverse-selection defence fire?" — Journal #44 found it invisible.
       const tox = f3Summary(snap);
       if (tox) this.logger.log(`F3 toxicity: ${tox}`);
+      // F2 (Journal #61): the rate-bounded requote/taker observability line — one per interval,
+      // grep-able post-run ("did the hysteresis hold, and what did the taker crosses cost?").
+      const rq = f2Summary(snap);
+      if (rq) this.logger.log(`F2 requote: ${rq}`);
     } catch (err) {
       this.logger.error(`mm NAV tick failed: ${(err as Error).message}`);
     }
   }
+}
+
+/**
+ * The corrupt-mark detector (F0, run55 worst5m root cause): a book whose |unrealised| exceeds
+ * its own capital is marking against a bogus mid (inventory is capped at a fraction of capital,
+ * so even a 100% adverse move cannot produce it). Returns a human-readable description of the
+ * first offender, or null when the snapshot is sane. Pure + exported for the unit test.
+ */
+export function findInsaneMark(s: MmPortfolioSnapshot): string | null {
+  for (const b of s.books) {
+    const unreal = BigInt(b.unrealisedPnlUnits);
+    const cap = BigInt(b.capitalUnits);
+    const absUnreal = unreal < 0n ? -unreal : unreal;
+    if (cap > 0n && absUnreal > cap) {
+      return `${b.symbol} unrealised $${(Number(unreal) / 1e6).toFixed(0)} exceeds capital $${(Number(cap) / 1e6).toFixed(0)}`;
+    }
+  }
+  return null;
 }
 
 /**
@@ -90,6 +151,24 @@ export function f3Summary(s: MmPortfolioSnapshot): string | null {
         `${b.symbol} widen=${b.toxicity!.widenSteps} tighten=${b.toxicity!.tightenSteps} ` +
         `avg=${b.toxicity!.avgScale.toFixed(2)} max=${b.toxicity!.maxScale.toFixed(2)} last=${b.toxicity!.lastScale.toFixed(2)}`,
     );
+  return parts.length ? parts.join(' | ') : null;
+}
+
+/**
+ * F2 grep-able per-interval line (Journal #61): requote moves vs holds per fast book + the
+ * taker-cross fee attribution per trigger ("stop tax" vs the rest). Null when no book carries
+ * either (hysteresis off / bar path / no crosses) ⇒ no line logged. Pure + exported for tests.
+ */
+export function f2Summary(s: MmPortfolioSnapshot): string | null {
+  const parts = s.books
+    .filter((b) => b.requote || (b.takerCrosses && Object.keys(b.takerCrosses).length > 0))
+    .map((b) => {
+      const r = b.requote ? `moves=${b.requote.moves} holdH=${b.requote.hysteresisHolds} holdD=${b.requote.dwellHolds}` : '';
+      const crosses = Object.entries(b.takerCrosses ?? {})
+        .map(([reason, a]) => `${reason}×${a.count}=$${(Number(a.feeUnits) / 1e6).toFixed(0)}`)
+        .join(',');
+      return `${b.symbol} ${[r, crosses && `taker[${crosses}]`].filter(Boolean).join(' ')}`;
+    });
   return parts.length ? parts.join(' | ') : null;
 }
 

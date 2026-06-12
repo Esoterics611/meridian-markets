@@ -150,10 +150,34 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
 
 **MASTER PLAN II — flow-reactive, leak-driven chain (PART V, the active chain):**
 
-- ☐ **F0 — Persistence & attribution instrumentation** *(hard prerequisite)*
-- ☐ **F1 — Hedge anti-churn** *(biggest leak: −437)*
-- ☐ **F2 — Quote anti-churn** *(fee leak: −229)*
-- ☐ **F3 — Inventory skew** *(warehouse leak: −95)*
+- ☑ **F0 — Persistence & attribution instrumentation** — SHIPPED 2026-06-12 (Journal #59): the four
+  research tables (`mm_fill_markout` / `mm_hedge_nav` / `mm_hedge_quality` / `mm_desk_event`,
+  migration 1723…), per-fill markout sink with fill context (flow/VPIN/σ/q-before/queue-ahead),
+  true hedge-leg P&L + hourly/shutdown quality, durable DeskEvent tape, HIP-3 per-dex funding,
+  NAV corrupt-mark guard, and the leak-table upgrade (worst5m fixed, per-hour strip, A-quadrant
+  split, queue terciles, top-of-hour cut, `--self-check`). Gate: `--self-check` exits 0 only on
+  a post-F0 finished run — verify on the FIRST run after this ships.
+- ☑ **F1 — Hedge anti-churn** — SHIPPED 2026-06-12 (Journal #60): min-hold 30s + flip-cooldown
+  5min + flow-flip add-freeze (θ 0.25) + net-first (primary flatten ⇒ no opposing leg same cycle,
+  min-hold restarted) + per-book basis gate (FARTCOIN/kPEPE/ADA → flatten, run55 priors) +
+  per-leg band map; every suppression a `BLOCKED ▸`/`FLOW ▸` tape event with numbers; F1.6
+  variance-reduction report in the leak table. Replay (mechanical rules only): −17% churn cost;
+  the ≥50% gate rests on basis-gate + net-first and is **measured on the first post-F1 run**
+  (leak-table hedge-fee line + variance report — data exists via F0).
+- ☑ **F2 — Quote anti-churn** — SHIPPED 2026-06-12 (Journal #61): shared `decideRequote`
+  hysteresis/dwell/urgent (live engine + replay run the same code), per-trigger taker-cross
+  attribution (`takerCrosses` + `trigger` on the fill tape — stop tax separable from SQL),
+  grep-able `F2 requote:` interval line, `scripts/mm-requote-compare.ts` A/B. Replay verdict
+  MIXED (fill edge up on every coin; net couples to the warehouse path) ⇒ **hysteresis default
+  OFF** — arm `MM_REQUOTE_MIN_BPS=1 ` live after F3. Maker-bias (F2.3) is structural: the maker
+  engine is post-only; the only taker path is the attributed guardrail flatten.
+- ☑ **F3 — Inventory skew** — SHIPPED 2026-06-12 (Journal #62): GLFT concentration controls
+  (skew gain ×(1+2r) + adding-side size ramp → reduce-only over conc 0.5→0.85, default ON,
+  per-side sizes through both engines), `CONTROL ▸`/`BLOCKED ▸ conc-cap` change-driven tape
+  events, loss-stop in the replay harness + `scripts/mm-inventory-sweep.ts`. Sweep verdict:
+  **0.01% stop validated** (desk warehouse −95%, maxDD halved on the 14h tapes; 0.05%+ never
+  fire); conc mechanism validated where it binds (BNB: whse/net/fills all up), magnitude is
+  the next live run's read (ADA conc<70% gate, now on the durable tape).
 - ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*
 - ☐ **F5 — Capital ∝ measured fillEdge**
 

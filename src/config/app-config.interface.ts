@@ -183,6 +183,33 @@ export interface AppConfig {
     /** Hedge β-map: book symbol → { underlying, beta }. Folds alts onto a major perp so one leg
      *  hedges the basket (Journal #41/#44 DR-3). Empty = self-hedge each symbol 1:1 (the default). */
     hedgeBetaMap: Record<string, { underlying: string; beta: number }>;
+    /** F1 anti-churn: min hold per hedge leg, ms — no re-fire faster than this. 0 = off. */
+    hedgeMinHoldMs: number;
+    /** F1: after a leg's direction flip, freeze further flips this long; a book flow sign-flip
+     *  freezes ADDS on its underlying for the same interval. 0 = off. */
+    hedgeFlipCooldownMs: number;
+    /** F1: |flow| below this is noise — a flow sign only counts for the flip-freeze at/above it. */
+    hedgeFlowFreezeTheta: number;
+    /** F1 basis gate: book → hedge|flatten. 'flatten' = excluded from the hedge plan (carried
+     *  delta reported, the book's own stops bound it). Unlisted books default to 'hedge'. */
+    hedgeBasisGate: Record<string, 'hedge' | 'flatten'>;
+    /** F1: per-underlying no-trade band override (USD); only ever WIDENS the global band. */
+    hedgeBandMap: Record<string, number>;
+    /** F2 quote anti-churn: hold a resting quote through price drift below this (bps of mid)
+     *  instead of cancel/replacing — keeps the FIFO queue position. 0 = off (chase every tick). */
+    requoteMinBps: number;
+    /** F2: minimum quote lifetime (ms) before a mid-band drift may move it. */
+    requoteDwellMs: number;
+    /** F2: drift at/above this (bps) always moves the quote — holding a real move is the
+     *  stale-quote pick-off of Journal #27. */
+    requoteUrgentBps: number;
+    /** F3 concentration controls (GLFT): soft band start on conc = |q|/cap — above it the skew
+     *  gain ramps and the ADDING side's size shrinks. 0 = off. */
+    concSoft: number;
+    /** F3: conc ≥ this ⇒ the adding side is not quoted at all (reduce-only). */
+    concHard: number;
+    /** F3: extra reservation-skew gain at full ramp (effSkew = skewMult·(1+gain·r)). */
+    concSkewGain: number;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

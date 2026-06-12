@@ -8,7 +8,7 @@ import { ITelemetry } from '../../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../../telemetry/null-telemetry';
 import { M } from '../../telemetry/metric-catalog';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
-import { lifecycleEvent, hedgeEvent } from '../events/desk-event';
+import { lifecycleEvent, hedgeEvent, blockedEvent, flowFlipEvent } from '../events/desk-event';
 import { EventCalendar } from '../risk/event-calendar';
 
 // MmPortfolioTrader — the multi-book generalisation of MmBook, the market-making
@@ -161,7 +161,8 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
         if (!last) continue;
         midMicros = last;
       }
-      books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros });
+      // flow feeds the F1 flow-flip add-freeze; undefined on the bar path (no real aggressor flow).
+      books.push({ symbol: s.symbol, inventoryUnits: BigInt(s.inventoryUnits), midMicros, flow: s.tradeFlowImbalance });
       prices[s.symbol] = midMicros;
       funding[s.symbol] = s.fundingRatePerHour; // the live HL perp rate; the short hedge earns it
     }
@@ -238,7 +239,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   async removeBook(symbol: string): Promise<boolean> {
     const b = this.books.get(symbol);
     if (!b) return false;
-    await b.flatten().catch(() => undefined);
+    await b.flatten('remove').catch(() => undefined);
     await this.persist(symbol); // checkpoint the flattened state before closing
     this.books.delete(symbol);
     this.specs.delete(symbol);
@@ -409,6 +410,10 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
    * timer lagged), else by the bar tick. Best-effort + guarded: a hedge error never sinks the caller
    * and overlapping calls early-return (the hedge places real paper orders — never double-fire).
    */
+  /** Inventory per book at the previous hedge tick — detects a primary flatten (incl. a
+   *  loss-stop) for the F1 net-first rule: never fire an opposing hedge leg the same cycle. */
+  private readonly prevHedgeInv = new Map<string, bigint>();
+
   async hedgeTick(): Promise<void> {
     if (!this.hedger || this.hedging) return;
     this.hedging = true;
@@ -417,10 +422,28 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
       const now = Date.now();
       const dtHours = this.lastHedgeMs ? (now - this.lastHedgeMs) / 3_600_000 : 0;
       this.lastHedgeMs = now;
-      const hedgeSnap = await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours });
+      // F1 net-first: a book that held inventory last tick and is flat now flattened this
+      // cycle (loss-stop, manual flatten, blackout) — its underlying must not see an
+      // opposing hedge order in the same cycle; the band + min-hold absorb the step.
+      const flattenedBooks: string[] = [];
+      for (const b of books) {
+        const prev = this.prevHedgeInv.get(b.symbol);
+        if (prev !== undefined && prev !== 0n && b.inventoryUnits === 0n) flattenedBooks.push(b.symbol);
+        this.prevHedgeInv.set(b.symbol, b.inventoryUnits);
+      }
+      const hedgeSnap = await this.hedger.rebalance(books, { prices, fundingRatePerHour: funding, dtHours, flattenedBooks });
       for (const o of hedgeSnap.ordersLastTick) {
         const resid = hedgeSnap.perUnderlying.find((u) => u.underlying === o.underlying)?.residualUsd ?? 0;
         this.events.emit(hedgeEvent({ ts: now, underlying: o.underlying, side: o.side, notionalUsd: o.notionalUsd, residualUsd: resid, reason: o.reason }));
+      }
+      // F1 observability (PART V): every suppression / flow flip hits the tape with its
+      // numbers; continuous rules arrive pre-rate-bounded by the controller.
+      for (const d of hedgeSnap.decisionsLastTick ?? []) {
+        this.events.emit(
+          d.rule === 'flow-flip'
+            ? flowFlipEvent({ ts: now, book: d.underlying, detail: d.detail })
+            : blockedEvent({ ts: now, book: d.underlying, rule: `hedge ${d.rule}`, detail: d.detail, source: 'hl-perp-hedge' }),
+        );
       }
     } catch (e) {
       this.logger.error(`mm delta-hedge error: ${(e as Error).message}`);

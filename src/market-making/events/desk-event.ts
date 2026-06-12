@@ -21,6 +21,9 @@ export type DeskEventKind =
   | 'launch' // a book was launched on an instrument
   | 'remove' // a book was flattened + dropped
   | 'hedge' // the desk delta-hedge traded a perp leg to flatten net delta
+  | 'blocked' // an automatic control SUPPRESSED an action (F1 anti-churn, F3 conc-cap), with its numbers
+  | 'control' // an automatic control CHANGED state (F3 skew ramp etc.) — the CONTROL ▸ grammar
+  | 'flow' // a book's aggressor-flow sign flipped (the F1 add-freeze trigger)
   | 'start' // the desk loop started ticking
   | 'stop'; // the desk loop stopped
 
@@ -59,6 +62,9 @@ export interface DeskEvent {
   realisedDeltaUnits?: string;
   /** Signed fee on the fill (+ cost, − maker rebate). */
   feeUnits?: string;
+  /** F2: WHY a TAKER cross happened (loss-stop/session-close/event-blackout/remove/manual);
+   *  absent on maker fills — the per-reason fee attribution key in the durable tape. */
+  trigger?: string;
   // verdict specifics (present on kind === 'verdict')
   verdict?: string;
   prevVerdict?: string;
@@ -120,7 +126,9 @@ function actionPhrase(side: FillSide, action: FillAction): string {
   }
 }
 
-/** Build a fill event (message pre-rendered). */
+/** Build a fill event (message pre-rendered). `trigger` (F2): WHY a TAKER cross happened
+ *  (loss-stop / session-close / event-blackout / remove / manual) — undefined for maker fills.
+ *  It rides into the durable tape's payload, so taker fees are attributable per reason. */
 export function fillEvent(p: {
   ts: number;
   book: string;
@@ -132,6 +140,7 @@ export function fillEvent(p: {
   inventoryUnits: bigint;
   realisedDeltaUnits: bigint;
   feeUnits: bigint;
+  trigger?: string;
 }): DeskEventInput {
   const tail =
     p.action === 'open' || p.action === 'add'
@@ -139,7 +148,8 @@ export function fillEvent(p: {
       : ` realised ${fmtMoney(p.realisedDeltaUnits)} (fee ${fmtMoney(-p.feeUnits)})`;
   const message =
     `${p.book} ▸ ${p.side} ${fmtQty(p.sizeUnits)} @ ${fmtPrice(p.priceMicros)} — ` +
-    `${actionPhrase(p.side, p.action)} → inv ${fmtQty(p.inventoryUnits)}${tail}`;
+    `${actionPhrase(p.side, p.action)} → inv ${fmtQty(p.inventoryUnits)}${tail}` +
+    (p.trigger ? ` [taker: ${p.trigger}]` : '');
   return {
     ts: p.ts,
     desk: 'mm',
@@ -154,6 +164,7 @@ export function fillEvent(p: {
     inventoryUnits: p.inventoryUnits.toString(),
     realisedDeltaUnits: p.realisedDeltaUnits.toString(),
     feeUnits: p.feeUnits.toString(),
+    ...(p.trigger ? { trigger: p.trigger } : {}),
   };
 }
 
@@ -183,6 +194,46 @@ export function hedgeEvent(p: { ts: number; underlying: string; side: 'buy' | 's
     book: p.underlying,
     source: 'hl-perp-hedge',
     message: `HEDGE ▸ ${p.side.toUpperCase()} ${usd(p.notionalUsd)} ${p.underlying}-perp — ${p.reason} → residual ${usd(p.residualUsd)}`,
+  };
+}
+
+/** Build an F1 anti-churn suppression event (band-hold / min-hold / flip-cooldown / flow-freeze /
+ *  net-first / basis-gate). PART V observability: every automatic suppression is a logged,
+ *  structured event WITH its triggering numbers — the run is auditable without a debugger.
+ *  Continuous conditions arrive pre-rate-bounded by the controller. */
+export function blockedEvent(p: { ts: number; book: string; rule: string; detail: string; source?: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'blocked',
+    book: p.book,
+    source: p.source ?? '',
+    message: `BLOCKED ▸ ${p.book} ${p.rule}: ${p.detail}`,
+  };
+}
+
+/** Build an automatic-control state-change event (F3 concentration ramp etc.) — the
+ *  `CONTROL ▸` grammar of the PART V observability requirement. Change-driven, not periodic. */
+export function controlEvent(p: { ts: number; book: string; detail: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'control',
+    book: p.book,
+    source: '',
+    message: `CONTROL ▸ ${p.book} ${p.detail}`,
+  };
+}
+
+/** Build a flow sign-flip event (F1 §5: the front of the move reversed — hedge adds freeze). */
+export function flowFlipEvent(p: { ts: number; book: string; detail: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'flow',
+    book: p.book,
+    source: '',
+    message: `FLOW ▸ flip — ${p.detail}`,
   };
 }
 

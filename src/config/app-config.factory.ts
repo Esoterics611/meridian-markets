@@ -1,6 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { AppConfig, EXECUTION_MODES, ExecutionMode, FeedSource } from './app-config.interface';
-import { parseHedgeBetaMap } from '../market-making/hedge/parse-beta-map';
+import { parseHedgeBetaMap, parseHedgeBasisGate, parseHedgeBandMap } from '../market-making/hedge/parse-beta-map';
 import { hlCoin } from '../market-data/reference/hyperliquid-trades';
 
 function parseExecutionMode(raw: string | undefined): ExecutionMode {
@@ -144,6 +144,32 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // ⇒ each book self-hedges its own perp 1:1 — an explicit, logged choice, NOT a hidden no-op.
     // The cross-asset betas want an OOS fit before they're trusted (a wrong β over-hedges noise).
     hedgeBetaMap: parseHedgeBetaMap(process.env['MM_HEDGE_BETA_MAP'] ?? ''),
+    // F1 hedge anti-churn (Journal #60; run55: 56 orders / 19 flips / $1.62M churned ≈ −$437).
+    // Min-hold per leg + flip cooldown + flow-flip add-freeze + per-book basis gate. The basis
+    // defaults are run55's measured priors (FARTCOIN ~100% basisShare, kPEPE/ADA high ⇒ the
+    // cross-hedge is a second bet on those books — flatten-primary instead); override per run.
+    hedgeMinHoldMs: parseInt(process.env['MM_HEDGE_MIN_HOLD_MS'] ?? '30000', 10),
+    hedgeFlipCooldownMs: parseInt(process.env['MM_HEDGE_FLIP_COOLDOWN_MS'] ?? '300000', 10),
+    hedgeFlowFreezeTheta: parseFloat(process.env['MM_HEDGE_FLOW_FREEZE_THETA'] ?? '0.25'),
+    hedgeBasisGate: parseHedgeBasisGate(process.env['MM_HEDGE_BASIS_GATE'] ?? 'FARTCOIN:flatten,kPEPE:flatten,ADA:flatten'),
+    hedgeBandMap: parseHedgeBandMap(process.env['MM_HEDGE_BAND_MAP'] ?? ''),
+    // F2 quote anti-churn (Journal #61): the micro-price center wiggles every tick, so without
+    // hysteresis the engine cancel/replaces ~every cycle and rejoins the BACK of the FIFO queue —
+    // paying queue position for noise. Hold sub-threshold drift (min), protect young quotes
+    // (dwell), but ALWAYS follow a real move (urgent — holding it is the #27 stale-quote
+    // pick-off). DEFAULT OFF (0): the 14h replay verdict is MIXED — spread−adverse improves on
+    // every coin (queue position is real) but net couples to the warehouse path (Journal #61,
+    // same posture as the #53 time-stop). Arm per-run: MM_REQUOTE_MIN_BPS=1 (with dwell/urgent).
+    requoteMinBps: parseFloat(process.env['MM_REQUOTE_MIN_BPS'] ?? '0'),
+    requoteDwellMs: parseInt(process.env['MM_REQUOTE_DWELL_MS'] ?? '400', 10),
+    requoteUrgentBps: parseFloat(process.env['MM_REQUOTE_URGENT_BPS'] ?? '4'),
+    // F3 inventory-concentration controls (Journal #62): one-sided accumulation was the run55
+    // warehouse leak (ADA −138 at 94% conc; DOGE balanced at 20% was net-positive). Past
+    // MM_CONC_SOFT the GLFT reservation skew strengthens (×(1+gain·r)) and the ADDING side's
+    // size ramps down, hitting reduce-only at MM_CONC_HARD. MM_CONC_SOFT=0 disables.
+    concSoft: parseFloat(process.env['MM_CONC_SOFT'] ?? '0.5'),
+    concHard: parseFloat(process.env['MM_CONC_HARD'] ?? '0.85'),
+    concSkewGain: parseFloat(process.env['MM_CONC_SKEW_GAIN'] ?? '2'),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),

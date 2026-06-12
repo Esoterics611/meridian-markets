@@ -814,3 +814,64 @@ plus the engine fields the toxicity page needed (the spec's "~5-line add").
 `/desk/mm` upgrades (per-side 60s markout cells, bucketMs label, card-header deep links),
 `/risk` exposure block ($ notional vs cap, hedge legs, factor-vs-basis σ), Grafana/
 Prometheus is operator-run (spec §5 — hand the commands to Ronnie, don't run them).
+
+## 2026-06-12 — F0: persistence & attribution instrumentation (MASTER PLAN II opener)
+
+Shipped the F-chain's hard prerequisite (QUANT_JOURNAL #59): migration
+`1723000000000-AddMmResearchTables` (4 append-only research tables), `MmResearchRepository`
++ `BufferedSink`/`MmResearchSinks` (bounded, interval-flushed, shutdown-drained), per-fill
+markout persistence with fill context (MarkoutTracker sink → L2LiveFillEngine →
+mm_fill_markout), per-leg hedge P&L each NAV interval + hedge quality hourly/shutdown
+(DR-2 closed), durable DeskEvent tape (mm_desk_event, PART V req #8), HIP-3 per-dex
+funding (xyz:* measured, was 0 by construction), NAV corrupt-mark interval guard, and the
+leak-table upgrade: worst5m corrupt-mark/reset bug fixed (kPEPE −3.03M → −75 on run55
+data), finished-run spread/adverse from mm_book_state, measured-hedge + per-hour strip +
+A-quadrant + queue-tercile + top-of-hour sections, `--self-check` (exit 2 on any n/a).
+196 suites / 1344 tests green (the flaky telemetry suite is the known exception); tsc
+clean. UI QA note: no API field shape changed (HedgeUnderlyingSnap gained per-leg
+mark/pnl/funding/fees — additive; both UIs unaffected, fixtures updated). Next: F1 hedge
+anti-churn, replay-gated on the now-persisted run data.
+
+## 2026-06-12 (same session, cont.) — F1: hedge anti-churn
+
+Shipped F1 (QUANT_JOURNAL #60): five brakes between the hedge plan and execution in
+`DeskHedgeController` — min-hold per leg, flip cooldown, flow-sign-flip add-freeze
+(REDUCES pass), net-first (a primary flatten — loss-stop included, detected by the trader
+as inventory→0 between hedge ticks — suppresses the opposing leg and restarts min-hold),
+and the per-book basis gate (FARTCOIN/kPEPE/ADA excluded from the plan per run55 basis,
+delta announced not hidden). New DeskEvent kinds `blocked`/`flow`; every suppression
+carries its trigger numbers, rate-bounded, durable via F0's mm_desk_event. New
+`scripts/hedge-churn-replay.ts` (run55: mechanical rules −17% churn cost; ≥50% gate
+moves to the first live post-F1 run) + F1.6 per-leg variance-reduction report in the
+leak table. Config: 5 new MM_HEDGE_* knobs (factory defaults + start-desk.sh +
+RUN_THE_DESK.md). UI QA: new event kinds render verbatim on the existing tape (default
+badge); no API field shape changed. 196 suites / 1354 tests; tsc clean; telemetry flake
+only. Next: F2 quote anti-churn.
+
+## 2026-06-12 (same session, cont.) — F2: quote anti-churn
+
+Shipped F2 (QUANT_JOURNAL #61): shared `decideRequote` (queue-fill.ts — live engine and
+LobReplayHarness run identical hysteresis/dwell/urgent logic), per-trigger taker-cross
+attribution (every guardrail flatten tagged loss-stop/session-close/event-blackout/
+remove/manual on the snapshot AND the durable fill tape — "stop tax" separable from
+SQL), the grep-able `F2 requote:` interval line, and `scripts/mm-requote-compare.ts`
+(A/B on the 14h hl-fine tapes: fill edge up on EVERY coin — +$346 desk at defaults,
+BNB fills 187→9,018 — but net couples to the warehouse path, so hysteresis ships
+DEFAULT OFF per the #53 precedent; arm `MM_REQUOTE_MIN_BPS=1` after F3). Maker-bias is
+structural (post-only engine). 3 new MM_REQUOTE_* knobs. UI QA: `takerCrosses`/`requote`
+are additive snapshot fields (UIs unaffected; tape messages carry `[taker: reason]`).
+196 suites / 1361 tests; tsc clean; telemetry flake only. Next: F3 inventory skew.
+
+## 2026-06-12 (same session, cont.) — F3: inventory skew + the loss-stop curve
+
+Shipped F3 (QUANT_JOURNAL #62): GLFT concentration controls — past conc=|q|/cap 0.5 the
+reservation skew strengthens (×(1+2r)) and the ADDING side's size ramps to zero at 0.85
+(reduce-only), default ON (exact legacy no-op below the band); per-side quote sizes now
+flow through QuotePair into both the live engine and the replay harness (0-size side
+pulled). Change-driven `CONTROL ▸`/`BLOCKED ▸ conc-cap` events (new `control` DeskEvent
+kind; blockedEvent generalised). Loss-stop added to LobReplayHarness +
+`scripts/mm-inventory-sweep.ts`: the 0.01% stop prior is now a measured curve — desk
+warehouse −1,632→−79 (−95%) at 8 lots, maxDD halved, 0.05%+ never fire; honest cost: it
+cuts BNB's trend-winner. Conc mechanism validated where it binds (BNB: all metrics up);
+ADA conc<70% is the live gate. 3 new MM_CONC_* knobs. UI QA: additive fields only.
+196 suites / 1367 tests; tsc clean; telemetry flake only. Next: F4 Stage A (+arm F2 live).

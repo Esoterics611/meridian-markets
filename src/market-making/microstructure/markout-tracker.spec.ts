@@ -1,4 +1,4 @@
-import { MarkoutTracker } from './markout-tracker';
+import { MarkoutTracker, ResolvedMarkout } from './markout-tracker';
 
 const MICROS = 1_000_000n;
 const px = (p: number) => BigInt(Math.round(p * Number(MICROS)));
@@ -77,5 +77,32 @@ describe('MarkoutTracker', () => {
     expect(s.sell[0].count).toBe(1);
     // The combined curve hides the asymmetry (averages to 0) — exactly why the split exists.
     expect(t.curve()[0].bps).toBeCloseTo(0, 6);
+  });
+
+  // F0 persistence: each resolved (fill × horizon) observation goes to the optional sink
+  // WITH the fill context the κ regression needs. No sink ⇒ exactly the prior behaviour.
+  describe('resolved-markout sink', () => {
+    it('hands each resolved horizon to the sink with the fill meta', () => {
+      const got: ResolvedMarkout[] = [];
+      const t = new MarkoutTracker([1000, 5000], (r) => got.push(r));
+      t.onFill('BUY', px(100), 0, { sizeUnits: 2_000_000n, flow: 0.4, vpin: 0.2, inventoryUnitsBefore: -1_000_000n });
+      t.onMid(1000, px(101));
+      expect(got).toHaveLength(1);
+      expect(got[0]).toMatchObject({ side: 'BUY', horizonMs: 1000, fairMidMicros: px(100) });
+      expect(got[0].bps).toBeCloseTo(100, 6);
+      expect(got[0].meta).toMatchObject({ sizeUnits: 2_000_000n, flow: 0.4, vpin: 0.2, inventoryUnitsBefore: -1_000_000n });
+      t.onMid(5000, px(102));
+      expect(got).toHaveLength(2);
+      expect(got[1].horizonMs).toBe(5000);
+    });
+
+    it('a throwing sink never breaks the marking path', () => {
+      const t = new MarkoutTracker([1000], () => {
+        throw new Error('db down');
+      });
+      t.onFill('BUY', px(100), 0);
+      expect(() => t.onMid(1000, px(101))).not.toThrow();
+      expect(t.curve()[0].count).toBe(1); // the aggregate still marked
+    });
   });
 });

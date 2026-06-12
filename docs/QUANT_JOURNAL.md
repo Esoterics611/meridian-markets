@@ -2394,3 +2394,190 @@ fillEdge. Old chain: S3/S5 superseded-into-F4/F0, S4 partially shipped (#56/#57)
 S6 live as ledger, S7/S8 pending as validation infra, S9 parked. BINDING new cross-cutting req
 (operator): full auto-response observability — `CONTROL ▸`/`PARAM ▸`/`BLOCKED ▸`/`FLATTEN ▸` +
 existing grammar, on-change + periodic, tape + persisted; a finished run auditable from SQL alone.
+
+## 2026-06-12 — Entry #59 (F0 SHIPPED: persistence & attribution instrumentation — a finished run is now auditable from SQL)
+
+**What:** MASTER PLAN II's hard prerequisite. Four new append-only research tables
+(migration `1723000000000-AddMmResearchTables`, app role SELECT+INSERT only, same oracle as
+`mm_nav`):
+
+- **`mm_fill_markout`** — one row per fill × forward horizon (defaults 1s/5s/30s), carrying the
+  F4 calibration context AT the fill: signed markout bps, notional, signed aggressor-flow
+  imbalance (the κ-regression x), VPIN, σ, inventory-before (for the A = sign(q)·sign(flow)
+  quadrant), FIFO queue-ahead. Plumbed as an optional sink on `MarkoutTracker` (meta rides each
+  pending fill to every resolved horizon) → `L2LiveFillEngine.markoutSink` → per-book closure in
+  the module → `BufferedSink` (5s interval flush, 5k bound, oldest-drop; a DB hiccup degrades to
+  dropped research rows, never a broken tick).
+- **`mm_hedge_nav`** — per-interval per-leg hedge P&L (units/mark/mtm/funding/fees), written by
+  `MmNavCron`; `HedgeUnderlyingSnap` now carries `markUsd/pnlUsd/fundingUsd/feesUsd` per leg.
+  Closes DR-2: the leak table reads TRUE hedge P&L, not desk-net − books-sum.
+- **`mm_hedge_quality`** — βlive/R²/basisShare per book, hourly + at shutdown (run55's
+  hedge-quality audit was impossible because the server died before the review; `onModuleDestroy`
+  now writes a final row set).
+- **`mm_desk_event`** — the durable decision tape (PART V observability req #8): `DeskEventLog`
+  takes an optional persist sink; every event (incl. ring-evicted ones) lands in SQL.
+
+**Plus:** HIP-3 per-dex funding wired (`currentFunding('xyz:GOLD')` posts `metaAndAssetCtxs`
+with `dex:"xyz"`, universe matcher accepts qualified or bare coin names — the funding term on
+xyz books is now measured, was 0 by construction). NAV corrupt-mark guard: `findInsaneMark`
+skips a whole NAV interval when any book's |unreal| > its own capital (run55: kPEPE marked
+−$3.03M against a garbage boot mid; a 1-interval gap is honest, a poisoned curve is not).
+
+**Leak table (scripts/mm-leak-table.ts) upgrade:** (1) **worst5m bug found + fixed** — the
+−3.0M/−30k/−20k worst buckets were corrupt boot-window marks (14:01–14:10Z all books) plus
+relaunch resets (book net jumps to 0 at restart) walked as P&L deltas; now filtered by a robust
+outlier bound (|unreal| > max(100×median|unreal|, $500), capped at median equity — real
+excursions max $227, corrupt ≥ $2k, clean separation on run55 data) + reset/gap skips, with a
+⚠SUSPECT sanity bound as backstop. Run55 re-read: kPEPE worst5m −3,033,717 → **−75** (net −127),
+SOL −20,416 → **−20** (net +25). (2) Windowed spread/adverse/wedge now computed for FINISHED
+runs from the `mm_book_state` checkpoint (persisted since S2 #53 — the table just never read
+it); live snapshot still preferred when up. (3) New sections: measured hedge legs + quality,
+per-hour diagnostic strip (fills/|flow|/VPIN/σ/markout by hour), A-quadrant split per book,
+markout by queue tercile, top-of-hour (±3min, funding prints) toxicity. (4) **`--self-check`** —
+exits 2 listing every n/a/suspect column (verified: fails loudly on pre-F0 run55, as it must;
+the gate passes only on a run captured after this ships). Backfill note: per-fill markouts are
+NOT in the run55 log (in-memory only then) — no backfill possible; F0 data starts with the next
+run.
+
+**Tests:** 196 suites / 1344 tests; new: markout sink meta + throw-safety, desk-event persist
+sink, hedge nav/quality cadence + shutdown write, insane-mark guard, HIP-3 dex routing + bare
+universe match, fillMarkoutRow mapping, BufferedSink batch/overflow/error. tsc clean. (Known
+flaky telemetry.module.spec is the only red, pre-existing.)
+
+**Next (F1):** hedge anti-churn — the −437 leak. The replay gate can now use persisted data.
+
+## 2026-06-12 — Entry #60 (F1 SHIPPED: hedge anti-churn — the −437 leak gets five brakes and a per-leg verdict)
+
+**What:** MASTER PLAN II F1. Run55's biggest leak was not a wrong hedge but a CHURNING one
+(56 orders / 19 flips / $1.62M round-tripped ≈ −$437 taker, vs implied directional P&L of only
+~−21). Five controls now sit between `computeHedge`'s plan and execution, all in
+`DeskHedgeController` (each suppression a structured `HedgeDecision` → tape + log, PART V):
+
+1. **Min-hold** (`MM_HEDGE_MIN_HOLD_MS`, default 30s) — a leg cannot re-fire faster.
+2. **Flip cooldown** (`MM_HEDGE_FLIP_COOLDOWN_MS`, default 5min) — after a direction flip,
+   further flips freeze; run55 had 19, one ~2.5min after the leg opened.
+3. **Flow-flip add-freeze** (θ=0.25) — a book's aggressor-flow sign flip (the front of the move
+   reversing, FLOW_REACTIVE_QUOTING §5) freezes ADDS (open/increase/flip) on its underlying for
+   the cooldown; REDUCES pass. `FLOW ▸ flip` hits the tape (the missing flip event).
+4. **Net-first** — a primary flatten (incl. loss-stop; detected by the trader as inventory
+   nonzero→0 between hedge ticks) suppresses the opposing leg in the same cycle AND restarts
+   the leg's min-hold: stop → unwind → re-open was the run55 churn engine (BRENTOIL: $644k
+   churned, 22 orders, hedging ONE book — CL, which had 3 stops).
+5. **Basis gate** (`MM_HEDGE_BASIS_GATE`, default `FARTCOIN:flatten,kPEPE:flatten,ADA:flatten`
+   from run55's measured basisShare ~100/high/high) — gated books are EXCLUDED from the hedge
+   plan (the cross-hedge was a second bet); their delta stays in the snapshot + is announced
+   (`BLOCKED ▸ basis-gate`), never hidden. Plus `MM_HEDGE_BAND_MAP` per-leg band widening.
+
+**Observability (binding req):** every suppression emits `BLOCKED ▸ <leg> hedge <rule>: <numbers>`
+(band-hold/min-hold rate-bounded to 1/leg/rule/min; flips, net-first, flow-flips always), new
+DeskEvent kinds `blocked`/`flow` — on the live tape, in the server log, AND durable in
+mm_desk_event (F0). Boot line prints the full anti-churn config.
+
+**Replay evidence (scripts/hedge-churn-replay.ts on the run55 log, first-order):** mechanical
+rules alone (band/min-hold/flip-cooldown over the recorded fire stream) cut est. churn cost
+14–24% (defaults: 17%, 56→43 orders, 24→15 sign-flips) while average tracking gap rises ~$0.3k
+— honest read: **the mechanical brakes alone do NOT reach the ≥50% target.** The target rests
+on what the log cannot simulate: the basis gate (the ETH leg — $873k of the churn — hedges the
+three gated books) and net-first (BRENTOIL's stop-driven $644k). Both are now MEASURABLE live:
+F0 persists the decision tape + per-leg P&L, and the **F1.6 variance-reduction report** is in
+the leak table (per leg: σ of 5-min P&L primary vs primary+hedge vs fees → 'earns churn' /
+'FLATTEN-ONLY candidate'). **The F1 validation gate therefore moves to the first post-F1 run:**
+churn cost ≥50% down on the leak table's measured hedge-fee line, warehouse MTM not worse,
+variance report rendering.
+
+**Tests:** 196 suites / 1354 tests (7 new F1 controller cases + 3 parser cases); tsc clean;
+telemetry flake unchanged. Defaults baked into start-desk.sh; knobs documented in RUN_THE_DESK.
+
+**Next (F2):** quote anti-churn (−229 taker fees; hysteresis, dwell, maker-bias, per-trigger
+taker attribution — CL's "stop tax" vs requote churn now separable on the tape).
+
+## 2026-06-12 — Entry #61 (F2 SHIPPED: quote anti-churn — hysteresis machinery + the taker-fee attribution; replay verdict MIXED ⇒ default OFF)
+
+**What:** MASTER PLAN II F2 (the −229 taker-fee leak; xyz:CL +76 fees on a −67 net book).
+Three deliverables:
+
+1. **Requote hysteresis + dwell** — `decideRequote` in `backtest/queue-fill.ts`, SHARED by
+   `L2LiveFillEngine` and `LobReplayHarness` (the A/B replays the exact live logic). The chatter
+   mechanism: the micro-price center wiggles every tick, the desired price almost never EXACTLY
+   equals the resting price, so pre-F2 the engine cancel/replaced ~every cycle and rejoined the
+   BACK of the FIFO queue — paying queue position for noise. Rules: drift < minBps ⇒ hold
+   (hysteresis); minBps ≤ drift < urgentBps ⇒ hold while younger than dwellMs; drift ≥ urgentBps
+   ⇒ always move (holding a real move is the #27 stale-quote pick-off). Knobs
+   `MM_REQUOTE_{MIN_BPS,DWELL_MS,URGENT_BPS}`; counters (moves / holdH / holdD) on
+   `metrics().requote` → snapshot → the new grep-able **`F2 requote:`** NAV-interval line.
+2. **Taker-cross trigger attribution** — `flattenAt` (the ONLY taker path; the maker engine is
+   post-only by construction, so F2.3 "maker-bias" is structurally satisfied) now accumulates
+   per-trigger fee/count/notional (`takerCrosses` on the snapshot: loss-stop / session-close /
+   event-blackout / remove / manual) and stamps the fill tape event with `trigger` (durable in
+   mm_desk_event payload). **"Stop tax" vs requote churn is now separable per book from SQL.**
+3. **A/B validation** (`scripts/mm-requote-compare.ts`, on the 14h ~1.1s-cadence
+   `hl-fine-20260605` tapes, 46,788 steps × 5 coins, micro-price center, γ0.0025/κ0.5/floor5):
+
+   | config | desk Δ(spread−adverse) | desk Δnet | note |
+   |---|---|---|---|
+   | min1/dwell400/urgent4 | **+346** | −1,961 | s−adv up 4/5 coins; fills BNB 187→9,018, DOGE 653→1,477; net dragged by SOL −1,682 / BTC −566 |
+   | min1/urgent2 (BTC+SOL) | +34 | −2,248 | identical to urgent4 — urgent isn't what binds |
+   | min0.5/urgent2 (BTC,SOL,DOGE) | +87 | −515 | SOL flips +309 but DOGE flips −151 |
+
+   **Read:** the F2-owned metric — fill edge (spread−adverse) — improves in EVERY coin and
+   config, and fills rise (the queue-position thesis is real). But net couples to the WAREHOUSE
+   path: a different fill sequence ⇒ a different inventory trajectory ⇒ on 14h trending tapes
+   the inventory MTM term dominates and flips sign per coin/config. That's the F3 leak, not
+   F2's. Also honest: the 1.1s tape cannot reproduce the live 100ms cadence (per-step drift
+   ~10× smaller live ⇒ hysteresis binds more, holds cheaper).
+
+**Verdict (same posture as #53's time-stop):** machinery + attribution + observability ship;
+**hysteresis defaults OFF** (`MM_REQUOTE_MIN_BPS=0`). Arm it on a live run (`=1`) once F3
+strengthens the inventory term, and judge on the `F2 requote:` line + the leak table's
+per-trigger fee split. The F2 GATE (CL fee line down materially) is mostly the stop tax —
+attributable now, and F3's loss-stop sweep is the lever that moves it.
+
+**Tests:** 196 suites / 1361 tests (decideRequote ×5, loss-stop trigger attribution, f2Summary
+×2); tsc clean; telemetry flake unchanged.
+
+**Next (F3):** inventory skew (−95 warehouse leak + the loss-stop sweep) — and it's the
+unblocking dependency for arming F2's hysteresis.
+
+## 2026-06-12 — Entry #62 (F3 SHIPPED: concentration controls + the loss-stop curve — 0.01% validated, warehouse −95% on replay)
+
+**What:** MASTER PLAN II F3 (the −95 warehouse leak; run55: ADA −138 at 94% conc, kPEPE −72,
+FARTCOIN −71, while balanced DOGE at 20% conc was net-POSITIVE despite being picked off).
+
+1. **Concentration controls in `GlftQuoter`** (conc = |q|/effMaxLots): past `MM_CONC_SOFT`
+   (default 0.5) a ramp r strengthens the reservation skew (×(1+`MM_CONC_SKEW_GAIN`·r),
+   default gain 2) and CUTS the adding side's quote size linearly, reaching **reduce-only**
+   (adding side not quoted) at `MM_CONC_HARD` (default 0.85). The reducing side keeps full
+   size. κ stays 0 — flow re-centering is F4's. Per-side sizes now flow through `QuotePair` →
+   both engines (a 0-size side is pulled); this strictly SMOOTHS what the hard cap already did
+   abruptly at 100%. **Default ON** — below 50% conc it is exactly the legacy quoter.
+2. **Observability (binding):** `onInventoryControl` fires on ZONE change only (free → ramp →
+   reduce-only and back) with q/conc/skew×/addSize/σ → `CONTROL ▸` line + tape event; the
+   reduce-only transition emits `BLOCKED ▸ conc-cap` (book, conc%, side). New `control`
+   DeskEvent kind; `blockedEvent` generalised (F1's now read `hedge band-hold` etc.).
+3. **Loss-stop in the replay harness** (`LobReplayConfig.lossStopFrac` + cooldown, mirroring
+   `MmBook.guardrail`: flatten at mid, 5bps taker, stand aside) + **`scripts/mm-inventory-sweep.ts`**.
+
+**Replay evidence (14h hl-fine tapes × 5 coins, micro-price, live-governor base):**
+
+- **Conc A/B:** binds RARELY on these tapes (inventory mostly < 50% of cap — the tapes don't
+  reproduce ADA's ride-to-the-cap regime; no ADA fine tape exists). Where it bound (BNB at
+  2-lot cap): warehouse +27, net +1.6, fills +523 (cutting the adding side keeps the book
+  two-sided instead of parking at the cap), fees flat. Everywhere else an exact no-op.
+  **Mechanism validated, magnitude unproven offline — the ADA conc<70% gate is the next live
+  run's read** (now measurable: conc transitions are on the durable tape).
+- **Loss-stop sweep (the run55 12-stops≈−$664 prior, 0.01% of capital):** at 8 lots the stop
+  at 0.01% cuts the desk warehouse term **−1,632 → −79 (−95%)**, desk net −1,024 → −142,
+  maxDD roughly HALVED on every coin, total stop tax ~$129. At 2 lots it flips the desk
+  −58 → **+249**. Levels 0.05%/0.10% never fire (too loose to exist). Honest cost: the stop
+  cuts BNB's winner both times (+404→+84 at 8 lots) — it trades tail-loss for trend-profit,
+  which is the desk doctrine (conserve equity first). **Verdict: keep 0.01% as the desk-wide
+  default — the prior is now a measured curve, not a guess.** Per-book stop levels stay
+  available via launch params; no change shipped there.
+
+**Tests:** 196 suites / 1367 tests (6 new GLFT conc cases; per-side size plumbing covered by
+existing engine suites); tsc clean; telemetry flake unchanged.
+
+**Next (F4 Stage A):** flow-reactive throttle (κ=0) — FlowState + regime machine, replacing
+the wrong-shaped S4 binary gate; calibrated per book from the mm_fill_markout data F0 now
+persists. ALSO ready to arm on the next run: F2 hysteresis (`MM_REQUOTE_MIN_BPS=1`), now that
+F3 strengthens the inventory term the F2 replay said was the coupling risk.

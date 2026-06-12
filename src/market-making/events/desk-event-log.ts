@@ -34,7 +34,13 @@ export class DeskEventLog implements IDeskEventSink {
   private readonly buffer: DeskEvent[] = [];
   private seq = 0;
 
-  constructor(capacity: number = DEFAULT_CAPACITY) {
+  constructor(
+    capacity: number = DEFAULT_CAPACITY,
+    // F0 (PART V observability req #8): optional durable sink — every event is ALSO enqueued
+    // for the mm_desk_event table, so a finished run's decision tape is auditable from SQL.
+    // Synchronous + best-effort (a BufferedSink in the live wiring); undefined ⇒ in-memory only.
+    private readonly persistSink?: { enqueue(e: DeskEvent): void },
+  ) {
     this.capacity = Math.max(1, Math.floor(capacity));
   }
 
@@ -43,6 +49,7 @@ export class DeskEventLog implements IDeskEventSink {
       const event: DeskEvent = { ...input, seq: ++this.seq };
       this.buffer.push(event);
       if (this.buffer.length > this.capacity) this.buffer.shift();
+      this.persistSink?.enqueue(event);
       // Risk blocks (a Pause/Deny verdict, never the resume) are the one thing an
       // operator wants louder than the steady fill scroll; everything else is log.
       if (event.kind === 'verdict' && event.verdict !== 'Allow') this.logger.warn(event.message);

@@ -106,6 +106,13 @@ export interface BuildQuotePairArgs {
   bidHalfSpreadMicros?: bigint;
   askHalfSpreadMicros?: bigint;
   sizeUnits: bigint;
+  /**
+   * Optional ASYMMETRIC per-side sizes (F3 inventory control, Journal #62): cut the side that
+   * would ADD to a concentrated inventory (0 ⇒ that side is not quoted at all — reduce-only).
+   * Default ⇒ `sizeUnits` both sides, so every existing quoter is unchanged.
+   */
+  bidSizeUnits?: bigint;
+  askSizeUnits?: bigint;
   ctx: QuoteContext;
   strategyId: string;
   tickSeq: number;
@@ -132,10 +139,10 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
   const askHalf = sideHalf(a.askHalfSpreadMicros);
   const bidMicros = a.reservationMicros - bidHalf;
   const askMicros = a.reservationMicros + askHalf;
-  const req = (s: QuoteSide, priceMicros: bigint): QuoteRequest => ({
+  const req = (s: QuoteSide, priceMicros: bigint, sizeUnits: bigint): QuoteRequest => ({
     side: s,
     priceMicros,
-    sizeUnits: a.sizeUnits,
+    sizeUnits,
     postOnly: true,
     timeInForce: 'POST_ONLY',
     idempotencyKey: `${a.strategyId}-${a.tickSeq}-${s}`,
@@ -143,8 +150,8 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
   return {
     ts: a.clock(),
     symbol: a.symbol,
-    bid: req('bid', bidMicros),
-    ask: req('ask', askMicros),
+    bid: req('bid', bidMicros, a.bidSizeUnits ?? a.sizeUnits),
+    ask: req('ask', askMicros, a.askSizeUnits ?? a.sizeUnits),
     reservationMicros: a.reservationMicros,
     halfSpreadMicros: base,
     context: a.ctx,

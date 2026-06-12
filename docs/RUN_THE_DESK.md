@@ -38,6 +38,59 @@ Skip `reset-desk.sh` only when you *want* to resume the previous run's open book
 the default with `MM_PERSIST=true`, and a "fresh trial" that silently resumes old inventory + P&L is
 the #47 trap.
 
+## THE NEXT RUN — F0–F3 validation (2026-06-12, Journal #59–#62) — step by step
+
+Everything F0–F3 built converges on ONE run. This is the exact sequence; each step says what
+it proves. (F2's hysteresis is the only knob you arm by hand — everything else is default-on.)
+
+```bash
+# 1. Capture the PREVIOUS run's leak table first (step 0 above — change the label only).
+
+# 2. Fresh trial: clear persisted books so nothing rehydrates (#47 trap).
+bash scripts/reset-desk.sh
+
+# 3. Start the server WITH F2's hysteresis armed (the one manual arm — its replay verdict was
+#    "fill edge up everywhere, net couples to warehouse"; F3's conc controls are that coupling
+#    fix, so this run is the A/B that decides F2's default):
+MM_REQUOTE_MIN_BPS=1 bash scripts/start-desk.sh            # terminal 1 (owns the terminal)
+
+#    Boot lines to verify before launching (all in the first screen of the log):
+#      "desk delta hedge ON — … anti-churn: min-hold 30s, flip-cooldown 300s, flow θ 0.25,
+#       basis-gate flatten: FARTCOIN,kPEPE,ADA"                      ← F1 armed
+#      mm NAV cron started                                           ← F0 persistence on
+
+# 4. Launch the books:
+bash scripts/launch-mm-10h.sh                                # terminal 2
+
+# 5. Let it run ≥ 4h (ideally the full 10h). Live greps that show the new layers working:
+LOG=$(ls -t docs/research/run-*-mm10h.log | head -1)
+grep 'BLOCKED ▸'  "$LOG" | tail        # F1 hedge suppressions + F3 conc-cap, with numbers
+grep 'FLOW ▸'     "$LOG" | tail        # F1 flow-flip add-freezes
+grep 'CONTROL ▸'  "$LOG" | tail        # F3 concentration zone changes (q/conc/skew/size)
+grep 'F2 requote' "$LOG" | tail        # F2 per-interval moves vs holds + taker-cross fees
+grep 'taker:'     "$LOG" | tail        # every taker cross with its trigger (stop tax visible)
+
+# 6. Stop THE RITUAL way (flatten + durable close + the F0 shutdown hedge-quality write):
+bash scripts/stop-desk.sh && # then Ctrl-C terminal 1
+
+# 7. The verdict — one command checks every gate (window query = step 0's):
+npx ts-node -r tsconfig-paths/register scripts/mm-leak-table.ts \
+  --since "$SINCE" --until "$UNTIL" --log "$LOG" --label runNN --self-check
+```
+
+**The gates this run decides (read them off the leak table):**
+
+| Gate | Where on the table | Pass condition |
+|---|---|---|
+| **F0** | `--self-check` exit code | exit 0 — no n/a columns, worst5m sane, hedge P&L measured not implied |
+| **F1** | Hedge legs (measured) + the log's churn line | hedge churn cost ≥50% below run55's −437; variance-reduction table renders; FARTCOIN/kPEPE/ADA carried delta announced, not hedged |
+| **F2** | per-book fills/fees + `F2 requote:` greps | fill count up vs run55 at same-or-better spread−adverse; stop-tax vs requote-churn split visible per book |
+| **F3** | warehouse + conc columns | ADA-class books conc < 70%; desk warehouse loss ≥50% below run55's −95-class bleed; taker fees not up |
+
+If F2's arm hurts (fills up but net down via warehouse), drop `MM_REQUOTE_MIN_BPS` back to 0 for
+the next run and say so in the journal — the A/B is the point. After this run reads clean → **F4
+Stage A** (MASTER_PLAN_SESSIONS.md §F4 — flow throttle, κ=0, calibrated from `mm_fill_markout`).
+
 ## Operations cheat-sheet — every desk command (single source)
 
 | When | Command | What it does |
@@ -298,6 +351,17 @@ it **up / on**.
 | **`MM_HEDGE_BETA_MAP`** | self-hedge (start-desk: the **OOS β-map**) | `SYM:UNDERLYING:β` triples fold alts onto a major perp ⇒ hedge the basket with ~2 legs. Re-fit with `scripts/hedge-beta-fit.ts`. |
 | **`MM_HEDGE_COST_SPREAD_MULT`** | `0.5` | fraction of the hedge round-trip priced into the maker spread ⇒ each fill earns ≥ its hedge cost. **Lower if fills starve**, raise to be stricter; `0` = don't charge. |
 | `MM_HEDGE_TAKER_BPS` | `2.5` | modeled taker cost per hedge fill (also the spread-premium basis). |
+| **`MM_HEDGE_MIN_HOLD_MS`** | `30000` | **F1 anti-churn**: a hedge leg cannot re-fire faster than this. `0` = off. |
+| **`MM_HEDGE_FLIP_COOLDOWN_MS`** | `300000` | F1: after a leg's direction flip, further flips freeze this long; a book **flow sign-flip** freezes ADDS on its underlying for the same interval (`FLOW ▸ flip` on the tape). |
+| `MM_HEDGE_FLOW_FREEZE_THETA` | `0.25` | F1: \|flow\| below this is noise — no sign, no freeze. |
+| **`MM_HEDGE_BASIS_GATE`** | `FARTCOIN:flatten,kPEPE:flatten,ADA:flatten` | F1 per-book basis gate: `flatten` books are **excluded from the hedge plan** (run55 basis: the cross-hedge was a second bet) — their own stops/skew bound them; carried delta announced as `BLOCKED ▸ basis-gate`. |
+| `MM_HEDGE_BAND_MAP` | *(empty)* | F1: per-underlying band override (USD), only widens — e.g. `ETH:4000`. |
+| **`MM_REQUOTE_MIN_BPS`** | `0` (**off**) | **F2 quote anti-churn**: hold a resting quote through price drift below this (bps of mid) instead of cancel/replacing — **keeps the FIFO queue position**. Replay verdict MIXED (Journal #61: spread−adverse up on every coin, net couples to warehouse path) — arm per-run with `1` and judge on the live `F2 requote:` line. |
+| `MM_REQUOTE_DWELL_MS` | `400` | F2: a quote younger than this only moves on an URGENT drift. |
+| `MM_REQUOTE_URGENT_BPS` | `4` | F2: drift at/above this always moves — holding a real move is the #27 stale-quote pick-off. |
+| **`MM_CONC_SOFT`** | `0.5` | **F3 concentration ramp**: above conc = \|q\|/cap of this, the GLFT skew gain strengthens and the ADDING side's size shrinks (one-sided accumulation was the run55 warehouse leak). `0` = off. |
+| **`MM_CONC_HARD`** | `0.85` | F3: conc ≥ this ⇒ the adding side is **not quoted** (reduce-only) until inventory sheds — `BLOCKED ▸ conc-cap` on the tape. |
+| `MM_CONC_SKEW_GAIN` | `2` | F3: extra reservation-skew gain at full ramp (skew ×(1+gain·r)). |
 | `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg (also the spread-premium basis). |
 
 ### Directional / flow bias — a chosen bet (OFF in the canonical run)

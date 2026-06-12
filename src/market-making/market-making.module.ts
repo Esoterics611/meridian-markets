@@ -43,9 +43,12 @@ import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmNavRepository } from './persistence/mm-nav.repository';
 import { MmNavCron } from './persistence/mm-nav.cron';
+import { MmResearchRepository, MmResearchSinks, MM_RESEARCH_SINKS, fillMarkoutRow } from './persistence/mm-research.repository';
 import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
+import { blockedEvent, controlEvent } from './events/desk-event';
+import { InventoryControlState } from './quote/glft-quoter';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
 import { NULL_TELEMETRY } from '../telemetry/null-telemetry';
 import { M } from '../telemetry/metric-catalog';
@@ -81,8 +84,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       // DbService is optional: it's @Global in the full app, but the controller
       // unit test builds this module in isolation. Persistence needs it; without
       // it (or with MM_PERSIST off) the trader uses the no-op Null store.
-      inject: [ConfigService, MM_BINANCE_CLIENT, DeskEventLog, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient, deskEvents: DeskEventLog, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
+      inject: [ConfigService, MM_BINANCE_CLIENT, DeskEventLog, MM_RESEARCH_SINKS, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, deskEvents: DeskEventLog, researchSinks: MmResearchSinks | null, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
@@ -313,8 +316,29 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // Price the perp hedge into the maker spread (only when the delta hedge is on), so a
                 // fill we may hedge with a taker earns ≥ the hedged fraction of the round-trip cost.
                 hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
+                // F0: each resolved (fill × horizon) markout lands in mm_fill_markout with its
+                // fill context — the κ-regression / A-quadrant data a finished run keeps.
+                markoutSink: researchSinks ? (r) => researchSinks.fills.enqueue(fillMarkoutRow(p.symbol, p.srcId, r)) : undefined,
+                // F2 quote anti-churn (Journal #61): hold sub-threshold drift, keep the queue.
+                requote: mm.requoteMinBps > 0
+                  ? { minBps: mm.requoteMinBps, dwellMs: mm.requoteDwellMs, urgentBps: mm.requoteUrgentBps }
+                  : undefined,
               })
             : undefined;
+
+        // F3 (Journal #62): concentration-control observability — the quoter fires this ONLY on
+        // zone transitions (free → ramp → reduce-only and back), so it is change-driven by
+        // construction. CONTROL ▸ for ramp moves, BLOCKED ▸ when the adding side is pulled.
+        const invControl = (st: InventoryControlState): void => {
+          const nums = `q=${st.qLots.toFixed(2)} lots, conc=${(st.conc * 100).toFixed(0)}%, skew×${st.effSkewMult.toFixed(1)}, addSize=${(st.addSizeFrac * 100).toFixed(0)}% (${st.addingSide}), σ=${st.sigma.toExponential(1)}`;
+          if (st.zone === 'reduce-only') {
+            new Logger('InvControl').warn(`BLOCKED ▸ ${st.symbol} conc-cap: adding side ${st.addingSide} pulled — ${nums}`);
+            deskEvents.emit(blockedEvent({ ts: Date.now(), book: st.symbol, rule: 'conc-cap', detail: `adding side ${st.addingSide} pulled — ${nums}` }));
+          } else {
+            new Logger('InvControl').log(`CONTROL ▸ ${st.symbol} inventory ${st.zone} — ${nums}`);
+            deskEvents.emit(controlEvent({ ts: Date.now(), book: st.symbol, detail: `inventory ${st.zone} — ${nums}` }));
+          }
+        };
 
         const makeBook = async (spec: MmBookSpec): Promise<MmBook> => {
           const strategyId = spec.strategyId ?? mm.defaultStrategyId;
@@ -366,8 +390,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               inventorySkewMult: mm.inventorySkewMult,
               inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              concSoft: mm.concSoft,
+              concHard: mm.concHard,
+              concSkewGain: mm.concSkewGain,
               ...spec.params,
             },
+            onInventoryControl: invControl,
           });
           const quoter = withTimeStop(quoter0, spec.symbol, quoteSizeUnits);
           const { nextBar, warmupCloses } = resolveFeed(srcId);
@@ -448,8 +476,12 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               inventorySkewMult: mm.inventorySkewMult,
               inventorySpreadSkew: mm.inventorySpreadSkew,
               hardInventoryCap: mm.hardInventoryCap ? 1 : 0,
+              concSoft: mm.concSoft,
+              concHard: mm.concHard,
+              concSkewGain: mm.concSkewGain,
               ...(rec.params ?? {}),
             },
+            onInventoryControl: invControl,
           });
           const quoter = withTimeStop(quoter1, rec.symbol, rec.quoteSizeUnits);
           // Same fast-path wiring as makeBook (Journal #47): a rehydrated L2 book MUST get the
@@ -538,13 +570,27 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
               : undefined;
           hedger = new DeskHedgeController(
             hedgeVenue,
-            { bandUsd: mm.hedgeBandUsd, betaMap: mm.hedgeBetaMap, hedgeTakerBps: mm.hedgeTakerBps, hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps },
+            {
+              bandUsd: mm.hedgeBandUsd,
+              betaMap: mm.hedgeBetaMap,
+              hedgeTakerBps: mm.hedgeTakerBps,
+              hedgeHalfSpreadBps: mm.hedgeHalfSpreadBps,
+              // F1 anti-churn (Journal #60): the run55 −437 churn line.
+              minHoldMs: mm.hedgeMinHoldMs,
+              flipCooldownMs: mm.hedgeFlipCooldownMs,
+              flowFreezeThreshold: mm.hedgeFlowFreezeTheta,
+              basisPolicy: mm.hedgeBasisGate,
+              bandUsdByUnderlying: mm.hedgeBandMap,
+            },
             () => new Date(),
             (prices) => Object.assign(hedgeMids, prices),
             resolveHedgeMid,
           );
+          const gated = Object.entries(mm.hedgeBasisGate).filter(([, p]) => p === 'flatten').map(([s]) => s);
           new Logger('MarketMakingModule').log(
-            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper)`,
+            `desk delta hedge ON — band $${mm.hedgeBandUsd}, target: ${describeBetaMap(mm.hedgeBetaMap)}, perp taker ${mm.hedgeTakerBps}bps (paper); ` +
+              `anti-churn: min-hold ${Math.round(mm.hedgeMinHoldMs / 1000)}s, flip-cooldown ${Math.round(mm.hedgeFlipCooldownMs / 1000)}s, flow θ ${mm.hedgeFlowFreezeTheta}, ` +
+              `basis-gate flatten: ${gated.length ? gated.join(',') : 'none'}`,
           );
         }
 
@@ -588,11 +634,34 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         return trader;
       },
     },
+    // F0 research persistence (Journal #59): the raw-SQL writer for mm_fill_markout /
+    // mm_hedge_nav / mm_hedge_quality / mm_desk_event. Null exactly when MmNavRepository
+    // is (MM_PERSIST off or no DB) — research data ships with the equity curve or not at all.
+    {
+      provide: MmResearchRepository,
+      inject: [ConfigService, { token: DbService, optional: true }],
+      useFactory: (cfg: ConfigService, db?: DbService): MmResearchRepository | null => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return app.marketMaking.persist && db ? new MmResearchRepository(db) : null;
+      },
+    },
+    // The two high-rate buffered sinks (per-fill markouts, desk events) over that repository.
+    // Nest calls onModuleDestroy on the instance ⇒ tail rows flush at shutdown.
+    {
+      provide: MM_RESEARCH_SINKS,
+      inject: [MmResearchRepository],
+      useFactory: (repo: MmResearchRepository | null): MmResearchSinks | null => (repo ? new MmResearchSinks(repo) : null),
+    },
     // Live business-event tape (fills enter/exit, verdict changes, lifecycle). A
     // single shared instance: injected into every MmBook + the trader (emit) and
     // the MmController (read at GET /api/market-making/events). In-memory + bounded
-    // — the durable record is the append-only mm_nav table (Telemetry P3).
-    DeskEventLog,
+    // for the UI read; with persistence on, every event ALSO lands in mm_desk_event
+    // via the buffered sink (PART V observability req #8 — the durable decision tape).
+    {
+      provide: DeskEventLog,
+      inject: [MM_RESEARCH_SINKS],
+      useFactory: (sinks: MmResearchSinks | null): DeskEventLog => new DeskEventLog(undefined, sinks?.events),
+    },
     // Durable NAV / equity-curve history (Telemetry P3). The repository is the
     // Postgres backend when MM_PERSIST is on AND a DB is present, else null so the
     // cron + endpoint no-op (no DB dependency on the live MM path — same posture as
@@ -611,9 +680,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
     // no-op when the repository above is null.
     {
       provide: MmNavCron,
-      inject: [ConfigService, MmPortfolioTrader, MmNavRepository],
-      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null): MmNavCron =>
-        new MmNavCron(cfg, trader, repo),
+      inject: [ConfigService, MmPortfolioTrader, MmNavRepository, MmResearchRepository],
+      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null, research: MmResearchRepository | null): MmNavCron =>
+        new MmNavCron(cfg, trader, repo, research),
     },
     // Perp funding-rate refresh: keeps each HL book's carry rate current over a
     // multi-hour run (funding drifts hourly; launch only sets it once). Its own HL
