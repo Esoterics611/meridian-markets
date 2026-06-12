@@ -7,7 +7,7 @@ import { RiskGate, RiskState } from '../risk/risk-gate';
 import { OrderBook, midMicros } from '../microstructure/order-book';
 import { microPriceMicrosFromL2 } from '../microstructure/l2-microprice';
 import { l2SnapshotToOrderBook } from '../backtest/l2-tape';
-import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } from '../backtest/queue-fill';
+import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder, decideRequote, RequoteHysteresisCfg } from '../backtest/queue-fill';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
@@ -62,6 +62,8 @@ interface LiveResting extends RestingQuote {
   fairMidMicros: bigint;
   /** Snapshot ms at the most recent (re)quote — markout horizon start for adverse selection. */
   quotedAtMs: number;
+  /** Snapshot ms this order's PRICE was placed (carried through holds) — the F2 dwell clock. */
+  placedAtMs: number;
 }
 
 export interface L2LiveFillEngineConfig {
@@ -138,6 +140,13 @@ export interface L2LiveFillEngineConfig {
    * the κ-regression data. Omit ⇒ in-memory aggregation only (exactly the prior behaviour).
    */
   markoutSink?: (r: ResolvedMarkout) => void;
+  /**
+   * F2 requote hysteresis + dwell (Journal #61): hold a resting quote through sub-threshold
+   * price drift instead of cancel/replacing every tick — keeps the FIFO queue position (where
+   * maker fills happen) and stops the cancel-replace chatter. Omit / minBps 0 ⇒ off (the prior
+   * behaviour: any price change rejoins the back of the queue).
+   */
+  requote?: RequoteHysteresisCfg;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -174,6 +183,18 @@ export interface L2LiveFillEngineMetrics {
    *  fast path); undefined ⇒ the adverse-selection defence is off. Lets a run CONFIRM F3 fired
    *  (Journal #44 DR-3: don't credit a defence we can't measure). */
   toxicity?: ToxicityMetrics;
+  /** F2 requote anti-churn diagnostics — present only when the hysteresis is on. */
+  requote?: RequoteMetrics;
+}
+
+/** F2 quote anti-churn counters: how often the quote moved vs was held (and why). */
+export interface RequoteMetrics {
+  /** Fresh placements (price actually moved / first quote) — each rejoins the queue back. */
+  moves: number;
+  /** Holds because the drift was below the hysteresis floor (noise). */
+  hysteresisHolds: number;
+  /** Holds because the quote was younger than the dwell (mid-band drift, not urgent). */
+  dwellHolds: number;
 }
 
 /** F3 confidence-scaled-spread diagnostics (how often / how hard the half-spread was scaled). */
@@ -209,6 +230,10 @@ export class L2LiveFillEngine {
   private queueFills = 0;
   private touchFills = 0;
   private latencyBlockedFills = 0;
+  /** F2 requote anti-churn counters (Journal #61). */
+  private requoteMoves = 0;
+  private hysteresisHolds = 0;
+  private dwellHolds = 0;
   private bidFills = 0;
   private askFills = 0;
   private peakEquity: bigint;
@@ -417,18 +442,26 @@ export class L2LiveFillEngine {
     return { ...order, sizeUnits: outcome.remaining.sizeUnits, pos: outcome.remaining.pos };
   }
 
-  /** Re-price (place/persist) one side, stamping the cancel/replace latency + fair value. */
-  private reprice(current: LiveResting | undefined, side: FillSide, priceMicros: bigint, ob: OrderBook, mid: bigint, nowMs: number): LiveResting | undefined {
+  /** Re-price (place/persist) one side, stamping the cancel/replace latency + fair value.
+   *  F2: the requote hysteresis/dwell decision may HOLD the resting price through sub-threshold
+   *  drift — keeping queue position + liveFrom — instead of rejoining the back every tick. */
+  private reprice(current: LiveResting | undefined, side: FillSide, desiredMicros: bigint, ob: OrderBook, mid: bigint, nowMs: number): LiveResting | undefined {
+    const dec = decideRequote(current, desiredMicros, mid, current?.placedAtMs, nowMs, this.cfg.requote);
+    if (dec.held === 'hysteresis') this.hysteresisHolds += 1;
+    else if (dec.held === 'dwell') this.dwellHolds += 1;
+    const priceMicros = dec.priceMicros;
     const res = placeRestingOrder(current, side, priceMicros, this.cfg.quoteSizeUnits, ob);
     if (!res.order) return undefined; // post-only rejected
     const heldSamePrice = current && current.priceMicros === priceMicros;
     if (heldSamePrice && current) {
       // Held our price: keep queue progress + the SAME liveFrom (no new cancel/replace),
       // refresh the fair mid + markout start so adverse is measured from the latest quote.
-      return { ...res.order, liveFromMs: current.liveFromMs, fairMidMicros: mid, quotedAtMs: nowMs };
+      // placedAtMs is NOT refreshed — it is the dwell clock for this price level.
+      return { ...res.order, liveFromMs: current.liveFromMs, fairMidMicros: mid, quotedAtMs: nowMs, placedAtMs: current.placedAtMs };
     }
     // A fresh placement (new price or first quote): subject to the cancel/replace latency.
-    return { ...res.order, liveFromMs: nowMs + this.latencyMs, fairMidMicros: mid, quotedAtMs: nowMs };
+    this.requoteMoves += 1;
+    return { ...res.order, liveFromMs: nowMs + this.latencyMs, fairMidMicros: mid, quotedAtMs: nowMs, placedAtMs: nowMs };
   }
 
   private applyFill(side: FillSide, priceMicros: bigint, qty: bigint, fairMid: bigint, markoutMid: bigint, nowMs: number, queueAheadUnits?: bigint): void {
@@ -484,6 +517,9 @@ export class L2LiveFillEngine {
       bookImbalance: this.lastBookImbalance,
       bias: this.lastBias,
       tradeFlowImbalance: this.lastTradeFlowImbalance,
+      requote: this.cfg.requote && this.cfg.requote.minBps > 0
+        ? { moves: this.requoteMoves, hysteresisHolds: this.hysteresisHolds, dwellHolds: this.dwellHolds }
+        : undefined,
       toxicity: this.cfg.toxicityScaler
         ? {
             widenSteps: this.widenSteps,

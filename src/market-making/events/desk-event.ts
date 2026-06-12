@@ -61,6 +61,9 @@ export interface DeskEvent {
   realisedDeltaUnits?: string;
   /** Signed fee on the fill (+ cost, − maker rebate). */
   feeUnits?: string;
+  /** F2: WHY a TAKER cross happened (loss-stop/session-close/event-blackout/remove/manual);
+   *  absent on maker fills — the per-reason fee attribution key in the durable tape. */
+  trigger?: string;
   // verdict specifics (present on kind === 'verdict')
   verdict?: string;
   prevVerdict?: string;
@@ -122,7 +125,9 @@ function actionPhrase(side: FillSide, action: FillAction): string {
   }
 }
 
-/** Build a fill event (message pre-rendered). */
+/** Build a fill event (message pre-rendered). `trigger` (F2): WHY a TAKER cross happened
+ *  (loss-stop / session-close / event-blackout / remove / manual) — undefined for maker fills.
+ *  It rides into the durable tape's payload, so taker fees are attributable per reason. */
 export function fillEvent(p: {
   ts: number;
   book: string;
@@ -134,6 +139,7 @@ export function fillEvent(p: {
   inventoryUnits: bigint;
   realisedDeltaUnits: bigint;
   feeUnits: bigint;
+  trigger?: string;
 }): DeskEventInput {
   const tail =
     p.action === 'open' || p.action === 'add'
@@ -141,7 +147,8 @@ export function fillEvent(p: {
       : ` realised ${fmtMoney(p.realisedDeltaUnits)} (fee ${fmtMoney(-p.feeUnits)})`;
   const message =
     `${p.book} ▸ ${p.side} ${fmtQty(p.sizeUnits)} @ ${fmtPrice(p.priceMicros)} — ` +
-    `${actionPhrase(p.side, p.action)} → inv ${fmtQty(p.inventoryUnits)}${tail}`;
+    `${actionPhrase(p.side, p.action)} → inv ${fmtQty(p.inventoryUnits)}${tail}` +
+    (p.trigger ? ` [taker: ${p.trigger}]` : '');
   return {
     ts: p.ts,
     desk: 'mm',
@@ -156,6 +163,7 @@ export function fillEvent(p: {
     inventoryUnits: p.inventoryUnits.toString(),
     realisedDeltaUnits: p.realisedDeltaUnits.toString(),
     feeUnits: p.feeUnits.toString(),
+    ...(p.trigger ? { trigger: p.trigger } : {}),
   };
 }
 

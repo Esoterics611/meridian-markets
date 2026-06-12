@@ -211,3 +211,27 @@ describe('MmNavCron — hedge research writes', () => {
     expect(r.navWrites + r.qualityWrites).toBe(0);
   });
 });
+
+// F2 (Journal #61): the grep-able per-interval requote/taker line.
+describe('f2Summary (F2 requote + taker-cross line)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { f2Summary } = require('./mm-nav.cron');
+
+  it('is null when no book carries requote counters or taker crosses', () => {
+    expect(f2Summary(snapshot({ books: [book({})] }))).toBeNull();
+  });
+
+  it('renders moves/holds + per-trigger taker fees per book', () => {
+    const s = snapshot({
+      books: [
+        book({
+          symbol: 'SOL',
+          requote: { moves: 120, hysteresisHolds: 3400, dwellHolds: 80 },
+          takerCrosses: { 'loss-stop': { count: 2, feeUnits: '5000000', notionalUnits: '100000000000' } },
+        }),
+        book({ symbol: 'BTC' }), // nothing to report ⇒ skipped
+      ],
+    });
+    expect(f2Summary(s)).toBe('SOL moves=120 holdH=3400 holdD=80 taker[loss-stop×2=$5]');
+  });
+});

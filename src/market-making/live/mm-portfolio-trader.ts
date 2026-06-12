@@ -239,7 +239,7 @@ export class MmPortfolioTrader implements OnApplicationBootstrap, OnApplicationS
   async removeBook(symbol: string): Promise<boolean> {
     const b = this.books.get(symbol);
     if (!b) return false;
-    await b.flatten().catch(() => undefined);
+    await b.flatten('remove').catch(() => undefined);
     await this.persist(symbol); // checkpoint the flattened state before closing
     this.books.delete(symbol);
     this.specs.delete(symbol);

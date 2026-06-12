@@ -847,3 +847,17 @@ leak table. Config: 5 new MM_HEDGE_* knobs (factory defaults + start-desk.sh +
 RUN_THE_DESK.md). UI QA: new event kinds render verbatim on the existing tape (default
 badge); no API field shape changed. 196 suites / 1354 tests; tsc clean; telemetry flake
 only. Next: F2 quote anti-churn.
+
+## 2026-06-12 (same session, cont.) — F2: quote anti-churn
+
+Shipped F2 (QUANT_JOURNAL #61): shared `decideRequote` (queue-fill.ts — live engine and
+LobReplayHarness run identical hysteresis/dwell/urgent logic), per-trigger taker-cross
+attribution (every guardrail flatten tagged loss-stop/session-close/event-blackout/
+remove/manual on the snapshot AND the durable fill tape — "stop tax" separable from
+SQL), the grep-able `F2 requote:` interval line, and `scripts/mm-requote-compare.ts`
+(A/B on the 14h hl-fine tapes: fill edge up on EVERY coin — +$346 desk at defaults,
+BNB fills 187→9,018 — but net couples to the warehouse path, so hysteresis ships
+DEFAULT OFF per the #53 precedent; arm `MM_REQUOTE_MIN_BPS=1` after F3). Maker-bias is
+structural (post-only engine). 3 new MM_REQUOTE_* knobs. UI QA: `takerCrosses`/`requote`
+are additive snapshot fields (UIs unaffected; tape messages carry `[taker: reason]`).
+196 suites / 1361 tests; tsc clean; telemetry flake only. Next: F3 inventory skew.

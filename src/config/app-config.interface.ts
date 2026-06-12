@@ -195,6 +195,14 @@ export interface AppConfig {
     hedgeBasisGate: Record<string, 'hedge' | 'flatten'>;
     /** F1: per-underlying no-trade band override (USD); only ever WIDENS the global band. */
     hedgeBandMap: Record<string, number>;
+    /** F2 quote anti-churn: hold a resting quote through price drift below this (bps of mid)
+     *  instead of cancel/replacing — keeps the FIFO queue position. 0 = off (chase every tick). */
+    requoteMinBps: number;
+    /** F2: minimum quote lifetime (ms) before a mid-band drift may move it. */
+    requoteDwellMs: number;
+    /** F2: drift at/above this (bps) always moves the quote — holding a real move is the
+     *  stale-quote pick-off of Journal #27. */
+    requoteUrgentBps: number;
     /** Maker fee in bps, SIGNED: negative = rebate (revenue). */
     makerFeeBps: number;
     /** Drawdown kill: deny quoting below this NAV-ratio drawdown (percent). */

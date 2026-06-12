@@ -303,6 +303,9 @@ it **up / on**.
 | `MM_HEDGE_FLOW_FREEZE_THETA` | `0.25` | F1: \|flow\| below this is noise — no sign, no freeze. |
 | **`MM_HEDGE_BASIS_GATE`** | `FARTCOIN:flatten,kPEPE:flatten,ADA:flatten` | F1 per-book basis gate: `flatten` books are **excluded from the hedge plan** (run55 basis: the cross-hedge was a second bet) — their own stops/skew bound them; carried delta announced as `BLOCKED ▸ basis-gate`. |
 | `MM_HEDGE_BAND_MAP` | *(empty)* | F1: per-underlying band override (USD), only widens — e.g. `ETH:4000`. |
+| **`MM_REQUOTE_MIN_BPS`** | `0` (**off**) | **F2 quote anti-churn**: hold a resting quote through price drift below this (bps of mid) instead of cancel/replacing — **keeps the FIFO queue position**. Replay verdict MIXED (Journal #61: spread−adverse up on every coin, net couples to warehouse path) — arm per-run with `1` and judge on the live `F2 requote:` line. |
+| `MM_REQUOTE_DWELL_MS` | `400` | F2: a quote younger than this only moves on an URGENT drift. |
+| `MM_REQUOTE_URGENT_BPS` | `4` | F2: drift at/above this always moves — holding a real move is the #27 stale-quote pick-off. |
 | `MM_HEDGE_HALF_SPREAD_BPS` | `1` | modeled half-spread on the hedge leg (also the spread-premium basis). |
 
 ### Directional / flow bias — a chosen bet (OFF in the canonical run)

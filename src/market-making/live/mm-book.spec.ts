@@ -396,6 +396,11 @@ describe('guardrails (#55) — warehouse loss-stop + session gate', () => {
     expect(BigInt(s.realisedPnlUnits)).toBeLessThan(0n); // the loss was REALISED, not warehoused
     const exits = sink.events.filter((e) => e.kind === 'fill' && e.side === 'SELL');
     expect(exits.length).toBe(1); // the flatten went on the tape as a business event
+    expect(exits[0].trigger).toBe('loss-stop'); // F2: the taker cross carries its trigger
+    expect(exits[0].message).toContain('[taker: loss-stop]');
+    // …and the per-trigger fee attribution accumulates on the snapshot (the "stop tax" line).
+    expect(s.takerCrosses?.['loss-stop']?.count).toBe(1);
+    expect(BigInt(s.takerCrosses!['loss-stop'].feeUnits)).toBeGreaterThan(0n);
 
     await tickAll(book, 2); // inside the cooldown → quotes stay pulled, nothing fills
     expect(book.snapshot().fills).toBe(fillsBefore);

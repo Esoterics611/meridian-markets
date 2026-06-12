@@ -153,6 +153,16 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     hedgeFlowFreezeTheta: parseFloat(process.env['MM_HEDGE_FLOW_FREEZE_THETA'] ?? '0.25'),
     hedgeBasisGate: parseHedgeBasisGate(process.env['MM_HEDGE_BASIS_GATE'] ?? 'FARTCOIN:flatten,kPEPE:flatten,ADA:flatten'),
     hedgeBandMap: parseHedgeBandMap(process.env['MM_HEDGE_BAND_MAP'] ?? ''),
+    // F2 quote anti-churn (Journal #61): the micro-price center wiggles every tick, so without
+    // hysteresis the engine cancel/replaces ~every cycle and rejoins the BACK of the FIFO queue —
+    // paying queue position for noise. Hold sub-threshold drift (min), protect young quotes
+    // (dwell), but ALWAYS follow a real move (urgent — holding it is the #27 stale-quote
+    // pick-off). DEFAULT OFF (0): the 14h replay verdict is MIXED — spread−adverse improves on
+    // every coin (queue position is real) but net couples to the warehouse path (Journal #61,
+    // same posture as the #53 time-stop). Arm per-run: MM_REQUOTE_MIN_BPS=1 (with dwell/urgent).
+    requoteMinBps: parseFloat(process.env['MM_REQUOTE_MIN_BPS'] ?? '0'),
+    requoteDwellMs: parseInt(process.env['MM_REQUOTE_DWELL_MS'] ?? '400', 10),
+    requoteUrgentBps: parseFloat(process.env['MM_REQUOTE_URGENT_BPS'] ?? '4'),
     // Screener heuristic only; the LIVE book is priced per-venue via venueFeeFor()
     // (the default-venue HL rebate is −0.2bps). Set MM_MAKER_FEE_BPS to force one.
     makerFeeBps: parseFloat(process.env['MM_MAKER_FEE_BPS'] ?? '-0.2'),

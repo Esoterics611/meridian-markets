@@ -164,7 +164,13 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   variance-reduction report in the leak table. Replay (mechanical rules only): −17% churn cost;
   the ≥50% gate rests on basis-gate + net-first and is **measured on the first post-F1 run**
   (leak-table hedge-fee line + variance report — data exists via F0).
-- ☐ **F2 — Quote anti-churn** *(fee leak: −229)*
+- ☑ **F2 — Quote anti-churn** — SHIPPED 2026-06-12 (Journal #61): shared `decideRequote`
+  hysteresis/dwell/urgent (live engine + replay run the same code), per-trigger taker-cross
+  attribution (`takerCrosses` + `trigger` on the fill tape — stop tax separable from SQL),
+  grep-able `F2 requote:` interval line, `scripts/mm-requote-compare.ts` A/B. Replay verdict
+  MIXED (fill edge up on every coin; net couples to the warehouse path) ⇒ **hysteresis default
+  OFF** — arm `MM_REQUOTE_MIN_BPS=1 ` live after F3. Maker-bias (F2.3) is structural: the maker
+  engine is post-only; the only taker path is the attributed guardrail flatten.
 - ☐ **F3 — Inventory skew** *(warehouse leak: −95)*
 - ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*
 - ☐ **F5 — Capital ∝ measured fillEdge**

@@ -2490,3 +2490,50 @@ telemetry flake unchanged. Defaults baked into start-desk.sh; knobs documented i
 
 **Next (F2):** quote anti-churn (−229 taker fees; hysteresis, dwell, maker-bias, per-trigger
 taker attribution — CL's "stop tax" vs requote churn now separable on the tape).
+
+## 2026-06-12 — Entry #61 (F2 SHIPPED: quote anti-churn — hysteresis machinery + the taker-fee attribution; replay verdict MIXED ⇒ default OFF)
+
+**What:** MASTER PLAN II F2 (the −229 taker-fee leak; xyz:CL +76 fees on a −67 net book).
+Three deliverables:
+
+1. **Requote hysteresis + dwell** — `decideRequote` in `backtest/queue-fill.ts`, SHARED by
+   `L2LiveFillEngine` and `LobReplayHarness` (the A/B replays the exact live logic). The chatter
+   mechanism: the micro-price center wiggles every tick, the desired price almost never EXACTLY
+   equals the resting price, so pre-F2 the engine cancel/replaced ~every cycle and rejoined the
+   BACK of the FIFO queue — paying queue position for noise. Rules: drift < minBps ⇒ hold
+   (hysteresis); minBps ≤ drift < urgentBps ⇒ hold while younger than dwellMs; drift ≥ urgentBps
+   ⇒ always move (holding a real move is the #27 stale-quote pick-off). Knobs
+   `MM_REQUOTE_{MIN_BPS,DWELL_MS,URGENT_BPS}`; counters (moves / holdH / holdD) on
+   `metrics().requote` → snapshot → the new grep-able **`F2 requote:`** NAV-interval line.
+2. **Taker-cross trigger attribution** — `flattenAt` (the ONLY taker path; the maker engine is
+   post-only by construction, so F2.3 "maker-bias" is structurally satisfied) now accumulates
+   per-trigger fee/count/notional (`takerCrosses` on the snapshot: loss-stop / session-close /
+   event-blackout / remove / manual) and stamps the fill tape event with `trigger` (durable in
+   mm_desk_event payload). **"Stop tax" vs requote churn is now separable per book from SQL.**
+3. **A/B validation** (`scripts/mm-requote-compare.ts`, on the 14h ~1.1s-cadence
+   `hl-fine-20260605` tapes, 46,788 steps × 5 coins, micro-price center, γ0.0025/κ0.5/floor5):
+
+   | config | desk Δ(spread−adverse) | desk Δnet | note |
+   |---|---|---|---|
+   | min1/dwell400/urgent4 | **+346** | −1,961 | s−adv up 4/5 coins; fills BNB 187→9,018, DOGE 653→1,477; net dragged by SOL −1,682 / BTC −566 |
+   | min1/urgent2 (BTC+SOL) | +34 | −2,248 | identical to urgent4 — urgent isn't what binds |
+   | min0.5/urgent2 (BTC,SOL,DOGE) | +87 | −515 | SOL flips +309 but DOGE flips −151 |
+
+   **Read:** the F2-owned metric — fill edge (spread−adverse) — improves in EVERY coin and
+   config, and fills rise (the queue-position thesis is real). But net couples to the WAREHOUSE
+   path: a different fill sequence ⇒ a different inventory trajectory ⇒ on 14h trending tapes
+   the inventory MTM term dominates and flips sign per coin/config. That's the F3 leak, not
+   F2's. Also honest: the 1.1s tape cannot reproduce the live 100ms cadence (per-step drift
+   ~10× smaller live ⇒ hysteresis binds more, holds cheaper).
+
+**Verdict (same posture as #53's time-stop):** machinery + attribution + observability ship;
+**hysteresis defaults OFF** (`MM_REQUOTE_MIN_BPS=0`). Arm it on a live run (`=1`) once F3
+strengthens the inventory term, and judge on the `F2 requote:` line + the leak table's
+per-trigger fee split. The F2 GATE (CL fee line down materially) is mostly the stop tax —
+attributable now, and F3's loss-stop sweep is the lever that moves it.
+
+**Tests:** 196 suites / 1361 tests (decideRequote ×5, loss-stop trigger attribution, f2Summary
+×2); tsc clean; telemetry flake unchanged.
+
+**Next (F3):** inventory skew (−95 warehouse leak + the loss-stop sweep) — and it's the
+unblocking dependency for arming F2's hysteresis.

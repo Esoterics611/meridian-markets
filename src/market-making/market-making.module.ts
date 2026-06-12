@@ -317,6 +317,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // F0: each resolved (fill × horizon) markout lands in mm_fill_markout with its
                 // fill context — the κ-regression / A-quadrant data a finished run keeps.
                 markoutSink: researchSinks ? (r) => researchSinks.fills.enqueue(fillMarkoutRow(p.symbol, p.srcId, r)) : undefined,
+                // F2 quote anti-churn (Journal #61): hold sub-threshold drift, keep the queue.
+                requote: mm.requoteMinBps > 0
+                  ? { minBps: mm.requoteMinBps, dwellMs: mm.requoteDwellMs, urgentBps: mm.requoteUrgentBps }
+                  : undefined,
               })
             : undefined;
 

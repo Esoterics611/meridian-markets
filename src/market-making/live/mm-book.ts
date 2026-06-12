@@ -11,7 +11,7 @@ import { VpinEstimator } from '../risk/vpin';
 import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves } from '../microstructure/markout-tracker';
 import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
-import { L2LiveFillEngine, ToxicityMetrics } from './l2-live-fill-engine';
+import { L2LiveFillEngine, ToxicityMetrics, RequoteMetrics } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { SweepRegimeDetector, RegimeState } from '../risk/sweep-regime-detector';
@@ -242,6 +242,11 @@ export interface MmBookSnapshot {
   /** F3 toxicity spread-scaler diagnostics (fast path only; undefined on the bar path / when
    *  the defence is off). Confirms the adverse-selection defence fired (Journal #44 DR-3). */
   toxicity?: ToxicityMetrics;
+  /** F2 requote anti-churn counters (fast path only; undefined when hysteresis is off). */
+  requote?: RequoteMetrics;
+  /** F2: taker crosses per trigger (loss-stop/session-close/event-blackout/remove/manual) —
+   *  the "stop tax" vs the rest of the fee line, separable per book. Empty/undefined = none. */
+  takerCrosses?: Record<string, { count: number; feeUnits: string; notionalUnits: string }>;
   fills: number;
   bidFills: number;
   askFills: number;
@@ -249,6 +254,9 @@ export interface MmBookSnapshot {
   lastVerdict: string;
   maxDrawdownPct: number;
 }
+
+/** Why a book crossed the spread as a TAKER (F2 fee attribution). */
+export type TakerCrossReason = 'loss-stop' | 'session-close' | 'event-blackout' | 'remove' | 'manual';
 
 export class MmBook {
   private readonly logger = new Logger(MmBook.name);
@@ -259,6 +267,8 @@ export class MmBook {
   private lastRegime: RegimeState = 'calm';
   /** Count of loss-stop triggers this run (surfaced in logs; the leak table greps the line). */
   private lossStops = 0;
+  /** F2: taker-cross fee attribution per trigger (flattenAt is the only taker path). */
+  private readonly takerCrosses = new Map<TakerCrossReason, { count: number; feeUnits: bigint; notionalUnits: bigint }>();
   // On the fast L2 path the book is SHARED with the fill engine (one source of truth —
   // the engine fills into it, snapshot() reads it). On the bar path it's our own.
   private readonly book: InventoryBook;
@@ -689,15 +699,17 @@ export class MmBook {
     this.markEquity(midMicros);
   }
 
-  /** Force inventory to zero at the last mid (taker flatten; manual desk action). */
-  async flatten(): Promise<void> {
+  /** Force inventory to zero at the last mid (taker flatten). `reason` (F2) attributes the
+   *  taker fee to its trigger on the tape — defaults to 'manual' (a desk action). */
+  async flatten(reason: TakerCrossReason = 'manual'): Promise<void> {
     const midMicros = this.cfg.fastEngine?.lastMid() ?? (this.lastBar ? toMicros(this.lastBar.close) : undefined);
-    if (midMicros !== undefined) this.flattenAt(midMicros, 'manual');
+    if (midMicros !== undefined) this.flattenAt(midMicros, reason);
   }
 
   /** Taker-flatten the inventory at `midMicros` (5bps taker fee, not the rebate) and emit the
-   *  exit as a business event — a guardrail flatten is a real trade, it goes on the tape. */
-  private flattenAt(midMicros: bigint, reason: 'loss-stop' | 'session-close' | 'event-blackout' | 'manual'): void {
+   *  exit as a business event WITH its trigger (F2: the taker-fee attribution key) — a
+   *  guardrail flatten is a real trade, it goes on the tape. */
+  private flattenAt(midMicros: bigint, reason: TakerCrossReason): void {
     const inv = this.book.inventoryUnits();
     if (inv === 0n || midMicros <= 0n) return;
     const side = inv > 0n ? 'SELL' : 'BUY';
@@ -707,6 +719,12 @@ export class MmBook {
     const realisedBefore = this.book.realisedUnits();
     this.book.apply({ side, sizeUnits: size, priceMicros: midMicros, feeUnits: fee });
     const realisedDelta = this.book.realisedUnits() - realisedBefore;
+    // F2: accumulate the taker fee per trigger — "stop tax" vs the rest, separable per book.
+    const agg = this.takerCrosses.get(reason) ?? { count: 0, feeUnits: 0n, notionalUnits: 0n };
+    agg.count += 1;
+    agg.feeUnits += fee;
+    agg.notionalUnits += valueUnits(size, midMicros);
+    this.takerCrosses.set(reason, agg);
     this.logger.warn(
       `GUARDRAIL ▸ ${this.cfg.symbol} ${reason}: flattened ${side} ${size} units @ mid (taker), realised ${realisedDelta} units`,
     );
@@ -722,6 +740,7 @@ export class MmBook {
         inventoryUnits: 0n,
         realisedDeltaUnits: realisedDelta,
         feeUnits: fee,
+        trigger: reason,
       }),
     );
   }
@@ -819,6 +838,7 @@ export class MmBook {
       vpinWindowBuckets: this.vpin.windowBuckets(),
       markout: this.markout.curve(),
       markoutBySide: this.markout.sideCurves(),
+      takerCrosses: this.takerCrossesSnapshot(),
       fills: this.fills,
       bidFills: this.bidFills,
       askFills: this.askFills,
@@ -826,6 +846,13 @@ export class MmBook {
       lastVerdict: this.lastVerdict,
       maxDrawdownPct: this.maxDrawdownPct,
     };
+  }
+
+  /** F2: the per-trigger taker-cross attribution, serialised for the snapshot/UI. */
+  private takerCrossesSnapshot(): Record<string, { count: number; feeUnits: string; notionalUnits: string }> {
+    const out: Record<string, { count: number; feeUnits: string; notionalUnits: string }> = {};
+    for (const [r, a] of this.takerCrosses) out[r] = { count: a.count, feeUnits: a.feeUnits.toString(), notionalUnits: a.notionalUnits.toString() };
+    return out;
   }
 
   /** The snapshot for a fast-path book — read from the engine (the single source of truth for
@@ -878,6 +905,8 @@ export class MmBook {
       markout: m.markout,
       markoutBySide: m.markoutBySide,
       toxicity: m.toxicity,
+      requote: m.requote,
+      takerCrosses: this.takerCrossesSnapshot(),
       fills: m.queueFills,
       bidFills: m.bidFills,
       askFills: m.askFills,

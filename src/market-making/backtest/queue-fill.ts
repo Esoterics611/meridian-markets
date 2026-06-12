@@ -120,6 +120,52 @@ export function settleRestingOrder(order: RestingQuote, book: OrderBook, flow: I
 }
 
 /**
+ * F2 requote hysteresis + dwell (Journal #61) — the quote anti-churn decision, SHARED by the
+ * live engine and the replay harness so the offline A/B validates the exact live logic.
+ *
+ * The chatter problem: a micro-price quote center moves a hair every tick, so the desired
+ * price almost never EXACTLY equals the resting price ⇒ the engine cancel/replaces every
+ * cycle, rejoining the BACK of the FIFO queue each time (and re-arming the latency rail).
+ * Holding through sub-threshold drift keeps the queue position — the front of the queue is
+ * where the maker fills happen.
+ *
+ * Rules (drift = |desired − resting| in bps of mid):
+ *  - drift ≥ urgentBps  ⇒ MOVE (a real move; holding here is the stale-quote pick-off of #27)
+ *  - drift <  minBps    ⇒ HOLD ('hysteresis' — noise)
+ *  - else               ⇒ HOLD while the quote is younger than dwellMs ('dwell'), MOVE after
+ */
+export interface RequoteHysteresisCfg {
+  /** Drift below this never moves the quote (hysteresis floor), bps of mid. */
+  minBps: number;
+  /** Minimum quote lifetime before a mid-band drift may move it, ms. */
+  dwellMs: number;
+  /** Drift at/above this always moves (bypasses dwell) — the arm/disarm split. */
+  urgentBps: number;
+}
+
+export type RequoteHold = 'hysteresis' | 'dwell' | null;
+
+export function decideRequote(
+  current: RestingQuote | undefined,
+  desiredMicros: bigint,
+  midMicros: bigint,
+  placedAtMs: number | undefined,
+  nowMs: number,
+  cfg: RequoteHysteresisCfg | undefined,
+): { priceMicros: bigint; held: RequoteHold } {
+  if (!current || !cfg || cfg.minBps <= 0 || midMicros <= 0n || current.priceMicros === desiredMicros) {
+    return { priceMicros: desiredMicros, held: null };
+  }
+  const drift = desiredMicros > current.priceMicros ? desiredMicros - current.priceMicros : current.priceMicros - desiredMicros;
+  const driftBps = (Number(drift) / Number(midMicros)) * 1e4;
+  if (driftBps >= cfg.urgentBps) return { priceMicros: desiredMicros, held: null };
+  if (driftBps < cfg.minBps) return { priceMicros: current.priceMicros, held: 'hysteresis' };
+  const ageMs = placedAtMs !== undefined ? nowMs - placedAtMs : Infinity;
+  if (ageMs < cfg.dwellMs) return { priceMicros: current.priceMicros, held: 'dwell' };
+  return { priceMicros: desiredMicros, held: null };
+}
+
+/**
  * Place or persist a resting order at a price (post-only). Mirrors LobReplayHarness.place:
  * a quote that would cross the opposite best is REJECTED (post-only); the SAME price keeps
  * its queue position + remaining size; a NEW price rejoins the back of the queue with the

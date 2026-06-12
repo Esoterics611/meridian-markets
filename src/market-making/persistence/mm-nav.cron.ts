@@ -96,6 +96,10 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
       // answers "did the adverse-selection defence fire?" — Journal #44 found it invisible.
       const tox = f3Summary(snap);
       if (tox) this.logger.log(`F3 toxicity: ${tox}`);
+      // F2 (Journal #61): the rate-bounded requote/taker observability line — one per interval,
+      // grep-able post-run ("did the hysteresis hold, and what did the taker crosses cost?").
+      const rq = f2Summary(snap);
+      if (rq) this.logger.log(`F2 requote: ${rq}`);
     } catch (err) {
       this.logger.error(`mm NAV tick failed: ${(err as Error).message}`);
     }
@@ -147,6 +151,24 @@ export function f3Summary(s: MmPortfolioSnapshot): string | null {
         `${b.symbol} widen=${b.toxicity!.widenSteps} tighten=${b.toxicity!.tightenSteps} ` +
         `avg=${b.toxicity!.avgScale.toFixed(2)} max=${b.toxicity!.maxScale.toFixed(2)} last=${b.toxicity!.lastScale.toFixed(2)}`,
     );
+  return parts.length ? parts.join(' | ') : null;
+}
+
+/**
+ * F2 grep-able per-interval line (Journal #61): requote moves vs holds per fast book + the
+ * taker-cross fee attribution per trigger ("stop tax" vs the rest). Null when no book carries
+ * either (hysteresis off / bar path / no crosses) ⇒ no line logged. Pure + exported for tests.
+ */
+export function f2Summary(s: MmPortfolioSnapshot): string | null {
+  const parts = s.books
+    .filter((b) => b.requote || (b.takerCrosses && Object.keys(b.takerCrosses).length > 0))
+    .map((b) => {
+      const r = b.requote ? `moves=${b.requote.moves} holdH=${b.requote.hysteresisHolds} holdD=${b.requote.dwellHolds}` : '';
+      const crosses = Object.entries(b.takerCrosses ?? {})
+        .map(([reason, a]) => `${reason}×${a.count}=$${(Number(a.feeUnits) / 1e6).toFixed(0)}`)
+        .join(',');
+      return `${b.symbol} ${[r, crosses && `taker[${crosses}]`].filter(Boolean).join(' ')}`;
+    });
   return parts.length ? parts.join(' | ') : null;
 }
 
