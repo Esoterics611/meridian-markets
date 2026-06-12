@@ -814,3 +814,20 @@ plus the engine fields the toxicity page needed (the spec's "~5-line add").
 `/desk/mm` upgrades (per-side 60s markout cells, bucketMs label, card-header deep links),
 `/risk` exposure block ($ notional vs cap, hedge legs, factor-vs-basis σ), Grafana/
 Prometheus is operator-run (spec §5 — hand the commands to Ronnie, don't run them).
+
+## 2026-06-12 — F0: persistence & attribution instrumentation (MASTER PLAN II opener)
+
+Shipped the F-chain's hard prerequisite (QUANT_JOURNAL #59): migration
+`1723000000000-AddMmResearchTables` (4 append-only research tables), `MmResearchRepository`
++ `BufferedSink`/`MmResearchSinks` (bounded, interval-flushed, shutdown-drained), per-fill
+markout persistence with fill context (MarkoutTracker sink → L2LiveFillEngine →
+mm_fill_markout), per-leg hedge P&L each NAV interval + hedge quality hourly/shutdown
+(DR-2 closed), durable DeskEvent tape (mm_desk_event, PART V req #8), HIP-3 per-dex
+funding (xyz:* measured, was 0 by construction), NAV corrupt-mark interval guard, and the
+leak-table upgrade: worst5m corrupt-mark/reset bug fixed (kPEPE −3.03M → −75 on run55
+data), finished-run spread/adverse from mm_book_state, measured-hedge + per-hour strip +
+A-quadrant + queue-tercile + top-of-hour sections, `--self-check` (exit 2 on any n/a).
+196 suites / 1344 tests green (the flaky telemetry suite is the known exception); tsc
+clean. UI QA note: no API field shape changed (HedgeUnderlyingSnap gained per-leg
+mark/pnl/funding/fees — additive; both UIs unaffected, fixtures updated). Next: F1 hedge
+anti-churn, replay-gated on the now-persisted run data.

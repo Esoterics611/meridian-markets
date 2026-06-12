@@ -150,7 +150,13 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
 
 **MASTER PLAN II — flow-reactive, leak-driven chain (PART V, the active chain):**
 
-- ☐ **F0 — Persistence & attribution instrumentation** *(hard prerequisite)*
+- ☑ **F0 — Persistence & attribution instrumentation** — SHIPPED 2026-06-12 (Journal #59): the four
+  research tables (`mm_fill_markout` / `mm_hedge_nav` / `mm_hedge_quality` / `mm_desk_event`,
+  migration 1723…), per-fill markout sink with fill context (flow/VPIN/σ/q-before/queue-ahead),
+  true hedge-leg P&L + hourly/shutdown quality, durable DeskEvent tape, HIP-3 per-dex funding,
+  NAV corrupt-mark guard, and the leak-table upgrade (worst5m fixed, per-hour strip, A-quadrant
+  split, queue terciles, top-of-hour cut, `--self-check`). Gate: `--self-check` exits 0 only on
+  a post-F0 finished run — verify on the FIRST run after this ships.
 - ☐ **F1 — Hedge anti-churn** *(biggest leak: −437)*
 - ☐ **F2 — Quote anti-churn** *(fee leak: −229)*
 - ☐ **F3 — Inventory skew** *(warehouse leak: −95)*

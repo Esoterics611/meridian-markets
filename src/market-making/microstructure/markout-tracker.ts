@@ -31,6 +31,38 @@ interface PendingFill {
   fairMid: bigint;
   sign: number; // +1 BUY, −1 SELL
   resolved: number; // count of horizons already marked
+  /** Opaque fill context carried to resolution (F0: the per-fill persistence row). */
+  meta?: FillMarkoutMeta;
+}
+
+/** Fill context attached by the caller and surfaced on each resolved horizon (F0 persistence —
+ *  the κ-leads-markout regression input set). All optional: a caller that records nothing
+ *  (offline tests, bar path) behaves exactly as before. */
+export interface FillMarkoutMeta {
+  /** Fill quantity, 6-dec asset units. */
+  sizeUnits?: bigint;
+  /** Fill price, micros. */
+  priceMicros?: bigint;
+  /** Signed aggressor-flow imbalance ∈ [−1,1] at the fill (the κ regression x). */
+  flow?: number;
+  /** VPIN at the fill. */
+  vpin?: number;
+  /** σ estimate at the fill. */
+  sigma?: number;
+  /** Inventory BEFORE the fill, signed 6-dec units (for A = sign(q)·sign(flow)). */
+  inventoryUnitsBefore?: bigint;
+  /** FIFO queue size resting ahead at the fill, 6-dec units. */
+  queueAheadUnits?: bigint;
+}
+
+/** One resolved (fill × horizon) markout observation, emitted to the optional sink. */
+export interface ResolvedMarkout {
+  tFillMs: number;
+  side: 'BUY' | 'SELL';
+  fairMidMicros: bigint;
+  horizonMs: number;
+  bps: number;
+  meta?: FillMarkoutMeta;
 }
 
 /** The buy/sell-split curves (WP2: per-side markout — asymmetry between the sides is the
@@ -49,7 +81,11 @@ export class MarkoutTracker {
   private readonly sideCounts: [number[], number[]];
   private pending: PendingFill[] = [];
 
-  constructor(horizonsMs: number[]) {
+  constructor(
+    horizonsMs: number[],
+    /** Optional per-resolution sink (F0 persistence). Best-effort: a sink error never breaks marking. */
+    private readonly onResolved?: (r: ResolvedMarkout) => void,
+  ) {
     // Sort ascending + dedupe so the resolve loop can walk horizons in order.
     this.horizonsMs = [...new Set(horizonsMs.filter((h) => h > 0))].sort((a, b) => a - b);
     this.sumBps = this.horizonsMs.map(() => 0);
@@ -58,10 +94,11 @@ export class MarkoutTracker {
     this.sideCounts = [this.horizonsMs.map(() => 0), this.horizonsMs.map(() => 0)];
   }
 
-  /** Record a fill to be marked out at each forward horizon. */
-  onFill(side: 'BUY' | 'SELL', fairMidMicros: bigint, tFillMs: number): void {
+  /** Record a fill to be marked out at each forward horizon. `meta` (optional) is carried to
+   *  each resolved horizon and handed to the sink — the per-fill persistence context (F0). */
+  onFill(side: 'BUY' | 'SELL', fairMidMicros: bigint, tFillMs: number, meta?: FillMarkoutMeta): void {
     if (fairMidMicros <= 0n || this.horizonsMs.length === 0) return;
-    this.pending.push({ tFillMs, fairMid: fairMidMicros, sign: side === 'BUY' ? 1 : -1, resolved: 0 });
+    this.pending.push({ tFillMs, fairMid: fairMidMicros, sign: side === 'BUY' ? 1 : -1, resolved: 0, meta });
   }
 
   /** Advance the clock: mark every pending fill whose age has reached a new horizon. */
@@ -78,6 +115,13 @@ export class MarkoutTracker {
         const s = p.sign > 0 ? 0 : 1; // 0 = BUY, 1 = SELL
         this.sideSumBps[s][i] += bps;
         this.sideCounts[s][i] += 1;
+        if (this.onResolved) {
+          try {
+            this.onResolved({ tFillMs: p.tFillMs, side: p.sign > 0 ? 'BUY' : 'SELL', fairMidMicros: p.fairMid, horizonMs: this.horizonsMs[i], bps, meta: p.meta });
+          } catch {
+            /* best-effort: persistence must never break the marking path */
+          }
+        }
         p.resolved += 1;
       }
     }

@@ -2394,3 +2394,54 @@ fillEdge. Old chain: S3/S5 superseded-into-F4/F0, S4 partially shipped (#56/#57)
 S6 live as ledger, S7/S8 pending as validation infra, S9 parked. BINDING new cross-cutting req
 (operator): full auto-response observability — `CONTROL ▸`/`PARAM ▸`/`BLOCKED ▸`/`FLATTEN ▸` +
 existing grammar, on-change + periodic, tape + persisted; a finished run auditable from SQL alone.
+
+## 2026-06-12 — Entry #59 (F0 SHIPPED: persistence & attribution instrumentation — a finished run is now auditable from SQL)
+
+**What:** MASTER PLAN II's hard prerequisite. Four new append-only research tables
+(migration `1723000000000-AddMmResearchTables`, app role SELECT+INSERT only, same oracle as
+`mm_nav`):
+
+- **`mm_fill_markout`** — one row per fill × forward horizon (defaults 1s/5s/30s), carrying the
+  F4 calibration context AT the fill: signed markout bps, notional, signed aggressor-flow
+  imbalance (the κ-regression x), VPIN, σ, inventory-before (for the A = sign(q)·sign(flow)
+  quadrant), FIFO queue-ahead. Plumbed as an optional sink on `MarkoutTracker` (meta rides each
+  pending fill to every resolved horizon) → `L2LiveFillEngine.markoutSink` → per-book closure in
+  the module → `BufferedSink` (5s interval flush, 5k bound, oldest-drop; a DB hiccup degrades to
+  dropped research rows, never a broken tick).
+- **`mm_hedge_nav`** — per-interval per-leg hedge P&L (units/mark/mtm/funding/fees), written by
+  `MmNavCron`; `HedgeUnderlyingSnap` now carries `markUsd/pnlUsd/fundingUsd/feesUsd` per leg.
+  Closes DR-2: the leak table reads TRUE hedge P&L, not desk-net − books-sum.
+- **`mm_hedge_quality`** — βlive/R²/basisShare per book, hourly + at shutdown (run55's
+  hedge-quality audit was impossible because the server died before the review; `onModuleDestroy`
+  now writes a final row set).
+- **`mm_desk_event`** — the durable decision tape (PART V observability req #8): `DeskEventLog`
+  takes an optional persist sink; every event (incl. ring-evicted ones) lands in SQL.
+
+**Plus:** HIP-3 per-dex funding wired (`currentFunding('xyz:GOLD')` posts `metaAndAssetCtxs`
+with `dex:"xyz"`, universe matcher accepts qualified or bare coin names — the funding term on
+xyz books is now measured, was 0 by construction). NAV corrupt-mark guard: `findInsaneMark`
+skips a whole NAV interval when any book's |unreal| > its own capital (run55: kPEPE marked
+−$3.03M against a garbage boot mid; a 1-interval gap is honest, a poisoned curve is not).
+
+**Leak table (scripts/mm-leak-table.ts) upgrade:** (1) **worst5m bug found + fixed** — the
+−3.0M/−30k/−20k worst buckets were corrupt boot-window marks (14:01–14:10Z all books) plus
+relaunch resets (book net jumps to 0 at restart) walked as P&L deltas; now filtered by a robust
+outlier bound (|unreal| > max(100×median|unreal|, $500), capped at median equity — real
+excursions max $227, corrupt ≥ $2k, clean separation on run55 data) + reset/gap skips, with a
+⚠SUSPECT sanity bound as backstop. Run55 re-read: kPEPE worst5m −3,033,717 → **−75** (net −127),
+SOL −20,416 → **−20** (net +25). (2) Windowed spread/adverse/wedge now computed for FINISHED
+runs from the `mm_book_state` checkpoint (persisted since S2 #53 — the table just never read
+it); live snapshot still preferred when up. (3) New sections: measured hedge legs + quality,
+per-hour diagnostic strip (fills/|flow|/VPIN/σ/markout by hour), A-quadrant split per book,
+markout by queue tercile, top-of-hour (±3min, funding prints) toxicity. (4) **`--self-check`** —
+exits 2 listing every n/a/suspect column (verified: fails loudly on pre-F0 run55, as it must;
+the gate passes only on a run captured after this ships). Backfill note: per-fill markouts are
+NOT in the run55 log (in-memory only then) — no backfill possible; F0 data starts with the next
+run.
+
+**Tests:** 196 suites / 1344 tests; new: markout sink meta + throw-safety, desk-event persist
+sink, hedge nav/quality cadence + shutdown write, insane-mark guard, HIP-3 dex routing + bare
+universe match, fillMarkoutRow mapping, BufferedSink batch/overflow/error. tsc clean. (Known
+flaky telemetry.module.spec is the only red, pre-existing.)
+
+**Next (F1):** hedge anti-churn — the −437 leak. The replay gate can now use persisted data.

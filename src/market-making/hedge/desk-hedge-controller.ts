@@ -29,6 +29,13 @@ export interface HedgeUnderlyingSnap {
   hedgeUnits: number; // signed perp units held (coins)
   hedgeNotionalUsd: number; // hedge mark value
   residualUsd: number; // net + hedge — what price still runs over
+  /** Mark used to value this leg, USD/coin (F0: persisted to mm_hedge_nav). */
+  markUsd: number;
+  /** This leg's P&L = mtm + funding − fees (F0: the per-leg read the leak table previously
+   *  had to imply as desk-net − books-sum). */
+  pnlUsd: number;
+  fundingUsd: number;
+  feesUsd: number;
 }
 
 export interface HedgeSnapshot {
@@ -249,13 +256,25 @@ export class DeskHedgeController {
       const hn = hedgeNotional[u] ?? 0;
       const resid = netDeltaUsd + hn;
       const p = this.pos.get(u);
-      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * (Number(marks[u] ?? 0n) / MICROS) : 0;
+      const markUsd = Number(marks[u] ?? 0n) / MICROS;
+      const mtm = p ? p.cashUsd + (Number(p.units) / MICROS) * markUsd : 0;
+      const legPnl = mtm + (p?.fundingUsd ?? 0) - (p?.feesUsd ?? 0);
       grossDeltaUsd += Math.abs(netDeltaUsd);
       residualUsd += Math.abs(resid);
-      hedgePnlUsd += mtm + (p?.fundingUsd ?? 0) - (p?.feesUsd ?? 0);
+      hedgePnlUsd += legPnl;
       hedgeCostUsd += p?.feesUsd ?? 0;
       fundingUsd += p?.fundingUsd ?? 0;
-      perUnderlying.push({ underlying: u, netDeltaUsd, hedgeUnits: p ? Number(p.units) / MICROS : 0, hedgeNotionalUsd: hn, residualUsd: resid });
+      perUnderlying.push({
+        underlying: u,
+        netDeltaUsd,
+        hedgeUnits: p ? Number(p.units) / MICROS : 0,
+        hedgeNotionalUsd: hn,
+        residualUsd: resid,
+        markUsd,
+        pnlUsd: legPnl,
+        fundingUsd: p?.fundingUsd ?? 0,
+        feesUsd: p?.feesUsd ?? 0,
+      });
     }
 
     return { enabled: true, grossDeltaUsd, residualUsd, hedgePnlUsd, hedgeCostUsd, fundingUsd, perUnderlying, ordersLastTick: this.lastOrders, quality: this.quality.snapshot() };

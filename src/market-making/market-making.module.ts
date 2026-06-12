@@ -43,6 +43,7 @@ import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmNavRepository } from './persistence/mm-nav.repository';
 import { MmNavCron } from './persistence/mm-nav.cron';
+import { MmResearchRepository, MmResearchSinks, MM_RESEARCH_SINKS, fillMarkoutRow } from './persistence/mm-research.repository';
 import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
@@ -81,8 +82,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       // DbService is optional: it's @Global in the full app, but the controller
       // unit test builds this module in isolation. Persistence needs it; without
       // it (or with MM_PERSIST off) the trader uses the no-op Null store.
-      inject: [ConfigService, MM_BINANCE_CLIENT, DeskEventLog, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
-      useFactory: (cfg: ConfigService, client: BinancePublicClient, deskEvents: DeskEventLog, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
+      inject: [ConfigService, MM_BINANCE_CLIENT, DeskEventLog, MM_RESEARCH_SINKS, { token: DbService, optional: true }, { token: TELEMETRY, optional: true }],
+      useFactory: (cfg: ConfigService, client: BinancePublicClient, deskEvents: DeskEventLog, researchSinks: MmResearchSinks | null, db?: DbService, telemetry?: ITelemetry): MmPortfolioTrader => {
         const app = cfg.getOrThrow<AppConfig>('app');
         const mm = app.marketMaking;
         const onBinance = app.feed.source === 'binance';
@@ -313,6 +314,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // Price the perp hedge into the maker spread (only when the delta hedge is on), so a
                 // fill we may hedge with a taker earns ≥ the hedged fraction of the round-trip cost.
                 hedgeCostBps: mm.deltaHedge ? (mm.hedgeTakerBps + mm.hedgeHalfSpreadBps) * mm.hedgeCostSpreadMult : 0,
+                // F0: each resolved (fill × horizon) markout lands in mm_fill_markout with its
+                // fill context — the κ-regression / A-quadrant data a finished run keeps.
+                markoutSink: researchSinks ? (r) => researchSinks.fills.enqueue(fillMarkoutRow(p.symbol, p.srcId, r)) : undefined,
               })
             : undefined;
 
@@ -588,11 +592,34 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
         return trader;
       },
     },
+    // F0 research persistence (Journal #59): the raw-SQL writer for mm_fill_markout /
+    // mm_hedge_nav / mm_hedge_quality / mm_desk_event. Null exactly when MmNavRepository
+    // is (MM_PERSIST off or no DB) — research data ships with the equity curve or not at all.
+    {
+      provide: MmResearchRepository,
+      inject: [ConfigService, { token: DbService, optional: true }],
+      useFactory: (cfg: ConfigService, db?: DbService): MmResearchRepository | null => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return app.marketMaking.persist && db ? new MmResearchRepository(db) : null;
+      },
+    },
+    // The two high-rate buffered sinks (per-fill markouts, desk events) over that repository.
+    // Nest calls onModuleDestroy on the instance ⇒ tail rows flush at shutdown.
+    {
+      provide: MM_RESEARCH_SINKS,
+      inject: [MmResearchRepository],
+      useFactory: (repo: MmResearchRepository | null): MmResearchSinks | null => (repo ? new MmResearchSinks(repo) : null),
+    },
     // Live business-event tape (fills enter/exit, verdict changes, lifecycle). A
     // single shared instance: injected into every MmBook + the trader (emit) and
     // the MmController (read at GET /api/market-making/events). In-memory + bounded
-    // — the durable record is the append-only mm_nav table (Telemetry P3).
-    DeskEventLog,
+    // for the UI read; with persistence on, every event ALSO lands in mm_desk_event
+    // via the buffered sink (PART V observability req #8 — the durable decision tape).
+    {
+      provide: DeskEventLog,
+      inject: [MM_RESEARCH_SINKS],
+      useFactory: (sinks: MmResearchSinks | null): DeskEventLog => new DeskEventLog(undefined, sinks?.events),
+    },
     // Durable NAV / equity-curve history (Telemetry P3). The repository is the
     // Postgres backend when MM_PERSIST is on AND a DB is present, else null so the
     // cron + endpoint no-op (no DB dependency on the live MM path — same posture as
@@ -611,9 +638,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
     // no-op when the repository above is null.
     {
       provide: MmNavCron,
-      inject: [ConfigService, MmPortfolioTrader, MmNavRepository],
-      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null): MmNavCron =>
-        new MmNavCron(cfg, trader, repo),
+      inject: [ConfigService, MmPortfolioTrader, MmNavRepository, MmResearchRepository],
+      useFactory: (cfg: ConfigService, trader: MmPortfolioTrader, repo: MmNavRepository | null, research: MmResearchRepository | null): MmNavCron =>
+        new MmNavCron(cfg, trader, repo, research),
     },
     // Perp funding-rate refresh: keeps each HL book's carry rate current over a
     // multi-hour run (funding drifts hourly; launch only sets it once). Its own HL

@@ -11,7 +11,7 @@ import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder } fro
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
-import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves } from '../microstructure/markout-tracker';
+import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves, ResolvedMarkout } from '../microstructure/markout-tracker';
 import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
 
@@ -132,6 +132,12 @@ export interface L2LiveFillEngineConfig {
    * unchanged (hedge off). The next run's "make money" link: hedging isn't free, so charge for it.
    */
   hedgeCostBps?: number;
+  /**
+   * Per-fill markout persistence sink (F0): each resolved (fill × horizon) observation is handed
+   * here WITH its fill context (flow/vpin/σ/inventory-before/queue-ahead) so finished runs keep
+   * the κ-regression data. Omit ⇒ in-memory aggregation only (exactly the prior behaviour).
+   */
+  markoutSink?: (r: ResolvedMarkout) => void;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -226,7 +232,7 @@ export class L2LiveFillEngine {
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
     this.vol = new RollingVolatility(cfg.volWindowBars);
-    this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000]);
+    this.markout = new MarkoutTracker(cfg.markoutHorizonsMs ?? [1000, 5000, 30000], cfg.markoutSink);
     this.latencyMs = Math.max(0, cfg.cancelReplaceLatencyMs ?? 100);
     this.peakEquity = cfg.capitalUnits;
     this.fundingRatePerHour = cfg.fundingRatePerHour ?? 0;
@@ -402,7 +408,7 @@ export class L2LiveFillEngine {
     }
     if (outcome.filledUnits > 0n) {
       const side: FillSide = order.side;
-      this.applyFill(side, order.priceMicros, outcome.filledUnits, order.fairMidMicros, markoutMid, nowMs);
+      this.applyFill(side, order.priceMicros, outcome.filledUnits, order.fairMidMicros, markoutMid, nowMs, order.pos.aheadUnits);
       this.queueFills += 1;
       if (side === 'BUY') this.bidFills += 1;
       else this.askFills += 1;
@@ -425,7 +431,7 @@ export class L2LiveFillEngine {
     return { ...res.order, liveFromMs: nowMs + this.latencyMs, fairMidMicros: mid, quotedAtMs: nowMs };
   }
 
-  private applyFill(side: FillSide, priceMicros: bigint, qty: bigint, fairMid: bigint, markoutMid: bigint, nowMs: number): void {
+  private applyFill(side: FillSide, priceMicros: bigint, qty: bigint, fairMid: bigint, markoutMid: bigint, nowMs: number, queueAheadUnits?: bigint): void {
     const notional = valueUnits(qty, priceMicros);
     const fee = (notional * BigInt(Math.round(this.cfg.makerFeeBps * 100))) / 1_000_000n;
     const invBefore = this.book.inventoryUnits();
@@ -433,8 +439,17 @@ export class L2LiveFillEngine {
     // Adverse selection is the markout at the RE-QUOTE horizon (this snapshot's mid vs
     // the fair mid when the order was quoted) — the fast cadence, not a coarse bar.
     this.components.push(attributeFill({ side, sizeUnits: qty, priceMicros, feeUnits: fee }, fairMid, markoutMid, invBefore));
-    // Also record it for the forward markout CURVE (re-marked at 1s/5s/30s as mids arrive).
-    this.markout.onFill(side, fairMid, nowMs);
+    // Also record it for the forward markout CURVE (re-marked at 1s/5s/30s as mids arrive),
+    // carrying the fill context the F0 persistence sink writes per resolved horizon.
+    this.markout.onFill(side, fairMid, nowMs, {
+      sizeUnits: qty,
+      priceMicros,
+      flow: this.lastTradeFlowImbalance,
+      vpin: this.vpinProvider?.(),
+      sigma: this.vol.valueOr(this.cfg.volFloor),
+      inventoryUnitsBefore: invBefore,
+      queueAheadUnits,
+    });
   }
 
   private markDd(mid: bigint): void {

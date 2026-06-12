@@ -43,4 +43,14 @@ describe('DeskEventLog — the live business-event tape', () => {
     expect(all.map((e) => e.seq)).toEqual([3, 4, 5]); // 1 + 2 evicted
     expect(log.lastSeq()).toBe(5);
   });
+
+  // F0 (PART V observability req #8): with a persist sink wired, every event — including
+  // ones the ring buffer later evicts — is enqueued for the durable mm_desk_event tape.
+  it('enqueues every event on the persist sink, with its assigned seq', () => {
+    const persisted: Array<{ seq: number; book?: string }> = [];
+    const log = new DeskEventLog(2, { enqueue: (e) => persisted.push({ seq: e.seq, book: e.book }) });
+    for (let i = 0; i < 4; i++) log.emit(ev(`S${i}`));
+    expect(persisted.map((e) => e.seq)).toEqual([1, 2, 3, 4]); // none lost to ring eviction
+    expect(log.recent()).toHaveLength(2);
+  });
 });

@@ -131,7 +131,7 @@ describe('renderRiskLive', () => {
       hedgePnlUsd: 41.5,
       hedgeCostUsd: 12,
       fundingUsd: 8,
-      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600 }],
+      perUnderlying: [{ underlying: 'BTC', netDeltaUsd: -12000, hedgeUnits: 0.19, hedgeNotionalUsd: 11400, residualUsd: -600, markUsd: 60000, pnlUsd: -3.2, fundingUsd: 0.4, feesUsd: 1.1 }],
       ordersLastTick: [],
       quality: {
         samples: 120,
