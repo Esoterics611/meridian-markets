@@ -103,6 +103,14 @@ echo "  If it says '0 on fast L2 re-quote', books fell onto the slow bar path �
 #   MM_MAX_INVENTORY_NOTIONAL_FRAC=0.15  max inventory $75k/book (was $125k) — caps warehouse-drift
 #                         exposure, the #51 run's biggest surviving leak (ADA −707 unreal).
 #   MM_INVENTORY_SKEW_MULT=6  (was 4) reservation mean-reverts toward flat harder.
+#
+# F4 Stage A (Journal #63): MM_REGIME_GATE now SELECTS the flow gate — 'flow' = the graduated
+# FlowRegimeMachine throttle (κ=0; widen/size-cut the toxic side, FLATTEN-ONLY only when flow
+# runs AGAINST inventory), superseding the S4 binary 'sweep' gate (run55: 0 engagements while
+# kPEPE bled through 3 loss-stops). DEFAULT OFF: the 14h fine-tape sweep did NOT clear the F4A
+# gate (adverse flat-to-worse, BTC net deltas = loss-stop path noise; hard invariant PASS on
+# every variant — docs/research/flow-throttle-sweep.md). Arm per-run: MM_REGIME_GATE=flow; the
+# MM_FLOW_* knobs below are the measured sweep defaults (θ 0.40/0.25, dwell 3s).
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
 MM_GAMMA="${MM_GAMMA:-0.005}" \
 MM_F3_MIN_SCALE="${MM_F3_MIN_SCALE:-1.0}" \
@@ -119,7 +127,19 @@ MM_FAST_SYMBOLS="${MM_FAST_SYMBOLS:-xyz:CL,xyz:GOLD,SOL,ADA,DOGE,SUI,FARTCOIN,kP
 MM_MICROPRICE_DEPTH="${MM_MICROPRICE_DEPTH:-5}" \
 MM_F3_TOXICITY="${MM_F3_TOXICITY:-true}" \
 MM_VPIN_PAUSE_THRESHOLD="${MM_VPIN_PAUSE_THRESHOLD:-0.75}" \
-MM_REGIME_GATE="${MM_REGIME_GATE:-true}" \
+MM_REGIME_GATE="${MM_REGIME_GATE:-off}" \
+MM_FLOW_THETA_ENTER="${MM_FLOW_THETA_ENTER:-0.4}" \
+MM_FLOW_THETA_EXIT="${MM_FLOW_THETA_EXIT:-0.25}" \
+MM_FLOW_THETA_HIGH="${MM_FLOW_THETA_HIGH:-0.7}" \
+MM_FLOW_PERSIST_MIN="${MM_FLOW_PERSIST_MIN:-3}" \
+MM_FLOW_PERSIST_FULL="${MM_FLOW_PERSIST_FULL:-10}" \
+MM_FLOW_DWELL_MS="${MM_FLOW_DWELL_MS:-3000}" \
+MM_FLOW_LAMBDA="${MM_FLOW_LAMBDA:-0.5}" \
+MM_FLOW_W_TOXIC="${MM_FLOW_W_TOXIC:-1.0}" \
+MM_FLOW_W_SAFE="${MM_FLOW_W_SAFE:-0.25}" \
+MM_FLOW_SIZE_CUT="${MM_FLOW_SIZE_CUT:-0.7}" \
+MM_FLOW_SIZE_FLOOR="${MM_FLOW_SIZE_FLOOR:-0.2}" \
+MM_FLOW_VPIN_BLEND="${MM_FLOW_VPIN_BLEND:-0}" \
 MM_DELTA_HEDGE="${MM_DELTA_HEDGE:-true}" \
 MM_HEDGE_BAND_USD="${MM_HEDGE_BAND_USD:-2000}" \
 MM_HEDGE_TAKER_BPS="${MM_HEDGE_TAKER_BPS:-2.5}" \

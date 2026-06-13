@@ -196,3 +196,28 @@ describe('LobReplayHarness — post-only', () => {
     expect(r.bidFills).toBe(0); // bid could never be placed (would cross)
   });
 });
+
+describe('LobReplayHarness — F4 flow throttle (cfg.flow)', () => {
+  it('runs the FlowRegimeMachine over the tape and reports its stats (invariant counter 0)', () => {
+    // 60 timed steps of pure one-sided SELL flow hitting our bid: the book goes long while
+    // flow runs against it (A<0) — the machine must engage DEFENSIVE and never violate the
+    // A>0 no-flatten invariant (there are no A>0 windows with flow this one-sided).
+    const tape = Array.from({ length: 60 }, (_, i) => {
+      const ob: OrderBook = { ...book(98, 10, 102, 10), ts: new Date(i * 1000) };
+      return step(ob, 1, 0, 99, 100);
+    });
+    const m = new LobReplayHarness().run({
+      ...baseCfg(tape),
+      flow: { thetaEnter: 0.4, thetaExit: 0.25, persistMin: 2, persistFull: 6, dwellMs: 0, thetaHigh: 2 },
+    });
+    expect(m.flowStats).toBeDefined();
+    expect(m.flowStats!.ticksDefensive).toBeGreaterThan(0); // the throttle engaged
+    expect(m.flowStats!.flattenEntriesNotAligned).toBe(0); // the hard invariant
+  });
+
+  it('without cfg.flow the metrics carry no flowStats and behaviour is unchanged', () => {
+    const base = new LobReplayHarness().run(baseCfg(frontTape()));
+    expect(base.flowStats).toBeUndefined();
+    expect(base.queueFills).toBeGreaterThan(0);
+  });
+});

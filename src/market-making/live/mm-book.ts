@@ -11,7 +11,7 @@ import { VpinEstimator } from '../risk/vpin';
 import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves } from '../microstructure/markout-tracker';
 import { normCdf } from '../../derivatives/greeks/black-scholes';
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
-import { L2LiveFillEngine, ToxicityMetrics, RequoteMetrics } from './l2-live-fill-engine';
+import { L2LiveFillEngine, ToxicityMetrics, RequoteMetrics, FlowThrottleMetrics } from './l2-live-fill-engine';
 import { LiveTick } from './l2-fill-engine-types';
 import { IDeskEventSink, NULL_DESK_EVENT_SINK } from '../events/desk-event-sink';
 import { SweepRegimeDetector, RegimeState } from '../risk/sweep-regime-detector';
@@ -244,6 +244,9 @@ export interface MmBookSnapshot {
   toxicity?: ToxicityMetrics;
   /** F2 requote anti-churn counters (fast path only; undefined when hysteresis is off). */
   requote?: RequoteMetrics;
+  /** F4 flow-throttle gauge (fast path only; undefined unless MM_REGIME_GATE=flow): the live
+   *  FlowState (regime/f/T/A/g) + lifetime counters — the "is the throttle engaged?" readout. */
+  flow?: FlowThrottleMetrics;
   /** F2: taker crosses per trigger (loss-stop/session-close/event-blackout/remove/manual) —
    *  the "stop tax" vs the rest of the fee line, separable per book. Empty/undefined = none. */
   takerCrosses?: Record<string, { count: number; feeUnits: string; notionalUnits: string }>;
@@ -906,6 +909,7 @@ export class MmBook {
       markoutBySide: m.markoutBySide,
       toxicity: m.toxicity,
       requote: m.requote,
+      flow: m.flow,
       takerCrosses: this.takerCrossesSnapshot(),
       fills: m.queueFills,
       bidFills: m.bidFills,

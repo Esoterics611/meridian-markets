@@ -2581,3 +2581,83 @@ existing engine suites); tsc clean; telemetry flake unchanged.
 the wrong-shaped S4 binary gate; calibrated per book from the mm_fill_markout data F0 now
 persists. ALSO ready to arm on the next run: F2 hysteresis (`MM_REQUOTE_MIN_BPS=1`), now that
 F3 strengthens the inventory term the F2 replay said was the coupling risk.
+
+## 2026-06-12 — Entry #63 (F4 Stage A: flow-reactive risk throttle (κ=0) — machinery SHIPPED, gate NOT cleared, default OFF)
+
+**What:** MASTER PLAN II F4 Stage A (the −99 fill-edge leak; FLOW_REACTIVE_QUOTING.md §1–§3),
+**superseding the S4 binary sweep gate** (run55: kPEPE bled through 3 loss-stops with ZERO
+engagements while triggers all fired marginally — wrong-shaped, not wrong-idea). κ stays 0
+everywhere: no directional re-centering — Stage B is gated on mm_fill_markout volume (F0).
+
+1. **`FlowRegimeMachine`** (`src/market-making/risk/flow-regime.ts`, per-book, pure,
+   clock-free): EWMA flow f (α 0.05/volume tick) + persist counter + flip detection (resets
+   persist; ramp g decays ×0.7/tick instead of snapping), toxicity T=(1−b)|f|+b·vpin (blend
+   default 0), alignment A=sign(q)·sign(f), ramp g=clip((persist−3)/(10−3),0,1). Hysteresis
+   θ_enter 0.40 / θ_exit 0.25, escalation θ_high 0.70, min dwell 3000ms. Regimes: NORMAL /
+   **DEFENSIVE** (A≤0: symmetric widen 1+λ·T·g λ=0.5, toxic side ×(1+1.0·T·g), safe side
+   ×(1+0.25·T·g), toxic-side size cut to floor 0.2) / **HARVEST** (A>0: reducing side NOT
+   widened, no size cut — the flow IS the exit) / **FLATTEN-ONLY** (only from DEFENSIVE with
+   A<0 AND sustained |f|>θ_high: toxic/adding side pulled entirely, reducing side tightened
+   ×(1−0.5·g)). **HARD INVARIANT:** flatten is reachable only when A<0; HARVEST never
+   flattens — enforced structurally, counted (`flattenEntriesNotAligned` must be 0), unit-tested.
+2. **Plumbing:** new optional `QuoteContext` per-side scales
+   (`bid/askHalfSpreadScale`, `bid/askSizeScale`) applied universally in `buildQuotePair`
+   (composes with F3's per-side sizes/spreads; size 0 pulls the side — engines already treat
+   it as reduce-only). Live: `L2LiveFillEngine` takes `flowMachine`; the F4 symmetric widen
+   MULTIPLIES the F3 toxicityScaler scale; `metrics().flow` gauge (regime/f/T/A/g/persist +
+   stats) on the snapshot. Offline: `LobReplayHarness` cfg `flow` runs the SAME machine class
+   (offline == live). Built inside `buildFastEngine` so BOTH makeBook and rebuildBook get it
+   (the #47 rehydrate trap).
+3. **Supersession:** `MM_REGIME_GATE` is now a selector `off|sweep|flow` (legacy `true` maps
+   to `flow`; `sweep` keeps the S4 `SweepRegimeDetector` for history). At most one flow gate
+   per book by construction. 13 `MM_FLOW_*` knobs (θ/persist/dwell/λ/weights/size/blend) via
+   app-config.factory.ts.
+4. **Observability (PART V, binding):** every regime transition emits a structured tape event
+   + log line with the triggering numbers (f, persist, T, A, g, q, θ_enter/exit/high) —
+   `CONTROL ▸` on transition, `BLOCKED ▸` entering flatten-only (durable in mm_desk_event);
+   change-driven, never per-tick. Plus a grep-able **`F4 flow:`** NAV-interval line (the
+   F2/F3 pattern) with per-book regime/f/T/A/g, tick counts, and `viol=` — the invariant
+   audit; every line must read viol=0.
+
+**Calibration sweep** (`scripts/mm-flow-sweep.ts`, 14h hl-fine-20260605 tapes × 5 coins
+through the live F3-era config — γ=0.005, skewMult 6, invFrac 0.10, F3 widen-only, conc
+0.5/0.85, loss-stop 0.01%; grid θ∈{0.3/0.18, 0.4/0.25, 0.5/0.35} × dwell {3s,8s}). Full
+table: `docs/research/flow-throttle-sweep.md` (+`.json`). At the picked default
+(θ=0.40/0.25, dwell 3s) vs baseline (adverse sign: + = loss got WORSE):
+
+| coin | Δnet $ | Δadverse $ | defensive ticks | flatten entries (viol) | read |
+|---|---|---|---|---|---|
+| BTC | **−148** | **+30** | 81 / ~45k | 0 (0) | outlier — see below; grid net swings −149..+49 |
+| ETH | +0 | +0 | 56 | 0 (0) | outcome-identical: throttle engaged, never changed a fill |
+| SOL | +0 | +0 | 94 | 0 (0) | outcome-identical |
+| BNB | −1 | +0 | 56 | 0 (0) | noise (−9..0 across the grid) |
+| DOGE | +1 | −1 | 322 | 4 (0) | marginally better (fees −1 too); the only coin where FLATTEN-ONLY fired — all A<0 |
+
+**HARD INVARIANT: PASS on every coin × variant** (zero A>0 flattens; DOGE's 2–4 escalations
+all A<0 — the escalation works on real tape). But the **F4A validation gate ("ADVERSE down;
+SPREAD given up < adverse saved") did NOT clear:** ETH/SOL are no-ops, BNB is noise, DOGE is
+±$1, and BTC's adverse WORSENED (+$27..+30) with net swinging −$148/+$49 across θ — yet with
+only 24–81 defensive ticks out of ~45k, those swings are **loss-stop path divergence**
+(13→15 stops; one changed fill cascades through the queue replay), not structural defence
+value. Same single-window caveat as #61: one 2026-06-05 tape per coin (no HIP-3 RWA tape —
+xyz:* fully out of sample), and the stop path is sensitive to any fill perturbation — a read,
+not a law.
+
+**Verdict (the #53/#61 posture — machinery + evidence, honest defaults): shipped DEFAULT
+OFF.** `MM_REGIME_GATE=off` in start-desk.sh (was `true` = the S4 gate, which run55 showed
+had 0 engagements anyway — nothing is lost live). θ defaults 0.40/0.25/3s are the measured
+sweep pick (grid outcome-flat on 4/5 tapes; replaces the S4 0.65/5bps priors). Arm per-run
+with `MM_REGIME_GATE=flow`. Baseline note: NO leak table newer than run55 exists (the F0–F3
+validation run hasn't happened), so run55 stays the desk baseline and F2's
+`MM_REQUOTE_MIN_BPS` stayed 0 in the sweep config.
+
+**What would change the verdict:** (a) a live A/B via the S8 shadow rig — the clean test of
+defence value at the real 100ms cadence; (b) an HL tape containing a real directional sweep
+day (the 06-05 majors tape simply doesn't stress the throttle); (c) mm_fill_markout volume
+from finished runs — the Stage B κ-regression data, which also re-calibrates θ per book.
+
+**Tests:** +20 (flow-regime.spec ×12, quote-pair ×4 per-side scales, lob-replay ×2 flow
+cfg + invariant, l2-live-fill-engine ×2 metrics.flow); tsc clean; telemetry flake unchanged.
+
+**Next:** the F0–F3 validation run (RUN_THE_DESK "THE NEXT RUN") — arm F2, read the gate
+table, get a post-F0 leak table; then F4 Stage B only once the markout volume exists.

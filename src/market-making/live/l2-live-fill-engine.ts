@@ -11,6 +11,7 @@ import { RestingQuote, IntervalFlow, settleRestingOrder, placeRestingOrder, deci
 import { IBiasSource, effectiveBias } from '../bias/bias-source.interface';
 import { IFlowShadowRecorder } from '../bias/flow-shadow-recorder';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
+import { FlowRegimeMachine, FlowRegime, FlowRegimeStats, FlowThrottle } from '../risk/flow-regime';
 import { MarkoutTracker, MarkoutPoint, MarkoutSideCurves, ResolvedMarkout } from '../microstructure/markout-tracker';
 import { bookImbalanceFromL2 } from '../microstructure/l2-imbalance';
 import { LiveTick } from './l2-fill-engine-types';
@@ -147,6 +148,16 @@ export interface L2LiveFillEngineConfig {
    * behaviour: any price change rejoins the back of the queue).
    */
   requote?: RequoteHysteresisCfg;
+  /**
+   * F4 Stage A flow throttle (FLOW_REACTIVE_QUOTING.md §1–§3, MM_REGIME_GATE=flow): the
+   * per-book regime machine that conditions the quote on the flow state — symmetric widen,
+   * asymmetric widen + size cut on the TOXIC side, and the FLATTEN-ONLY toxic-side pull
+   * (reachable only when flow runs AGAINST inventory). κ = 0: a pure risk throttle, no
+   * re-centering (Stage B is markout-gated). Composes multiplicatively with the F3
+   * toxicityScaler on spreadScale; per-side responses ride the ctx per-side scale fields.
+   * Supersedes the binary S4 SweepRegimeDetector on this path. Omit ⇒ off (unchanged).
+   */
+  flowMachine?: FlowRegimeMachine;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -185,6 +196,19 @@ export interface L2LiveFillEngineMetrics {
   toxicity?: ToxicityMetrics;
   /** F2 requote anti-churn diagnostics — present only when the hysteresis is on. */
   requote?: RequoteMetrics;
+  /** F4 flow-throttle state + lifetime counters — present only when the machine is wired. */
+  flow?: FlowThrottleMetrics;
+}
+
+/** F4 live gauge: the last tick's FlowState + the machine's lifetime counters. */
+export interface FlowThrottleMetrics {
+  regime: FlowRegime;
+  f: number;
+  T: number;
+  A: -1 | 0 | 1;
+  g: number;
+  persist: number;
+  stats: FlowRegimeStats;
 }
 
 /** F2 quote anti-churn counters: how often the quote moved vs was held (and why). */
@@ -253,6 +277,8 @@ export class L2LiveFillEngine {
   private spreadScaleSteps = 0;
   private maxSpreadScale = 1;
   private lastSpreadScale = 1;
+  /** F4: the last throttle the quoter was handed (metrics gauge). */
+  private lastThrottle: FlowThrottle | undefined;
 
   constructor(cfg: L2LiveFillEngineConfig) {
     this.cfg = cfg;
@@ -377,12 +403,28 @@ export class L2LiveFillEngine {
       else if (spreadScale < 1 - 1e-9) this.tightenSteps += 1;
       if (spreadScale > this.maxSpreadScale) this.maxSpreadScale = spreadScale;
     }
+    // F4 Stage A: feed the flow regime machine (real aggressor flow + inventory + VPIN) and
+    // take its throttle. The symmetric widen MULTIPLIES the F3 scale (both are spread
+    // conditioners; F4 owns flow-vs-inventory, F3 owns flow-vs-its-own-average); the per-side
+    // widen/cut ride the ctx per-side fields into buildQuotePair. Transition events are the
+    // machine's own onTransition callback (wired by the module) — nothing to log here.
+    let throttle: FlowThrottle | undefined;
+    if (this.cfg.flowMachine) {
+      throttle = this.cfg.flowMachine.update(nowMs, flow.aggressiveBuyUnits, flow.aggressiveSellUnits, inventoryBefore, this.vpinProvider?.());
+      this.lastThrottle = throttle;
+    }
+    const effSpreadScale =
+      throttle === undefined ? spreadScale : (spreadScale ?? 1) * throttle.spreadScale;
     const ctx: QuoteContext = {
       inventoryUnits: inventoryBefore,
       midMicros: mid,
       referenceMicros,
       bias,
-      spreadScale,
+      spreadScale: effSpreadScale,
+      bidHalfSpreadScale: throttle?.bidHalfScale,
+      askHalfSpreadScale: throttle?.askHalfScale,
+      bidSizeScale: throttle?.bidSizeScale,
+      askSizeScale: throttle?.askSizeScale,
       nowMs,
       hedgeCostBps: this.cfg.hedgeCostBps,
       volatility: this.vol.valueOr(this.cfg.volFloor),
@@ -522,6 +564,18 @@ export class L2LiveFillEngine {
       requote: this.cfg.requote && this.cfg.requote.minBps > 0
         ? { moves: this.requoteMoves, hysteresisHolds: this.hysteresisHolds, dwellHolds: this.dwellHolds }
         : undefined,
+      flow:
+        this.cfg.flowMachine && this.lastThrottle
+          ? {
+              regime: this.lastThrottle.regime,
+              f: this.lastThrottle.f,
+              T: this.lastThrottle.T,
+              A: this.lastThrottle.A,
+              g: this.lastThrottle.g,
+              persist: this.lastThrottle.persist,
+              stats: this.cfg.flowMachine.stats(),
+            }
+          : undefined,
       toxicity: this.cfg.toxicityScaler
         ? {
             widenSteps: this.widenSteps,

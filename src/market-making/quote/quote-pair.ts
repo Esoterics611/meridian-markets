@@ -47,6 +47,23 @@ export interface QuoteContext {
    * value uncertainty Σ) is computed by the runtime. Undefined/1 ⇒ unchanged.
    */
   readonly spreadScale?: number;
+  /**
+   * Optional PER-SIDE half-spread multipliers (F4 Stage A, FLOW_REACTIVE_QUOTING.md §2.3):
+   * the flow throttle widens the TOXIC side (the side informed flow is hitting) harder than
+   * the safe side. Applied in buildQuotePair ON TOP of the quoter's own per-side spreads
+   * (F3's inventory lean etc.), so flow defence and inventory defence compose without the
+   * quoters knowing about either. Undefined/1 ⇒ unchanged.
+   */
+  readonly bidHalfSpreadScale?: number;
+  readonly askHalfSpreadScale?: number;
+  /**
+   * Optional PER-SIDE size multipliers ∈ [0,1] (F4 §2.4): cut the size informed flow can
+   * dump on you; 0 ⇒ that side is NOT quoted at all (the FLATTEN-ONLY toxic-side pull —
+   * both engines already treat sizeUnits 0 as "side pulled", the F3 reduce-only plumbing).
+   * Composes multiplicatively with the quoter's own per-side sizes. Undefined/1 ⇒ unchanged.
+   */
+  readonly bidSizeScale?: number;
+  readonly askSizeScale?: number;
   /** Per-bar realised volatility as a fraction of price (e.g. 0.0004 = 4 bps/bar). */
   readonly volatility: number;
   /** γ — risk aversion. Larger = more inventory-averse = wider, more-skewed quotes. */
@@ -135,10 +152,23 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
       : 0n;
   const base = (a.halfSpreadMicros > 0n ? a.halfSpreadMicros : 1n) + hedgeAdd;
   const sideHalf = (x: bigint | undefined): bigint => (x === undefined ? base : (x > 0n ? x : 1n) + hedgeAdd);
-  const bidHalf = sideHalf(a.bidHalfSpreadMicros);
-  const askHalf = sideHalf(a.askHalfSpreadMicros);
+  // F4 §2.3: the flow throttle's per-side widen, applied on top of whatever per-side
+  // spread the quoter chose (F3's inventory lean composes underneath). Floor 1 micro.
+  const sideScale = (half: bigint, scale: number | undefined): bigint => {
+    if (scale === undefined || scale === 1 || !(scale > 0)) return half;
+    const scaled = BigInt(Math.round(Number(half) * scale));
+    return scaled > 1n ? scaled : 1n;
+  };
+  const bidHalf = sideScale(sideHalf(a.bidHalfSpreadMicros), a.ctx.bidHalfSpreadScale);
+  const askHalf = sideScale(sideHalf(a.askHalfSpreadMicros), a.ctx.askHalfSpreadScale);
   const bidMicros = a.reservationMicros - bidHalf;
   const askMicros = a.reservationMicros + askHalf;
+  // F4 §2.4: per-side size cut (0 ⇒ side pulled — the engines' reduce-only path).
+  const sideSize = (units: bigint, scale: number | undefined): bigint => {
+    if (scale === undefined || scale >= 1) return units;
+    if (scale <= 0) return 0n;
+    return BigInt(Math.round(Number(units) * scale));
+  };
   const req = (s: QuoteSide, priceMicros: bigint, sizeUnits: bigint): QuoteRequest => ({
     side: s,
     priceMicros,
@@ -150,8 +180,8 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
   return {
     ts: a.clock(),
     symbol: a.symbol,
-    bid: req('bid', bidMicros, a.bidSizeUnits ?? a.sizeUnits),
-    ask: req('ask', askMicros, a.askSizeUnits ?? a.sizeUnits),
+    bid: req('bid', bidMicros, sideSize(a.bidSizeUnits ?? a.sizeUnits, a.ctx.bidSizeScale)),
+    ask: req('ask', askMicros, sideSize(a.askSizeUnits ?? a.sizeUnits, a.ctx.askSizeScale)),
     reservationMicros: a.reservationMicros,
     halfSpreadMicros: base,
     context: a.ctx,

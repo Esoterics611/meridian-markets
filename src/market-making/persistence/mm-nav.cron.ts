@@ -100,6 +100,11 @@ export class MmNavCron implements OnModuleInit, OnModuleDestroy {
       // grep-able post-run ("did the hysteresis hold, and what did the taker crosses cost?").
       const rq = f2Summary(snap);
       if (rq) this.logger.log(`F2 requote: ${rq}`);
+      // F4 (Journal #63): the rate-bounded flow-throttle state line — one per interval; the
+      // hard-invariant audit is `grep 'F4 flow'` + check every viol=0 (transitions themselves
+      // emit change-driven CONTROL ▸/BLOCKED ▸ events from the machine, never per tick).
+      const fl = f4Summary(snap);
+      if (fl) this.logger.log(`F4 flow: ${fl}`);
     } catch (err) {
       this.logger.error(`mm NAV tick failed: ${(err as Error).message}`);
     }
@@ -168,6 +173,26 @@ export function f2Summary(s: MmPortfolioSnapshot): string | null {
         .map(([reason, a]) => `${reason}×${a.count}=$${(Number(a.feeUnits) / 1e6).toFixed(0)}`)
         .join(',');
       return `${b.symbol} ${[r, crosses && `taker[${crosses}]`].filter(Boolean).join(' ')}`;
+    });
+  return parts.length ? parts.join(' | ') : null;
+}
+
+/**
+ * F4 grep-able per-interval line (Journal #63): the live FlowState per fast book (regime,
+ * f, T, A, g) + the machine's lifetime counters (regime ticks, flatten pulls, the invariant
+ * violation count — MUST read viol=0). Null when no book carries the throttle
+ * (MM_REGIME_GATE≠flow / bar path) ⇒ no line logged. Pure + exported for tests.
+ */
+export function f4Summary(s: MmPortfolioSnapshot): string | null {
+  const parts = s.books
+    .filter((b) => b.flow)
+    .map((b) => {
+      const f = b.flow!;
+      return (
+        `${b.symbol} ${f.regime} f=${f.f.toFixed(2)} T=${f.T.toFixed(2)} A=${f.A} g=${f.g.toFixed(2)} ` +
+        `[n/d/h/fl=${f.stats.ticksNormal}/${f.stats.ticksDefensive}/${f.stats.ticksHarvest}/${f.stats.ticksFlatten} ` +
+        `flatten=${f.stats.flattenEntries} viol=${f.stats.flattenEntriesNotAligned}]`
+      );
     });
   return parts.length ? parts.join(' | ') : null;
 }
