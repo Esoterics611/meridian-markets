@@ -2735,3 +2735,57 @@ positive fillEdge; (b) **F4 Stage B is now UNBLOCKED** — this run wrote **2,71
 per-book directional re-centering off real markout; (c) **don't bank the warehouse** — run a
 longer / multi-window pass to see whether the crypto-book fillEdge break-even *holds* and
 whether realised crosses zero once CL and the hedge drag are addressed.
+
+## 2026-06-14 — Entry #65 (F4 Stage B: the κ-gate is built + run — flow does NOT lead price; κ stays 0, by the data)
+
+**What:** the F4 **Stage B** honest gate — `scripts/mm-kappa-regression.ts` — built and run on
+run-...125055's **2,715 `mm_fill_markout` rows**. This is the regression the FlowRegimeMachine's
+re-center term `alpha = κ·f·g` has been hard-wired to **κ=0** waiting on (flow-regime.ts §0/§299:
+"directional alpha is Stage B, gated on the per-book markout-on-flow regression"). The desk's
+binding prior: *a blind bias loses — leverage on noise* — so the directional lean must be
+**proven from data before it is wired**, not after. This gate is that proof-or-refusal, and it is
+**standing/reusable** — every future run's markout volume re-runs it and accumulates n.
+
+**Method (honest, multiple-testing-aware).** From `markout-tracker.ts` the sign convention is
+`markout_bps = side·(mid_{t+h}−fairMid)/fairMid·1e4`; un-signing by side recovers the **raw
+forward mid-move** `r = markout_bps·sideSign`, decoupled from our (adversely-selected) fill side.
+`flow` (the EWMA aggressor imbalance, persisted at the fill — markout-tracker.ts calls it verbatim
+"the κ regression x") is the predictor. Per (book × horizon) we fit **`r ~ flow`**: OLS slope
+**κ_raw** (bps mid-move per unit flow) + t-stat = magnitude/significance; **Spearman IC** + hit-rate
+= the rank-robust predictive gate (the #1-OOS-gate discipline). Verdict GREEN/RED/GREY; **the gate
+"clears" ONLY if the POOLED (desk-wide) row is GREEN at the pre-registered 60s horizon** — a lone
+per-book GREEN against a flat pool is treated as a multiple-testing artifact, not a green light.
+
+**Result — the gate does NOT clear:**
+
+| read | κ_raw @60s | t | IC @1s→300s | verdict |
+|---|---|---|---|---|
+| **POOLED (n=543)** | −0.04 | −0.15 | **0.120 → 0.004** | **GREY at every horizon** |
+| SUI (n=52) | +1.45 | +2.04 | 0.37 @60s | GREEN (lone, threshold) |
+| xyz:GOLD (n=128) | −0.11 | −1.07 | — | **RED @1/5/30s** (t −2.3…−2.7) |
+| ADA/DOGE/FARTCOIN/kPEPE/SOL | ~0 | <\|2\| | mixed | GREY (kPEPE/SOL n too low) |
+
+1. **Desk-wide, flow does not lead price.** The pooled n=543 read is flat at *every* horizon
+   (|t|<0.7), and its **IC decays 0.12 (1s) → 0.026 (60s) → 0.004 (300s)** — whatever micro-
+   predictive content exists lives at ~1s and is **gone before it is tradeable** at our 100ms
+   requote without crossing (i.e. it's a taker signal, not a maker re-center). That is the core finding.
+2. **The lone SUI GREEN is a hypothesis, not a signal** — t 2.04 (right at threshold), n 52, one
+   book of 8 × one horizon, against a flat pool; among ~40 tests a couple fire at |t|≥2 by chance.
+   Logged as a **watch-book** (provisional κ≈7.3e-5 if ever confirmed); **not armed.**
+3. **GOLD/RWA flow significantly MEAN-REVERTS** (RED, t up to −2.7 at 1–30s) — leaning *with*
+   flow would lose there. Moot now (GOLD was cut in #64) but a real structural note: RWA
+   reference flow fades, it doesn't trend, on our cadence.
+
+**Verdict: κ stays 0 — the safe Stage-A default holds, now by evidence not just caution.** The
+directional re-center is **not justified by the data**; the F4 live surface remains the Stage-A
+throttle (also default OFF, #63). Nothing is wired. This is the gate doing its job: the desk does
+not get a directional lean until a *desk-wide* lead survives the gate on real volume.
+
+**Next:** the gate is standing — accumulate `mm_fill_markout` across the coming clean-6-book runs
+and re-run; κ earns a wiring only if POOLED clears at 60s (or SUI repeats at higher n in a
+dedicated confirmation). Until then F4 = throttle-only. **No code path turns on.**
+
+**Tests/artifacts:** `scripts/mm-kappa-regression.ts` (tsc clean; OLS+Spearman, DB-only, S1 rules);
+artifact `docs/research/kappa-regression-run-20260614-125055.{md,json}`. Research-script convention
+(no spec, like `flow-bias-markout.ts`); the stats are self-contained + sanity-checked against the
+#64 leak-table alignment split (SUI carries the most flow structure in both).
