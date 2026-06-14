@@ -127,4 +127,5 @@ MASTER PLAN I (S1–S9): S1/S2 (leak table + the warehouse-drift framing) done; 
 - **Logs:** [QUANT_JOURNAL.md](QUANT_JOURNAL.md) (chronological #NN entries) · [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) (citable verdicts) · [SESSION_HISTORY.md](SESSION_HISTORY.md).
 - **Operate / read the desk:** [RUN_THE_DESK.md](RUN_THE_DESK.md) · [MM_TRADING_USER_GUIDE.md](MM_TRADING_USER_GUIDE.md) · [DESK_GLOSSARY.md](DESK_GLOSSARY.md) · [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md).
 - **Engine reference:** [MARKET_MAKING.md](MARKET_MAKING.md) · [HEDGING_MODEL.md](HEDGING_MODEL.md) · [PNL_ACCOUNTING.md](PNL_ACCOUNTING.md) · [FLOW_REACTIVE_QUOTING.md](FLOW_REACTIVE_QUOTING.md) · [DATA_SOURCES.md](DATA_SOURCES.md) · [UNIVERSE_DISCOVERY.md](UNIVERSE_DISCOVERY.md).
+- **UI (role-scoped desk):** [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) (design contract — read before adding a role page) · [UI_ROLE_GUIDE.md](UI_ROLE_GUIDE.md) (operator's driver's manual).
 - **[`docs/archive/`](archive/)** — superseded plans (the F-chain, ROADMAP, MASTER_PLAN_III, residual-risk roadmap+study, and the NEXT_SESSION*/PREREG/FOLLOWUP/briefing/prompt handoffs), kept for detail.
