@@ -2829,3 +2829,57 @@ pre-registered #62 fill-edge lever) + the time-stop come in the CONCENTRATE run,
 + MM_HEDGE_BETA_MAP=12. Cross-checked 25/25/12+13. **NEXT (operator): run it 10h → leak table +
 κ-gate per book → the ranked realised-fillEdge board IS the next desk. No journal needed on the
 currently-running peek-run.**
+
+---
+
+## 2026-06-14 — Entry #67 (the 25-screen verdict + THE CONCENTRATE RUN: pick the winners, cut the drift)
+
+**The screen (#66) ran ~3.7h, $25M / 25 books. Leak table: `leak-table-screen25-s2.md`.**
+Desk **realised −$2,783** (net −3,091; fees +474; hedge legs measured −75). DD control held —
+**every book maxDD < 0.7%** (the governor works). The verdict is the #49/#66 thesis at full scale:
+
+- **The quoter is fine.** Realised **fillEdge (spread − adverse) is POSITIVE on the clean books**:
+  TRUMP +20, ZEC +18, ENA +17, SUI +16 (adverse +1 — pristine), XRP +9, XMR +6, BNB +4.
+- **The whole bleed is WAREHOUSE DRIFT.** Ranked leaks are almost all warehouse MTM: WLD −371,
+  XPL −321, XMR −258, CRV −257, VVV −237, FARTCOIN −210, TON −159, XRP −118, ZEC −110. Books with
+  a GOOD quoter (XMR/ZEC/XRP fillEdge +6/+18/+9) still lost — same quoter, unlucky drift.
+- **Green-on-luck, not edge:** HYPE net **+226** is fillEdge **−120** (picked off, adverse +509)
+  rescued by **+344 favourable warehouse drift** — that reverts; NOT a keeper. SUI's +143 net is
+  also mostly +125 warehouse, but its fillEdge +16 / adverse +1 is the real thing underneath.
+- **Structural losers (negative fillEdge = genuinely picked off, no time-stop fixes a bad quoter):**
+  TAO −187 (mk300s −14bps), HYPE −120, TON −104, CRV −96, XPL −70, VVV −54, DOGE −36 (4 fills),
+  FARTCOIN −19, AAVE −14, WLD −14, LIT −10. **CUT.**
+- **Directional stays PARKED (confirmed again):** the leak table's alignment split (A = sign(q)·
+  sign(flow), markout@300s) is inconsistent across books — ZEC even *paid* to be contra-flow
+  (A− +19.4bps vs A+ −10.4bps). No desk-wide flow lead ⇒ a blind lean is leverage on noise (#65).
+
+**Time-stop validated this session (`timestop-sweep.md`, OOS on the 06-04/05 majors tapes — a
+mechanism read, not a per-market law):** bounding holding time cuts warehouse MTM. **T=30m /
+shift=8bps** is the cell: BTC net −2127→−730 (**Δ +1397**, maxDD 0.85→**0.35**), ETH +295, did
+NOT hurt SOL (+47). The aggressive **10m variant is dangerous** — SOL −1524 (forces taker exits
+on a book that's fine). So 30m/8bps, never 10m. The time-stop is **live-wired** already
+(`MM_TIME_STOP` / `_AGE_MIN` / `_SHIFT_BPS`) — no code change to arm it.
+
+**THE CONCENTRATE RUN (`scripts/launch-concentrate.sh`, committed) — picks the winners, cuts the
+drift, arms the queue lever:**
+- **Concentrate-8** (ranked by realised fillEdge, positive + clean adverse): **SUI, TRUMP, ENA,
+  ZEC, XMR, BNB, XRP, SOL.** $1M/book ($8M desk) — capital HELD CONSTANT vs the screen to isolate
+  the 3 changes. Hedged: SOL/SUI→ETH, XRP/BNB→BTC. Naked (no factor hedge exists, R²<0.5):
+  TRUMP/ENA/ZEC/XMR — **for these the time-stop IS the warehouse control** (substitutes the
+  impossible delta hedge by capping holding time). ENA runs naked on purpose (its self-hedge leg
+  bled −187 on the screen).
+- **Cut (17):** ADA DOGE FARTCOIN kPEPE AAVE PUMP CRV TAO HYPE NEAR WLD VVV XPL LIT TON MEGA ONDO.
+- **Armed:** `MM_TIME_STOP=true AGE_MIN=30 SHIFT_BPS=8` (the drift cut) + `MM_REQUOTE_MIN_BPS=1`
+  (F2 queue lever). **Kept ON (the fixes that worked):** inventory governor (cap 0.10 / skew 6),
+  F3 toxicity widen-only, micro-price + 100ms requote, 0.01% loss-stop, delta hedge w/ anti-churn.
+  **Left OFF:** directional lean (OOS-gated to neutral).
+- **PRE-REGISTERED metric:** desk **realised ≥ 0** AND every book maxDD ≤ ~1.5% over a multi-hour
+  window; secondary: per-book warehouse MTM materially smaller than the screen (= the time-stop
+  doing its job). This is the first run that tests for **real realised profit**, not a bounded loss.
+- **NEXT (operator):** `bash scripts/start-desk.sh` (with the concentrate overrides in the
+  launch-concentrate.sh header) → `bash scripts/launch-concentrate.sh` → leak table at label
+  `concentrate`. If realised flips +, the run after that **scales capital** on the survivors.
+
+**Op note:** filed issue **#29** — closing the UI looked like it stopped the desk, but the loop is
+a server-side `setInterval` (it kept booking NAV the whole time); the live feed just goes stale
+(`desk-feed.js` releases its SSE on tab-hide). Confirm perceived-vs-real with the operator.

@@ -28,7 +28,14 @@ the desk when open inventory is marked into a favourable move; we judge on **rea
 
 ## 2. Where we are (2026-06-14, honest)
 
-**Not yet realised-profitable.** The same picture repeats #41 → #64/#65/#66 + the live run:
+**Not yet realised-profitable — but the screen gave us the winners and the drift cut is staged.**
+The 25-market screen (#66/#67) ran ~3.7h/$25M: desk **realised −$2,783**, but it nailed the
+diagnosis. **fillEdge (the quoter's edge) is positive on the clean books** (TRUMP +20, ZEC +18,
+ENA +17, SUI +16/adverse +1, XRP +9, XMR +6, BNB +4) and **the entire bleed is warehouse drift**
+(WLD −371, XPL −321, XMR −258, CRV −257…). The next run (`launch-concentrate.sh`, #67) keeps the
+8 positive-fillEdge books, arms the **inventory time-stop** (30m/8bps — validated to cut BTC
+warehouse −$1,397 with maxDD 0.85→0.35) + **F2**, and tests for real realised profit. The same
+picture repeats #41 → #64/#65/#66/#67 + the live run:
 
 - **The quoter is fine.** Adverse selection is ~closed on the rebate books (micro-price centre +
   sub-second re-quote + F3 toxicity + the inventory governor): desk **fillEdge ≈ 0**, slightly
@@ -53,14 +60,15 @@ archived `ROADMAP`.
 The strategy is empirical: **find the markets where the rebate beats the drift → concentrate
 there → cut the drift → compound.** In order:
 
-1. **[RUNNING] The 25-market wide screen** — 25 books × $1M, ranks the HL universe by realised
-   fillEdge (Journal #66; `launch-mm-10h.sh` / `start-desk.sh`). The screen's output *is* the next desk.
-2. **[NEXT SESSION — new branch] Build the concentrate + cut the drift** (offline, DB-only):
-   - `scripts/mm-rank-books.ts` — rank the screen by realised fillEdge → a launch-ready KEEP book set + hedge map.
-   - Validate the **inventory time-stop** (`mm-timestop-sweep.ts`) — the direct warehouse-drift cut (its case is far stronger now that drift is provably *the* bleed).
-   - Pre-stage **F2** (`MM_REQUOTE_MIN_BPS=1`) — the pre-registered queue-position fill-edge lever.
-3. **The CONCENTRATE run** — KEEP books + time-stop + F2 → the first run that tests for **real
-   realised profit**, not just a bounded loss.
+1. **[DONE #66/#67] The 25-market wide screen** — 25 books × $1M ranked the HL universe by realised
+   fillEdge (`leak-table-screen25-s2.md`). Verdict: quoter fine, warehouse drift is the whole bleed.
+2. **[STAGED #67] The concentrate + the drift cut are wired:**
+   - The KEEP set is picked (by realised fillEdge): **SUI TRUMP ENA ZEC XMR BNB XRP SOL**.
+   - The **inventory time-stop** is validated (`timestop-sweep.md`: 30m/8bps; the 10m variant hurt SOL) and **live-wired** (`MM_TIME_STOP`).
+   - **F2** (`MM_REQUOTE_MIN_BPS=1`) is staged. (`scripts/mm-rank-books.ts` automation is optional — the leak table already ranks.)
+3. **[NEXT — operator launches] The CONCENTRATE run** — `scripts/launch-concentrate.sh`: KEEP-8 +
+   time-stop (30m/8bps) + F2, capital held constant ($1M/book). The first run that tests for **real
+   realised profit**, not a bounded loss. If realised flips +, the run after scales capital on survivors.
 4. **Compound + automate** — longer runs to compound the rebate on the winners; build
    `scripts/learn-from-run.ts` (the training loop: run → fitters → proposed next-config diff,
    human-gated — [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md)); re-run the standing κ-gate across more markets/volume.
