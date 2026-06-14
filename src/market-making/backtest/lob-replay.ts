@@ -9,6 +9,7 @@ import { OrderBook, midMicros } from '../microstructure/order-book';
 import { MicroPriceCalculator } from '../microstructure/micro-price';
 import { crossVenueReference } from '../microstructure/cross-venue';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
+import { FlowRegimeMachine, FlowRegimeConfig, FlowRegimeStats } from '../risk/flow-regime';
 import { L2TapeStep, bestBidMicros, bestAskMicros } from './l2-tape';
 import { RestingQuote, settleRestingOrder, placeRestingOrder, decideRequote, RequoteHysteresisCfg } from './queue-fill';
 
@@ -124,6 +125,14 @@ export interface LobReplayConfig {
    */
   lossStopFrac?: number;
   lossStopCooldownMs?: number;
+  /**
+   * F4 Stage A flow throttle (FLOW_REACTIVE_QUOTING.md §1–§3): run a FlowRegimeMachine over
+   * the tape's aggressor flow + the book's inventory, applying the same widen / per-side
+   * widen / size-cut / FLATTEN-ONLY responses the live engine applies — so θ_enter/θ_exit/
+   * dwell can be SWEPT offline (the calibration the live defaults come from). κ = 0 (no
+   * re-centering — Stage B is markout-gated). Omit ⇒ off (legacy).
+   */
+  flow?: FlowRegimeConfig;
 }
 
 export interface LobReplayMetrics {
@@ -154,6 +163,9 @@ export interface LobReplayMetrics {
   /** F3: warehouse loss-stops fired (0 when the stop is off) + the taker fees they paid. */
   lossStops: number;
   lossStopFeesUnits: bigint;
+  /** F4: the flow machine's lifetime counters (undefined when the throttle is off). The
+   *  sweep's hard-invariant assert reads flattenEntriesNotAligned === 0 from here. */
+  flowStats?: FlowRegimeStats;
 }
 
 export class LobReplayHarness {
@@ -167,6 +179,8 @@ export class LobReplayHarness {
     const toxScaler = cfg.f3Toxicity
       ? new FlowToxicityScaler({ windowBars: cfg.volWindowBars, minScale: cfg.f3MinScale ?? 0.5, maxScale: cfg.f3MaxScale ?? 3.0 })
       : undefined;
+    // F4: a fresh per-run flow machine (same class the live engine runs — offline == live).
+    const flowMachine = cfg.flow ? new FlowRegimeMachine(cfg.flow) : undefined;
     const book = new InventoryBook();
     const components: PnlComponent[] = [];
 
@@ -311,11 +325,19 @@ export class LobReplayHarness {
       }
       // F3: spread scale from current flow toxicity vs its rolling average (shared scaler).
       const spreadScale = toxScaler?.scale(step.aggressiveBuyUnits, step.aggressiveSellUnits);
+      // F4: the flow throttle (same composition as the live engine — F4 widen multiplies F3,
+      // per-side responses ride the ctx per-side scale fields into buildQuotePair).
+      const throttle = flowMachine?.update(tsMs, step.aggressiveBuyUnits, step.aggressiveSellUnits, inventoryBefore);
+      const effSpreadScale = throttle === undefined ? spreadScale : (spreadScale ?? 1) * throttle.spreadScale;
       const ctx: QuoteContext = {
         inventoryUnits: inventoryBefore,
         midMicros: mid,
         referenceMicros,
-        spreadScale,
+        spreadScale: effSpreadScale,
+        bidHalfSpreadScale: throttle?.bidHalfScale,
+        askHalfSpreadScale: throttle?.askHalfScale,
+        bidSizeScale: throttle?.bidSizeScale,
+        askSizeScale: throttle?.askSizeScale,
         nowMs: step.book.ts.getTime(),
         volatility: vol.valueOr(cfg.volFloor),
         riskAversion: cfg.gamma,
@@ -383,6 +405,7 @@ export class LobReplayHarness {
       requoteDwellHolds: dwellHolds,
       lossStops,
       lossStopFeesUnits: lossStopFees,
+      flowStats: flowMachine?.stats(),
     };
   }
 

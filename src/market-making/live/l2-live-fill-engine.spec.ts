@@ -5,6 +5,7 @@ import { IntervalFlowLike } from '../backtest/l2-tape';
 import { IQuoter } from '../quote/quoter.interface';
 import { QuoteContext, QuotePair, buildQuotePair } from '../quote/quote-pair';
 import { FlowToxicityScaler } from '../microstructure/flow-toxicity';
+import { FlowRegimeMachine } from '../risk/flow-regime';
 
 // L2LiveFillEngine spec — the live, fast-cadence, queue-aware fill engine. Pure unit:
 // canned L2 snapshots + scripted flow, no network, no DB, deterministic (the snapshot
@@ -264,5 +265,26 @@ describe('L2LiveFillEngine — F3 toxicity instrumentation (DR-3)', () => {
     const ticks: LiveTick[] = [];
     for (let i = 0; i < 6; i++) ticks.push({ snapshot: snap(i * 1000, 99, 10, 101, 10), flow: flow(5, 5, 99, 101) });
     expect(run(baseCfg(), ticks).metrics().toxicity).toBeUndefined();
+  });
+});
+
+describe('L2LiveFillEngine — F4 flow throttle (Journal #63)', () => {
+  it('wires the FlowRegimeMachine: metrics().flow carries the live state + counters', () => {
+    const machine = new FlowRegimeMachine({ persistMin: 2, persistFull: 6, dwellMs: 0, thetaHigh: 2 });
+    const ticks: LiveTick[] = [];
+    // sustained one-sided BUY flow; book stays flat (nothing trades at 99/101) ⇒ A=0 defensive
+    for (let i = 0; i < 40; i++) ticks.push({ snapshot: snap(i * 1000, 99.5, 10, 100.5, 10), flow: flow(0, 1, 100.4, 100.5) });
+    const eng = run(baseCfg({ flowMachine: machine }), ticks);
+    const m = eng.metrics();
+    expect(m.flow).toBeDefined();
+    expect(m.flow!.regime).toBe('defensive');
+    expect(m.flow!.g).toBeGreaterThan(0);
+    expect(m.flow!.stats.ticksDefensive).toBeGreaterThan(0);
+    expect(m.flow!.stats.flattenEntriesNotAligned).toBe(0);
+  });
+
+  it('without a machine, metrics().flow is undefined (feature off ⇒ unchanged)', () => {
+    const ticks: LiveTick[] = [{ snapshot: snap(0, 99.5, 10, 100.5, 10) }];
+    expect(run(baseCfg(), ticks).metrics().flow).toBeUndefined();
   });
 });

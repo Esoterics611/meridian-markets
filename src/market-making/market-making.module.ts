@@ -16,6 +16,7 @@ import { microPriceMicrosFromL2 } from './microstructure/l2-microprice';
 import { TimeStopQuoter } from './quote/time-stop-quoter';
 import { parseSessionGate, sessionForSymbol } from './risk/session-gate';
 import { SweepRegimeDetector } from './risk/sweep-regime-detector';
+import { FlowRegimeMachine } from './risk/flow-regime';
 import { EventCalendar } from './risk/event-calendar';
 import { L2LiveFillEngine } from './live/l2-live-fill-engine';
 import { FlowToxicityScaler } from './microstructure/flow-toxicity';
@@ -98,15 +99,52 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
           const w = blackoutRules.filter((r) => r.symbols.includes(symbol) || r.symbols.includes('*')).map((r) => ({ openMin: r.openMin, closeMin: r.closeMin }));
           return w.length ? w : undefined;
         };
-        // S4 sweep-regime gate (Journal #56): one detector PER BOOK (per-symbol flow memory),
-        // fast path only — the bar path has no real aggressor flow to read.
+        // Flow gates (at most ONE per book — F4 supersedes S4):
+        //   MM_REGIME_GATE=sweep → the legacy S4 binary detector (history; run55 wrong-shaped),
+        //   MM_REGIME_GATE=flow  → the F4 Stage A FlowRegimeMachine (built inside the fast
+        //   engine below). Both are fast-path only — the bar path has no real aggressor flow.
         const makeRegimeDetector = (useFast: boolean): SweepRegimeDetector | undefined =>
-          mm.regimeGate && useFast
+          mm.regimeGate === 'sweep' && useFast
             ? new SweepRegimeDetector({
                 flowThreshold: mm.regimeFlowThreshold,
                 windowMs: mm.regimeWindowMs,
                 minDriftBps: mm.regimeMinDriftBps,
                 cooldownMs: mm.regimeCooldownMs,
+              })
+            : undefined;
+
+        // F4 Stage A (Journal #63): the per-book flow throttle. PART V observability: every
+        // regime TRANSITION emits a structured tape event + log line WITH the triggering
+        // numbers (change-driven by the machine itself — never per-tick). FLATTEN-ONLY entry
+        // is a suppression (the toxic side is pulled) ⇒ BLOCKED ▸; everything else CONTROL ▸.
+        const makeFlowMachine = (symbol: string): FlowRegimeMachine | undefined =>
+          mm.regimeGate === 'flow'
+            ? new FlowRegimeMachine({
+                thetaEnter: mm.flowThetaEnter,
+                thetaExit: mm.flowThetaExit,
+                thetaHigh: mm.flowThetaHigh,
+                ewmaAlpha: mm.flowEwmaAlpha,
+                persistMin: mm.flowPersistMin,
+                persistFull: mm.flowPersistFull,
+                dwellMs: mm.flowDwellMs,
+                lambda: mm.flowLambda,
+                wToxic: mm.flowWToxic,
+                wSafe: mm.flowWSafe,
+                sizeCut: mm.flowSizeCut,
+                sizeFloor: mm.flowSizeFloor,
+                vpinBlend: mm.flowVpinBlend,
+                onTransition: (t) => {
+                  const nums =
+                    `f=${t.f.toFixed(2)} persist=${t.persist} T=${t.T.toFixed(2)} A=${t.A} g=${t.g.toFixed(2)} ` +
+                    `q=${(Number(t.inventoryUnits) / 1e6).toFixed(3)} θ=${t.thetaEnter}/${t.thetaExit}/${t.thetaHigh}`;
+                  if (t.to === 'flatten-only') {
+                    new Logger('FlowThrottle').warn(`BLOCKED ▸ ${symbol} flow-flatten: toxic side pulled, shedding only — ${nums}`);
+                    deskEvents.emit(blockedEvent({ ts: t.nowMs, book: symbol, rule: 'flow-flatten', detail: `toxic side pulled, shedding only — ${nums}` }));
+                  } else {
+                    new Logger('FlowThrottle').log(`CONTROL ▸ ${symbol} flow ${t.from} → ${t.to} — ${nums}`);
+                    deskEvents.emit(controlEvent({ ts: t.nowMs, book: symbol, detail: `flow ${t.from} → ${t.to} — ${nums}` }));
+                  }
+                },
               })
             : undefined;
         if (sessionRules.length > 0)
@@ -323,6 +361,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 requote: mm.requoteMinBps > 0
                   ? { minBps: mm.requoteMinBps, dwellMs: mm.requoteDwellMs, urgentBps: mm.requoteUrgentBps }
                   : undefined,
+                // F4 Stage A (Journal #63): the flow throttle, one machine per book. Built HERE
+                // so the rehydrate path gets it too (the #47 trap — both makeBook and
+                // rebuildBook call buildFastEngine).
+                flowMachine: makeFlowMachine(p.symbol),
               })
             : undefined;
 

@@ -18,6 +18,16 @@ function parseFeedSource(raw: string | undefined): FeedSource {
     : 'mock';
 }
 
+/** MM_REGIME_GATE selector (F4 supersedes S4): 'flow' | 'sweep' | 'off'. The historical
+ *  boolean arm ('true') now selects the SUPERSEDING machine ('flow'); 'sweep' must be
+ *  asked for explicitly. At most one flow gate runs per book by construction. */
+function parseRegimeGate(raw: string | undefined): 'off' | 'sweep' | 'flow' {
+  const v = (raw ?? '').toLowerCase();
+  if (v === 'flow' || v === 'true') return 'flow';
+  if (v === 'sweep') return 'sweep';
+  return 'off';
+}
+
 // Sole sanctioned reader of process.env. All other modules consume the typed
 // AppConfig via @nestjs/config, or read secrets through ISecretProvider.
 export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
@@ -216,12 +226,29 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     sessionGate: process.env['MM_SESSION_GATE'] ?? '',
     // Journal #57: event-blackout windows (same sym=HHMM-HHMM format; '*' = every book).
     eventBlackout: process.env['MM_EVENT_BLACKOUT'] ?? '',
-    // S4 sweep-regime gate (Journal #56) — off unless armed; thresholds are PRIORS (see detector).
-    regimeGate: (process.env['MM_REGIME_GATE'] ?? 'false').toLowerCase() === 'true',
+    // Flow-regime gate selector (F4 supersedes S4, Journal #63): 'off' | 'flow' | 'sweep'.
+    // 'flow' = the F4 Stage A graduated throttle (FlowRegimeMachine); 'sweep' = the legacy S4
+    // binary gate (history only — run55: 3 kPEPE loss-stops, ZERO engagements). 'true' → 'flow'.
+    regimeGate: parseRegimeGate(process.env['MM_REGIME_GATE']),
     regimeFlowThreshold: parseFloat(process.env['MM_REGIME_FLOW_THRESHOLD'] ?? '0.65'),
     regimeWindowMs: parseInt(process.env['MM_REGIME_WINDOW_MS'] ?? '30000', 10),
     regimeMinDriftBps: parseFloat(process.env['MM_REGIME_MIN_DRIFT_BPS'] ?? '5'),
     regimeCooldownMs: parseInt(process.env['MM_REGIME_COOLDOWN_MS'] ?? '90000', 10),
+    // F4 Stage A flow throttle (MM_REGIME_GATE=flow) — hysteresis/dwell defaults from the 14h
+    // fine-tape replay sweep (Journal #63), replacing the S4 0.65/5bps priors with measured ones.
+    flowThetaEnter: parseFloat(process.env['MM_FLOW_THETA_ENTER'] ?? '0.4'),
+    flowThetaExit: parseFloat(process.env['MM_FLOW_THETA_EXIT'] ?? '0.25'),
+    flowThetaHigh: parseFloat(process.env['MM_FLOW_THETA_HIGH'] ?? '0.7'),
+    flowEwmaAlpha: parseFloat(process.env['MM_FLOW_EWMA_ALPHA'] ?? '0.05'),
+    flowPersistMin: parseInt(process.env['MM_FLOW_PERSIST_MIN'] ?? '3', 10),
+    flowPersistFull: parseInt(process.env['MM_FLOW_PERSIST_FULL'] ?? '10', 10),
+    flowDwellMs: parseInt(process.env['MM_FLOW_DWELL_MS'] ?? '3000', 10),
+    flowLambda: parseFloat(process.env['MM_FLOW_LAMBDA'] ?? '0.5'),
+    flowWToxic: parseFloat(process.env['MM_FLOW_W_TOXIC'] ?? '1.0'),
+    flowWSafe: parseFloat(process.env['MM_FLOW_W_SAFE'] ?? '0.25'),
+    flowSizeCut: parseFloat(process.env['MM_FLOW_SIZE_CUT'] ?? '0.7'),
+    flowSizeFloor: parseFloat(process.env['MM_FLOW_SIZE_FLOOR'] ?? '0.2'),
+    flowVpinBlend: parseFloat(process.env['MM_FLOW_VPIN_BLEND'] ?? '0'),
     vpinEmaBuckets: parseInt(process.env['MM_VPIN_EMA_BUCKETS'] ?? '50', 10),
     vpinPauseThreshold: parseFloat(process.env['MM_VPIN_PAUSE_THRESHOLD'] ?? '1.01'),
     vpinPauseMs: parseInt(process.env['MM_VPIN_PAUSE_MS'] ?? '5000', 10),

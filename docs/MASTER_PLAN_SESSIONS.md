@@ -178,7 +178,14 @@ Status legend: ☐ pending · ◐ in progress · ☑ done (with date + one-line 
   **0.01% stop validated** (desk warehouse −95%, maxDD halved on the 14h tapes; 0.05%+ never
   fire); conc mechanism validated where it binds (BNB: whse/net/fills all up), magnitude is
   the next live run's read (ADA conc<70% gate, now on the durable tape).
-- ☐ **F4 — Flow-reactive quoting, throttle-first, κ gated** *(fill-edge leak: −99)*
+- ◐ **F4 — Flow-reactive quoting, throttle-first, κ gated** — **Stage A ☑ SHIPPED 2026-06-12
+  (Journal #63):** `FlowRegimeMachine` (κ=0 throttle: NORMAL/DEFENSIVE/HARVEST/FLATTEN-ONLY,
+  hard A>0-never-flattens invariant, same class live + replay), `MM_REGIME_GATE` now a selector
+  `off|sweep|flow` superseding the S4 binary gate, per-transition tape events + `F4 flow:`
+  interval line, `scripts/mm-flow-sweep.ts`. Sweep verdict: invariant PASS on every coin ×
+  variant, but the F4A gate did NOT clear (ETH/SOL no-op, BNB/DOGE ±$ noise, BTC swings =
+  loss-stop path divergence) ⇒ **default OFF**; θ 0.40/0.25/3s are the measured defaults.
+  **Stage B (directional κ) ☐ — stays GATED on mm_fill_markout volume.**
 - ☐ **F5 — Capital ∝ measured fillEdge**
 
 ---
@@ -806,6 +813,12 @@ FARTCOIN. Target: ADA conc < 70% and warehouse loss cut ≥50% without raising t
 ```
 
 ### F4 PROMPT — Flow-reactive quoting *(fill-edge leak: −99; throttle-first, κ gated)*
+
+> **Stage A SHIPPED 2026-06-12 (Journal #63): default OFF** — the offline F4A gate did NOT
+> clear (`docs/research/flow-throttle-sweep.md`: hard invariant PASS everywhere, adverse
+> flat-to-worse, BTC net deltas = loss-stop path noise on a 24–81-tick engagement). Arm
+> per-run with `MM_REGIME_GATE=flow`. **Stage B remains gated on mm_fill_markout volume.**
+
 ```
 Now add the flow layer from docs/FLOW_REACTIVE_QUOTING.md (§1–§6). This SUPERSEDES the
 binary S4 sweep gate (SweepRegimeDetector, |flow|>0.65 × drift — run55 showed it
@@ -860,7 +873,7 @@ Report the counterfactual run55 P&L under the new weights.
 | F1 | hedge churn cost cut ≥50%; warehouse MTM not worse; variance-reduction report identifies flatten-only books |
 | F2 | taker-fee line down materially (esp. CL); fill edge not worse; fee attributable per trigger |
 | F3 | ADA conc < 70%; warehouse loss cut ≥50%; taker fees not up; loss-stop levels measured not prior |
-| F4A | ADVERSE down; SPREAD capture given up < ADVERSE saved; zero flatten events in A>0 windows (assert) |
+| F4A | ADVERSE down; SPREAD capture given up < ADVERSE saved; zero flatten events in A>0 windows (assert) — *Stage A 2026-06-12: invariant PASS, adverse gate NOT cleared offline, shipped default-OFF (Journal #63)* |
 | F4B | per book: κ statistically > 0 or that book is κ=0 throttle-only; no directional skew shipped on an unvalidated book |
 | F5 | counterfactual ≥ equal-weight on replay; no book above its ledger-status cap |
 

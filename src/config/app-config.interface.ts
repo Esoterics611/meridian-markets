@@ -328,9 +328,11 @@ export interface AppConfig {
     lossStopFrac: number;
     /** Stand-aside minutes after a loss-stop fires. Default 15. */
     lossStopCooldownMin: number;
-    /** S4 sweep-regime gate (Journal #56): pull quotes when one-sided aggressor flow + same-sign
-     *  price drift say a sweep is on — BEFORE inventory builds (the loss-stop is the after). */
-    regimeGate: boolean;
+    /** Flow-regime gate selector (F4 supersedes S4): 'off' (default) / 'flow' (the F4 Stage A
+     *  FlowRegimeMachine — graduated throttle, FLOW_REACTIVE_QUOTING.md §1–§3) / 'sweep' (the
+     *  legacy S4 binary SweepRegimeDetector, kept for history — run55 showed it wrong-shaped).
+     *  At most ONE flow gate runs per book; MM_REGIME_GATE=true maps to 'flow'. */
+    regimeGate: 'off' | 'sweep' | 'flow';
     /** |flow EWMA| one-sided threshold ∈(0,1). Default 0.65. */
     regimeFlowThreshold: number;
     /** Price-drift confirmation window (ms). Default 30000. */
@@ -339,6 +341,29 @@ export interface AppConfig {
     regimeMinDriftBps: number;
     /** Re-entry hold after the last sweep tick (ms). Default 90000. */
     regimeCooldownMs: number;
+    /** F4 flow throttle (MM_REGIME_GATE=flow) — FlowRegimeMachine knobs (FLOW_REACTIVE_
+     *  QUOTING.md §1–§3). Hysteresis pair: engage above θ_enter, release below θ_exit. */
+    flowThetaEnter: number;
+    flowThetaExit: number;
+    /** DEFENSIVE → FLATTEN-ONLY escalation threshold (sustained, A<0 only). */
+    flowThetaHigh: number;
+    /** Flow EWMA smoothing per volume tick (0..1). */
+    flowEwmaAlpha: number;
+    /** Defence ramp: g=0 until persist≥min, g=1 at persist≥full (volume ticks). */
+    flowPersistMin: number;
+    flowPersistFull: number;
+    /** Minimum regime dwell (ms) — kills transition chatter. */
+    flowDwellMs: number;
+    /** §2.2 symmetric toxicity widen gain λ (spreadScale = 1+λ·T·g). */
+    flowLambda: number;
+    /** §2.3 per-side widen gains: toxic side vs safe side. */
+    flowWToxic: number;
+    flowWSafe: number;
+    /** §2.4 toxic-side size cut gain + its floor. */
+    flowSizeCut: number;
+    flowSizeFloor: number;
+    /** §6 toxicity blend T = (1−b)·|f| + b·vpin; 0 until VPIN proves it LEADS markout. */
+    flowVpinBlend: number;
     /** Event-blackout rules (Journal #57), same format as sessionGate but INSIDE the window
      *  the book is flat + aside (scheduled-number protection; '*' = whole desk). */
     eventBlackout: string;

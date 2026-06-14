@@ -57,3 +57,28 @@ describe('buildQuotePair — hedge-cost premium (ctx.hedgeCostBps)', () => {
     expect(build(ctx({ hedgeCostBps: 0 })).halfSpreadMicros).toBe(50_000n);
   });
 });
+
+describe('buildQuotePair — F4 per-side throttle scales (ctx.*HalfSpreadScale / *SizeScale)', () => {
+  it('widens only the scaled side, on top of the quoter per-side half-spread', () => {
+    const q = build(ctx({ askHalfSpreadScale: 2 }), { bidHalfSpreadMicros: 20_000n, askHalfSpreadMicros: 80_000n });
+    expect(q.bid.priceMicros).toBe(100_000_000n - 20_000n); // untouched
+    expect(q.ask.priceMicros).toBe(100_000_000n + 160_000n); // ×2 on the quoter's own ask half
+  });
+
+  it('cuts a side size multiplicatively and pulls it entirely at scale 0 (FLATTEN-ONLY)', () => {
+    const q = build(ctx({ bidSizeScale: 0.5, askSizeScale: 0 }), { bidSizeUnits: 800_000n });
+    expect(q.bid.sizeUnits).toBe(400_000n); // composes with the quoter's F3 per-side size
+    expect(q.ask.sizeUnits).toBe(0n); // side pulled — engines treat 0 as not quoted
+  });
+
+  it('scale 1 / undefined leaves everything unchanged (legacy quoters unaffected)', () => {
+    const q = build(ctx({ bidHalfSpreadScale: 1, askSizeScale: 1 }));
+    expect(q.bid.priceMicros).toBe(100_000_000n - 50_000n);
+    expect(q.ask.sizeUnits).toBe(1_000_000n);
+  });
+
+  it('floors a widened/tightened side at 1 micro', () => {
+    const q = build(ctx({ bidHalfSpreadScale: 1e-9 }), { bidHalfSpreadMicros: 5n });
+    expect(q.bid.priceMicros).toBe(100_000_000n - 1n);
+  });
+});
