@@ -2661,3 +2661,171 @@ cfg + invariant, l2-live-fill-engine ×2 metrics.flow); tsc clean; telemetry fla
 
 **Next:** the F0–F3 validation run (RUN_THE_DESK "THE NEXT RUN") — arm F2, read the gate
 table, get a post-F0 leak table; then F4 Stage B only once the markout volume exists.
+
+## 2026-06-14 — Entry #64 (run-20260614-125055: the F0–F3 validation run — desk net +$751 but it is ~100% unrealised warehouse; the adverse-selection bleed is the news)
+
+**What:** `run-20260614-125055`, **the first finished leak table newer than run55** (the
+#58/#63 baseline gap is now closed). ~09:52→14:11 UTC, **~4h19m of NAV** (~5h wall with
+warmup), 8 books on **mm-glft (neutral)**: the post-swap set `xyz:CL xyz:GOLD SOL ADA DOGE
+SUI FARTCOIN kPEPE`. Config inferred from evidence (the log does not echo env): inventory
+governor default-ON (hard cap 0.25 / skew 4), F3 toxicity + concentration ON, **delta hedge
+ON** (PAXG/ETH/BRENT legs present in the tape), **F4 regime gate OFF** (start-desk default,
+no arm line in the log), flow-shadow ON. Authoritative numbers from `mm_book_state` +
+`mm_nav` (server was already down at review — the **persistence path worked: leak table read
+final state checkpointed at 14:08:49, no live snapshot needed**). Artifact:
+`docs/research/leak-table-run-20260614-125055.{md,json}`.
+
+**The scorecard (DB, realised-first):**
+
+| book | net | **realised** | unreal | fees | maxDD% | fillEdge | warehouse |
+|---|---|---|---|---|---|---|---|
+| SOL | +575 | **0** | +573 | −1 | 0.21 | +26 | +547 |
+| kPEPE | +364 | **+2** | +360 | −1 | 0.16 | +12 | +350 |
+| SUI | +220 | **+23** | +195 | −2 | 0.14 | +10 | +207 |
+| xyz:GOLD | +80 | **+102** | 0 | +23 | 0.04 | −1 | +103 |
+| FARTCOIN | +60 | **+58** | +1 | −1 | 0.04 | −4 | +62 |
+| ADA | −22 | **−115** | +126 | +33 | 0.25 | +10 | +1 |
+| DOGE | −34 | **−24** | 0 | +9 | 0.14 | −4 | −20 |
+| xyz:CL | −326 | **−231** | 0 | +94 | 0.40 | −47 | −184 |
+| **desk** | **+751** | **−186** | **+1089** | **155** | — | **+2** | **+1066** |
+
+(Desk includes the hedge legs; Σ per-book net = +917, desk net +751 ⇒ the **−$166 gap is the
+hedge legs' open MTM** — PAXG −92 / ETH −51 / BRENT −12 measured. The net=fillEdge+warehouse
++funding−fees identity holds to the dollar per book.)
+
+**The honest verdict — this is NOT yet a realised-edge win, it is the #41/#44 trap again:**
+
+1. **The green is unrealised.** Desk **realised −$186**; the +$751 net is **+$1089 of
+   open-inventory mark-up**, concentrated in the SOL/kPEPE/SUI longs (warehouse
+   +547/+350/+207). SOL's +575 is **one fill held into a favourable mark** (vpin 0.93) — a
+   directional outcome the governor sized, not market-making edge. It reverts; we cannot bank it.
+2. **The actual MM edge ≈ $0.** Desk-wide **fillEdge = +$2** over 4.3h. The spread engine
+   neither made nor lost money on a per-fill basis.
+3. **BUT the real news is adverse selection is essentially CLOSED on the rebate venue.** The
+   crypto HL books carry **positive fillEdge** (SOL +26, kPEPE +12, SUI +10, ADA +10) with
+   fees ≈ 0 (rebate intact). Every prior run had the quoter "picked off at every spread
+   width" (deeply negative spreadCaptured); here it is break-even-to-positive. That is the
+   F3-toxicity + governor stack doing its job — the qualitative thing that has changed.
+4. **DD control: excellent.** Max per-book maxDD **0.40%** (CL), the rest <0.25% — far under
+   the ~1.5% pre-registration bar. The risk model is the unambiguous win.
+5. **The remaining bleeds are structural, not the quoter:** (a) the **fee-paying RWA
+   reference books** — `xyz:CL` is the single worst book (−326 = fillEdge −47 + warehouse
+   −184 + **fees −94**, no rebate, picked off, inventory marked the wrong way); `xyz:GOLD` is
+   +80 on the book but its **PAXG hedge cost −92**, so GOLD+hedge is net-negative. (b) the
+   **hedge drag** — legs −$155 + churn −$73 ≈ **−$228**, only in the desk-agg, never in the
+   per-book rows. Hedge was *converged* not churning (15× PAXG `reduce`, 1 `flip`, zero
+   `markAll: skipping` zombies).
+
+**Microstructure cuts (worth keeping):** front-of-queue fills are the toxic ones — markout@300s
+**T1 (front) −2.2bps vs T3 (back) +1.0bps** (you fill at the front *because* informed flow is
+hitting you). Funding-print top-of-hour **+2.3bps vs −1.6bps the rest of the time**. Hour-12
+(+$465) is warehouse accrual, not steady capture — the "profit" arrives in inventory-mark bursts.
+
+**Verdict:** the governor + toxicity defence have turned the chronic adverse-selection loss
+into break-even edge on the rebate books with tight DD — *that* is the progress. The desk is
+**not** realised-profitable: strip the unrealised mark-up and it is −$186, dragged by the
+fee-paying RWA books (CL/GOLD-net-of-hedge) and the hedge cost. "First green" is true on the
+net line and misleading on the honest line.
+
+**Next (candidates — Ronnie's call, trading-policy):** (a) **cut the structural leaks** —
+de-weight or drop `xyz:CL` and re-examine whether the fee-paying RWA reference books (and
+their PAXG/BRENT hedges) earn their keep vs the rebate crypto books that carry the only
+positive fillEdge; (b) **F4 Stage B is now UNBLOCKED** — this run wrote **2,715
+`mm_fill_markout` rows across 8 books**, the κ-regression data #63 gated on; calibrate the
+per-book directional re-centering off real markout; (c) **don't bank the warehouse** — run a
+longer / multi-window pass to see whether the crypto-book fillEdge break-even *holds* and
+whether realised crosses zero once CL and the hedge drag are addressed.
+
+## 2026-06-14 — Entry #65 (F4 Stage B: the κ-gate is built + run — flow does NOT lead price; κ stays 0, by the data)
+
+**What:** the F4 **Stage B** honest gate — `scripts/mm-kappa-regression.ts` — built and run on
+run-...125055's **2,715 `mm_fill_markout` rows**. This is the regression the FlowRegimeMachine's
+re-center term `alpha = κ·f·g` has been hard-wired to **κ=0** waiting on (flow-regime.ts §0/§299:
+"directional alpha is Stage B, gated on the per-book markout-on-flow regression"). The desk's
+binding prior: *a blind bias loses — leverage on noise* — so the directional lean must be
+**proven from data before it is wired**, not after. This gate is that proof-or-refusal, and it is
+**standing/reusable** — every future run's markout volume re-runs it and accumulates n.
+
+**Method (honest, multiple-testing-aware).** From `markout-tracker.ts` the sign convention is
+`markout_bps = side·(mid_{t+h}−fairMid)/fairMid·1e4`; un-signing by side recovers the **raw
+forward mid-move** `r = markout_bps·sideSign`, decoupled from our (adversely-selected) fill side.
+`flow` (the EWMA aggressor imbalance, persisted at the fill — markout-tracker.ts calls it verbatim
+"the κ regression x") is the predictor. Per (book × horizon) we fit **`r ~ flow`**: OLS slope
+**κ_raw** (bps mid-move per unit flow) + t-stat = magnitude/significance; **Spearman IC** + hit-rate
+= the rank-robust predictive gate (the #1-OOS-gate discipline). Verdict GREEN/RED/GREY; **the gate
+"clears" ONLY if the POOLED (desk-wide) row is GREEN at the pre-registered 60s horizon** — a lone
+per-book GREEN against a flat pool is treated as a multiple-testing artifact, not a green light.
+
+**Result — the gate does NOT clear:**
+
+| read | κ_raw @60s | t | IC @1s→300s | verdict |
+|---|---|---|---|---|
+| **POOLED (n=543)** | −0.04 | −0.15 | **0.120 → 0.004** | **GREY at every horizon** |
+| SUI (n=52) | +1.45 | +2.04 | 0.37 @60s | GREEN (lone, threshold) |
+| xyz:GOLD (n=128) | −0.11 | −1.07 | — | **RED @1/5/30s** (t −2.3…−2.7) |
+| ADA/DOGE/FARTCOIN/kPEPE/SOL | ~0 | <\|2\| | mixed | GREY (kPEPE/SOL n too low) |
+
+1. **Desk-wide, flow does not lead price.** The pooled n=543 read is flat at *every* horizon
+   (|t|<0.7), and its **IC decays 0.12 (1s) → 0.026 (60s) → 0.004 (300s)** — whatever micro-
+   predictive content exists lives at ~1s and is **gone before it is tradeable** at our 100ms
+   requote without crossing (i.e. it's a taker signal, not a maker re-center). That is the core finding.
+2. **The lone SUI GREEN is a hypothesis, not a signal** — t 2.04 (right at threshold), n 52, one
+   book of 8 × one horizon, against a flat pool; among ~40 tests a couple fire at |t|≥2 by chance.
+   Logged as a **watch-book** (provisional κ≈7.3e-5 if ever confirmed); **not armed.**
+3. **GOLD/RWA flow significantly MEAN-REVERTS** (RED, t up to −2.7 at 1–30s) — leaning *with*
+   flow would lose there. Moot now (GOLD was cut in #64) but a real structural note: RWA
+   reference flow fades, it doesn't trend, on our cadence.
+
+**Verdict: κ stays 0 — the safe Stage-A default holds, now by evidence not just caution.** The
+directional re-center is **not justified by the data**; the F4 live surface remains the Stage-A
+throttle (also default OFF, #63). Nothing is wired. This is the gate doing its job: the desk does
+not get a directional lean until a *desk-wide* lead survives the gate on real volume.
+
+**Next:** the gate is standing — accumulate `mm_fill_markout` across the coming clean-6-book runs
+and re-run; κ earns a wiring only if POOLED clears at 60s (or SUI repeats at higher n in a
+dedicated confirmation). Until then F4 = throttle-only. **No code path turns on.**
+
+**Tests/artifacts:** `scripts/mm-kappa-regression.ts` (tsc clean; OLS+Spearman, DB-only, S1 rules);
+artifact `docs/research/kappa-regression-run-20260614-125055.{md,json}`. Research-script convention
+(no spec, like `flow-bias-markout.ts`); the stats are self-contained + sanity-checked against the
+#64 leak-table alignment split (SUI carries the most flow structure in both).
+
+## 2026-06-14 — Entry #66 (the profit pivot: a 25-market WIDE SCREEN to find where the rebate actually beats warehouse drift)
+
+**The goal, restated (operator, this session): make money in HL markets — and we are NOT
+there yet, honestly.** Three reads now agree: #64 (realised −$186), #65 (κ can't predict the
+drift), and a live peek at the in-flight 6-book run (desk realised **−$169**: SOL +35 / DOGE
++42 realised-POSITIVE, but ADA −106 / kPEPE −60 / FARTCOIN −41 / SUI −39 bled). The pattern is
+identical every time: **fillEdge ≈ 0** (spread ≈ adverse on the rebate books — the quoter is
+fine) **and the realised loss is WAREHOUSE DRIFT** — inventory held minutes drifts against us
+(the #49 out-of-markout-window loss). κ (#65) showed we cannot *predict* that drift, so the
+only lever left is **not holding the drift**: pick markets where naive two-sided flow keeps
+inventory flat, so the −0.2bps rebate + spread out-earns the drift. SOL/DOGE do exactly that
+live; ADA/kPEPE don't this window. **We don't know which markets are which a priori — OHLCV
+can't see it (#66 scan), only realised fillEdge on a live run can.**
+
+**So the next run is a deliberate WIDE SCREEN, not a profit attempt:** 25 books × $1M ($25M
+desk) to RANK the HL universe by realised fillEdge, then CONCENTRATE capital on the winners and
+layer the known optimizations (F2 queue position; the inventory time-stop = the warehouse cap).
+This is the iteration that converges to profit: screen → prune to where realised fillEdge is
+genuinely + → concentrate → compound the rebate over longer runs. The discipline is realised-
+first; a book is kept only if it earns, not if it's liquid.
+
+**The set (scan: hl-universe-discovery + hedge-beta-fit over the 230-perp HL universe;
+selection = operator's HEDGEABLE-FIRST, fill-to-25):**
+- **12 HEDGEABLE** (R²≥0.5 to BTC/ETH, rule #55b — delta-hedged): proven SOL ADA DOGE SUI
+  FARTCOIN kPEPE + scan adds **AAVE(.72) PUMP(.60) CRV(.53) TAO(.51) XRP(.76) BNB(.61)**.
+- **13 NAKED** data-breadth pads (most-liquid R²<0.5, NO hedge, governor-bounded only — a
+  DELIBERATE bend of #55b for the screen): HYPE ZEC NEAR WLD VVV TRUMP XPL LIT TON MEGA ENA
+  ONDO XMR. ⚠ σ-bombs (MEGA σ318, XPL σ214, WLD/NEAR/VVV/TRUMP σ>120) — expect a few high-DD
+  books; the 0.01% loss-stop + notional governor are the backstop. That DD is a data cost, not
+  a verdict.
+
+**Config held CANONICAL** (governor + F3 + hedge ON; F2/F4 OFF) so the screen isolates the ONE
+variable that matters now — *which markets pay* — uncontaminated by a config change. F2 (the
+pre-registered #62 fill-edge lever) + the time-stop come in the CONCENTRATE run, on the winners.
+
+**Wiring (committed):** `launch-mm-10h.sh` BOOKS=25 (CAP $1M), `start-desk.sh` MM_FAST_SYMBOLS=25
++ MM_HEDGE_BETA_MAP=12. Cross-checked 25/25/12+13. **NEXT (operator): run it 10h → leak table +
+κ-gate per book → the ranked realised-fillEdge board IS the next desk. No journal needed on the
+currently-running peek-run.**

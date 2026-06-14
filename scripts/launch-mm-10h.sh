@@ -54,7 +54,7 @@ set -euo pipefail
 
 HOST="${MM_HOST:-http://localhost:3100}"
 SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
-CAP="${MM_BOOK_CAPITAL_USDC:-500000}"      # $500k/book × 8 books = $4M desk (the Elite-8, Journal #53 addendum)
+CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"     # $1M/book × 25 books = $25M desk (the data screen, Entry #66)
 NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k max inventory on $500k
 
 # THE SWEET-16 (2026-06-10, docs/BOOK_SELECTION_ANALYSIS.md — priors, to be verified by the
@@ -94,22 +94,31 @@ NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote → 4-lot cap ≈ $200k 
 # CL $451/d, SPCX $142/d, GOLD $12/d, NVDA $27/d, TSLA $4/d — measured realised beat the proxy
 # on GOLD/NVDA/TSLA in #51, which is why they keep their slots over the shortlist.
 # PRE-FLIGHT (mandatory): npx ts-node -r tsconfig-paths/register scripts/smoke-sweet16.ts
-# ELITE-8 v3 — THE HEDGED DESK (2026-06-11, operator rule #55b: "we do not make markets in
-# what we cannot delta-hedge"; board: scripts/hedgeable-universe.ts, R²≥0.5 on 30d×1h):
-#   xyz:CL    hedge xyz:BRENTOIL β1.08 R².91 — best measured book ever (+$1,397 #51)
-#   xyz:GOLD  hedge PAXG       β1.03 R².98 — the cleanest hedge on the desk
-#   SOL       hedge ETH        β1.02 R².81 — +$752 realised A″ (re-admitted: now hedged+guardrailed)
-#   ADA       hedge ETH        β1.04 R².59 — +$494 realised A″ (same)
-#   DOGE      hedge ETH        β0.94 R².72 — incumbent, flat-positive
-#   SUI       hedge ETH        β1.29 R².66 — incumbent
-#   FARTCOIN  hedge ETH        β1.54 R².65 — +$313 realised #51
-#   kPEPE     hedge ETH        β1.20 R².77 — positive fillEdge in BOTH #51 (+$69) and run53 (+$37)
-# OUT by the hedge rule (single-name idio doesn't hedge to an index): xyz:NVDA R².41,
-# xyz:TSLA R².45, xyz:SKHX R².28, xyz:ORCL R².38, PURR R².14, HYPE R².27.
-# OUT by the edge rule despite hedgeable: XRP (worst bleeder #50), xyz:SILVER (worst pick-off #51).
+# ── 25-MARKET DATA SCREEN (2026-06-14, Entry #66) ─────────────────────────────────
+# THE GOAL IS PROFIT in HL markets, and we are NOT there yet. #64/#65 + the live run agree:
+# fillEdge ≈ 0 (spread ≈ adverse on the rebate books) and the realised loss is WAREHOUSE DRIFT
+# — inventory held minutes drifts against us, and κ cannot predict the drift (#65 gate failed).
+# The only lever left is MARKET SELECTION: find books where naive two-sided flow keeps inventory
+# flat, so the −0.2bps rebate + spread beats the drift (SOL/DOGE do it live; ADA/kPEPE don't).
+# So this run is a WIDE SCREEN — 25 books × $1M — to RANK markets by realised fillEdge. The NEXT
+# run CONCENTRATES capital on the winners and layers F2 (queue) + the inventory time-stop (the
+# warehouse cap). Judge EVERY book on its leak-table realised fillEdge; prune ruthlessly.
+#
+# Selection = HEDGEABLE-FIRST, fill to 25 (operator pick, this session; scan = hl-universe-discovery
+# + hedge-beta-fit, 230-perp universe, 2026-06-14):
+#   • 12 HEDGEABLE (R²≥0.5 to BTC/ETH — rule #55b) get a delta hedge (map in start-desk.sh):
+#       proven: SOL ADA DOGE SUI FARTCOIN kPEPE · scan adds: AAVE(.72) PUMP(.60) CRV(.53)
+#       TAO(.51) XRP(.76) BNB(.61)
+#   • 13 NAKED data-breadth pads (most-liquid R²<0.5) — NO hedge, governor-bounded ONLY; this
+#     DELIBERATELY BENDS #55b for the screen. ⚠ σ-BOMBS in here (MEGA σ318, XPL σ214, WLD/NEAR/
+#     VVV/TRUMP σ>120) — loud warehouse-MTM; the 0.01% loss-stop + the notional governor are the
+#     backstop, expect a few high-DD books — that is a data cost, not a verdict.
 BOOKS=(
-  xyz:CL xyz:GOLD
+  # — 12 hedgeable (delta-hedged; βs in start-desk.sh MM_HEDGE_BETA_MAP) —
   SOL ADA DOGE SUI FARTCOIN kPEPE
+  AAVE PUMP CRV TAO XRP BNB
+  # — 13 naked data-breadth pads (governor-bounded, NO hedge, σ-bombs flagged above) —
+  HYPE ZEC NEAR WLD VVV TRUMP XPL LIT TON MEGA ENA ONDO XMR
 )
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"
 
@@ -135,7 +144,8 @@ launch () {
 
 # Books DROPPED from the set still rehydrate from mm_book_state under MM_PERSIST and would keep
 # trading silently — remove them explicitly (flattens + checkpoints; no-op if absent).
-DROPPED=(BTC ETH XRP BNB HYPE xyz:SILVER xyz:BRENTOIL xyz:SP500 xyz:XYZ100 xyz:SPCX PURR xyz:NVDA xyz:TSLA xyz:SKHX xyz:ORCL)
+# BTC/ETH stay dropped — they are the HEDGE LEGS, not quoted books. XRP/BNB/HYPE moved INTO BOOKS.
+DROPPED=(xyz:CL xyz:GOLD BTC ETH xyz:SILVER xyz:BRENTOIL xyz:SP500 xyz:XYZ100 xyz:SPCX PURR xyz:NVDA xyz:TSLA xyz:SKHX xyz:ORCL)
 echo "=== removing dropped incumbents (${DROPPED[*]}) ==="
 for s in "${DROPPED[@]}"; do
   curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \

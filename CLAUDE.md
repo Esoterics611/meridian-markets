@@ -80,7 +80,7 @@ When adding any new venue/provider: implement the interface, register it in the 
 
 ## 8. Session Log
 
-Full per-session log in [docs/SESSION_HISTORY.md](docs/SESSION_HISTORY.md); the chronological research log with per-run numbers + artifact paths is [docs/QUANT_JOURNAL.md](docs/QUANT_JOURNAL.md); the consolidated, citable findings are [docs/RESEARCH_FINDINGS.md](docs/RESEARCH_FINDINGS.md). Current state (as of 2026-06-04):
+The **plan, priorities, and current state** are in **[docs/MASTER_PLAN.md](docs/MASTER_PLAN.md)** — the single source of truth (it absorbs the former ROADMAP / MASTER_PLAN_SESSIONS / NEXT_SESSION handoffs, now under `docs/archive/`). Full per-session log in [docs/SESSION_HISTORY.md](docs/SESSION_HISTORY.md); the chronological research log with per-run numbers + artifact paths is [docs/QUANT_JOURNAL.md](docs/QUANT_JOURNAL.md); the consolidated, citable findings are [docs/RESEARCH_FINDINGS.md](docs/RESEARCH_FINDINGS.md). Current state (as of 2026-06-04):
 
 **What's built (Sessions 1–35+):**
 - **Engine (S1–S18):** signal/risk/backtest/execution libraries, the real Binance market-data spine + live paper loop, real-history backfill + backtest, the live multi-asset surface (asset-class presets, real-data pair discovery, candles, live pair/capital switching), the N-pair multi-currency portfolio (isolated paper books, even capital split), and the `/demo` Trading Desk console. Course: `courses/stat-arb` chs 1–10.

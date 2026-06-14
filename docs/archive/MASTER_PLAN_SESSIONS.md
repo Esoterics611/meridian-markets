@@ -6,6 +6,15 @@
 > ([FLOW_REACTIVE_QUOTING.md](FLOW_REACTIVE_QUOTING.md)) reconciled with the run55 leak table
 > (Journal #58). **PART V is the active chain — paste the next ☐ F-prompt.** The chain protocol
 > below applies unchanged to both parts.
+>
+> **2026-06-14 update:** **PART VI** is added — the **discovery-frontier strategy expansion** drawn
+> from MASTER PLAN III v2 ([research/MASTER_PLAN_III_v2.md](research/MASTER_PLAN_III_v2.md)),
+> paper-only-filtered: only **W9** (24/7 multi-asset trend on HIP-3) and **W17** (cross-sectional
+> alt momentum, a vote inside W9) survive contact with CLAUDE.md §1; the rest are recorder-only or
+> parked. PART VI also opens **EV1 — the event & news intelligence feed** (the operator's
+> 2026-06-14 ask: the static EventCalendar from #57 doesn't know *which* day carries a real print,
+> has no news feed, and only warns the log). **PART VI is QUEUED behind the active F-chain** — do
+> not start it until PART V lands, but it is now tracked, not floating.
 
 > **What this is.** MASTER PLAN I ("MM on Hyperliquid: from not-losing-money to extracting maximum
 > profit") evaluated against the desk's own data (Run A″, 2026-06-10), re-ranked, adapted to the
@@ -883,6 +892,122 @@ the smallest and the least certain — treat its P&L as a bonus, not the thesis.
 
 ---
 
+## PART VI — MASTER PLAN III: discovery-frontier strategy expansion (paper-only fit) — QUEUED
+
+> Source: [research/MASTER_PLAN_III_v2.md](research/MASTER_PLAN_III_v2.md) (operator's red-team +
+> expansion of the Wealth-Desk plan, 2026-06-12). That document plans a **personal multi-sleeve
+> wealth desk ("Otzar")** — cash curve, options collars, sUSDe wrappers, prediction-market arb,
+> premium cartography. **Most of it is OFF-mission for this repo** (CLAUDE.md §1: paper-only
+> demonstration of an AI-run quant desk — MM + equities stat-arb + market discovery). The filter
+> below keeps only what (a) advances the paper demonstration and (b) reuses the engine we already
+> trust. **PART VI does not start until the F-chain (PART V) lands.** Rules of engagement (PART
+> III) bind: replay/recorder-first, flag-gated default-off, one active chain at a time.
+
+### VI.0 Disposition — what survives the paper-only filter
+
+| MP-III item | Verdict for THIS repo | Disposition |
+|---|---|---|
+| **W9 — 24/7 multi-asset trend on HIP-3** | **Strongest fit.** A new *paper-strategy book* beside the MM desk: reuses the HL adapter, the HIP-3 `xyz:` plumbing (Part I addendum fix), GAP-inclusive vol (#59), the `mm_nav` curve, the regime machinery. Directly serves the discovery-frontier mission. ~2 sessions. | **VI.W9 — BUILD (first PART-VI session)** |
+| **W17 — cross-sectional alt momentum** | Beta-neutral top-minus-bottom-quartile tilt; lives *inside* W9's engine as one additional vote, not a separate book. Free once W9 ships. | **VI.W17 — folded into VI.W9** |
+| W12 cash curve · W10 prob surfaces · W2/W15 premium cartography · W13 vol RV | Paper-only ⇒ no live cash bucket, no real options trading. If wanted, they are **recorders** (the flow-shadow posture: measure the gap, place nothing) under `docs/research/`, never positions. | **recorder-only, after F-chain — not scheduled** |
+| W1 HL-options MM · W5 collars · W3/W11 carry · W16 vault provision | Real-money or different-discipline (options/vega, on-chain yield). | **parked (Appendix)** |
+
+### VI.W9 PROMPT — multi-asset trend program on HIP-3 (the one new strategy book)
+
+```
+You are in /home/nexus/code/meridian-markets (CLAUDE.md binding: PAPER-ONLY §1, §12 token
+discipline, §0 commits). PART-VI session — read research/MASTER_PLAN_III_v2.md (W9, W17, and
+Part A3/A7 stress notes), CLAUDE.md §8, and the HIP-3 plumbing notes in this file's Part I
+addendum. Do NOT touch the live MM trading process; this is a SEPARATE paper book.
+
+WHAT: build an ensemble time-series-momentum (TSMOM) program as a paper-strategy book that
+runs ALONGSIDE the MM desk, across HL core perps AND HIP-3 (xyz:*) books — gold, silver,
+crude, tokenized equity indices/mega-caps, FX crosses — target universe 15–25 markets, one
+margin account model, the execution engine we already trust.
+
+REUSE (do not rebuild): the HyperliquidClient reference/L2/trade sources; the hlCoin() exact-
+case keys + xyz: addressing (Part I addendum — verify each symbol with curl first); GAP-
+INCLUSIVE volatility (#59 — include weekend/session gaps vs underlying, NOT smooth-hours vol);
+the mm_nav durable curve (tag the sleeve so its equity curve is separable); the book-selector
+liquidity/quality scoring (UNIVERSE_DISCOVERY) as the universe gate.
+
+TASKS:
+1. Universe gating: admit markets via the book-selector score; per-DEPLOYER exposure cap
+   (HIP-3 deployer risk is real — you watched Felix shut; these books are not HLP-backed); a
+   market auto-exits the universe if depth/volume decays.
+2. Signals: ensemble lookbacks {7,14,28,56,84,168}d, equal-vote, long/flat per market
+   (long/short only where shorting is sane). ADD the W17 cross-sectional momentum tilt across
+   the crypto subset (top-minus-bottom quartile, beta-neutralized) as ONE additional vote —
+   not a separate book.
+3. Sizing: per-market vol-target on gap-inclusive σ; portfolio-level vol target with a
+   correlation-aware aggregator; a long opens ONLY if funding-cost-adjusted expected return is
+   positive (log funding drag per position explicitly — perps bleed funding against trend).
+4. Execution: weekly rebalance + a mid-week RISK-REDUCE-only trigger (no mid-week adds); 10%
+   no-trade band; paper fills through the existing venue model.
+5. Replay over captured history, then ≥4 weeks paper. REPORT: program Sharpe vs per-market
+   Sharpe (the breadth dividend, shown explicitly — that is the whole thesis, not parameter
+   tuning), funding drag, whipsaw cost in the current chop regime, and the S3 correlation-to-
+   one stress result (all markets repriced at single-factor beta).
+6. Wire sleeve P&L + per-market state into the desk read (mm_nav sleeve tag + the leak/Monday
+   view). Live flag present, HARD-DISABLED until the replay+paper report clears.
+
+HONEST PRIORS from MP-III red team (embed, don't re-derive): ensemble Sharpe 0.5–0.8 NOT the
+in-sample 1.51; breadth (20 markets @ ~0.3, pairwise corr 0.2–0.4) manufactures the program
+Sharpe, parameter choice does not; the venue's weekend RWA pricing is a genuine edge (respond
+to weekend info while CME sleeps) but Monday-gap basis risk is the cost — size off gap-
+inclusive vol. DEFINITION OF DONE: replay + paper report with the breadth-dividend table;
+funding-drag log; S3 stress; sleeve on the desk view; tsc+jest green; journal + this file.
+```
+
+### VI.EV1 PROMPT — event & news intelligence feed (the operator's 2026-06-14 ask)
+
+```
+You are in /home/nexus/code/meridian-markets (PAPER-ONLY §1, §12, §0). PART-VI session —
+desk-wide infrastructure serving BOTH the MM desk and the W9 trend book. Read
+src/market-making/risk/event-calendar.ts (the #57 static v1) and mm-portfolio-trader.ts (how
+upcoming() is polled + how MM_EVENT_BLACKOUT auto-flats).
+
+PROBLEM (operator, 2026-06-14): the current EventCalendar is STATIC and in-code — a generic
+US-open 13:30Z slot, US close, and hard-coded FOMC 2026 dates. It does NOT know WHICH day
+carries a real macro print (CPI/NFP/PPI), has NO news/headline awareness, and only warns the
+LOG. "Things change before US open" — the RWA books (xyz:CL/GOLD/NVDA/TSLA) breathe with US
+hours and gap on Monday open (the run-53 stale-underlying lesson); a surprise print on an
+unlisted day gets no warning and a flat day with no print flattens for nothing.
+
+BUILD `src/market-making/risk/event-intel.ts` behind the existing seam pattern (interface +
+real + static-mock impl, selected by config; default = today's static calendar so nothing
+regresses, §7):
+1. A real ECONOMIC-CALENDAR source (a free public econ-calendar API, keyless if possible;
+   verify with curl first per the HL lesson): high-impact US prints (CPI, NFP, PPI, FOMC,
+   retail sales, GDP) with their ACTUAL release timestamps and an impact grade. Normalize to
+   the existing DeskCalendarEvent shape (key/label/tsMs/booksHint) so the trader path is
+   unchanged. The blackout window now binds on REAL print days only — no blanket daily flat.
+2. A NEWS/headline source (free crypto + macro headline feed; keyless tier): surface
+   breaking-headline risk as a desk-level warning + an optional widen/throttle hint (NOT an
+   auto-flat — news is noisy; default warn-only, throttle behind a flag). Dedup + rate-limit.
+3. Pre-US-open awareness: a "session pre-open" warning T−N min before each RWA book's
+   underlying opens, carrying overnight gap size vs the reference (ties to W9's gap-inclusive
+   vol and the basis-risk sizing).
+4. ALERTING beyond the log: emit the existing CONTROL/BLOCKED tape grammar AND a push hook
+   (interface only — a no-op sink default, paper-honest; the operator wires a real channel if
+   they want it). Every event still lands on /api/market-making/events + the Activity feed.
+5. OFFLINE discipline: injected HTTP/clock, canned-payload specs (the HyperliquidClient
+   template); a finished-run replay must reproduce which windows fired and why.
+
+DEFINITION OF DONE: real econ-calendar + news adapter with offline specs, default-off behind
+the static calendar; blackout binds on measured print days; pre-open gap warning on RWA
+books; push hook seam; tsc+jest green; journal + this file. NEGATIVE RESULT IS A RESULT — if
+no keyless econ/news API survives the recon, write the matrix and the kill, and the upgrade is
+"static calendar + manual print-day env," documented.
+```
+
+> **Priority within PART VI:** VI.W9 (strategy) and VI.EV1 (infra) are independent — EV1 is
+> lower-risk and serves both desks, so it can slot first or run in parallel once the F-chain
+> frees the active-chain slot. Recommended: **EV1 → W9**, because W9's gap/basis sizing wants the
+> pre-open feed EV1 builds. Neither starts before PART V lands.
+
+---
+
 ## Appendix — parked items (do not build without a written mission change)
 
 - Real fee-tier climbing, HYPE staking discount (+hedged stake), builder/referral codes — no
@@ -891,3 +1016,8 @@ the smallest and the least certain — treat its P&L as a bonus, not the thesis.
   stale-quote pricing keeps the decision evidence fresh if the mission ever changes.
 - HIP-4 outcome-contract MM, options MM — different disciplines; revisit after this chain.
 - Real-capital deploy loop — the mission is the paper demonstration (CLAUDE.md §1).
+- **MASTER PLAN III real-money sleeves** (W1 HL-options MM, W5 collars, W3/W11 carry harvest,
+  W12 live cash curve, W16 vault provision) — real capital or different discipline; off the
+  paper-only mission. W10 prob-surface / W2-W15 cartography / W13 vol-RV may return later as
+  **recorders** (flow-shadow posture), not positions. Only W9 + W17 (and EV1 infra) are scheduled
+  (PART VI). See [research/MASTER_PLAN_III_v2.md](research/MASTER_PLAN_III_v2.md).
