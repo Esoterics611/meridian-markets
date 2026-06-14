@@ -39,8 +39,11 @@
 #   MM_TIME_STOP=true MM_TIME_STOP_AGE_MIN=30 MM_TIME_STOP_SHIFT_BPS=8 \
 #   MM_REQUOTE_MIN_BPS=1 \
 #   MM_FAST_SYMBOLS=SOL,SUI,XRP,BNB,ENA,ZEC,XMR,TRUMP \
-#   MM_HEDGE_BETA_MAP='SOL|ETH|1.02,SUI|ETH|1.29,XRP|BTC|1.15,BNB|BTC|0.92' \
+#   MM_HEDGE_BETA_MAP='SOL|ETH|1.02,SUI|ETH|1.29' \
 #   MM_HEDGE_BASIS_GATE='' MM_SESSION_GATE='' \
+# (Hedge map trimmed by mm-rank-books.ts: only SOL/SUI clear rule #55b's R²≥0.5. BNB/XRP factor
+#  hedges have LIVE R² 0.43/0.44 and the screen's BTC leg gave 0% variance reduction for fees —
+#  so BNB/XRP run NAKED with the time-stop as their warehouse control, same as the other pads.)
 #   bash scripts/start-desk.sh
 # Terminal 2 (books), once the server logs "desk loop started":
 #   bash scripts/launch-concentrate.sh
@@ -62,8 +65,8 @@ STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"    # neutral GLFT + inventory governor (
 #   ENA   fillEdge +17, 130 fills    strong edge (naked — drop the self-hedge that bled −187)
 #   ZEC   fillEdge +18               strong edge; warehouse −110 → time-stop is the fix (naked)
 #   XMR   fillEdge +6,  adverse +24  clean quoter, killed ONLY by warehouse −258 → time-stop (naked)
-#   BNB   fillEdge +4,  adverse +2   pristine adverse, quiet but clean (hedge BTC β0.92)
-#   XRP   fillEdge +9,  adverse 0    clean; only 9 fills last window — give it room (hedge BTC β1.15)
+#   BNB   fillEdge +4,  adverse +2   pristine adverse, quiet but clean (NAKED — BTC R²0.43<0.5, 0% var-cut → time-stop)
+#   XRP   fillEdge +9,  adverse 0    clean; only 9 fills last window — give it room (NAKED — BTC R²0.44<0.5 → time-stop)
 #   SOL   proven A″ winner (+$752); barely quoted this window (2 fills) — continuity (hedge ETH β1.02)
 BOOKS=(SUI TRUMP ENA ZEC XMR BNB XRP SOL)
 
