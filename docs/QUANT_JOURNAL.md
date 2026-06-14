@@ -2661,3 +2661,77 @@ cfg + invariant, l2-live-fill-engine ×2 metrics.flow); tsc clean; telemetry fla
 
 **Next:** the F0–F3 validation run (RUN_THE_DESK "THE NEXT RUN") — arm F2, read the gate
 table, get a post-F0 leak table; then F4 Stage B only once the markout volume exists.
+
+## 2026-06-14 — Entry #64 (run-20260614-125055: the F0–F3 validation run — desk net +$751 but it is ~100% unrealised warehouse; the adverse-selection bleed is the news)
+
+**What:** `run-20260614-125055`, **the first finished leak table newer than run55** (the
+#58/#63 baseline gap is now closed). ~09:52→14:11 UTC, **~4h19m of NAV** (~5h wall with
+warmup), 8 books on **mm-glft (neutral)**: the post-swap set `xyz:CL xyz:GOLD SOL ADA DOGE
+SUI FARTCOIN kPEPE`. Config inferred from evidence (the log does not echo env): inventory
+governor default-ON (hard cap 0.25 / skew 4), F3 toxicity + concentration ON, **delta hedge
+ON** (PAXG/ETH/BRENT legs present in the tape), **F4 regime gate OFF** (start-desk default,
+no arm line in the log), flow-shadow ON. Authoritative numbers from `mm_book_state` +
+`mm_nav` (server was already down at review — the **persistence path worked: leak table read
+final state checkpointed at 14:08:49, no live snapshot needed**). Artifact:
+`docs/research/leak-table-run-20260614-125055.{md,json}`.
+
+**The scorecard (DB, realised-first):**
+
+| book | net | **realised** | unreal | fees | maxDD% | fillEdge | warehouse |
+|---|---|---|---|---|---|---|---|
+| SOL | +575 | **0** | +573 | −1 | 0.21 | +26 | +547 |
+| kPEPE | +364 | **+2** | +360 | −1 | 0.16 | +12 | +350 |
+| SUI | +220 | **+23** | +195 | −2 | 0.14 | +10 | +207 |
+| xyz:GOLD | +80 | **+102** | 0 | +23 | 0.04 | −1 | +103 |
+| FARTCOIN | +60 | **+58** | +1 | −1 | 0.04 | −4 | +62 |
+| ADA | −22 | **−115** | +126 | +33 | 0.25 | +10 | +1 |
+| DOGE | −34 | **−24** | 0 | +9 | 0.14 | −4 | −20 |
+| xyz:CL | −326 | **−231** | 0 | +94 | 0.40 | −47 | −184 |
+| **desk** | **+751** | **−186** | **+1089** | **155** | — | **+2** | **+1066** |
+
+(Desk includes the hedge legs; Σ per-book net = +917, desk net +751 ⇒ the **−$166 gap is the
+hedge legs' open MTM** — PAXG −92 / ETH −51 / BRENT −12 measured. The net=fillEdge+warehouse
++funding−fees identity holds to the dollar per book.)
+
+**The honest verdict — this is NOT yet a realised-edge win, it is the #41/#44 trap again:**
+
+1. **The green is unrealised.** Desk **realised −$186**; the +$751 net is **+$1089 of
+   open-inventory mark-up**, concentrated in the SOL/kPEPE/SUI longs (warehouse
+   +547/+350/+207). SOL's +575 is **one fill held into a favourable mark** (vpin 0.93) — a
+   directional outcome the governor sized, not market-making edge. It reverts; we cannot bank it.
+2. **The actual MM edge ≈ $0.** Desk-wide **fillEdge = +$2** over 4.3h. The spread engine
+   neither made nor lost money on a per-fill basis.
+3. **BUT the real news is adverse selection is essentially CLOSED on the rebate venue.** The
+   crypto HL books carry **positive fillEdge** (SOL +26, kPEPE +12, SUI +10, ADA +10) with
+   fees ≈ 0 (rebate intact). Every prior run had the quoter "picked off at every spread
+   width" (deeply negative spreadCaptured); here it is break-even-to-positive. That is the
+   F3-toxicity + governor stack doing its job — the qualitative thing that has changed.
+4. **DD control: excellent.** Max per-book maxDD **0.40%** (CL), the rest <0.25% — far under
+   the ~1.5% pre-registration bar. The risk model is the unambiguous win.
+5. **The remaining bleeds are structural, not the quoter:** (a) the **fee-paying RWA
+   reference books** — `xyz:CL` is the single worst book (−326 = fillEdge −47 + warehouse
+   −184 + **fees −94**, no rebate, picked off, inventory marked the wrong way); `xyz:GOLD` is
+   +80 on the book but its **PAXG hedge cost −92**, so GOLD+hedge is net-negative. (b) the
+   **hedge drag** — legs −$155 + churn −$73 ≈ **−$228**, only in the desk-agg, never in the
+   per-book rows. Hedge was *converged* not churning (15× PAXG `reduce`, 1 `flip`, zero
+   `markAll: skipping` zombies).
+
+**Microstructure cuts (worth keeping):** front-of-queue fills are the toxic ones — markout@300s
+**T1 (front) −2.2bps vs T3 (back) +1.0bps** (you fill at the front *because* informed flow is
+hitting you). Funding-print top-of-hour **+2.3bps vs −1.6bps the rest of the time**. Hour-12
+(+$465) is warehouse accrual, not steady capture — the "profit" arrives in inventory-mark bursts.
+
+**Verdict:** the governor + toxicity defence have turned the chronic adverse-selection loss
+into break-even edge on the rebate books with tight DD — *that* is the progress. The desk is
+**not** realised-profitable: strip the unrealised mark-up and it is −$186, dragged by the
+fee-paying RWA books (CL/GOLD-net-of-hedge) and the hedge cost. "First green" is true on the
+net line and misleading on the honest line.
+
+**Next (candidates — Ronnie's call, trading-policy):** (a) **cut the structural leaks** —
+de-weight or drop `xyz:CL` and re-examine whether the fee-paying RWA reference books (and
+their PAXG/BRENT hedges) earn their keep vs the rebate crypto books that carry the only
+positive fillEdge; (b) **F4 Stage B is now UNBLOCKED** — this run wrote **2,715
+`mm_fill_markout` rows across 8 books**, the κ-regression data #63 gated on; calibrate the
+per-book directional re-centering off real markout; (c) **don't bank the warehouse** — run a
+longer / multi-window pass to see whether the crypto-book fillEdge break-even *holds* and
+whether realised crosses zero once CL and the hedge drag are addressed.

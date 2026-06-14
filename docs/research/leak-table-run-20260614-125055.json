@@ -1,0 +1,640 @@
+{
+ "since": "2026-06-14T09:52:00.000Z",
+ "until": "2026-06-14T14:09:00.000Z",
+ "desk": {
+  "netUsd": 751.189865,
+  "realisedUsd": -185.557213,
+  "unrealUsd": 1088.690563,
+  "feesUsd": 154.674322,
+  "hours": 4.2669325
+ },
+ "hedgeMeasuredUsd": -155.60060104001158,
+ "hedgeLegImplied": -165.5010769999999,
+ "hedge": {
+  "orders": 21,
+  "notionalUsd": 268669,
+  "estCostUsd": 72.54063000000001,
+  "flips": 1,
+  "opens": 3,
+  "tracks": 17,
+  "zombieLines": 0
+ },
+ "hedgeLegs": [
+  {
+   "underlying": "ETH",
+   "n": 256,
+   "pnl": -50.88053850000958,
+   "funding": 0,
+   "fees": 25.438615,
+   "resid": -59041.708439023656,
+   "notional": 84769.94490965
+  },
+  {
+   "underlying": "PAXG",
+   "n": 148,
+   "pnl": -92.30190190000138,
+   "funding": 0,
+   "fees": 39.124884,
+   "resid": 41944.42534259999,
+   "notional": 41944.42534259999
+  },
+  {
+   "underlying": "xyz:BRENTOIL",
+   "n": 152,
+   "pnl": -12.418160640000622,
+   "funding": 0,
+   "fees": 1.725437,
+   "resid": -5762.1521246,
+   "notional": -5762.1521246
+  }
+ ],
+ "hedgeQuality": [
+  {
+   "book_key": "ADA",
+   "underlying": "ETH",
+   "beta_cfg": 1.04,
+   "beta_live": 1.4553113272650298,
+   "r2": 0.49126725330870663,
+   "basis_share": 0.5492983706540019
+  },
+  {
+   "book_key": "DOGE",
+   "underlying": "ETH",
+   "beta_cfg": 0.94,
+   "beta_live": 0.8847001745839775,
+   "r2": 0.38467892152726146,
+   "basis_share": 0.5641836689926637
+  },
+  {
+   "book_key": "FARTCOIN",
+   "underlying": "ETH",
+   "beta_cfg": 1.54,
+   "beta_live": 1.4308614746400785,
+   "r2": 0.4559162093553102,
+   "basis_share": 0.5448852279256708
+  },
+  {
+   "book_key": "SOL",
+   "underlying": "ETH",
+   "beta_cfg": 1.02,
+   "beta_live": 1.1847541351077402,
+   "r2": 0.6745453093021286,
+   "basis_share": 0.338672377893802
+  },
+  {
+   "book_key": "SUI",
+   "underlying": "ETH",
+   "beta_cfg": 1.29,
+   "beta_live": 1.2783702538961443,
+   "r2": 0.6252606377728762,
+   "basis_share": 0.37368289455221665
+  },
+  {
+   "book_key": "kPEPE",
+   "underlying": "ETH",
+   "beta_cfg": 1.2,
+   "beta_live": 1.2636382826293182,
+   "r2": 0.6173043743153018,
+   "basis_share": 0.3846888048356432
+  },
+  {
+   "book_key": "xyz:CL",
+   "underlying": "xyz:BRENTOIL",
+   "beta_cfg": 1.08,
+   "beta_live": 0.5898757539873144,
+   "r2": 0.4731429329805461,
+   "basis_share": 1
+  },
+  {
+   "book_key": "xyz:GOLD",
+   "underlying": "PAXG",
+   "beta_cfg": 1.03,
+   "beta_live": 0.6331351853802875,
+   "r2": 0.24661277583676078,
+   "basis_share": 0.6058859344825032
+  }
+ ],
+ "varReduction": [
+  {
+   "underlying": "ETH",
+   "books": [
+    "ADA",
+    "DOGE",
+    "FARTCOIN",
+    "SOL",
+    "SUI",
+    "kPEPE"
+   ],
+   "volPrimaryHr": 423.12815595616513,
+   "volHedgedHr": 328.3711242104343,
+   "reductionPct": 0.22394404723931305,
+   "feesUsd": 25.438615,
+   "verdict": "earns churn"
+  },
+  {
+   "underlying": "PAXG",
+   "books": [
+    "xyz:GOLD"
+   ],
+   "volPrimaryHr": 28.51951339186223,
+   "volHedgedHr": 21.570391840342243,
+   "reductionPct": 0.2436619957724402,
+   "feesUsd": 39.124884,
+   "verdict": "earns churn"
+  },
+  {
+   "underlying": "xyz:BRENTOIL",
+   "books": [
+    "xyz:CL"
+   ],
+   "volPrimaryHr": 81.54636202835282,
+   "volHedgedHr": 80.85152099439303,
+   "reductionPct": 0.008520809717031952,
+   "feesUsd": 1.725437,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  }
+ ],
+ "books": [
+  {
+   "book": "xyz:CL",
+   "source": "hyperliquid",
+   "netUsd": -326.071988,
+   "realisedUsd": -230.707021,
+   "unrealUsd": 0,
+   "feesUsd": 94.457357,
+   "fundingUsd": -0.90761,
+   "inventoryMtmUsd": -183.747159,
+   "fillEdgeUsd": -46.95986199999996,
+   "spreadCapturedUsd": 203.074665,
+   "adverseUsd": 250.034531,
+   "wedgeUsd": 0.00000400000001832268,
+   "maxDdPct": 0.39513847501048893,
+   "worstBucketUsd": -105.51463799999999,
+   "worstBucketShare": 0.25179709382464643,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 159,
+   "vpin": 0.341867979649064,
+   "markoutShortBps": -1.0693730468202072,
+   "markoutLongBps": 1.2590717306588604,
+   "stateAgeOk": true
+  },
+  {
+   "book": "DOGE",
+   "source": "hyperliquid",
+   "netUsd": -33.889926,
+   "realisedUsd": -24.248334,
+   "unrealUsd": 0,
+   "feesUsd": 9.023977,
+   "fundingUsd": -0.617615,
+   "inventoryMtmUsd": -19.980902,
+   "fillEdgeUsd": -4.267432000000001,
+   "spreadCapturedUsd": 34.261462,
+   "adverseUsd": 38.528887,
+   "wedgeUsd": -0.000007000000005419338,
+   "maxDdPct": 0.14072205642927735,
+   "worstBucketUsd": -68.100707,
+   "worstBucketShare": 0.3726055995846601,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 38,
+   "vpin": 0.030906532701578754,
+   "markoutShortBps": -1.0154000945753845,
+   "markoutLongBps": 1.852862728009062,
+   "stateAgeOk": true
+  },
+  {
+   "book": "ADA",
+   "source": "hyperliquid",
+   "netUsd": -22.286708,
+   "realisedUsd": -115.303687,
+   "unrealUsd": 126.246668,
+   "feesUsd": 33.379053,
+   "fundingUsd": 0.151036,
+   "inventoryMtmUsd": 0.849425,
+   "fillEdgeUsd": 10.091883999999997,
+   "spreadCapturedUsd": 30.058199,
+   "adverseUsd": 22.12375,
+   "wedgeUsd": 2.1574349999999995,
+   "maxDdPct": 0.24988064529680126,
+   "worstBucketUsd": -117.462718,
+   "worstBucketShare": 0.2964313487002101,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 26,
+   "vpin": 0,
+   "markoutShortBps": -2.28721209913234,
+   "markoutLongBps": -2.2477471852051845,
+   "stateAgeOk": true
+  },
+  {
+   "book": "FARTCOIN",
+   "source": "hyperliquid",
+   "netUsd": 59.874577,
+   "realisedUsd": 57.977858,
+   "unrealUsd": 0.507733,
+   "feesUsd": -1.314316,
+   "fundingUsd": 0.07467,
+   "inventoryMtmUsd": 62.25028,
+   "fillEdgeUsd": -3.7646889999999944,
+   "spreadCapturedUsd": 12.916865,
+   "adverseUsd": 16.493656,
+   "wedgeUsd": -0.18789799999999257,
+   "maxDdPct": 0.0428789440295776,
+   "worstBucketUsd": -14.703116000000001,
+   "worstBucketShare": 0.285419691854379,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 128,
+   "vpin": 0,
+   "markoutShortBps": -1.188680489294129,
+   "markoutLongBps": -2.3861368245730534,
+   "stateAgeOk": true
+  },
+  {
+   "book": "xyz:GOLD",
+   "source": "hyperliquid",
+   "netUsd": 79.96795,
+   "realisedUsd": 102.185745,
+   "unrealUsd": 0,
+   "feesUsd": 22.526375,
+   "fundingUsd": 0.30858,
+   "inventoryMtmUsd": 103.199483,
+   "fillEdgeUsd": -1.0137379999999965,
+   "spreadCapturedUsd": 22.70365,
+   "adverseUsd": 23.717353,
+   "wedgeUsd": -0.00003499999999689862,
+   "maxDdPct": 0.037533895179494986,
+   "worstBucketUsd": -20.380972,
+   "worstBucketShare": 0.26287170259427806,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 128,
+   "vpin": 0.06503678657869662,
+   "markoutShortBps": -0.1070772639434895,
+   "markoutLongBps": -0.8502426292700753,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SUI",
+   "source": "hyperliquid",
+   "netUsd": 219.765314,
+   "realisedUsd": 22.628127,
+   "unrealUsd": 194.518671,
+   "feesUsd": -1.70405,
+   "fundingUsd": 0.918714,
+   "inventoryMtmUsd": 207.063772,
+   "fillEdgeUsd": 10.07877799999999,
+   "spreadCapturedUsd": 21.413137,
+   "adverseUsd": 10.966059,
+   "wedgeUsd": -0.3683000000000103,
+   "maxDdPct": 0.13605132183955315,
+   "worstBucketUsd": -101.49242100000001,
+   "worstBucketShare": 0.22052773847171808,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 52,
+   "vpin": 0,
+   "markoutShortBps": -1.2826562464262472,
+   "markoutLongBps": -5.167411408610542,
+   "stateAgeOk": true
+  },
+  {
+   "book": "kPEPE",
+   "source": "hyperliquid",
+   "netUsd": 364.149971,
+   "realisedUsd": 1.910099,
+   "unrealUsd": 360.01506,
+   "feesUsd": -0.692945,
+   "fundingUsd": 1.531373,
+   "inventoryMtmUsd": 349.768833,
+   "fillEdgeUsd": 12.156820000000021,
+   "spreadCapturedUsd": 24.222534,
+   "adverseUsd": 0.065706,
+   "wedgeUsd": -12.00000799999998,
+   "maxDdPct": 0.1552201433025133,
+   "worstBucketUsd": -107.96947599999999,
+   "worstBucketShare": 0.19960365624204998,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 11,
+   "vpin": 0,
+   "markoutShortBps": -3.2269498897181497,
+   "markoutLongBps": -4.195905007082275,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SOL",
+   "source": "hyperliquid",
+   "netUsd": 575.181752,
+   "realisedUsd": 0,
+   "unrealUsd": 572.903508,
+   "feesUsd": -1.001129,
+   "fundingUsd": 1.281545,
+   "inventoryMtmUsd": 547.149073,
+   "fillEdgeUsd": 25.750004999999916,
+   "spreadCapturedUsd": 25.023391,
+   "adverseUsd": 9.502923,
+   "wedgeUsd": 10.229536999999915,
+   "maxDdPct": 0.21417940300895713,
+   "worstBucketUsd": -158.62376199999994,
+   "worstBucketShare": 0.20919685451831818,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 1,
+   "vpin": 0.9256940246763959,
+   "markoutShortBps": -2.2646581827213885,
+   "markoutLongBps": 2.2646581827213885,
+   "stateAgeOk": true
+  }
+ ],
+ "leaks": [
+  {
+   "term": "xyz:CL warehouse MTM",
+   "usd": -183.747159
+  },
+  {
+   "term": "xyz:CL fees paid",
+   "usd": -94.457357
+  },
+  {
+   "term": "hedge leg PAXG (measured)",
+   "usd": -92.30190190000138
+  },
+  {
+   "term": "hedge churn (est taker cost)",
+   "usd": -72.54063000000001
+  },
+  {
+   "term": "hedge leg ETH (measured)",
+   "usd": -50.88053850000958
+  },
+  {
+   "term": "xyz:CL fill edge (picked off)",
+   "usd": -46.95986199999996
+  },
+  {
+   "term": "ADA fees paid",
+   "usd": -33.379053
+  },
+  {
+   "term": "xyz:GOLD fees paid",
+   "usd": -22.526375
+  },
+  {
+   "term": "DOGE warehouse MTM",
+   "usd": -19.980902
+  },
+  {
+   "term": "hedge leg xyz:BRENTOIL (measured)",
+   "usd": -12.418160640000622
+  },
+  {
+   "term": "DOGE fees paid",
+   "usd": -9.023977
+  },
+  {
+   "term": "DOGE fill edge (picked off)",
+   "usd": -4.267432000000001
+  },
+  {
+   "term": "FARTCOIN fill edge (picked off)",
+   "usd": -3.7646889999999944
+  },
+  {
+   "term": "xyz:GOLD fill edge (picked off)",
+   "usd": -1.0137379999999965
+  },
+  {
+   "term": "xyz:CL funding paid",
+   "usd": -0.90761
+  },
+  {
+   "term": "DOGE funding paid",
+   "usd": -0.617615
+  }
+ ],
+ "hourly": [
+  {
+   "hr": "2026-06-14T09:00:00.000Z",
+   "fills": 29,
+   "aflow": 0.9423652641908536,
+   "vpin": 0.0319204836095309,
+   "sigma": 0.0001283204584568743,
+   "bps": 5.004885503237065,
+   "usd": 22.434285005501156
+  },
+  {
+   "hr": "2026-06-14T10:00:00.000Z",
+   "fills": 107,
+   "aflow": 0.9619397858437171,
+   "vpin": 0.07707369110565845,
+   "sigma": 0.00012572381677418694,
+   "bps": -4.799496472407285,
+   "usd": -353.7892237997614
+  },
+  {
+   "hr": "2026-06-14T11:00:00.000Z",
+   "fills": 232,
+   "aflow": 0.9970087721278537,
+   "vpin": 0.0720978523670433,
+   "sigma": 0.00010537825235874548,
+   "bps": -1.4229980863540674,
+   "usd": 15.900533083850426
+  },
+  {
+   "hr": "2026-06-14T12:00:00.000Z",
+   "fills": 175,
+   "aflow": 0.9431850127305631,
+   "vpin": 0.22218616566557098,
+   "sigma": 0.00010839416302759242,
+   "bps": 1.0505571472957953,
+   "usd": -26.58182540411241
+  }
+ ],
+ "quad": [
+  {
+   "book_key": "kPEPE",
+   "quad": "A-",
+   "n": 5,
+   "bps": -5.6776266621862685,
+   "usd": -0.069654
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A+",
+   "n": 44,
+   "bps": -3.691659665407919,
+   "usd": -12.046887405898472
+  },
+  {
+   "book_key": "xyz:CL",
+   "quad": "A+",
+   "n": 92,
+   "bps": 1.8310168586390052,
+   "usd": -128.19130316262428
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A-",
+   "n": 83,
+   "bps": -1.8647293724324996,
+   "usd": -30.56051184056012
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A0",
+   "n": 1,
+   "bps": 11.78004964449493,
+   "usd": 0.04279299995792839
+  },
+  {
+   "book_key": "xyz:GOLD",
+   "quad": "A-",
+   "n": 12,
+   "bps": -0.9550787097859242,
+   "usd": 0.20605145868423957
+  },
+  {
+   "book_key": "xyz:CL",
+   "quad": "A0",
+   "n": 5,
+   "bps": 0.4067680101045088,
+   "usd": 10.189003199227418
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A0",
+   "n": 1,
+   "bps": 14.268336785350298,
+   "usd": 17.482785246191273
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A-",
+   "n": 16,
+   "bps": 2.540266048664077,
+   "usd": -17.095712819916038
+  },
+  {
+   "book_key": "kPEPE",
+   "quad": "A0",
+   "n": 1,
+   "bps": 0,
+   "usd": 0
+  },
+  {
+   "book_key": "SOL",
+   "quad": "A0",
+   "n": 1,
+   "bps": 2.2646581827213885,
+   "usd": 11.33607629886913
+  },
+  {
+   "book_key": "xyz:GOLD",
+   "quad": "A+",
+   "n": 115,
+   "bps": -0.8302573609494581,
+   "usd": -3.049362144005736
+  },
+  {
+   "book_key": "kPEPE",
+   "quad": "A+",
+   "n": 5,
+   "bps": -3.553364353394734,
+   "usd": 12.093757135545358
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A-",
+   "n": 14,
+   "bps": -3.022829307037497,
+   "usd": 40.75975101533844
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A+",
+   "n": 9,
+   "bps": 1.7382352012934847,
+   "usd": 0.13602959129452807
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A+",
+   "n": 21,
+   "bps": -8.543465418523496,
+   "usd": -20.659673810221417
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A+",
+   "n": 21,
+   "bps": 1.2156705683360163,
+   "usd": 45.42999736010277
+  },
+  {
+   "book_key": "xyz:CL",
+   "quad": "A-",
+   "n": 62,
+   "bps": 0.4791131311201248,
+   "usd": -233.78965408611845
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A0",
+   "n": 3,
+   "bps": -10.588644442817072,
+   "usd": 15.220497141881923
+  },
+  {
+   "book_key": "xyz:GOLD",
+   "quad": "A0",
+   "n": 1,
+   "bps": -1.8905155199508465,
+   "usd": -9.438090776127515
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A-",
+   "n": 30,
+   "bps": -3.4520318748035046,
+   "usd": -40.410124000151605
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A0",
+   "n": 1,
+   "bps": 4.23544495066279,
+   "usd": 0.37800148400833355
+  }
+ ],
+ "terciles": [
+  {
+   "t": 1,
+   "n": 181,
+   "bps": -2.228692282324313
+  },
+  {
+   "t": 2,
+   "n": 181,
+   "bps": -1.6466617466299918
+  },
+  {
+   "t": 3,
+   "n": 181,
+   "bps": 1.031749066462128
+  }
+ ],
+ "topOfHour": [
+  {
+   "w": "top",
+   "n": 84,
+   "bps": 2.345953296074889
+  },
+  {
+   "w": "rest",
+   "n": 459,
+   "bps": -1.550659204970314
+  }
+ ]
+}
