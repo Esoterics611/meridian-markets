@@ -2789,3 +2789,43 @@ dedicated confirmation). Until then F4 = throttle-only. **No code path turns on.
 artifact `docs/research/kappa-regression-run-20260614-125055.{md,json}`. Research-script convention
 (no spec, like `flow-bias-markout.ts`); the stats are self-contained + sanity-checked against the
 #64 leak-table alignment split (SUI carries the most flow structure in both).
+
+## 2026-06-14 — Entry #66 (the profit pivot: a 25-market WIDE SCREEN to find where the rebate actually beats warehouse drift)
+
+**The goal, restated (operator, this session): make money in HL markets — and we are NOT
+there yet, honestly.** Three reads now agree: #64 (realised −$186), #65 (κ can't predict the
+drift), and a live peek at the in-flight 6-book run (desk realised **−$169**: SOL +35 / DOGE
++42 realised-POSITIVE, but ADA −106 / kPEPE −60 / FARTCOIN −41 / SUI −39 bled). The pattern is
+identical every time: **fillEdge ≈ 0** (spread ≈ adverse on the rebate books — the quoter is
+fine) **and the realised loss is WAREHOUSE DRIFT** — inventory held minutes drifts against us
+(the #49 out-of-markout-window loss). κ (#65) showed we cannot *predict* that drift, so the
+only lever left is **not holding the drift**: pick markets where naive two-sided flow keeps
+inventory flat, so the −0.2bps rebate + spread out-earns the drift. SOL/DOGE do exactly that
+live; ADA/kPEPE don't this window. **We don't know which markets are which a priori — OHLCV
+can't see it (#66 scan), only realised fillEdge on a live run can.**
+
+**So the next run is a deliberate WIDE SCREEN, not a profit attempt:** 25 books × $1M ($25M
+desk) to RANK the HL universe by realised fillEdge, then CONCENTRATE capital on the winners and
+layer the known optimizations (F2 queue position; the inventory time-stop = the warehouse cap).
+This is the iteration that converges to profit: screen → prune to where realised fillEdge is
+genuinely + → concentrate → compound the rebate over longer runs. The discipline is realised-
+first; a book is kept only if it earns, not if it's liquid.
+
+**The set (scan: hl-universe-discovery + hedge-beta-fit over the 230-perp HL universe;
+selection = operator's HEDGEABLE-FIRST, fill-to-25):**
+- **12 HEDGEABLE** (R²≥0.5 to BTC/ETH, rule #55b — delta-hedged): proven SOL ADA DOGE SUI
+  FARTCOIN kPEPE + scan adds **AAVE(.72) PUMP(.60) CRV(.53) TAO(.51) XRP(.76) BNB(.61)**.
+- **13 NAKED** data-breadth pads (most-liquid R²<0.5, NO hedge, governor-bounded only — a
+  DELIBERATE bend of #55b for the screen): HYPE ZEC NEAR WLD VVV TRUMP XPL LIT TON MEGA ENA
+  ONDO XMR. ⚠ σ-bombs (MEGA σ318, XPL σ214, WLD/NEAR/VVV/TRUMP σ>120) — expect a few high-DD
+  books; the 0.01% loss-stop + notional governor are the backstop. That DD is a data cost, not
+  a verdict.
+
+**Config held CANONICAL** (governor + F3 + hedge ON; F2/F4 OFF) so the screen isolates the ONE
+variable that matters now — *which markets pay* — uncontaminated by a config change. F2 (the
+pre-registered #62 fill-edge lever) + the time-stop come in the CONCENTRATE run, on the winners.
+
+**Wiring (committed):** `launch-mm-10h.sh` BOOKS=25 (CAP $1M), `start-desk.sh` MM_FAST_SYMBOLS=25
++ MM_HEDGE_BETA_MAP=12. Cross-checked 25/25/12+13. **NEXT (operator): run it 10h → leak table +
+κ-gate per book → the ranked realised-fillEdge board IS the next desk. No journal needed on the
+currently-running peek-run.**
