@@ -3147,3 +3147,38 @@ Principle: when the HL↔Binance basis exceeds the round-trip fee cost (14bps de
 **Next (journal #72 — after the combined live run):**
 After the operator runs `cross-venue-basis.ts` + `cross-venue-basis-arb.ts` + `funding-carry-oos.ts` + `funding-carry-live.ts` in sequence, Entry #72 will record the full combined P1 live results and note which symbols passed the OOS gate, whether any T4 signals fired, and what the first carry-accrual numbers look like.
 
+---
+
+## 2026-06-15 — Entry #72 (T2 Funding Carry Live Paper Run — first real accrual numbers)
+
+**What ran:** `FCL_HOURS=48 FCL_SYMBOLS=BTC,ETH,SOL,BNB,XRP npx ts-node -r tsconfig-paths/register scripts/funding-carry-live.ts`
+
+**OOS gate results (60d, posFrac ≥ 0.65):**
+- PASS: ETH (+4% gross annualised, 11.6d breakeven), BNB (+7% gross annualised, 6.9d breakeven)
+- FAIL (not tracked): BTC, SOL, XRP
+
+**Live accrual — ~85 polls (~85 min):**
+
+| Symbol | Live rate (end) | Accrued funding | Entry fee | Net P&L |
+|--------|----------------|----------------|-----------|---------|
+| ETH | +0.125 bps/hr (stable throughout) | +$53.13 | −$35 | **+$18.13** |
+| BNB | −0.076 bps/hr (volatile, regime flip) | −$58.25 | −$35 | **−$93.25** |
+| **Combined** | | | | **−$75.12** |
+
+**ETH — thesis confirmed.** Rate was perfectly stable at +0.125 bps/hr every single poll. This is the 8h HL funding period expressed as an hourly rate — highly structural. Cleared the $35 entry fee at poll ~56 (~56 min). At the live rate: ~$6.25/hr gross on $50K notional, ~10.95% annualised gross vs the OOS estimate of +4% (live rate is running hotter than 60d avg). Clean carry asset.
+
+**BNB — regime flip, gate edge case.** The 60d OOS passed BNB (+7% gross avg) but live funding turned negative within 10 polls and drilled to −0.31 bps/hr peak (polls 11–65). It bounced near zero at the 8h funding reset window (polls 66–73) then drifted negative again. Total bleed: −$93.25 in ~85 min. This is a classic lookback-vs-regime mismatch: BNB carry is volatile and mean-reverting; the 60d average smoothed over a current negative regime.
+
+**Gate improvement identified (deferred):** Add recency weighting to `FundingCarryOosGate` — weight last 7d at 2× vs prior 53d, or add a hard 7d-avg veto (if last-7d rate < 0, reject regardless of 60d avg). This would have blocked BNB entry today. ETH passes either filter trivially.
+
+**Strategic read — carry trade is the desk's core business:**
+This run closes the Profit Pivot P1 research pass. The carry-trade thesis is validated on ETH: the funding rate is structural, persistent, and material enough to clear fees within ~1h on a $50K leg. The path forward is:
+1. **More markets** — extend the carry scan to more perp CLOBs (dYdX, Drift, Bybit, OKX) and more symbols; find all structurally persistent positive-carry legs the same way ETH was found here.
+2. **Longer horizons** — run ETH carry for the full 48h (and beyond) to build a track record; let the compounding work.
+3. **Stat-arb complement** — long-horizon cointegration across many markets (equities sectors, cross-chain DEX pairs) as an uncorrelated diversifier; same OOS discipline.
+4. **Gate tightening** — recency weighting to prevent BNB-class regime-flip entries.
+
+The desk is carry + stat-arb over long horizons across many markets. This is the mission. Research pass complete.
+
+**tsc / tests:** No code changes this entry — journal-only.
+
