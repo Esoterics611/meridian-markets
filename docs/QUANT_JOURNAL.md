@@ -2948,3 +2948,24 @@ the #67 toxicity**; clean-edge books that earn through toxicity are the template
 **Lesson for me, logged:** read the whole journal before changing a knob. Validate a lever in a harness that
 includes the controls it runs against (the time-stop was "validated" in a sweep with no loss-stop in it), and
 check coherence (can it physically fire?) — not just that the env var is present. [[feedback_math_param_correctness]]
+
+**#68 addendum (operator pushback — the desk must be REGIME-SELF-ADAPTING, not hour-scheduled).**
+Ronnie's binding constraint: he runs ONE program, can't switch configs by hour ("at work"), so the
+desk must DETECT regime change itself. That reframes the whole #68 fix — "launch in a liquid session"
+is operationally useless AND statistically unsupported (3 windows = noise, not a tradeable clock). The
+answer is the **F4 flow regime gate as the standing per-book auto-detector** (not an A/B): NORMAL when
+flow is two-sided (capture), DEFENSIVE/FLATTEN-ONLY when one-sided AGAINST inventory (widen/cut/pull).
+It does BOTH jobs the operator asked about: stops one-sided ACCUMULATION (warehouse drift) AND avoids
+picked-off FILLS (fillEdge) — at the source. Honest gap #68 exposed: F3 + VPIN pause were ON and still
+didn't save the toxic night — because **VPIN peaked ~0.6 and the pause threshold was 0.75 (never
+fired)**. Fix: VPIN pause → 0.6 (backstop actually engages) + arm the flow gate (the precise,
+alignment-aware tool). **fillEdge is NOT "fixed" — it is regime-dependent** (same book flips +20→−190
+calm→toxic); the gross pick-off is fixed (micro-price+F3, #47/#64), the toxic re-opening is what the
+flow gate defends. **Directional lean STAYS off — κ=0 is DATA (#65), implementing it loses; that is the
+one thing I won't turn on.** **Book set OPTIMISED to the ROBUST-6 on two windows + hedgeability:**
+keep BNB(+4/+11, the only book + through both regimes)/XRP/SUI/SOL (factor-HEDGED) + ZEC(+18/+95 best
+quoter, warehouses hard)/XMR (naked, no factor). **CUT TRUMP** (regime-fragile +20→−190) **+ ENA**
+(worst #68 −385, self-hedge bled −187). **Re-hedged BNB/XRP** (my earlier trim used one noisy live
+window R²0.43/0.44; the longer fits are BNB.61/XRP.76 — they ARE hedgeable, #55b). Committed to
+`launch-concentrate.sh`. Run it 24/7; judge realised-first through a toxic patch (the desk should defend
+through one, not dodge the clock).

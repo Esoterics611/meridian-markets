@@ -70,9 +70,11 @@ there → cut the drift → compound.** In order:
    validated 0.01% loss-stop). Journal re-read corrected the lever (see §2). `scripts/mm-rank-books.ts`
    built — ranks any screen's leak-JSON by realised fillEdge → KEEP set + hedge map.
 3. **[NEXT — operator launches] The CORRECTED concentrate run** — `scripts/launch-concentrate.sh`:
-   KEEP-8 + **F4 flow gate (`MM_REGIME_GATE=flow`)** + **F2** + the **validated 0.01% loss-stop**
-   (time-stop OFF), capital held constant ($1M/book), **launched in a LIQUID session** (not overnight).
-   Tests for **real realised profit**. If realised flips +, the run after scales capital on survivors.
+   the **ROBUST-6** (BNB XRP SUI SOL hedged + ZEC XMR naked; cut TRUMP/ENA as regime-fragile) +
+   **F4 flow gate (`MM_REGIME_GATE=flow`) as the standing per-book auto-regime detector** + VPIN
+   pause 0.6 + **F2** + the **validated 0.01% loss-stop** (time-stop OFF). **ONE config, runs 24/7,
+   self-adapts to regime** (operator can't hour-switch). Tests for **real realised profit** through a
+   toxic patch. If realised flips +, the run after scales capital on survivors.
 4. **Compound + automate** — longer runs to compound the rebate on the winners; build
    `scripts/learn-from-run.ts` (the training loop: run → fitters → proposed next-config diff,
    human-gated — [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md)); re-run the standing κ-gate across more markets/volume.

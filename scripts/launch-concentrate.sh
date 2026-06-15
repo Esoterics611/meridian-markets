@@ -14,25 +14,25 @@
 #   • Structural losers (negative fillEdge = genuinely picked off, no time-stop fixes a bad quoter):
 #     TAO −187 (mk300s −14bps), HYPE −120, TON −104, CRV −96, XPL −70, VVV −54. CUT.
 #
-# So this run does the three things the screen + the FULL journal re-read earned (MASTER_PLAN.md §3.3):
-#   1. CONCENTRATE on the positive-fillEdge / clean-adverse books (25 → 8).
-#   2. ATTACK WAREHOUSE DRIFT AT THE SOURCE with the F4 FLOW REGIME GATE (MM_REGIME_GATE=flow) —
-#      #56 calls the trend/sweep detector "the most important knob": it pulls quotes BEFORE one-
-#      sided inventory builds into a sweep, so the drift never accumulates. #63 shipped it OFF only
-#      because it was a no-op on CALM tapes and said the verdict needs "a live A/B... a real
-#      directional sweep day" — the toxic regime that sank #67 (vpin 0.16→0.30) is exactly that test.
-#      We KEEP the 0.01% loss-stop as the backstop (#62 VALIDATED it: warehouse −95% on replay,
-#      "keep 0.01% as the desk-wide default"). The inventory TIME-STOP is DROPPED — #53 says it is
-#      MIXED/regime-dependent ("enable ONLY behind the regime gate"; it killed SOL −$1,524) and it
-#      is redundant with the validated loss-stop (in #67 it never fired BECAUSE the loss-stop was
-#      doing the warehouse job). Wrong lever; removed to kill the confusion.
-#   3. ARM F2 (MM_REQUOTE_MIN_BPS=1) — the pre-registered #62 queue-position fill-edge lever.
+# ONE config, runs 24/7, DETECTS REGIME ITSELF — no time-of-day switching, no babysitting:
+#   1. CONCENTRATE on the ROBUST-6 — books with the best two-window fillEdge AND a factor hedge where
+#      one exists (25 → 6). See the per-book table below.
+#   2. AUTO-DETECT REGIME, PER BOOK, IN REAL TIME — the F4 FLOW REGIME GATE (MM_REGIME_GATE=flow,
+#      #56's "most important knob") reads each book's aggressor flow every tick: NORMAL when two-sided
+#      (capture spread+rebate), DEFENSIVE/FLATTEN-ONLY when flow turns one-sided AGAINST inventory
+#      (widen the toxic side, cut size, pull the adding side). It does BOTH jobs at once: it stops the
+#      one-sided ACCUMULATION (the warehouse drift) AND avoids the picked-off FILLS (the fillEdge
+#      loss) — at the SOURCE, before either happens. VPIN pause 0.6 is the blunt backstop; F3 widens
+#      into toxicity. This is why you do NOT need to run different programs at different hours.
+#   3. ARM F2 (MM_REQUOTE_MIN_BPS=1) — the #62 queue-position fill-edge lever (improved s−adv on every
+#      coin in the replay). KEEP the 0.01% loss-stop (#62-VALIDATED, warehouse −95%); time-stop OFF
+#      (#53 redundant/regime-dependent). HEDGE every book that has a factor (4 of 6); ZEC/XMR naked.
 #
-# THE #67 LOSS WAS NEGATIVE fillEdge IN A TOXIC REGIME, not a missing warehouse knob. #55 is
-# explicit: "a guardrail bounds inventory losses; it CANNOT make a picked-off book profitable."
-# So the dominant P&L driver is REGIME + MARKET selection: LAUNCH IN A LIQUID SESSION (London/US
-# open), NOT deep overnight (overnight toxicity crushed fillEdge in #67 AND #51 AND #64). Keep the
-# cleanest-edge books — BNB held POSITIVE fillEdge through the #67 toxicity (the template to clone).
+# fillEdge IS THE ISSUE and it is REGIME-dependent, not market-fixed: the SAME book flips +fillEdge
+# (calm) → −fillEdge (toxic) — TRUMP +20→−190, SUI +16→−32. The gross pick-off is already fixed
+# (micro-price + F3, #47/#64). What re-opens it is a TOXIC one-sided regime — which is exactly what
+# the flow gate detects and defends, automatically, per book. BNB is the proof a book CAN hold
+# positive fillEdge through toxicity (+4→+11) — the template.
 #
 # DIRECTIONAL STAYS PARKED (#65 κ-gate: flow does not lead price, pooled IC 0.12@1s→0.004@300s;
 # this run's alignment split agreed — ZEC even PAID to be contra-flow). MM_FLOW_BIAS_LIVE stays
@@ -41,25 +41,28 @@
 # 0.01% loss-stop, delta hedge w/ anti-churn. NEW levers this run: the F4 flow gate + F2.
 #
 # PRE-REGISTERED SUCCESS METRIC (judge on the leak table, realised-first):
-#   desk REALISED P&L ≥ 0  AND  every book maxDD ≤ ~1.5%  over a multi-hour LIQUID-SESSION window.
+#   desk REALISED P&L ≥ 0  AND  every book maxDD ≤ ~1.5%  over a multi-hour 24/7 window (spanning a
+#   toxic patch — that's the point: the desk should defend itself through one, not avoid the clock).
 #   Secondary: the F4 gate ENGAGES on the toxic books (grep 'F4 flow:' / 'REGIME ▸') and their
-#   warehouse MTM is smaller than the screen (the gate stopping the build before it drifts).
+#   warehouse MTM + adverse are smaller than #68 (the gate stopping the build before it drifts).
 #
 # ── HOW TO RUN ──────────────────────────────────────────────────────────────────────
-# Terminal 1 (server) — start-desk.sh with the concentrate overrides (TIME-STOP & loss-stop loosening
-# are GONE — the journal re-read killed them; the flow gate is the real lever):
+# Terminal 1 (server) — start-desk.sh with the concentrate overrides. ONE config, runs 24/7 — the
+# desk DETECTS REGIME ITSELF (no time-of-day switching): the flow gate per book reads aggressor flow
+# in real time and goes DEFENSIVE/FLATTEN-ONLY when flow turns one-sided against inventory; F3 widens
+# into toxicity; the VPIN pause is the hard backstop. That is the answer to "I can't run different
+# programs at different hours" — the SAME program adapts.
 #   MM_REGIME_GATE=flow \
+#   MM_VPIN_PAUSE_THRESHOLD=0.6 \
 #   MM_REQUOTE_MIN_BPS=1 \
-#   MM_FAST_SYMBOLS=SOL,SUI,XRP,BNB,ENA,ZEC,XMR,TRUMP \
-#   MM_HEDGE_BETA_MAP='SOL|ETH|1.02,SUI|ETH|1.29' \
+#   MM_FAST_SYMBOLS=BNB,XRP,SUI,SOL,ZEC,XMR \
+#   MM_HEDGE_BETA_MAP='SOL|ETH|1.02,SUI|ETH|1.29,XRP|BTC|1.15,BNB|BTC|0.92' \
 #   MM_HEDGE_BASIS_GATE='' MM_SESSION_GATE='' \
-# (Loss-stop stays at its VALIDATED start-desk default 0.0001 — #62. Time-stop stays OFF — #53/#62.)
-# ⚠ AND THE BIGGEST LEVER ISN'T A KNOB: launch this in a LIQUID SESSION (London/US open). The #67
-#  run died in deep-overnight toxicity (vpin 0.16→0.30) where fillEdge collapsed — and #55 says no
-#  guardrail fixes negative fillEdge. Regime + book selection is the P&L driver, not the warehouse knob.
-# (Hedge map trimmed by mm-rank-books.ts: only SOL/SUI clear rule #55b's R²≥0.5. BNB/XRP factor
-#  hedges have LIVE R² 0.43/0.44 and the screen's BTC leg gave 0% variance reduction for fees —
-#  so BNB/XRP run NAKED — the governor + the validated loss-stop are their warehouse control.)
+# (Loss-stop stays at its VALIDATED 0.0001 — #62. Time-stop OFF — #53/#62. 4 of 6 books factor-hedged;
+#  ZEC/XMR have no hedge (privacy coins) → flat-kept by governor+loss-stop+flow gate.)
+# WHY VPIN pause 0.6 (was 0.75): in #68 the toxic books peaked at vpin ~0.6 and NEVER hit 0.75, so the
+#  pause never fired and the desk got picked off. 0.6 makes the auto-defense actually engage in that
+#  regime. The flow gate (alignment-aware) is the precise tool; the VPIN pause is the blunt backstop.
 #   bash scripts/start-desk.sh
 # Terminal 2 (books), once the server logs "desk loop started":
 #   bash scripts/launch-concentrate.sh
@@ -69,28 +72,32 @@ set -euo pipefail
 
 HOST="${MM_HOST:-http://localhost:3100}"
 SOURCE="${MM_BOOK_SOURCE:-hyperliquid}"
-CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"     # $1M/book × 8 = $8M desk. Capital HELD CONSTANT vs the
+CAP="${MM_BOOK_CAPITAL_USDC:-1000000}"     # $1M/book × 6 = $6M desk. Capital HELD CONSTANT vs the
                                            # screen on purpose — isolate the changes (selection +
                                            # flow gate + F2). Scale capital only AFTER realised ≥ 0.
 NOTIONAL="${MM_BOOK_NOTIONAL_USD:-50000}"  # $50k/quote
 STRATEGY="${MM_BOOK_STRATEGY:-mm-glft}"    # neutral GLFT + inventory governor (directional parked)
 
-# THE CONCENTRATE-8 — ranked by realised fillEdge from leak-table-screen25-s2.md:
-#   SUI   fillEdge +16, adverse +1   ⭐ pristine — quoter almost never picked off (hedge ETH β1.29)
-#   TRUMP fillEdge +20, 183 fills    best edge, most active (naked pad — governor+loss-stop+flow gate)
-#   ENA   fillEdge +17, 130 fills    strong edge (naked — drop the self-hedge that bled −187)
-#   ZEC   fillEdge +18               strong edge; warehouse −110 → flow gate stops the build (naked)
-#   XMR   fillEdge +6,  adverse +24  clean quoter, killed ONLY by warehouse −258 → flow gate (naked)
-#   BNB   fillEdge +4,  adverse +2   pristine adverse, held edge through #67 toxicity (NAKED — BTC R²0.43<0.5)
-#   XRP   fillEdge +9,  adverse 0    clean; only 9 fills last window — give it room (NAKED — BTC R²0.44<0.5)
-#   SOL   proven A″ winner (+$752); barely quoted this window (2 fills) — continuity (hedge ETH β1.02)
-BOOKS=(SUI TRUMP ENA ZEC XMR BNB XRP SOL)
+# THE ROBUST-6 — two-window fillEdge (#67 calm / #68 toxic) + hedgeability (#55b):
+#   BNB   fillEdge +4 / +11   ⭐ the ONLY book POSITIVE through BOTH regimes — the template (HEDGE BTC β0.92)
+#   XRP   fillEdge +9 / +57   good quoter, warehouses → flow gate stops the build (HEDGE BTC β1.15)
+#   SUI   fillEdge +16 / −32  pristine in calm, picked off in toxic → flow gate defends (HEDGE ETH β1.29)
+#   SOL   fillEdge ~0 / ~0    quiet; proven A″ winner (+$752) — continuity (HEDGE ETH β1.02)
+#   ZEC   fillEdge +18 / +95  BEST quoter, but warehouses HARD (−804 in #68) → the flow gate's main job (naked)
+#   XMR   fillEdge +6 / −15   calm even overnight (vpin 0.14), low-vol (naked — no factor hedge)
+# OPTIMISED to the ROBUST-6 on TWO windows of data (#67 calm + #68 toxic). CUT:
+#   TRUMP — most regime-FRAGILE: best calm fillEdge (+20) but −190 in toxicity. A coin-flip on regime.
+#   ENA   — worst book in #68 (net −385, fillEdge −73) AND its self-hedge bled −187. Two strikes.
+# 4 of 6 are factor-HEDGED (the #55b rule); ZEC/XMR have no factor hedge (privacy coins, ~0 R² to
+# BTC/ETH) so FLAT is their hedge — governor + loss-stop + the flow gate keep them near flat.
+BOOKS=(BNB XRP SUI SOL ZEC XMR)
 
 # Everything else from the 25-screen rehydrates under MM_PERSIST and would keep trading silently —
 # remove it explicitly (flatten + checkpoint CLOSED; no-op if absent). This is the whole "cut" list.
 DROPPED=(
   ADA DOGE FARTCOIN kPEPE AAVE PUMP CRV TAO HYPE NEAR WLD VVV XPL LIT TON MEGA ONDO
-  BTC ETH   # hedge legs, never quoted books
+  TRUMP ENA   # cut #68: regime-fragile / worst book + bleeding self-hedge
+  BTC ETH     # hedge legs, never quoted books
 )
 
 launch () {
@@ -113,13 +120,13 @@ if ! curl -sf --max-time 3 "$HOST/health" >/dev/null 2>&1; then
   echo "✗ no server on $HOST — start it first: bash scripts/start-desk.sh (with the concentrate overrides in the header)"; exit 1
 fi
 
-echo "=== removing screen books NOT in the concentrate-8 (${DROPPED[*]}) ==="
+echo "=== removing screen books NOT in the robust-6 (${DROPPED[*]}) ==="
 for s in "${DROPPED[@]}"; do
   curl -s -X POST "$HOST/api/market-making/remove" -H 'content-type: application/json' \
     -d "{\"symbol\":\"$s\"}" >/dev/null 2>&1 || true
 done
 
-echo "=== launching the concentrate-8 ($STRATEGY, neutral + governor + flow gate + F2) ==="
+echo "=== launching the robust-6 ($STRATEGY, neutral + governor + flow gate + F2) ==="
 for s in "${BOOKS[@]}"; do launch "$s" "$STRATEGY"; done
 
 echo
