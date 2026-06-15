@@ -2883,3 +2883,68 @@ drift, arms the queue lever:**
 **Op note:** filed issue **#29** — closing the UI looked like it stopped the desk, but the loop is
 a server-side `setInterval` (it kept booking NAV the whole time); the live feed just goes stale
 (`desk-feed.js` releases its SSE on tab-hide). Confirm perceived-vs-real with the operator.
+
+---
+
+## 2026-06-15 — Entry #68 (the concentrate run FAILED — the time-stop never fired; root cause + fix)
+
+**Result: NOT profitable. Desk realised −$1,126 / 3.4h / $8M** (net −1,441, unreal +104, fees +420).
+maxDD held (ZEC 0.92%, rest <0.6%, all < the 1.5% bar) — risk control worked, edge did not. Per-hour
+desk netΔ −410 → −313 → **−715** (deepest overnight), no convergence. Leak table: `leak-table-concentrate.md`.
+
+**THE SMOKING GUN: the inventory time-stop fired ZERO times in 3.4h.** The entire thesis of the run —
+"cut warehouse drift with the time-stop" — never executed. Root cause (grounded in time-stop-quoter.ts +
+the live config), a self-inflicted DESIGN ERROR:
+- The time-stop was armed at **AGE_MIN=30** while the loss-stop sat at **0.0001 (−$100/book)**.
+- On a volatile alt a −$100 adverse move happens in **minutes**, so the loss-stop flattened every
+  drifting position long before it could age 30min. Worse: flattening drops inventory into the time-stop's
+  flat band, which **RESETS its age clock** (time-stop-quoter.ts:72). So the clock never even approached
+  30min. The loss-stop fired constantly (cumulative ×8/book, $420 in taker fees) and **was** the de-facto
+  warehouse control — bluntly, at fee cost, by REALISING the drift instead of preventing it.
+- Two warehouse controls that cancel: the slow one is dead weight behind the fast one.
+
+**Process failure (own it):** the time-stop was "validated" in `timestop-sweep.ts`, a harness that has
+**no loss-stop in it** — so "30m/8bps validated" was true in isolation and false in the live config. And
+the live "verification" checked that the env vars were *present*, not that the config was *coherent* (could
+the time-stop physically engage given the loss-stop? no — a 2-line arithmetic check that wasn't done). An
+8h experiment shipped with its headline lever dead on arrival. Lesson logged in [[feedback_math_param_correctness]]:
+**validate a lever in a harness that includes the controls it will run against, and sanity-check
+coherence (can it fire?), not just presence.**
+
+**Edge also collapsed in the toxic overnight regime:** vpin climbed 0.16 → 0.30; the screen's "clean"
+books got picked off (TRUMP fillEdge +20→−190, ENA +17→−73, SUI +16→−32). **BNB was the lone survivor**
+(fillEdge +11, net +25, vpin 0.13) — the clean-edge, two-sided-flow book the concentrate is hunting for.
+ZEC/XRP kept POSITIVE fillEdge (+95/+57) but warehouse drift (−804/−125) killed them — exactly the books
+a *working* time-stop is meant to rescue.
+
+**THE #68 FIX — REVISED after a full journal re-read (the operator's call: read it all, incorporate every
+lesson). My first #68 fix (loosen the loss-stop, make the time-stop primary) was WRONG and the journal
+already said so in three places I had not read:**
+- **#62 VALIDATED the 0.01% loss-stop as THE warehouse control** (warehouse −95% on replay, maxDD halved,
+  "keep 0.01% as the desk-wide default"). Loosening it to 0.0005 abandons a validated result. → **KEEP 0.0001.**
+- **#53: the time-stop is MIXED / regime-dependent — "enable ONLY behind the regime gate"** (it killed SOL
+  −$1,524 in the aggressive variant), and it is **redundant** with the validated loss-stop. In #67 it never
+  fired *because the loss-stop was already doing the warehouse job.* → **DROP the time-stop** (wrong lever).
+- **#55: "a guardrail bounds inventory losses; it CANNOT make a picked-off book profitable."** The #67 loss
+  was **negative fillEdge in a toxic overnight regime** — no warehouse knob fixes that. → **regime + market
+  selection is the P&L driver**, not the warehouse knob.
+
+**The corrected config (baked into `launch-concentrate.sh`):**
+1. **Arm the F4 FLOW REGIME GATE — `MM_REGIME_GATE=flow`.** #56 calls the trend/sweep detector "the most
+   important knob": it pulls quotes BEFORE one-sided inventory builds into a sweep — attacking the warehouse
+   drift at its SOURCE, not bounding it after. #63 shipped it OFF because it was a no-op on CALM tapes and
+   said the verdict needs "a live A/B... a real directional sweep day" — the toxic #67 regime IS that test.
+2. **KEEP the validated 0.01% loss-stop** (default 0.0001) as the backstop; **time-stop stays OFF.**
+3. **KEEP F2** (`MM_REQUOTE_MIN_BPS=1`), same concentrate-8, same hedge map.
+4. **LAUNCH IN A LIQUID SESSION (London/US open), not deep overnight** — the single biggest lever, and free.
+- **Pre-flight (the check that was missing):** `grep -E 'F4 flow:|REGIME ▸' <log>` must show the gate engaging
+  on the toxic books within the first ~15min; and confirm all 8 are fast-path (`F2 requote: … moves=` ≫ bar rate).
+
+**Honest caveat (no over-promising):** arming the flow gate is the live A/B #63 asked for — it is a BET that
+the gate helps in a toxic regime, not a proven win (it was a no-op on calm tapes). Profit still needs positive
+fillEdge, which is regime-dependent. The standing positive signal is **BNB — it held POSITIVE fillEdge through
+the #67 toxicity**; clean-edge books that earn through toxicity are the template to clone.
+
+**Lesson for me, logged:** read the whole journal before changing a knob. Validate a lever in a harness that
+includes the controls it runs against (the time-stop was "validated" in a sweep with no loss-stop in it), and
+check coherence (can it physically fire?) — not just that the env var is present. [[feedback_math_param_correctness]]

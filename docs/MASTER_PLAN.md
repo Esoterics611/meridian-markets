@@ -28,14 +28,17 @@ the desk when open inventory is marked into a favourable move; we judge on **rea
 
 ## 2. Where we are (2026-06-14, honest)
 
-**Not yet realised-profitable — but the screen gave us the winners and the drift cut is staged.**
-The 25-market screen (#66/#67) ran ~3.7h/$25M: desk **realised −$2,783**, but it nailed the
-diagnosis. **fillEdge (the quoter's edge) is positive on the clean books** (TRUMP +20, ZEC +18,
-ENA +17, SUI +16/adverse +1, XRP +9, XMR +6, BNB +4) and **the entire bleed is warehouse drift**
-(WLD −371, XPL −321, XMR −258, CRV −257…). The next run (`launch-concentrate.sh`, #67) keeps the
-8 positive-fillEdge books, arms the **inventory time-stop** (30m/8bps — validated to cut BTC
-warehouse −$1,397 with maxDD 0.85→0.35) + **F2**, and tests for real realised profit. The same
-picture repeats #41 → #64/#65/#66/#67 + the live run:
+**Not yet realised-profitable — the screen gave us the winners; the first concentrate run (#68) failed
+and the journal re-read corrected the fix.** The 25-screen (#66/#67) showed fillEdge is positive on the
+clean books (TRUMP +20, ZEC +18, ENA +17, SUI +16, BNB +4) and **the entire bleed is warehouse drift**.
+The first concentrate run (#68) lost **realised −$1,126** — in a toxic overnight regime fillEdge
+collapsed, and (the mistake) the armed inventory time-stop NEVER FIRED behind the validated 0.01%
+loss-stop. The journal re-read fixed it: the **0.01% loss-stop is the VALIDATED warehouse control (#62)**
+so keep it; the **time-stop is redundant/regime-dependent (#53)** so drop it; **a guardrail can't fix
+negative fillEdge (#55)** so the driver is regime + market selection; and the real lever is the **F4
+flow regime gate (#56, "the most important knob")** which prevents inventory building into a sweep. The
+corrected `launch-concentrate.sh` (#68) = KEEP-8 + flow gate + F2 + validated loss-stop, launched in a
+LIQUID session. The same picture repeats #41 → #64/#65/#66/#67/#68 + the live run:
 
 - **The quoter is fine.** Adverse selection is ~closed on the rebate books (micro-price centre +
   sub-second re-quote + F3 toxicity + the inventory governor): desk **fillEdge ≈ 0**, slightly
@@ -62,13 +65,14 @@ there → cut the drift → compound.** In order:
 
 1. **[DONE #66/#67] The 25-market wide screen** — 25 books × $1M ranked the HL universe by realised
    fillEdge (`leak-table-screen25-s2.md`). Verdict: quoter fine, warehouse drift is the whole bleed.
-2. **[STAGED #67] The concentrate + the drift cut are wired:**
-   - The KEEP set is picked (by realised fillEdge): **SUI TRUMP ENA ZEC XMR BNB XRP SOL**.
-   - The **inventory time-stop** is validated (`timestop-sweep.md`: 30m/8bps; the 10m variant hurt SOL) and **live-wired** (`MM_TIME_STOP`).
-   - **F2** (`MM_REQUOTE_MIN_BPS=1`) is staged. (`scripts/mm-rank-books.ts` automation is optional — the leak table already ranks.)
-3. **[NEXT — operator launches] The CONCENTRATE run** — `scripts/launch-concentrate.sh`: KEEP-8 +
-   time-stop (30m/8bps) + F2, capital held constant ($1M/book). The first run that tests for **real
-   realised profit**, not a bounded loss. If realised flips +, the run after scales capital on survivors.
+2. **[DONE #68 — FAILED, corrected] First concentrate run** — KEEP-8 + (mistakenly) the inventory
+   time-stop, ran deep-overnight: realised −$1,126, time-stop never fired (redundant behind the
+   validated 0.01% loss-stop). Journal re-read corrected the lever (see §2). `scripts/mm-rank-books.ts`
+   built — ranks any screen's leak-JSON by realised fillEdge → KEEP set + hedge map.
+3. **[NEXT — operator launches] The CORRECTED concentrate run** — `scripts/launch-concentrate.sh`:
+   KEEP-8 + **F4 flow gate (`MM_REGIME_GATE=flow`)** + **F2** + the **validated 0.01% loss-stop**
+   (time-stop OFF), capital held constant ($1M/book), **launched in a LIQUID session** (not overnight).
+   Tests for **real realised profit**. If realised flips +, the run after scales capital on survivors.
 4. **Compound + automate** — longer runs to compound the rebate on the winners; build
    `scripts/learn-from-run.ts` (the training loop: run → fitters → proposed next-config diff,
    human-gated — [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md)); re-run the standing κ-gate across more markets/volume.
