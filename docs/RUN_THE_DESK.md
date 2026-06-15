@@ -388,15 +388,104 @@ it **up / on**.
 | `MM_BOOK_SOURCE` | `hyperliquid` | L2 / reference venue. |
 | `MM_HOST` | `http://localhost:3100` | server to launch against. |
 
+### Profit Pivot (T3) — funding-carry reservation skew (OFF by default)
+| Env | Default | Effect |
+|---|---|---|
+| `MM_FUNDING_SKEW_MULT` | `0` (off) | Shifts the quote center by `−fundingRate × 24 × 10_000 × mult` bps each tick. Positive funding (longs pay shorts) → center moves DOWN → desk accumulates less long → partially offsets inventory carry cost with the funding stream. Set `0.5` for a half-strength lean; `1.0` for full daily carry as center shift. Only fires when the book has a live funding rate (HL perps). Composes with every quoter; spread width is unchanged. |
+
 ### Other tunables (rarely touched)
 `MM_GAMMA` (0.0025; start-desk **0.005** — the risk-averse profile #51; note the base spread is
 ≈2/κ and γ-insensitive — γ drives the inventory skew), `MM_KAPPA` (2, order-arrival decay),
 `MM_MIN/MAX_HALF_SPREAD_BPS` (1 / 200, clamps), `MM_MAKER_FEE_BPS` (−0.2 HL rebate),
 `MM_MAX_DRAWDOWN_PCT` (10, risk-gate trip), **`MM_F3_TOXICITY`** (start-desk: `true`; widens into
 one-sided sweeps, **instrumented** — `grep 'F3 toxicity'`), `MM_F3_MIN/MAX_SCALE` (0.5 / 3.0;
-start-desk min **1.0** = widen-only, the fewer-fills-over-losing-fills doctrine),
+start-desk min **1.0** = widen-only, the fewer-fills-over-losing-fits doctrine),
 `MM_FUNDING_BIAS_SYMBOLS` (BTC), `MM_FUNDING_REFRESH_MS` (600000).
 Full list + comments in `app-config.factory.ts`.
 
 Defaults live in `scripts/start-desk.sh`; full rationale in `scripts/launch-mm-10h.sh` header +
 `QUANT_JOURNAL` #38/#41/#43.
+
+---
+
+## Profit Pivot scripts (T1 / T2 / T4) — standalone, no desk required
+
+These run **DB-free against public APIs**. No server, no Postgres, no API keys. Run in any terminal.
+All three are measure-only — nothing trades.
+
+```bash
+# ── T1: Measure the live HL↔Binance basis (2 minutes, 5 symbols) ─────────────────────────────
+# What it shows: signed basis bps per symbol (HL mid − Binance mid), staleness proxy.
+# Key finding so far: BTC −3.0bps, ETH −4.5bps, BNB −6.2bps, XRP −4.1bps — structural discount.
+# hlDataAgeMs is negative on WSL2 (clock skew ~−300ms vs HL's NTP); the basis numbers are valid.
+
+CV_SAMPLES=120 CV_INTERVAL_MS=1000 \
+  npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts
+
+# fewer / faster samples:
+CV_SAMPLES=30 CV_SYMBOLS=BTC,ETH npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts
+
+
+# ── T4: Detect large basis dislocations (10 min, 2 Hz, fire on |basis| > 19bps) ─────────────
+# What it shows: signals when a dislocation clears fee+margin (19bps default = 14bps roundtrip
+# + 5bps safety). In a quiet session you'll see NO signals (max observed was XRP −13bps).
+# Run across vol spikes / listings / liquidations to catch real events.
+
+CV_DURATION_MIN=10 CV_INTERVAL_MS=500 \
+  npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis-arb.ts
+
+# lower threshold to see mid-range events (fee-unclearable, but shows distribution):
+CV_DURATION_MIN=10 CV_THRESHOLD_BPS=10 \
+  npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis-arb.ts
+
+# overnight — detect any spike across 6h:
+CV_DURATION_MIN=360 CV_SYMBOLS=BTC,ETH,SOL,BNB,XRP \
+  npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis-arb.ts
+
+
+# ── T2a: OOS carry gate — which symbols have durable funding? ─────────────────────────────────
+# What it shows: 90d of HL hourly funding split 2/3 train / 1/3 OOS; PASS when both windows
+# have posFrac ≥ 0.65 (longs paid shorts ≥ 65% of hours). Prints ranked board + pre-registered
+# success metric for the forward paper run.
+
+FCO_DAYS=90 FCO_SOURCE=hl \
+  npx ts-node -r tsconfig-paths/register scripts/funding-carry-oos.ts
+
+# check a specific symbol:
+FCO_SYMBOLS=BTC,ETH FCO_DAYS=90 \
+  npx ts-node -r tsconfig-paths/register scripts/funding-carry-oos.ts
+
+
+# ── T2b: Live paper carry tracker (re-gates before opening; no orders placed) ────────────────
+# What it shows: accumulates simulated funding accrual for gate-passing symbols over FCL_HOURS.
+# Re-runs the OOS gate on fresh data before tracking — refuses any symbol that fails today.
+# VERDICT: total_funding_received − total_fees_paid. Judge at end of breakeven window.
+
+FCL_HOURS=24 FCL_SYMBOLS=BTC,ETH \
+  npx ts-node -r tsconfig-paths/register scripts/funding-carry-live.ts
+
+# 48h track with defaults (gate runs automatically, picks the passers):
+FCL_HOURS=48 npx ts-node -r tsconfig-paths/register scripts/funding-carry-live.ts
+```
+
+**Which to run first:** T1 → T2a → T2b in sequence. T4 can run in a side terminal alongside any of them.
+
+---
+
+## All desk combinations
+
+Every entry below is the canonical `bash scripts/start-desk.sh` with a single env override (or none).
+**Run the canonical first; only add a variant to isolate one effect.**
+
+| # | Name | Command | What it measures |
+|---|---|---|---|
+| **1** | **Canonical (Run A′)** | `bash scripts/start-desk.sh` | The live desk: neutral mm-glft + hedge + hedge-cost-in-spread + F3 tox + OOS β-map. **Always your baseline.** |
+| 2 | Unhedged baseline | `MM_DELTA_HEDGE=false bash scripts/start-desk.sh` | What the hedge is worth — the #41 directional-variance baseline without the β-map. |
+| 3 | F3 off | `MM_F3_TOXICITY=false bash scripts/start-desk.sh` | Contribution of the adverse-selection widen-in-toxic-flow defence. |
+| 4 | Self-hedge | `MM_HEDGE_BETA_MAP="" bash scripts/start-desk.sh` | 8 self-hedged legs (each coin on its own perp) vs 2-leg basket β-map — capital-efficiency A/B. |
+| 5 | F2 anti-churn on | `MM_REQUOTE_MIN_BPS=1 bash scripts/start-desk.sh` | Hold resting quotes through ≤1bps drift to keep FIFO queue position. Replay verdict: spread−adverse up, net couples to warehouse — arm per-run and judge. |
+| 6 | **T3 funding skew (half)** | `MM_FUNDING_SKEW_MULT=0.5 bash scripts/start-desk.sh` | Shifts reservation center toward funding-positive side by ½ daily carry in bps. Tests whether the skew reduces inventory carry cost on HL perps. |
+| 7 | **T3 funding skew (full)** | `MM_FUNDING_SKEW_MULT=1.0 bash scripts/start-desk.sh` | Full daily carry as center shift. Strong version — compare inventory carry column vs #1. |
+| 8 | F2 + T3 combined | `MM_REQUOTE_MIN_BPS=1 MM_FUNDING_SKEW_MULT=0.5 bash scripts/start-desk.sh` | Both anti-churn and funding skew together — only run this after #5 and #6 each read clearly positive. |
+
+**How to compare two runs:** run the leak table (`mm-leak-table.ts`) on each with its own `--label`. The four columns to compare: **spread** (want ↑), **adverse** (want ↓), **inventory carry** (want ↓, especially for T3 variants), **fees/rebate** (want ↑ rebate, ↓ taker). Net = spread + adverse + inventory + fees.
