@@ -272,6 +272,13 @@ export interface AppConfig {
     /** Funding/hr that maps to full pre-cap bias (|raw|=1). Default 0.0000125 (~11%/yr). */
     fundingBiasFullRate: number;
     /**
+     * T3 funding-carry reservation skew (PROFIT_PIVOT.md §3 T3): applied to ALL quoters on the
+     * fast path. Shifts the quote center toward the funding-positive side so warehouse drift is
+     * partially offset by the funding income stream (vs. being a pure cost). 0 = off (default).
+     * Arm with a value ≤ 2 after validating the carry OOS gate (T2). MM_FUNDING_SKEW_MULT.
+     */
+    fundingSkewMult: number;
+    /**
      * SHADOW flow-imbalance signal (measure-only): when on, every fast (L2) book runs a
      * book-imbalance directional source that is RECORDED but never quoted (zero P&L
      * impact). The collect-then-validate path for a fast directional bias on ALL markets

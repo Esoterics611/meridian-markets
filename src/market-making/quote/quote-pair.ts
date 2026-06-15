@@ -96,6 +96,14 @@ export interface QuoteContext {
    * time-based behaviour stays dormant (nothing regresses).
    */
   readonly nowMs?: number;
+  /**
+   * T3 funding-carry reservation bias (bps of mid, signed). Shifts the quote center toward the
+   * funding-positive side so warehouse drift is partially offset by the funding stream rather than
+   * being a pure cost (PROFIT_PIVOT.md §3 T3). Negative = shift DOWN (bias toward short, for
+   * positive funding where longs pay shorts). Applies in buildQuotePair BEFORE bid/ask computation,
+   * composing with the existing inventory skew. 0/undefined ⇒ unchanged (off by default).
+   */
+  readonly fundingBiasBps?: number;
   readonly schemaVersion: 1;
 }
 
@@ -161,8 +169,15 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
   };
   const bidHalf = sideScale(sideHalf(a.bidHalfSpreadMicros), a.ctx.bidHalfSpreadScale);
   const askHalf = sideScale(sideHalf(a.askHalfSpreadMicros), a.ctx.askHalfSpreadScale);
-  const bidMicros = a.reservationMicros - bidHalf;
-  const askMicros = a.reservationMicros + askHalf;
+  // T3: shift the reservation center by the funding-carry bias (bps of mid → micros).
+  // Negative bias (positive funding) nudges the center down → more aggressive asks → bias toward short.
+  const fundingShift =
+    a.ctx.fundingBiasBps && a.ctx.fundingBiasBps !== 0
+      ? (a.ctx.midMicros * BigInt(Math.round(a.ctx.fundingBiasBps * 100))) / 1_000_000n
+      : 0n;
+  const reservation = a.reservationMicros + fundingShift;
+  const bidMicros = reservation - bidHalf;
+  const askMicros = reservation + askHalf;
   // F4 §2.4: per-side size cut (0 ⇒ side pulled — the engines' reduce-only path).
   const sideSize = (units: bigint, scale: number | undefined): bigint => {
     if (scale === undefined || scale >= 1) return units;
@@ -182,7 +197,7 @@ export function buildQuotePair(a: BuildQuotePairArgs): QuotePair {
     symbol: a.symbol,
     bid: req('bid', bidMicros, sideSize(a.bidSizeUnits ?? a.sizeUnits, a.ctx.bidSizeScale)),
     ask: req('ask', askMicros, sideSize(a.askSizeUnits ?? a.sizeUnits, a.ctx.askSizeScale)),
-    reservationMicros: a.reservationMicros,
+    reservationMicros: reservation,
     halfSpreadMicros: base,
     context: a.ctx,
   };

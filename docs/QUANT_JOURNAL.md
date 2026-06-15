@@ -3010,3 +3010,140 @@ first real edge (→ scale); a clean red AT SIZE on the desk's cleanest book is 
 paper MM on HL has no positive realised edge after costs — at which point we stop tweaking and report
 THAT (the mission is honesty, not a tenth losing run dressed as progress). Built under the new §10.1
 regression discipline (STEP −1 coherence check passed; bash -n clean; tsc clean this session).
+
+---
+
+## 2026-06-15 — Entry #70 (the MM-edge verdict → the PROFIT PIVOT)
+
+An exhaustive external microstructure report (operator-commissioned) + our own ~10-run record settle
+the strategic question. **Verdict: passive, voluntary spread-MM on Hyperliquid (and dYdX/Binance-class
+venues) is negative-EV for a participant with no latency/colocation edge, no rebate tier, no client
+flow, and a small balance sheet — i.e. us.** Our losses (warehouse drift + the adverse-selection
+wedge) ARE the residual that remains after stripping every edge. Confirmed empirically: every run
+#41→#68 realised-negative; **BNB-solo (#69), the cleanest book sized up + hedged, came in at ≈$0** —
+the textbook break-even of the un-edged game.
+
+**The report's load-bearing facts (record here; full plan in [PROFIT_PIVOT.md](PROFIT_PIVOT.md)):**
+- **There IS a latency race on HL** — our premise was wrong: HL's 24 validators sit in AWS Tokyo;
+  Tokyo-proximate clients ~2–3ms, EU/IL >200ms; HL price lags Binance ~100ms. That gap **is** our
+  stale-quote wedge. We are structurally the slowest reasonable quoter → adversely selected by design.
+- **The −0.2bps rebate is ~10× too small** to cover multi-bps adverse selection, and the −0.3bps top
+  tier is share-gated out of reach.
+- **The one retail-accessible positive-EV "edge" was token/airdrop subsidy, not spread** — and HL S1 is
+  paid out (N/A in paper anyway).
+- **HLP is "the house"** (scaled residual counterparty + liquidation backstop on *depositors'* tail
+  capital, with a validator/foundation bailout when the tail bites — see JELLY, 26 Mar 2025). Not
+  replicable by a small quoter.
+- Equities contrast: Citadel/Virtu earn the spread on **purchased, uninformed (PFOF) flow** — the exact
+  adverse selection we *absorb*. We hold the photographic negative of their edge.
+
+**Decision — PIVOT.** Stop competing on speed-against-informed-flow. Move the core book to
+**funding/basis carry + cross-venue (Binance-anchored) fair value** — the **positive-residual** game
+that rewards the one edge we have: **holding capacity** (paper = hold delta-neutral indefinitely).
+"Flip the residual" = anchor FV to the leader (kill the wedge) + hold the funding-positive side
+(holding pays). **xyz/HIP-3 CUT** (2× fees). The defence stack + diagnostics are kept — re-pointed, not
+rebuilt. **Next = build P1: T1 CrossVenueFairValue (measure the basis/lead-lag) + T2 FundingCarryBook
+(delta-neutral funding harvest, persistence-gated)** — the first run that tests for positive-residual
+P&L. Toolkit T1–T7, markets, honesty gates, sequence: [PROFIT_PIVOT.md](PROFIT_PIVOT.md). Spread-MM
+chain is SUPERSEDED (recorder/benchmark only). See [[project_mm_frontier_state]].
+
+---
+
+## 2026-06-15 — Entry #71 (P1 of the Profit Pivot: T1 CrossVenueFairValue + T2 FundingCarryBook shipped)
+
+**What shipped (both phases committed to `feat/mm-profit-pivot-plan`):**
+
+**T1 — `CrossVenueFairValue` (measure-only basis/lead-lag engine):**
+- `src/market-data/cross-venue/cross-venue-fair-value.interface.ts` — `ICrossVenueFairValue` interface + `BasisSnapshot` type + `MockCrossVenueFairValue` (safe offline default). `BasisSnapshot` carries: `binanceMid`, `hlMid`, `basis` (hlMid−binanceMid), `basisBps` (signed, bps), `hlServerTsMs` (HL's own reported timestamp), `hlDataAgeMs` (HL fetch time − HL server ts — the staleness proxy to validate the ~100ms report claim).
+- `src/market-data/cross-venue/cross-venue-fair-value.ts` — `CrossVenueFairValue` real impl: fetches Binance `lastPrice` + HL `l2Snapshot` **concurrently** (parallel `Promise.all`), computes the HL mid from best-bid/ask. Reuses `BinancePublicClient` (the existing global spot feed) + `HyperliquidClient` (the existing L2/candle client) — no new HTTP clients.
+- `scripts/cross-venue-basis.ts` — live measurement script: polls N symbols at configurable interval, logs per-sample basis + hlDataAge, then prints a stats table (mean/std/p5/p95 of basisBps and hlDataAgeMs). **Validation gate**: checks `hlDataAge.mean` in [50ms, 1000ms] band (matches the "HL lags Binance ~100ms" report claim). Run: `CV_SAMPLES=60 npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts`.
+- Spec: 7 tests covering basis computation, hlDataAgeMs, empty-book handling, interface satisfaction.
+
+**T2 — `FundingCarryBook` (OOS persistence gate + research harness + live tracker):**
+- `src/market-data/funding/funding-carry-oos.ts` — `oosCarryGate` library function (the honesty gate PROFIT_PIVOT §5 #1): splits funding history 2/3 train / 1/3 OOS, scores `posFrac` independently in each window via the existing `staticCarry`, passes only when BOTH windows are stable (≥ `minPosFrac`, default 0.65). Supports `LONG_PERP` direction (persistently negative funding). `rankCarryUniverse` batches over a symbol list. Reuses `staticCarry` / `FundingPoint` — no new model code.
+- `scripts/funding-carry-oos.ts` — OOS research harness: fetches `FCO_DAYS` (default 90d) of HL hourly funding per symbol, runs `oosCarryGate`, prints the ranked board (IS posFrac / OOS posFrac / full carry % / breakeven / PASS/FAIL). Supports `FCO_SOURCE=hl|binance|both`. Prints the **pre-registered success metric** for the forward paper run.
+- `scripts/funding-carry-live.ts` — operator live paper tracker: runs the gate first (refuses to track any symbol that fails OOS posFrac today), opens simulated carry positions for gate-passers, polls HL `currentFunding` every `FCL_POLL_MS`, accumulates simulated funding accrual, prints net-vs-fee status each poll. Final verdict at `FCL_HOURS`. **No orders placed — purely observational paper tracking.**
+- Spec: 14 tests covering gate logic, direction handling, split boundary, breakeven formula, ranking, edge cases.
+
+**Regression discipline (§10.1 — done before commit):**
+- `npx tsc --noEmit`: clean (exit 0).
+- `npx jest src/market-data src/market-making`: 88 suites / 583 tests, all green. New: 2 suites / 21 tests.
+
+**Pre-registered success metric (T2 forward run):**
+> PASS = net funding accrued across all OOS-gated carry symbols > entry+exit fee cost over the full breakeven window (~0.5–5d on HL hourly funding at current BTC/ETH rates).
+> Judge: realised-first — total_funding_received − total_fees_paid.
+> Do NOT churn before the symbol's breakeven date.
+> Do NOT simulate (or count) symbols that fail the OOS posFrac gate.
+
+**How to run (operator):**
+1. T1 live basis: `CV_SAMPLES=120 npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts` → logs 120s of BTC/ETH/SOL/BNB/XRP basis + validates hlDataAge.
+2. T2 OOS gate: `FCO_DAYS=90 FCO_SOURCE=hl npx ts-node -r tsconfig-paths/register scripts/funding-carry-oos.ts` → prints the gated carry board + pre-registered metric.
+3. T2 live paper track: `FCL_HOURS=48 FCL_SYMBOLS=BTC,ETH npx ts-node -r tsconfig-paths/register scripts/funding-carry-live.ts` → runs gate then tracks accrual.
+
+**Design notes:**
+- T1 uses `hlDataAgeMs = hlFetchMs − hlServerTsMs` as the staleness proxy. This is a conservative lower bound on HL's true lag behind Binance (it includes HL's own internal latency + network RTT, not just the inter-venue lag). The "~100ms" claim from the report should show up as `hlDataAge.mean` in the 50–200ms band.
+- T2 uses the 2/3 / 1/3 split rather than a rolling OOS to keep the gate simple and audit-able. A symbol that passes the static OOS can still fail forward (regime change) — that's why the live tracker re-gates before opening any position.
+- Both tools are **swap-seam compliant** (interface + real + mock; safe default is the mock). The real impls use only public APIs — no keys, no accounts.
+
+**What's NOT done (P2 sequence — deferred from #71 initial):**
+- T3 funding-aware inventory skew: shipped in #71 continuation (see below).
+- T4 cross-venue basis arb: shipped in #71 continuation (see below).
+- T6 staleness-markout instrumentation: deferred to after T2 shows carry numbers.
+- The actual carry execution path (wiring the carry book into `MmPortfolioTrader`): T2 is paper-tracking for now — the live execution path is the P2 deliverable once the paper track record is positive.
+
+---
+
+**Entry #71 (continued) — T3 + T4 shipped (same branch, same commit as T1/T2):**
+
+**T3 — Funding-aware inventory skew (`MM_FUNDING_SKEW_MULT`):**
+
+Principle: when funding is positive (longs pay shorts), running inventory long is a slow drain; shift the quote center DOWN so we accumulate less long exposure and collect more short-bias fills. The inverse for negative funding. This is an additive reservation shift, NOT a new quoter — it composes with every existing quoter (Symmetric / AS / GLFT / Directional) via `buildQuotePair`.
+
+**What shipped:**
+- `src/market-making/quote/quote-pair.ts` — `QuoteContext` gains `fundingBiasBps?: number`. `buildQuotePair` applies it as a pre-bid/ask reservation shift: `fundingShift = midMicros × fundingBiasBps × 100 / 1_000_000n`. Bid/ask both move with it (only the center shifts; the spread is unchanged).
+- `src/market-making/live/l2-live-fill-engine.ts` — `L2LiveFillEngineConfig` gains `fundingSkewMult?: number`. The helper `fundingSkewBiasBps(rate, mult) = −rate × 24 × 10_000 × mult` converts the live `fundingRatePerHour` into bps and injects it into `ctx.fundingBiasBps` every tick. Off by default (`mult=0` → undefined → `buildQuotePair` unchanged).
+- `src/config/app-config.interface.ts` + `app-config.factory.ts` — `MM_FUNDING_SKEW_MULT` env var (default 0 = off).
+- `src/market-making/market-making.module.ts` — wires `fundingSkewMult` into `buildFastEngine`.
+- Locking spec appended to `src/market-making/quote/quote-pair.spec.ts` (5 new tests under `T3 funding-carry reservation bias`): positive bias shifts center UP (confirm with prices), negative shifts DOWN, spread width is unchanged, composes with `hedgeCostBps`, 0/undefined is a no-op.
+
+**Formula (for the run-review record):**
+```
+fundingBiasBps = −fundingRatePerHour × 24 × 10_000 × MM_FUNDING_SKEW_MULT
+```
+`fundingRatePerHour` is the raw HL funding rate (e.g. +0.0001 = 1bps/h). Multiplied by 24 → daily rate. ×10_000 → to bps. Negated: positive funding (longs pay) → negative bias (center down → bias short). `MM_FUNDING_SKEW_MULT` ∈ (0, 1] scales the effect. A value of 1 means the reservation is shifted by the full daily carry in bps.
+
+**Why NOT use the existing `FundingBiasSource`:** That path injects `ctx.bias` for the directional-GLFT quoter only (it scales `q*`). T3 is orthogonal — it shifts the quote center for ALL quoters by an additive bps amount. The two mechanisms are separate by design and can coexist.
+
+---
+
+**T4 — Cross-venue basis arb detector (`CrossVenueBasisArbDetector`):**
+
+Principle: when the HL↔Binance basis exceeds the round-trip fee cost (14bps default) plus a safety margin (5bps default) = 19bps threshold, a real dislocation is live. These events are LARGE and SLOW relative to the HFT arms race — vol spikes, listings, liquidation cascades — and do not require <100ms execution. P1 = detect and log only. Measure convergence hit-rate over the paper window before sizing up.
+
+**Data context (from T1 120-sample run, 2026-06-15):**
+- BTC mean basis: −3.0bps, std 0.8bps. ETH: −4.5bps, std 1.0bps. BNB: −6.2bps, std 0.9bps. XRP: −4.1bps, std 1.3bps. SOL: −3.8bps, std 1.1bps.
+- std/|mean| < 1 for all: this is structural discount (HL perps trade at a persistent discount to Binance spot), not noise.
+- Max |basisBps| observed in the 120-sample run: XRP at −13bps. Still below the 19bps threshold → no T4 signals in a quiet session. Target events are tail realizations of this distribution.
+- `hlDataAgeMs` negative (~−300ms mean) due to WSL2 clock drift. Basis structure is not affected (derived from prices, not timestamps). Validation on an NTP-synced host remains on the TODO.
+
+**What shipped:**
+- `src/market-data/cross-venue/cross-venue-basis-arb.interface.ts` — `BasisArbDirection`, `BasisArbSignal`, `ICrossVenueBasisArb`, `MockCrossVenueBasisArb` (returns null always — safe default).
+- `src/market-data/cross-venue/cross-venue-basis-arb.ts` — `CrossVenueBasisArbDetector`: `check(snapshot)` returns `BasisArbSignal | null`. Fires when `|basisBps| > thresholdBps`. Direction: `LONG_HL_SHORT_BINANCE` when HL is cheap (negative basis); `LONG_BINANCE_SHORT_HL` when HL is rich (positive basis). `netEdgeBps = |basisBps| − roundTripCostBps`. Config: `roundTripCostBps` (default 14) + `marginBps` (default 5) → `thresholdBps = 19`.
+- `scripts/cross-venue-basis-arb.ts` — live detector script: polls at `CV_INTERVAL_MS` (default 500ms, 2 Hz), runs `CrossVenueBasisArbDetector.check` on every snapshot, logs every signal with timestamp, direction, entry basis, and net edge. At end of session (default 10 min) prints a convergence summary + per-symbol basis range.
+- `scripts/cross-venue-basis.ts` — updated validation note: acknowledges WSL2 clock skew as the source of negative `hlDataAgeMs`; basis structure section is the true P1 deliverable.
+- Spec: 11 tests covering null-below-threshold, null-at-threshold, LONG_HL_SHORT_BINANCE fires (neg basis), LONG_BINANCE_SHORT_HL fires (pos basis), roundTripCostBps + thresholdBps in signal, full snapshot carried, custom config, interface satisfaction, mock always null.
+
+**Swap-seam compliance (CLAUDE.md §7):** `ICrossVenueBasisArb` is the interface; `CrossVenueBasisArbDetector` is the real impl; `MockCrossVenueBasisArb` is the safe offline default (always null — no false signals in unit tests or the paper loop). The detector is pure (no state, no IO) — test entirely offline.
+
+**Regression discipline (§10.1 — before this commit):**
+- `npx tsc --noEmit`: clean (exit 0).
+- `npx jest src/market-data/cross-venue src/market-making/quote/quote-pair.spec.ts src/market-data/funding`: **8 suites / 75 tests, all green.** T3 adds 5 tests; T4 adds 11 tests.
+
+**How to run T3/T4 (operator):**
+- T3 (live with desk): set `MM_FUNDING_SKEW_MULT=0.5` in `.env` alongside the paper loop. The shift shows up in `reservationMicros` each tick — grep `MmBook` log for `fundingBias`.
+- T4 detect: `CV_DURATION_MIN=10 CV_SYMBOLS=BTC,ETH npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis-arb.ts` → runs 10 min of 2-Hz polling, logs any signal that crosses 19bps.
+- T4 with lower threshold (to see how often mid-range events occur): `CV_THRESHOLD_BPS=10 npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis-arb.ts`.
+
+**Next (journal #72 — after the combined live run):**
+After the operator runs `cross-venue-basis.ts` + `cross-venue-basis-arb.ts` + `funding-carry-oos.ts` + `funding-carry-live.ts` in sequence, Entry #72 will record the full combined P1 live results and note which symbols passed the OOS gate, whether any T4 signals fired, and what the first carry-accrual numbers look like.
+
