@@ -2983,3 +2983,30 @@ can the knob physically fire? — + "validate a lever only in a harness with the
 live control is ENGAGING, not just env-present") and a **regime-gate read** in the data map; (2) **CLAUDE.md
 §10.1 (BINDING)** — every session runs `tsc`+`jest` before committing, new behaviour ships a locking spec,
 config changes pass STEP −1 first. The lesson lives in [[feedback_math_param_correctness]].
+
+---
+
+## 2026-06-15 — Entry #69 (the ruthless-concentration test: BNB solo, sized up, hedged to BTC)
+
+The corrected concentrate run (#68, robust-6 + flow gate) was scored at ~3h: **desk realised ≈ −$800**
+(−$267/h vs #68's −$331/h — better, still losing). Same disease: warehouse drift (XRP −233 / SUI −174
+/ ZEC −392 warehouse, quoters fine on XRP/SUI) + pick-off (XMR fillEdge −175 on 350 fills; ZEC flipped
+to −64). The flow gate ENGAGED (SOL/XMR defensive) but did NOT stop the SLOW warehouse build — XRP/SUI/
+ZEC warehoused in `normal` regime (drift without a one-sided sweep slips past a flow-triggered gate).
+DD control was excellent again (maxDD ZEC 0.63%, rest <0.25%). Artifact: `leak-table-concentrate.md`.
+
+**The honest pattern named (operator agreed):** this is the NINTH straight realised-negative multi-book
+run (#41→#68). The rebate + spread has never out-earned warehouse drift + adverse selection across HL
+alt books, under any defence stack. **The ONE exception in EVERY run is BNB** — net flat-to-positive,
+fillEdge +1/+4/+11, maxDD 0.03–0.12%, the cleanest two-sided-flow book. So instead of config-tweak #10,
+the last empirical question: **can a SINGLE clean book, sized up and hedged, post POSITIVE realised?**
+
+**BNB-solo run (`scripts/launch-bnb-solo.sh`, committed):** BNB only, **$5M capital (5×) / $100k quote
+(2×)** — "do it big on real edge", DD-safe because BNB's DD is tiny — **hedged BNB→BTC β0.92** (R².61,
+#55b). All validated defences kept (micro-price + 100ms requote, F3 widen-only, 0.01% loss-stop,
+governor, F2=1, flow gate + VPIN 0.6); time-stop OFF; directional OFF (κ=0). **Pre-registered: BNB
+realised ≥ 0 AND fillEdge ≥ 0 over a multi-hour window.** This is the decisive test: a clean green is the
+first real edge (→ scale); a clean red AT SIZE on the desk's cleanest book is the honest verdict that
+paper MM on HL has no positive realised edge after costs — at which point we stop tweaking and report
+THAT (the mission is honesty, not a tenth losing run dressed as progress). Built under the new §10.1
+regression discipline (STEP −1 coherence check passed; bash -n clean; tsc clean this session).
