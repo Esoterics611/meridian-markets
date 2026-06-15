@@ -3010,3 +3010,39 @@ first real edge (→ scale); a clean red AT SIZE on the desk's cleanest book is 
 paper MM on HL has no positive realised edge after costs — at which point we stop tweaking and report
 THAT (the mission is honesty, not a tenth losing run dressed as progress). Built under the new §10.1
 regression discipline (STEP −1 coherence check passed; bash -n clean; tsc clean this session).
+
+---
+
+## 2026-06-15 — Entry #70 (the MM-edge verdict → the PROFIT PIVOT)
+
+An exhaustive external microstructure report (operator-commissioned) + our own ~10-run record settle
+the strategic question. **Verdict: passive, voluntary spread-MM on Hyperliquid (and dYdX/Binance-class
+venues) is negative-EV for a participant with no latency/colocation edge, no rebate tier, no client
+flow, and a small balance sheet — i.e. us.** Our losses (warehouse drift + the adverse-selection
+wedge) ARE the residual that remains after stripping every edge. Confirmed empirically: every run
+#41→#68 realised-negative; **BNB-solo (#69), the cleanest book sized up + hedged, came in at ≈$0** —
+the textbook break-even of the un-edged game.
+
+**The report's load-bearing facts (record here; full plan in [PROFIT_PIVOT.md](PROFIT_PIVOT.md)):**
+- **There IS a latency race on HL** — our premise was wrong: HL's 24 validators sit in AWS Tokyo;
+  Tokyo-proximate clients ~2–3ms, EU/IL >200ms; HL price lags Binance ~100ms. That gap **is** our
+  stale-quote wedge. We are structurally the slowest reasonable quoter → adversely selected by design.
+- **The −0.2bps rebate is ~10× too small** to cover multi-bps adverse selection, and the −0.3bps top
+  tier is share-gated out of reach.
+- **The one retail-accessible positive-EV "edge" was token/airdrop subsidy, not spread** — and HL S1 is
+  paid out (N/A in paper anyway).
+- **HLP is "the house"** (scaled residual counterparty + liquidation backstop on *depositors'* tail
+  capital, with a validator/foundation bailout when the tail bites — see JELLY, 26 Mar 2025). Not
+  replicable by a small quoter.
+- Equities contrast: Citadel/Virtu earn the spread on **purchased, uninformed (PFOF) flow** — the exact
+  adverse selection we *absorb*. We hold the photographic negative of their edge.
+
+**Decision — PIVOT.** Stop competing on speed-against-informed-flow. Move the core book to
+**funding/basis carry + cross-venue (Binance-anchored) fair value** — the **positive-residual** game
+that rewards the one edge we have: **holding capacity** (paper = hold delta-neutral indefinitely).
+"Flip the residual" = anchor FV to the leader (kill the wedge) + hold the funding-positive side
+(holding pays). **xyz/HIP-3 CUT** (2× fees). The defence stack + diagnostics are kept — re-pointed, not
+rebuilt. **Next = build P1: T1 CrossVenueFairValue (measure the basis/lead-lag) + T2 FundingCarryBook
+(delta-neutral funding harvest, persistence-gated)** — the first run that tests for positive-residual
+P&L. Toolkit T1–T7, markets, honesty gates, sequence: [PROFIT_PIVOT.md](PROFIT_PIVOT.md). Spread-MM
+chain is SUPERSEDED (recorder/benchmark only). See [[project_mm_frontier_state]].
