@@ -1,0 +1,402 @@
+{
+  "leak": "leak-table-screen25-s2.json",
+  "params": {
+    "minFillEdge": 0,
+    "minFills": 10,
+    "minR2": 0.5,
+    "warehouseFlag": 50,
+    "adverseRatio": 0.8,
+    "keepN": 8
+  },
+  "selected": [
+    {
+      "book": "TRUMP",
+      "fillEdgeUsd": 20.366442,
+      "hedge": null,
+      "flags": []
+    },
+    {
+      "book": "ZEC",
+      "fillEdgeUsd": 17.692050000000005,
+      "hedge": null,
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "HIGH-ADVERSE"
+      ]
+    },
+    {
+      "book": "ENA",
+      "fillEdgeUsd": 16.915284999999997,
+      "hedge": null,
+      "flags": []
+    },
+    {
+      "book": "SUI",
+      "fillEdgeUsd": 16.481501,
+      "hedge": {
+        "underlying": "ETH",
+        "beta": 1.29
+      },
+      "flags": []
+    },
+    {
+      "book": "XMR",
+      "fillEdgeUsd": 6.111424999999986,
+      "hedge": null,
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "HIGH-ADVERSE"
+      ]
+    },
+    {
+      "book": "BNB",
+      "fillEdgeUsd": 3.6769750000000014,
+      "hedge": null,
+      "flags": []
+    },
+    {
+      "book": "PUMP",
+      "fillEdgeUsd": 0.5052620000000001,
+      "hedge": null,
+      "flags": []
+    },
+    {
+      "book": "XRP",
+      "fillEdgeUsd": 8.985109000000008,
+      "hedge": null,
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "THIN"
+      ]
+    }
+  ],
+  "booksArray": [
+    "TRUMP",
+    "ZEC",
+    "ENA",
+    "SUI",
+    "XMR",
+    "BNB",
+    "PUMP",
+    "XRP"
+  ],
+  "hedgeBetaMap": "SUI|ETH|1.29",
+  "fastSymbols": "TRUMP,ZEC,ENA,SUI,XMR,BNB,PUMP,XRP",
+  "nakedBooks": [
+    "TRUMP",
+    "ZEC",
+    "ENA",
+    "XMR",
+    "BNB",
+    "PUMP",
+    "XRP"
+  ],
+  "cut": [
+    "MEGA",
+    "SOL",
+    "ADA",
+    "kPEPE",
+    "NEAR",
+    "LIT",
+    "WLD",
+    "AAVE",
+    "FARTCOIN",
+    "DOGE",
+    "VVV",
+    "XPL",
+    "CRV",
+    "TON",
+    "HYPE",
+    "TAO"
+  ],
+  "ranked": [
+    {
+      "book": "TRUMP",
+      "category": "KEEP",
+      "flags": [],
+      "fillEdgeUsd": 20.366442,
+      "realisedUsd": 33.44694,
+      "netUsd": 14.969406,
+      "inventoryMtmUsd": 13.080498
+    },
+    {
+      "book": "ZEC",
+      "category": "KEEP",
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": 17.692050000000005,
+      "realisedUsd": -92.511407,
+      "netUsd": -141.136655,
+      "inventoryMtmUsd": -110.203457
+    },
+    {
+      "book": "ENA",
+      "category": "KEEP",
+      "flags": [],
+      "fillEdgeUsd": 16.915284999999997,
+      "realisedUsd": -92.213709,
+      "netUsd": 64.437084,
+      "inventoryMtmUsd": 44.017619
+    },
+    {
+      "book": "SUI",
+      "category": "KEEP",
+      "flags": [],
+      "fillEdgeUsd": 16.481501,
+      "realisedUsd": 134.914032,
+      "netUsd": 143.370789,
+      "inventoryMtmUsd": 125.450867
+    },
+    {
+      "book": "XRP",
+      "category": "WATCH",
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "THIN"
+      ],
+      "fillEdgeUsd": 8.985109000000008,
+      "realisedUsd": -108.751512,
+      "netUsd": -133.106823,
+      "inventoryMtmUsd": -117.736621
+    },
+    {
+      "book": "XMR",
+      "category": "KEEP",
+      "flags": [
+        "WAREHOUSE-KILLED",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": 6.111424999999986,
+      "realisedUsd": -259.227944,
+      "netUsd": -267.094801,
+      "inventoryMtmUsd": -258.127295
+    },
+    {
+      "book": "BNB",
+      "category": "KEEP",
+      "flags": [],
+      "fillEdgeUsd": 3.6769750000000014,
+      "realisedUsd": -35.294204,
+      "netUsd": -45.191154,
+      "inventoryMtmUsd": -49.48193
+    },
+    {
+      "book": "PUMP",
+      "category": "KEEP",
+      "flags": [],
+      "fillEdgeUsd": 0.5052620000000001,
+      "realisedUsd": 21.427329,
+      "netUsd": 19.684191,
+      "inventoryMtmUsd": 20.922067
+    },
+    {
+      "book": "ONDO",
+      "category": "WATCH",
+      "flags": [
+        "THIN"
+      ],
+      "fillEdgeUsd": 0,
+      "realisedUsd": 0,
+      "netUsd": 0,
+      "inventoryMtmUsd": 0
+    },
+    {
+      "book": "MEGA",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "MIRAGE",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -0.097455,
+      "realisedUsd": -0.004743,
+      "netUsd": 0.075974,
+      "inventoryMtmUsd": 0.163776
+    },
+    {
+      "book": "SOL",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE",
+        "THIN"
+      ],
+      "fillEdgeUsd": -0.17569999999999997,
+      "realisedUsd": 0.050174,
+      "netUsd": -2.282065,
+      "inventoryMtmUsd": -2.12016
+    },
+    {
+      "book": "ADA",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "MIRAGE",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -0.19957799999999998,
+      "realisedUsd": -9.86302,
+      "netUsd": 1.559447,
+      "inventoryMtmUsd": 0.89731
+    },
+    {
+      "book": "kPEPE",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF"
+      ],
+      "fillEdgeUsd": -4.425993999999999,
+      "realisedUsd": 14.642175,
+      "netUsd": -38.5438,
+      "inventoryMtmUsd": -34.917477
+    },
+    {
+      "book": "NEAR",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -6.309711000000004,
+      "realisedUsd": -91.206982,
+      "netUsd": -114.074616,
+      "inventoryMtmUsd": -84.897271
+    },
+    {
+      "book": "LIT",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -10.040159000000001,
+      "realisedUsd": 12.799308,
+      "netUsd": -0.317072,
+      "inventoryMtmUsd": 8.30845
+    },
+    {
+      "book": "WLD",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -13.869680999999964,
+      "realisedUsd": -390.589046,
+      "netUsd": -430.4133,
+      "inventoryMtmUsd": -371.127128
+    },
+    {
+      "book": "AAVE",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -14.153934000000008,
+      "realisedUsd": -38.028114,
+      "netUsd": -80.15645,
+      "inventoryMtmUsd": -53.258153
+    },
+    {
+      "book": "FARTCOIN",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -19.389000999999986,
+      "realisedUsd": -229.050876,
+      "netUsd": -238.716714,
+      "inventoryMtmUsd": -209.661875
+    },
+    {
+      "book": "DOGE",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE",
+        "THIN"
+      ],
+      "fillEdgeUsd": -35.88797299999999,
+      "realisedUsd": -102.894295,
+      "netUsd": -127.798678,
+      "inventoryMtmUsd": -67.780423
+    },
+    {
+      "book": "VVV",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -53.798889,
+      "realisedUsd": -290.838143,
+      "netUsd": -313.465708,
+      "inventoryMtmUsd": -236.86014
+    },
+    {
+      "book": "XPL",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -70.457411,
+      "realisedUsd": -391.778531,
+      "netUsd": -435.461678,
+      "inventoryMtmUsd": -321.32112
+    },
+    {
+      "book": "CRV",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -96.067205,
+      "realisedUsd": -360.79761,
+      "netUsd": -402.444781,
+      "inventoryMtmUsd": -257.320299
+    },
+    {
+      "book": "TON",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -104.49163599999997,
+      "realisedUsd": -258.605686,
+      "netUsd": -286.377552,
+      "inventoryMtmUsd": -159.371227
+    },
+    {
+      "book": "HYPE",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "MIRAGE",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -120.371754,
+      "realisedUsd": 63.896484,
+      "netUsd": 226.439342,
+      "inventoryMtmUsd": 343.637446
+    },
+    {
+      "book": "TAO",
+      "category": "CUT",
+      "flags": [
+        "PICKED-OFF",
+        "HIGH-ADVERSE"
+      ],
+      "fillEdgeUsd": -186.93082999999996,
+      "realisedUsd": -312.4218,
+      "netUsd": -435.514495,
+      "inventoryMtmUsd": -125.49097
+    }
+  ]
+}

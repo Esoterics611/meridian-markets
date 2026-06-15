@@ -1,0 +1,1939 @@
+{
+ "since": "2026-06-14T16:55:00.000Z",
+ "until": "2026-06-14T21:00:00.000Z",
+ "desk": {
+  "netUsd": -3091.041668,
+  "realisedUsd": -2782.90118,
+  "unrealUsd": 164.289478,
+  "feesUsd": 474.094881,
+  "hours": 3.738538888888889
+ },
+ "hedgeMeasuredUsd": -75.06464755589943,
+ "hedgeLegImplied": -69.48155900000029,
+ "hedge": {
+  "orders": 21,
+  "notionalUsd": 207842,
+  "estCostUsd": 56.11734,
+  "flips": 1,
+  "opens": 9,
+  "tracks": 11,
+  "zombieLines": 0
+ },
+ "hedgeLegs": [
+  {
+   "underlying": "BTC",
+   "n": 217,
+   "pnl": -34.89711700000106,
+   "funding": 0,
+   "fees": 12.451393,
+   "resid": 0.45700699999997596,
+   "notional": -6904.993832
+  },
+  {
+   "underlying": "ENA",
+   "n": 216,
+   "pnl": -187.0654585097629,
+   "funding": -0.05897550976430338,
+   "fees": 8.56802,
+   "resid": -966.0669400000006,
+   "notional": -14637.719684
+  },
+  {
+   "underlying": "ETH",
+   "n": 217,
+   "pnl": 11.7107685000004,
+   "funding": 0,
+   "fees": 9.432377,
+   "resid": -3550.533051935,
+   "notional": 1958.30632575
+  },
+  {
+   "underlying": "HYPE",
+   "n": 168,
+   "pnl": -147.01441051650275,
+   "funding": 0.27402281949882573,
+   "fees": 8.233999,
+   "resid": 0,
+   "notional": -27585.718657352
+  },
+  {
+   "underlying": "LIT",
+   "n": 213,
+   "pnl": 13.961423164803515,
+   "funding": 0.03531616480348539,
+   "fees": 1.061093,
+   "resid": 0,
+   "notional": -3521.992
+  },
+  {
+   "underlying": "MEGA",
+   "n": 97,
+   "pnl": 0,
+   "funding": 0,
+   "fees": 0,
+   "resid": -106.194996,
+   "notional": 0
+  },
+  {
+   "underlying": "NEAR",
+   "n": 43,
+   "pnl": 0,
+   "funding": 0,
+   "fees": 0,
+   "resid": -49436.4687751088,
+   "notional": 0
+  },
+  {
+   "underlying": "TON",
+   "n": 183,
+   "pnl": 0,
+   "funding": 0,
+   "fees": 0,
+   "resid": -1704.3219800000002,
+   "notional": 0
+  },
+  {
+   "underlying": "TRUMP",
+   "n": 159,
+   "pnl": 0,
+   "funding": 0,
+   "fees": 0,
+   "resid": 48917.689401315605,
+   "notional": 0
+  },
+  {
+   "underlying": "VVV",
+   "n": 168,
+   "pnl": 21.013963458367677,
+   "funding": 0.03307145836768151,
+   "fees": 0.751143,
+   "resid": 50.088499999999996,
+   "notional": 0
+  },
+  {
+   "underlying": "WLD",
+   "n": 151,
+   "pnl": 0,
+   "funding": 0,
+   "fees": 0,
+   "resid": 712.009893,
+   "notional": 0
+  },
+  {
+   "underlying": "XMR",
+   "n": 182,
+   "pnl": 44.83663400061408,
+   "funding": 0.06564000061398893,
+   "fees": 4.289486,
+   "resid": -700.0866249999999,
+   "notional": 0
+  },
+  {
+   "underlying": "XPL",
+   "n": 151,
+   "pnl": 109.68498081856474,
+   "funding": -0.03377318143503362,
+   "fees": 1.52512,
+   "resid": 0,
+   "notional": 5194.977496
+  },
+  {
+   "underlying": "ZEC",
+   "n": 176,
+   "pnl": 92.70456852801684,
+   "funding": -0.1080059519849988,
+   "fees": 6.844771,
+   "resid": 22915.56364251,
+   "notional": 22915.56364251
+  }
+ ],
+ "hedgeQuality": [
+  {
+   "book_key": "AAVE",
+   "underlying": "ETH",
+   "beta_cfg": 1.11,
+   "beta_live": 1.0022290401833758,
+   "r2": 0.34953920756886603,
+   "basis_share": 0.49996012424189606
+  },
+  {
+   "book_key": "ADA",
+   "underlying": "ETH",
+   "beta_cfg": 1.05,
+   "beta_live": 1.180045543631572,
+   "r2": 0.3097998207856007,
+   "basis_share": 0.664469869455334
+  },
+  {
+   "book_key": "BNB",
+   "underlying": "BTC",
+   "beta_cfg": 0.92,
+   "beta_live": 0.8379185594112482,
+   "r2": 0.42764850883853006,
+   "basis_share": 0.5544823908781978
+  },
+  {
+   "book_key": "CRV",
+   "underlying": "ETH",
+   "beta_cfg": 1.14,
+   "beta_live": 0.8352702297002788,
+   "r2": 0.07140049296138516,
+   "basis_share": 0.6123688747682092
+  },
+  {
+   "book_key": "DOGE",
+   "underlying": "ETH",
+   "beta_cfg": 0.94,
+   "beta_live": 1.0067706807584125,
+   "r2": 0.5248926228028724,
+   "basis_share": 0.6343299129069464
+  },
+  {
+   "book_key": "ENA",
+   "underlying": "ENA",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "FARTCOIN",
+   "underlying": "ETH",
+   "beta_cfg": 1.5,
+   "beta_live": 1.7699821707194539,
+   "r2": 0.45734602309024136,
+   "basis_share": 0.6375625290489078
+  },
+  {
+   "book_key": "HYPE",
+   "underlying": "HYPE",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "LIT",
+   "underlying": "LIT",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "MEGA",
+   "underlying": "MEGA",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "NEAR",
+   "underlying": "NEAR",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "ONDO",
+   "underlying": "ONDO",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": null
+  },
+  {
+   "book_key": "PUMP",
+   "underlying": "ETH",
+   "beta_cfg": 1.51,
+   "beta_live": 1.6552286632313418,
+   "r2": 0.24515715410818711,
+   "basis_share": 0.6863255796160588
+  },
+  {
+   "book_key": "SOL",
+   "underlying": "ETH",
+   "beta_cfg": 1.02,
+   "beta_live": 1.181469138508936,
+   "r2": 0.5353106786563832,
+   "basis_share": 0.6671972268941316
+  },
+  {
+   "book_key": "SUI",
+   "underlying": "ETH",
+   "beta_cfg": 1.29,
+   "beta_live": 1.3766106178420323,
+   "r2": 0.6283466263433607,
+   "basis_share": 0.26990941404790336
+  },
+  {
+   "book_key": "TAO",
+   "underlying": "BTC",
+   "beta_cfg": 1.69,
+   "beta_live": 1.446989203963289,
+   "r2": 0.10453080329830522,
+   "basis_share": 0.8285527816857493
+  },
+  {
+   "book_key": "TON",
+   "underlying": "TON",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "TRUMP",
+   "underlying": "TRUMP",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "VVV",
+   "underlying": "VVV",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "WLD",
+   "underlying": "WLD",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "XMR",
+   "underlying": "XMR",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "XPL",
+   "underlying": "XPL",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "XRP",
+   "underlying": "BTC",
+   "beta_cfg": 1.15,
+   "beta_live": 0.9196657731005743,
+   "r2": 0.4373083931539718,
+   "basis_share": 0.6228350132571461
+  },
+  {
+   "book_key": "ZEC",
+   "underlying": "ZEC",
+   "beta_cfg": 1,
+   "beta_live": 1,
+   "r2": 1,
+   "basis_share": 0
+  },
+  {
+   "book_key": "kPEPE",
+   "underlying": "ETH",
+   "beta_cfg": 1.2,
+   "beta_live": 1.2426480127969601,
+   "r2": 0.45942225393860153,
+   "basis_share": 0.4977484555755414
+  }
+ ],
+ "varReduction": [
+  {
+   "underlying": "BTC",
+   "books": [
+    "BNB",
+    "TAO",
+    "XRP"
+   ],
+   "volPrimaryHr": 235.34412786179027,
+   "volHedgedHr": 234.8541489373646,
+   "reductionPct": 0.002081967920242289,
+   "feesUsd": 12.451393,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "ENA",
+   "books": [
+    "ENA"
+   ],
+   "volPrimaryHr": 96.77443556777713,
+   "volHedgedHr": 29.595669829069234,
+   "reductionPct": 0.6941788432509994,
+   "feesUsd": 8.56802,
+   "verdict": "earns churn"
+  },
+  {
+   "underlying": "ETH",
+   "books": [
+    "AAVE",
+    "ADA",
+    "CRV",
+    "DOGE",
+    "FARTCOIN",
+    "PUMP",
+    "SOL",
+    "SUI",
+    "kPEPE"
+   ],
+   "volPrimaryHr": 184.22201278054985,
+   "volHedgedHr": 182.8641133741239,
+   "reductionPct": 0.007370994301552414,
+   "feesUsd": 9.432377,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "HYPE",
+   "books": [
+    "HYPE"
+   ],
+   "volPrimaryHr": 168.72968094725266,
+   "volHedgedHr": 138.3214766959399,
+   "reductionPct": 0.18021846589527302,
+   "feesUsd": 8.233999,
+   "verdict": "earns churn"
+  },
+  {
+   "underlying": "LIT",
+   "books": [
+    "LIT"
+   ],
+   "volPrimaryHr": 37.73841814478242,
+   "volHedgedHr": 34.96316810784558,
+   "reductionPct": 0.07353911937404656,
+   "feesUsd": 1.061093,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "MEGA",
+   "books": [
+    "MEGA"
+   ],
+   "volPrimaryHr": 1.212406353698182,
+   "volHedgedHr": 1.212406353698182,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "NEAR",
+   "books": [
+    "NEAR"
+   ],
+   "volPrimaryHr": 251.94578451504634,
+   "volHedgedHr": 251.94578451504634,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "ONDO",
+   "books": [
+    "ONDO"
+   ],
+   "volPrimaryHr": 0,
+   "volHedgedHr": 0,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "TON",
+   "books": [
+    "TON"
+   ],
+   "volPrimaryHr": 79.52497293405105,
+   "volHedgedHr": 79.52497293405105,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "TRUMP",
+   "books": [
+    "TRUMP"
+   ],
+   "volPrimaryHr": 92.74779359198205,
+   "volHedgedHr": 92.74779359198205,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "VVV",
+   "books": [
+    "VVV"
+   ],
+   "volPrimaryHr": 98.5226338842583,
+   "volHedgedHr": 103.83777258025054,
+   "reductionPct": -0.053948402376618576,
+   "feesUsd": 0.751143,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "WLD",
+   "books": [
+    "WLD"
+   ],
+   "volPrimaryHr": 122.97949810950452,
+   "volHedgedHr": 122.97949810950452,
+   "reductionPct": 0,
+   "feesUsd": 0,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "XMR",
+   "books": [
+    "XMR"
+   ],
+   "volPrimaryHr": 61.41410730427415,
+   "volHedgedHr": 51.871732971936574,
+   "reductionPct": 0.1553775630908416,
+   "feesUsd": 4.289486,
+   "verdict": "earns churn"
+  },
+  {
+   "underlying": "XPL",
+   "books": [
+    "XPL"
+   ],
+   "volPrimaryHr": 103.97404759702525,
+   "volHedgedHr": 97.72628130443977,
+   "reductionPct": 0.06008967080708549,
+   "feesUsd": 1.52512,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  },
+  {
+   "underlying": "ZEC",
+   "books": [
+    "ZEC"
+   ],
+   "volPrimaryHr": 126.51770276686632,
+   "volHedgedHr": 118.27876723468144,
+   "reductionPct": 0.06512081196547437,
+   "feesUsd": 6.844771,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  }
+ ],
+ "books": [
+  {
+   "book": "TAO",
+   "source": "hyperliquid",
+   "netUsd": -435.514495,
+   "realisedUsd": -312.4218,
+   "unrealUsd": 0,
+   "feesUsd": 123.116121,
+   "fundingUsd": 0.023426,
+   "inventoryMtmUsd": -125.49097,
+   "fillEdgeUsd": -186.93082999999996,
+   "spreadCapturedUsd": 148.920427,
+   "adverseUsd": 335.8513,
+   "wedgeUsd": 0.000043000000033543984,
+   "maxDdPct": 0.6718618132093472,
+   "worstBucketUsd": -166.843491,
+   "worstBucketShare": 0.20584807829275487,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 128,
+   "vpin": 0.32397778195696797,
+   "markoutShortBps": -1.6932758177744518,
+   "markoutLongBps": -14.32645146392457,
+   "stateAgeOk": true
+  },
+  {
+   "book": "XPL",
+   "source": "hyperliquid",
+   "netUsd": -435.461678,
+   "realisedUsd": -391.778531,
+   "unrealUsd": 0,
+   "feesUsd": 43.277619,
+   "fundingUsd": -0.405528,
+   "inventoryMtmUsd": -321.32112,
+   "fillEdgeUsd": -70.457411,
+   "spreadCapturedUsd": 91.941441,
+   "adverseUsd": 161.738232,
+   "wedgeUsd": -0.6606199999999802,
+   "maxDdPct": 0.4568980915298053,
+   "worstBucketUsd": -113.21963,
+   "worstBucketShare": 0.19749086770950577,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 130,
+   "vpin": 0.18728624536594485,
+   "markoutShortBps": -1.6091102474710421,
+   "markoutLongBps": -2.0832128946573865,
+   "stateAgeOk": true
+  },
+  {
+   "book": "WLD",
+   "source": "hyperliquid",
+   "netUsd": -430.4133,
+   "realisedUsd": -390.589046,
+   "unrealUsd": 5.592245,
+   "feesUsd": 45.436286,
+   "fundingUsd": 0.019795,
+   "inventoryMtmUsd": -371.127128,
+   "fillEdgeUsd": -13.869680999999964,
+   "spreadCapturedUsd": 59.413349,
+   "adverseUsd": 73.231456,
+   "wedgeUsd": -0.0515739999999667,
+   "maxDdPct": 0.496847747764578,
+   "worstBucketUsd": -139.788149,
+   "worstBucketShare": 0.2266452650000176,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 127,
+   "vpin": 0.3803340688422143,
+   "markoutShortBps": -1.9207941722499646,
+   "markoutLongBps": -11.255833371843398,
+   "stateAgeOk": true
+  },
+  {
+   "book": "CRV",
+   "source": "hyperliquid",
+   "netUsd": -402.444781,
+   "realisedUsd": -360.79761,
+   "unrealUsd": 7.410137,
+   "feesUsd": 49.120702,
+   "fundingUsd": 0.063425,
+   "inventoryMtmUsd": -257.320299,
+   "fillEdgeUsd": -96.067205,
+   "spreadCapturedUsd": 79.554644,
+   "adverseUsd": 175.721497,
+   "wedgeUsd": 0.09964800000000196,
+   "maxDdPct": 0.4475190194317874,
+   "worstBucketUsd": -151.38712500000003,
+   "worstBucketShare": 0.2964033144765635,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 68,
+   "vpin": 0,
+   "markoutShortBps": -1.6138221376718143,
+   "markoutLongBps": 0.6818065550882357,
+   "stateAgeOk": true
+  },
+  {
+   "book": "VVV",
+   "source": "hyperliquid",
+   "netUsd": -313.465708,
+   "realisedUsd": -290.838143,
+   "unrealUsd": 0.179114,
+   "feesUsd": 22.789181,
+   "fundingUsd": -0.017498,
+   "inventoryMtmUsd": -236.86014,
+   "fillEdgeUsd": -53.798889,
+   "spreadCapturedUsd": 21.41349,
+   "adverseUsd": 75.209155,
+   "wedgeUsd": -0.0032240000000030022,
+   "maxDdPct": 0.36254711364133174,
+   "worstBucketUsd": -106.690395,
+   "worstBucketShare": 0.22199515896705693,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 124,
+   "vpin": 0,
+   "markoutShortBps": -1.6202414625602999,
+   "markoutLongBps": 1.4054501513738507,
+   "stateAgeOk": true
+  },
+  {
+   "book": "TON",
+   "source": "hyperliquid",
+   "netUsd": -286.377552,
+   "realisedUsd": -258.605686,
+   "unrealUsd": -5.257152,
+   "feesUsd": 22.088946,
+   "fundingUsd": -0.425743,
+   "inventoryMtmUsd": -159.371227,
+   "fillEdgeUsd": -104.49163599999997,
+   "spreadCapturedUsd": 48.019487,
+   "adverseUsd": 152.444526,
+   "wedgeUsd": -0.06659699999997315,
+   "maxDdPct": 0.30091085834473097,
+   "worstBucketUsd": -137.94534799999997,
+   "worstBucketShare": 0.39761363817823797,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 154,
+   "vpin": 0.5076359783327833,
+   "markoutShortBps": -1.0591717953749678,
+   "markoutLongBps": -6.7698729378087945,
+   "stateAgeOk": true
+  },
+  {
+   "book": "XMR",
+   "source": "hyperliquid",
+   "netUsd": -267.094801,
+   "realisedUsd": -259.227944,
+   "unrealUsd": 7.212066,
+   "feesUsd": 15.172525,
+   "fundingUsd": 0.093594,
+   "inventoryMtmUsd": -258.127295,
+   "fillEdgeUsd": 6.111424999999986,
+   "spreadCapturedUsd": 30.315197,
+   "adverseUsd": 24.255445,
+   "wedgeUsd": 0.05167299999998676,
+   "maxDdPct": 0.28329463816995293,
+   "worstBucketUsd": -55.362170000000006,
+   "worstBucketShare": 0.14534099976706188,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 50,
+   "vpin": 0,
+   "markoutShortBps": -2.3070352122095836,
+   "markoutLongBps": -3.2917152016929943,
+   "stateAgeOk": true
+  },
+  {
+   "book": "FARTCOIN",
+   "source": "hyperliquid",
+   "netUsd": -238.716714,
+   "realisedUsd": -229.050876,
+   "unrealUsd": 0,
+   "feesUsd": 9.819508,
+   "fundingUsd": 0.15367,
+   "inventoryMtmUsd": -209.661875,
+   "fillEdgeUsd": -19.389000999999986,
+   "spreadCapturedUsd": 16.48072,
+   "adverseUsd": 35.479931,
+   "wedgeUsd": -0.3897899999999872,
+   "maxDdPct": 0.30885005240808266,
+   "worstBucketUsd": -44.797070000000005,
+   "worstBucketShare": 0.1250679117113106,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 86,
+   "vpin": 0,
+   "markoutShortBps": -1.598456246918693,
+   "markoutLongBps": -1.9163092887454256,
+   "stateAgeOk": true
+  },
+  {
+   "book": "ZEC",
+   "source": "hyperliquid",
+   "netUsd": -141.136655,
+   "realisedUsd": -92.511407,
+   "unrealUsd": 0,
+   "feesUsd": 48.750249,
+   "fundingUsd": 0.125001,
+   "inventoryMtmUsd": -110.203457,
+   "fillEdgeUsd": 17.692050000000005,
+   "spreadCapturedUsd": 106.823251,
+   "adverseUsd": 89.131355,
+   "wedgeUsd": 0.0001540000000055386,
+   "maxDdPct": 0.24967827421043115,
+   "worstBucketUsd": -119.737056,
+   "worstBucketShare": 0.22519487984377604,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 59,
+   "vpin": 0.3297347701425516,
+   "markoutShortBps": -2.1951055203379712,
+   "markoutLongBps": -1.0288731183771318,
+   "stateAgeOk": true
+  },
+  {
+   "book": "XRP",
+   "source": "hyperliquid",
+   "netUsd": -133.106823,
+   "realisedUsd": -108.751512,
+   "unrealUsd": 0,
+   "feesUsd": 24.480718,
+   "fundingUsd": 0.125407,
+   "inventoryMtmUsd": -117.736621,
+   "fillEdgeUsd": 8.985109000000008,
+   "spreadCapturedUsd": 8.989547,
+   "adverseUsd": 0.00845,
+   "wedgeUsd": 0.004012000000008342,
+   "maxDdPct": 0.1878590035413409,
+   "worstBucketUsd": -117.40005,
+   "worstBucketShare": 0.470662813551504,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 9,
+   "vpin": 0.8209440709675924,
+   "markoutShortBps": -0.19616087237026253,
+   "markoutLongBps": 3.025681388055729,
+   "stateAgeOk": true
+  },
+  {
+   "book": "DOGE",
+   "source": "hyperliquid",
+   "netUsd": -127.798678,
+   "realisedUsd": -102.894295,
+   "unrealUsd": -0.774102,
+   "feesUsd": 23.942423,
+   "fundingUsd": -0.187859,
+   "inventoryMtmUsd": -67.780423,
+   "fillEdgeUsd": -35.88797299999999,
+   "spreadCapturedUsd": 17.427259,
+   "adverseUsd": 53.315234,
+   "wedgeUsd": 0.00000200000000916134,
+   "maxDdPct": 0.12945552654114534,
+   "worstBucketUsd": -74.686366,
+   "worstBucketShare": 0.4619068546626474,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 4,
+   "vpin": 0.715078049301862,
+   "markoutShortBps": -4.967693556174508,
+   "markoutLongBps": -1.269103435311416,
+   "stateAgeOk": true
+  },
+  {
+   "book": "NEAR",
+   "source": "hyperliquid",
+   "netUsd": -114.074616,
+   "realisedUsd": -91.206982,
+   "unrealUsd": 0,
+   "feesUsd": 23.346617,
+   "fundingUsd": 0.478983,
+   "inventoryMtmUsd": -84.897271,
+   "fillEdgeUsd": -6.309711000000004,
+   "spreadCapturedUsd": 60.024975,
+   "adverseUsd": 66.330266,
+   "wedgeUsd": -0.004420000000006752,
+   "maxDdPct": 0.42550138207448585,
+   "worstBucketUsd": -306.78698999999995,
+   "worstBucketShare": 0.47458664812956974,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 18,
+   "vpin": 0.8164683640702503,
+   "markoutShortBps": -2.5294484508958726,
+   "markoutLongBps": 12.930256630378365,
+   "stateAgeOk": true
+  },
+  {
+   "book": "AAVE",
+   "source": "hyperliquid",
+   "netUsd": -80.15645,
+   "realisedUsd": -38.028114,
+   "unrealUsd": -29.384031,
+   "feesUsd": 13.311589,
+   "fundingUsd": 0.567226,
+   "inventoryMtmUsd": -53.258153,
+   "fillEdgeUsd": -14.153934000000008,
+   "spreadCapturedUsd": 25.486177,
+   "adverseUsd": 39.639781,
+   "wedgeUsd": -0.0003300000000105996,
+   "maxDdPct": 0.2534350745950321,
+   "worstBucketUsd": -80.76747900000001,
+   "worstBucketShare": 0.21708960044009956,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 69,
+   "vpin": 0,
+   "markoutShortBps": -0.9615787037062481,
+   "markoutLongBps": 1.010080913380151,
+   "stateAgeOk": true
+  },
+  {
+   "book": "BNB",
+   "source": "hyperliquid",
+   "netUsd": -45.191154,
+   "realisedUsd": -35.294204,
+   "unrealUsd": -10.510788,
+   "feesUsd": -0.677732,
+   "fundingUsd": -0.063931,
+   "inventoryMtmUsd": -49.48193,
+   "fillEdgeUsd": 3.6769750000000014,
+   "spreadCapturedUsd": 5.898503,
+   "adverseUsd": 2.2216,
+   "wedgeUsd": 0.00007200000000162632,
+   "maxDdPct": 0.09152642879687528,
+   "worstBucketUsd": -66.91595699999999,
+   "worstBucketShare": 0.3597584902649664,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 50,
+   "vpin": 0,
+   "markoutShortBps": -0.24321704647201234,
+   "markoutLongBps": 1.5719210918398785,
+   "stateAgeOk": true
+  },
+  {
+   "book": "kPEPE",
+   "source": "hyperliquid",
+   "netUsd": -38.5438,
+   "realisedUsd": 14.642175,
+   "unrealUsd": -53.985646,
+   "feesUsd": -0.624004,
+   "fundingUsd": 0.175667,
+   "inventoryMtmUsd": -34.917477,
+   "fillEdgeUsd": -4.425993999999999,
+   "spreadCapturedUsd": 9.710936,
+   "adverseUsd": 3.331589,
+   "wedgeUsd": -10.805340999999999,
+   "maxDdPct": 0.08289780820611915,
+   "worstBucketUsd": -20.372857,
+   "worstBucketShare": 0.11702004550275391,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 79,
+   "vpin": 0,
+   "markoutShortBps": -0.6394205060788678,
+   "markoutLongBps": -1.781470045709942,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SOL",
+   "source": "hyperliquid",
+   "netUsd": -2.282065,
+   "realisedUsd": 0.050174,
+   "unrealUsd": -2.34603,
+   "feesUsd": -0.015591,
+   "fundingUsd": -0.001796,
+   "inventoryMtmUsd": -2.12016,
+   "fillEdgeUsd": -0.17569999999999997,
+   "spreadCapturedUsd": 0.255983,
+   "adverseUsd": 0.43168,
+   "wedgeUsd": -0.0000029999999999752447,
+   "maxDdPct": 0.006999784657214084,
+   "worstBucketUsd": -1.31079,
+   "worstBucketShare": 0.23618786844948908,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 2,
+   "vpin": 0.296914324717326,
+   "markoutShortBps": -3.6951364613895192,
+   "markoutLongBps": 2.4371938695652684,
+   "stateAgeOk": true
+  },
+  {
+   "book": "LIT",
+   "source": "hyperliquid",
+   "netUsd": -0.317072,
+   "realisedUsd": 12.799308,
+   "unrealUsd": -14.530972,
+   "feesUsd": -1.424053,
+   "fundingUsd": -0.009416,
+   "inventoryMtmUsd": 8.30845,
+   "fillEdgeUsd": -10.040159000000001,
+   "spreadCapturedUsd": 24.712629,
+   "adverseUsd": 35.06965,
+   "wedgeUsd": 0.3168620000000022,
+   "maxDdPct": 0.09083680212504815,
+   "worstBucketUsd": -20.831531999999996,
+   "worstBucketShare": 0.16847899148694506,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 113,
+   "vpin": 0,
+   "markoutShortBps": -1.8569674272811256,
+   "markoutLongBps": -1.0757904786486447,
+   "stateAgeOk": true
+  },
+  {
+   "book": "ONDO",
+   "source": "hyperliquid",
+   "netUsd": 0,
+   "realisedUsd": 0,
+   "unrealUsd": 0,
+   "feesUsd": 0,
+   "fundingUsd": 0,
+   "inventoryMtmUsd": 0,
+   "fillEdgeUsd": 0,
+   "spreadCapturedUsd": 0,
+   "adverseUsd": 0,
+   "wedgeUsd": 0,
+   "maxDdPct": 0,
+   "worstBucketUsd": 0,
+   "worstBucketShare": null,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 0,
+   "vpin": 0.8316328343472991,
+   "markoutShortBps": null,
+   "markoutLongBps": null,
+   "stateAgeOk": true
+  },
+  {
+   "book": "MEGA",
+   "source": "hyperliquid",
+   "netUsd": 0.075974,
+   "realisedUsd": -0.004743,
+   "unrealUsd": 0.071064,
+   "feesUsd": -0.008685,
+   "fundingUsd": 0.000968,
+   "inventoryMtmUsd": 0.163776,
+   "fillEdgeUsd": -0.097455,
+   "spreadCapturedUsd": 0.14269,
+   "adverseUsd": 0.237897,
+   "wedgeUsd": -0.002248000000000014,
+   "maxDdPct": 0.0017038292013233187,
+   "worstBucketUsd": -1.170807,
+   "worstBucketShare": 0.31144870397626745,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 11,
+   "vpin": 0.8227217795940727,
+   "markoutShortBps": -3.0631793744192652,
+   "markoutLongBps": -5.295155352893101,
+   "stateAgeOk": true
+  },
+  {
+   "book": "ADA",
+   "source": "hyperliquid",
+   "netUsd": 1.559447,
+   "realisedUsd": -9.86302,
+   "unrealUsd": 10.56072,
+   "feesUsd": -0.282611,
+   "fundingUsd": 0.579104,
+   "inventoryMtmUsd": 0.89731,
+   "fillEdgeUsd": -0.19957799999999998,
+   "spreadCapturedUsd": 2.724062,
+   "adverseUsd": 2.950435,
+   "wedgeUsd": 0.02679500000000018,
+   "maxDdPct": 0.06885751699501065,
+   "worstBucketUsd": -22.191178999999998,
+   "worstBucketShare": 0.16361967329209787,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 20,
+   "vpin": 0,
+   "markoutShortBps": -1.2939269365856443,
+   "markoutLongBps": 1.3132574066024127,
+   "stateAgeOk": true
+  },
+  {
+   "book": "TRUMP",
+   "source": "hyperliquid",
+   "netUsd": 14.969406,
+   "realisedUsd": 33.44694,
+   "unrealUsd": 0,
+   "feesUsd": 19.053219,
+   "fundingUsd": 0.575685,
+   "inventoryMtmUsd": 13.080498,
+   "fillEdgeUsd": 20.366442,
+   "spreadCapturedUsd": 46.739241,
+   "adverseUsd": 26.403507,
+   "wedgeUsd": 0.030708000000000624,
+   "maxDdPct": 0.21660442266693256,
+   "worstBucketUsd": -146.572289,
+   "worstBucketShare": 0.5088037998069902,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 183,
+   "vpin": 0.031560907654593996,
+   "markoutShortBps": -1.356077572787599,
+   "markoutLongBps": -0.9899246307816535,
+   "stateAgeOk": true
+  },
+  {
+   "book": "PUMP",
+   "source": "hyperliquid",
+   "netUsd": 19.684191,
+   "realisedUsd": 21.427329,
+   "unrealUsd": 0,
+   "feesUsd": 1.998399,
+   "fundingUsd": 0.255261,
+   "inventoryMtmUsd": 20.922067,
+   "fillEdgeUsd": 0.5052620000000001,
+   "spreadCapturedUsd": 92.135327,
+   "adverseUsd": 64.151935,
+   "wedgeUsd": -27.478130000000007,
+   "maxDdPct": 0.17039224537876557,
+   "worstBucketUsd": -51.763895,
+   "worstBucketShare": 0.18369156413375404,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 88,
+   "vpin": 0,
+   "markoutShortBps": -2.5622303409682115,
+   "markoutLongBps": 0.9532758646443572,
+   "stateAgeOk": true
+  },
+  {
+   "book": "ENA",
+   "source": "hyperliquid",
+   "netUsd": 64.437084,
+   "realisedUsd": -92.213709,
+   "unrealUsd": 153.146502,
+   "feesUsd": -3.44672,
+   "fundingUsd": 0.05746,
+   "inventoryMtmUsd": 44.017619,
+   "fillEdgeUsd": 16.915284999999997,
+   "spreadCapturedUsd": 35.587439,
+   "adverseUsd": 19.141662,
+   "wedgeUsd": 0.46950799999999404,
+   "maxDdPct": 0.19868026529464133,
+   "worstBucketUsd": -29.982139000000018,
+   "worstBucketShare": 0.10422611362219922,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 130,
+   "vpin": 0.6005347100728574,
+   "markoutShortBps": -0.8782755313356404,
+   "markoutLongBps": 0.039263691724510816,
+   "stateAgeOk": true
+  },
+  {
+   "book": "SUI",
+   "source": "hyperliquid",
+   "netUsd": 143.370789,
+   "realisedUsd": 134.914032,
+   "unrealUsd": 7.01835,
+   "feesUsd": -1.716527,
+   "fundingUsd": -0.278106,
+   "inventoryMtmUsd": 125.450867,
+   "fillEdgeUsd": 16.481501,
+   "spreadCapturedUsd": 17.843338,
+   "adverseUsd": 1.381568,
+   "wedgeUsd": 0.019731000000003718,
+   "maxDdPct": 0.07491309987402708,
+   "worstBucketUsd": -20.782652999999996,
+   "worstBucketShare": 0.3976955623032274,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 29,
+   "vpin": 0,
+   "markoutShortBps": -0.21347463969170943,
+   "markoutLongBps": -3.6004532564698675,
+   "stateAgeOk": true
+  },
+  {
+   "book": "HYPE",
+   "source": "hyperliquid",
+   "netUsd": 226.439342,
+   "realisedUsd": 63.896484,
+   "unrealUsd": 159.36956,
+   "feesUsd": -3.413298,
+   "fundingUsd": -0.239648,
+   "inventoryMtmUsd": 343.637446,
+   "fillEdgeUsd": -120.371754,
+   "spreadCapturedUsd": 392.818817,
+   "adverseUsd": 508.646563,
+   "wedgeUsd": -4.544008000000005,
+   "maxDdPct": 0.19419601424682134,
+   "worstBucketUsd": -176.359435,
+   "worstBucketShare": 0.3119114136629288,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 216,
+   "vpin": 0.5323418482987148,
+   "markoutShortBps": -1.6021392494180822,
+   "markoutLongBps": -3.2732680418039304,
+   "stateAgeOk": true
+  }
+ ],
+ "leaks": [
+  {
+   "term": "WLD warehouse MTM",
+   "usd": -371.127128
+  },
+  {
+   "term": "XPL warehouse MTM",
+   "usd": -321.32112
+  },
+  {
+   "term": "XMR warehouse MTM",
+   "usd": -258.127295
+  },
+  {
+   "term": "CRV warehouse MTM",
+   "usd": -257.320299
+  },
+  {
+   "term": "VVV warehouse MTM",
+   "usd": -236.86014
+  },
+  {
+   "term": "FARTCOIN warehouse MTM",
+   "usd": -209.661875
+  },
+  {
+   "term": "hedge leg ENA (measured)",
+   "usd": -187.0654585097629
+  },
+  {
+   "term": "TAO fill edge (picked off)",
+   "usd": -186.93082999999996
+  },
+  {
+   "term": "TON warehouse MTM",
+   "usd": -159.371227
+  },
+  {
+   "term": "hedge leg HYPE (measured)",
+   "usd": -147.01441051650275
+  },
+  {
+   "term": "TAO warehouse MTM",
+   "usd": -125.49097
+  },
+  {
+   "term": "TAO fees paid",
+   "usd": -123.116121
+  },
+  {
+   "term": "HYPE fill edge (picked off)",
+   "usd": -120.371754
+  },
+  {
+   "term": "XRP warehouse MTM",
+   "usd": -117.736621
+  },
+  {
+   "term": "ZEC warehouse MTM",
+   "usd": -110.203457
+  },
+  {
+   "term": "TON fill edge (picked off)",
+   "usd": -104.49163599999997
+  },
+  {
+   "term": "CRV fill edge (picked off)",
+   "usd": -96.067205
+  },
+  {
+   "term": "NEAR warehouse MTM",
+   "usd": -84.897271
+  },
+  {
+   "term": "XPL fill edge (picked off)",
+   "usd": -70.457411
+  },
+  {
+   "term": "DOGE warehouse MTM",
+   "usd": -67.780423
+  },
+  {
+   "term": "hedge churn (est taker cost)",
+   "usd": -56.11734
+  },
+  {
+   "term": "VVV fill edge (picked off)",
+   "usd": -53.798889
+  },
+  {
+   "term": "AAVE warehouse MTM",
+   "usd": -53.258153
+  },
+  {
+   "term": "BNB warehouse MTM",
+   "usd": -49.48193
+  },
+  {
+   "term": "CRV fees paid",
+   "usd": -49.120702
+  },
+  {
+   "term": "ZEC fees paid",
+   "usd": -48.750249
+  },
+  {
+   "term": "WLD fees paid",
+   "usd": -45.436286
+  },
+  {
+   "term": "XPL fees paid",
+   "usd": -43.277619
+  },
+  {
+   "term": "DOGE fill edge (picked off)",
+   "usd": -35.88797299999999
+  },
+  {
+   "term": "kPEPE warehouse MTM",
+   "usd": -34.917477
+  },
+  {
+   "term": "hedge leg BTC (measured)",
+   "usd": -34.89711700000106
+  },
+  {
+   "term": "XRP fees paid",
+   "usd": -24.480718
+  },
+  {
+   "term": "DOGE fees paid",
+   "usd": -23.942423
+  },
+  {
+   "term": "NEAR fees paid",
+   "usd": -23.346617
+  },
+  {
+   "term": "VVV fees paid",
+   "usd": -22.789181
+  },
+  {
+   "term": "TON fees paid",
+   "usd": -22.088946
+  },
+  {
+   "term": "FARTCOIN fill edge (picked off)",
+   "usd": -19.389000999999986
+  },
+  {
+   "term": "TRUMP fees paid",
+   "usd": -19.053219
+  },
+  {
+   "term": "XMR fees paid",
+   "usd": -15.172525
+  },
+  {
+   "term": "AAVE fill edge (picked off)",
+   "usd": -14.153934000000008
+  },
+  {
+   "term": "WLD fill edge (picked off)",
+   "usd": -13.869680999999964
+  },
+  {
+   "term": "AAVE fees paid",
+   "usd": -13.311589
+  },
+  {
+   "term": "LIT fill edge (picked off)",
+   "usd": -10.040159000000001
+  },
+  {
+   "term": "FARTCOIN fees paid",
+   "usd": -9.819508
+  },
+  {
+   "term": "NEAR fill edge (picked off)",
+   "usd": -6.309711000000004
+  },
+  {
+   "term": "kPEPE fill edge (picked off)",
+   "usd": -4.425993999999999
+  },
+  {
+   "term": "SOL warehouse MTM",
+   "usd": -2.12016
+  },
+  {
+   "term": "PUMP fees paid",
+   "usd": -1.998399
+  },
+  {
+   "term": "TON funding paid",
+   "usd": -0.425743
+  },
+  {
+   "term": "XPL funding paid",
+   "usd": -0.405528
+  },
+  {
+   "term": "SUI funding paid",
+   "usd": -0.278106
+  },
+  {
+   "term": "HYPE funding paid",
+   "usd": -0.239648
+  },
+  {
+   "term": "ADA fill edge (picked off)",
+   "usd": -0.19957799999999998
+  },
+  {
+   "term": "DOGE funding paid",
+   "usd": -0.187859
+  },
+  {
+   "term": "SOL fill edge (picked off)",
+   "usd": -0.17569999999999997
+  },
+  {
+   "term": "MEGA fill edge (picked off)",
+   "usd": -0.097455
+  },
+  {
+   "term": "BNB funding paid",
+   "usd": -0.063931
+  },
+  {
+   "term": "VVV funding paid",
+   "usd": -0.017498
+  },
+  {
+   "term": "LIT funding paid",
+   "usd": -0.009416
+  },
+  {
+   "term": "SOL funding paid",
+   "usd": -0.001796
+  }
+ ],
+ "hourly": [
+  {
+   "hr": "2026-06-14T16:00:00.000Z",
+   "fills": 28,
+   "aflow": 0.966588387959144,
+   "vpin": 0.02716658633236101,
+   "sigma": 0.0001335290818545232,
+   "bps": 2.5642822185886343,
+   "usd": -141.47503033024395
+  },
+  {
+   "hr": "2026-06-14T17:00:00.000Z",
+   "fills": 756,
+   "aflow": 0.9875019717863914,
+   "vpin": 0.06498568099654534,
+   "sigma": 0.0001480927445895241,
+   "bps": -1.8892831894025366,
+   "usd": -1164.163983191861
+  },
+  {
+   "hr": "2026-06-14T18:00:00.000Z",
+   "fills": 682,
+   "aflow": 0.9583729341675503,
+   "vpin": 0.21237412651564255,
+   "sigma": 0.0001308886495919714,
+   "bps": -3.2612553443090806,
+   "usd": -1445.2144177057942
+  },
+  {
+   "hr": "2026-06-14T19:00:00.000Z",
+   "fills": 481,
+   "aflow": 0.9679684053207893,
+   "vpin": 0.23438363492611775,
+   "sigma": 0.00012984811324496352,
+   "bps": -4.064974961986826,
+   "usd": -189.3189161480914
+  }
+ ],
+ "quad": [
+  {
+   "book_key": "NEAR",
+   "quad": "A0",
+   "n": 1,
+   "bps": 53.964200534823775,
+   "usd": 23.160004327157967
+  },
+  {
+   "book_key": "NEAR",
+   "quad": "A+",
+   "n": 5,
+   "bps": 8.154977992864918,
+   "usd": -0.8970243769754742
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A-",
+   "n": 1,
+   "bps": 8.322929671244278,
+   "usd": 0.061780284644194765
+  },
+  {
+   "book_key": "VVV",
+   "quad": "A-",
+   "n": 46,
+   "bps": -3.2601344685409672,
+   "usd": -41.877527760090445
+  },
+  {
+   "book_key": "HYPE",
+   "quad": "A-",
+   "n": 91,
+   "bps": -2.042899401831895,
+   "usd": 44.37492113073904
+  },
+  {
+   "book_key": "XMR",
+   "quad": "A0",
+   "n": 3,
+   "bps": 3.814006684891696,
+   "usd": -36.9706502656875
+  },
+  {
+   "book_key": "MEGA",
+   "quad": "A0",
+   "n": 1,
+   "bps": -32.31978903699892,
+   "usd": -0.20098060812657778
+  },
+  {
+   "book_key": "MEGA",
+   "quad": "A+",
+   "n": 6,
+   "bps": 9.305261806345728,
+   "usd": -0.2824476840059478
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A+",
+   "n": 8,
+   "bps": 2.0761043799418646,
+   "usd": 10.514009826062669
+  },
+  {
+   "book_key": "TRUMP",
+   "quad": "A+",
+   "n": 79,
+   "bps": -4.674083273871073,
+   "usd": 97.71276121168174
+  },
+  {
+   "book_key": "BNB",
+   "quad": "A+",
+   "n": 15,
+   "bps": 7.026081339026564,
+   "usd": -0.08155597157107103
+  },
+  {
+   "book_key": "TRUMP",
+   "quad": "A-",
+   "n": 103,
+   "bps": 1.409683600696048,
+   "usd": 11.671632449463452
+  },
+  {
+   "book_key": "XPL",
+   "quad": "A+",
+   "n": 56,
+   "bps": 5.955704788248129,
+   "usd": -65.0087635394616
+  },
+  {
+   "book_key": "WLD",
+   "quad": "A-",
+   "n": 60,
+   "bps": -13.105605217538194,
+   "usd": -592.5038062778925
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A0",
+   "n": 2,
+   "bps": -7.046725221897084,
+   "usd": -61.95654307244254
+  },
+  {
+   "book_key": "VVV",
+   "quad": "A0",
+   "n": 4,
+   "bps": 17.537797419567795,
+   "usd": 14.545596187383303
+  },
+  {
+   "book_key": "BNB",
+   "quad": "A-",
+   "n": 34,
+   "bps": -0.48474143079411647,
+   "usd": 3.142923123694406
+  },
+  {
+   "book_key": "TON",
+   "quad": "A-",
+   "n": 77,
+   "bps": -3.104251895802825,
+   "usd": -33.96879237295303
+  },
+  {
+   "book_key": "PUMP",
+   "quad": "A0",
+   "n": 1,
+   "bps": -6.605019815059445,
+   "usd": -0.16111634742404227
+  },
+  {
+   "book_key": "LIT",
+   "quad": "A0",
+   "n": 3,
+   "bps": -9.608429545959595,
+   "usd": -0.07780623496239616
+  },
+  {
+   "book_key": "SOL",
+   "quad": "A-",
+   "n": 1,
+   "bps": 5.616607421312069,
+   "usd": 0.4318237705468063
+  },
+  {
+   "book_key": "ZEC",
+   "quad": "A+",
+   "n": 34,
+   "bps": -10.357484244936977,
+   "usd": -259.29775593784274
+  },
+  {
+   "book_key": "WLD",
+   "quad": "A+",
+   "n": 62,
+   "bps": -10.531501186622116,
+   "usd": -364.6076703473324
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A0",
+   "n": 1,
+   "bps": -5.918418917660828,
+   "usd": -0.011568368883746292
+  },
+  {
+   "book_key": "XRP",
+   "quad": "A+",
+   "n": 4,
+   "bps": 6.593778154151457,
+   "usd": 0.04310511404156488
+  },
+  {
+   "book_key": "WLD",
+   "quad": "A0",
+   "n": 5,
+   "bps": 1.9597096797503837,
+   "usd": -15.387100911326062
+  },
+  {
+   "book_key": "TAO",
+   "quad": "A+",
+   "n": 64,
+   "bps": -18.223039197806024,
+   "usd": -352.4930317518112
+  },
+  {
+   "book_key": "AAVE",
+   "quad": "A+",
+   "n": 34,
+   "bps": 0.44459587027598074,
+   "usd": 12.350645280106239
+  },
+  {
+   "book_key": "TON",
+   "quad": "A0",
+   "n": 3,
+   "bps": -1.4966701816290975,
+   "usd": -3.1219550995222773
+  },
+  {
+   "book_key": "TAO",
+   "quad": "A-",
+   "n": 58,
+   "bps": -10.861505633337284,
+   "usd": -280.17350045958034
+  },
+  {
+   "book_key": "CRV",
+   "quad": "A-",
+   "n": 35,
+   "bps": -0.9087330377214252,
+   "usd": -679.6491179081506
+  },
+  {
+   "book_key": "HYPE",
+   "quad": "A+",
+   "n": 122,
+   "bps": -4.228671891892302,
+   "usd": -485.9799636985399
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A0",
+   "n": 1,
+   "bps": 10.79136690647482,
+   "usd": 0.06317015179856116
+  },
+  {
+   "book_key": "MEGA",
+   "quad": "A-",
+   "n": 4,
+   "bps": -20.439622670724887,
+   "usd": -0.30845142789601276
+  },
+  {
+   "book_key": "BNB",
+   "quad": "A0",
+   "n": 1,
+   "bps": -10.313956846404555,
+   "usd": -21.370233816370312
+  },
+  {
+   "book_key": "ZEC",
+   "quad": "A-",
+   "n": 22,
+   "bps": 19.420944271606896,
+   "usd": 672.3074610305877
+  },
+  {
+   "book_key": "PUMP",
+   "quad": "A+",
+   "n": 38,
+   "bps": 1.528556283049643,
+   "usd": -15.076247959255403
+  },
+  {
+   "book_key": "XPL",
+   "quad": "A0",
+   "n": 4,
+   "bps": 29.291195983516953,
+   "usd": 82.03918689334024
+  },
+  {
+   "book_key": "CRV",
+   "quad": "A+",
+   "n": 29,
+   "bps": 2.17982547655419,
+   "usd": 24.160085636969427
+  },
+  {
+   "book_key": "AAVE",
+   "quad": "A-",
+   "n": 33,
+   "bps": 1.2923495561516065,
+   "usd": 13.52946701983783
+  },
+  {
+   "book_key": "TAO",
+   "quad": "A0",
+   "n": 6,
+   "bps": -6.257325331532947,
+   "usd": 148.70522877712773
+  },
+  {
+   "book_key": "XMR",
+   "quad": "A-",
+   "n": 31,
+   "bps": -2.712586410619888,
+   "usd": -88.64068796428907
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A-",
+   "n": 59,
+   "bps": -2.218382706283716,
+   "usd": -86.50122470495533
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A0",
+   "n": 2,
+   "bps": 7.976444247240715,
+   "usd": 0.04521141272656288
+  },
+  {
+   "book_key": "kPEPE",
+   "quad": "A0",
+   "n": 1,
+   "bps": -7.217610970768676,
+   "usd": -0.012466991699747385
+  },
+  {
+   "book_key": "XRP",
+   "quad": "A-",
+   "n": 4,
+   "bps": -1.3260135112478308,
+   "usd": 21.971597306166213
+  },
+  {
+   "book_key": "kPEPE",
+   "quad": "A+",
+   "n": 38,
+   "bps": -4.656108828201007,
+   "usd": -13.779025828471852
+  },
+  {
+   "book_key": "ZEC",
+   "quad": "A0",
+   "n": 3,
+   "bps": -45.26994121058178,
+   "usd": -112.65343956832369
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A-",
+   "n": 16,
+   "bps": 3.331265072044208,
+   "usd": 15.92939677511818
+  },
+  {
+   "book_key": "ADA",
+   "quad": "A+",
+   "n": 3,
+   "bps": -12.608819975711292,
+   "usd": -2.587545206979537
+  },
+  {
+   "book_key": "DOGE",
+   "quad": "A+",
+   "n": 1,
+   "bps": 0.6941070313042271,
+   "usd": 0.0013260613590615673
+  },
+  {
+   "book_key": "ENA",
+   "quad": "A+",
+   "n": 86,
+   "bps": -0.9116843765125067,
+   "usd": -31.062130692191708
+  },
+  {
+   "book_key": "SUI",
+   "quad": "A-",
+   "n": 20,
+   "bps": -5.755178027975012,
+   "usd": 5.624195253994748
+  },
+  {
+   "book_key": "ENA",
+   "quad": "A0",
+   "n": 2,
+   "bps": -14.879918984814017,
+   "usd": -1.2145687435137444
+  },
+  {
+   "book_key": "NEAR",
+   "quad": "A-",
+   "n": 12,
+   "bps": 11.50046073730519,
+   "usd": 198.6354523234787
+  },
+  {
+   "book_key": "XMR",
+   "quad": "A+",
+   "n": 16,
+   "bps": -5.746100088131767,
+   "usd": -46.18907283527035
+  },
+  {
+   "book_key": "LIT",
+   "quad": "A+",
+   "n": 52,
+   "bps": 1.7251908461839167,
+   "usd": 30.383527063487744
+  },
+  {
+   "book_key": "CRV",
+   "quad": "A0",
+   "n": 4,
+   "bps": 3.7383908115445985,
+   "usd": -0.2837667794037365
+  },
+  {
+   "book_key": "ENA",
+   "quad": "A-",
+   "n": 42,
+   "bps": 2.6968803398545234,
+   "usd": 4.925448494460919
+  },
+  {
+   "book_key": "kPEPE",
+   "quad": "A-",
+   "n": 40,
+   "bps": 1.0853403207830332,
+   "usd": -4.886747695836695
+  },
+  {
+   "book_key": "FARTCOIN",
+   "quad": "A+",
+   "n": 25,
+   "bps": -1.9948363062339503,
+   "usd": 20.42554853238438
+  },
+  {
+   "book_key": "TRUMP",
+   "quad": "A0",
+   "n": 1,
+   "bps": 42.89896033107903,
+   "usd": 0.2550114540224084
+  },
+  {
+   "book_key": "SOL",
+   "quad": "A0",
+   "n": 1,
+   "bps": -0.7422196821815321,
+   "usd": -0.0007999992577803178
+  },
+  {
+   "book_key": "XRP",
+   "quad": "A0",
+   "n": 1,
+   "bps": 6.160073920887051,
+   "usd": 0.7497217715492586
+  },
+  {
+   "book_key": "XPL",
+   "quad": "A-",
+   "n": 70,
+   "bps": -10.307170405448906,
+   "usd": -785.995702009279
+  },
+  {
+   "book_key": "HYPE",
+   "quad": "A0",
+   "n": 3,
+   "bps": -1.7413602173619154,
+   "usd": 14.879738029012287
+  },
+  {
+   "book_key": "AAVE",
+   "quad": "A0",
+   "n": 2,
+   "bps": 5.965894040422009,
+   "usd": -1.004828289804831
+  },
+  {
+   "book_key": "VVV",
+   "quad": "A+",
+   "n": 74,
+   "bps": 3.4336596573644718,
+   "usd": 79.04601979837082
+  },
+  {
+   "book_key": "LIT",
+   "quad": "A-",
+   "n": 58,
+   "bps": -3.145671714672101,
+   "usd": 5.1926208298941985
+  },
+  {
+   "book_key": "TON",
+   "quad": "A+",
+   "n": 74,
+   "bps": -10.797878728389872,
+   "usd": -40.5375659937694
+  },
+  {
+   "book_key": "PUMP",
+   "quad": "A-",
+   "n": 49,
+   "bps": 0.6613909622015608,
+   "usd": 29.76222080395111
+  }
+ ],
+ "terciles": [
+  {
+   "t": 1,
+   "n": 649,
+   "bps": -1.296982324686741
+  },
+  {
+   "t": 2,
+   "n": 649,
+   "bps": -6.47973829403751
+  },
+  {
+   "t": 3,
+   "n": 649,
+   "bps": -0.7532135732669366
+  }
+ ],
+ "topOfHour": [
+  {
+   "w": "top",
+   "n": 238,
+   "bps": 2.0953415927104113
+  },
+  {
+   "w": "rest",
+   "n": 1709,
+   "bps": -3.5310816791499997
+  }
+ ]
+}

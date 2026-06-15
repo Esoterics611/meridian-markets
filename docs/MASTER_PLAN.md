@@ -28,7 +28,17 @@ the desk when open inventory is marked into a favourable move; we judge on **rea
 
 ## 2. Where we are (2026-06-14, honest)
 
-**Not yet realised-profitable.** The same picture repeats #41 → #64/#65/#66 + the live run:
+**Not yet realised-profitable — the screen gave us the winners; the first concentrate run (#68) failed
+and the journal re-read corrected the fix.** The 25-screen (#66/#67) showed fillEdge is positive on the
+clean books (TRUMP +20, ZEC +18, ENA +17, SUI +16, BNB +4) and **the entire bleed is warehouse drift**.
+The first concentrate run (#68) lost **realised −$1,126** — in a toxic overnight regime fillEdge
+collapsed, and (the mistake) the armed inventory time-stop NEVER FIRED behind the validated 0.01%
+loss-stop. The journal re-read fixed it: the **0.01% loss-stop is the VALIDATED warehouse control (#62)**
+so keep it; the **time-stop is redundant/regime-dependent (#53)** so drop it; **a guardrail can't fix
+negative fillEdge (#55)** so the driver is regime + market selection; and the real lever is the **F4
+flow regime gate (#56, "the most important knob")** which prevents inventory building into a sweep. The
+corrected `launch-concentrate.sh` (#68) = KEEP-8 + flow gate + F2 + validated loss-stop, launched in a
+LIQUID session. The same picture repeats #41 → #64/#65/#66/#67/#68 + the live run:
 
 - **The quoter is fine.** Adverse selection is ~closed on the rebate books (micro-price centre +
   sub-second re-quote + F3 toxicity + the inventory governor): desk **fillEdge ≈ 0**, slightly
@@ -53,14 +63,18 @@ archived `ROADMAP`.
 The strategy is empirical: **find the markets where the rebate beats the drift → concentrate
 there → cut the drift → compound.** In order:
 
-1. **[RUNNING] The 25-market wide screen** — 25 books × $1M, ranks the HL universe by realised
-   fillEdge (Journal #66; `launch-mm-10h.sh` / `start-desk.sh`). The screen's output *is* the next desk.
-2. **[NEXT SESSION — new branch] Build the concentrate + cut the drift** (offline, DB-only):
-   - `scripts/mm-rank-books.ts` — rank the screen by realised fillEdge → a launch-ready KEEP book set + hedge map.
-   - Validate the **inventory time-stop** (`mm-timestop-sweep.ts`) — the direct warehouse-drift cut (its case is far stronger now that drift is provably *the* bleed).
-   - Pre-stage **F2** (`MM_REQUOTE_MIN_BPS=1`) — the pre-registered queue-position fill-edge lever.
-3. **The CONCENTRATE run** — KEEP books + time-stop + F2 → the first run that tests for **real
-   realised profit**, not just a bounded loss.
+1. **[DONE #66/#67] The 25-market wide screen** — 25 books × $1M ranked the HL universe by realised
+   fillEdge (`leak-table-screen25-s2.md`). Verdict: quoter fine, warehouse drift is the whole bleed.
+2. **[DONE #68 — FAILED, corrected] First concentrate run** — KEEP-8 + (mistakenly) the inventory
+   time-stop, ran deep-overnight: realised −$1,126, time-stop never fired (redundant behind the
+   validated 0.01% loss-stop). Journal re-read corrected the lever (see §2). `scripts/mm-rank-books.ts`
+   built — ranks any screen's leak-JSON by realised fillEdge → KEEP set + hedge map.
+3. **[NEXT — operator launches] The CORRECTED concentrate run** — `scripts/launch-concentrate.sh`:
+   the **ROBUST-6** (BNB XRP SUI SOL hedged + ZEC XMR naked; cut TRUMP/ENA as regime-fragile) +
+   **F4 flow gate (`MM_REGIME_GATE=flow`) as the standing per-book auto-regime detector** + VPIN
+   pause 0.6 + **F2** + the **validated 0.01% loss-stop** (time-stop OFF). **ONE config, runs 24/7,
+   self-adapts to regime** (operator can't hour-switch). Tests for **real realised profit** through a
+   toxic patch. If realised flips +, the run after scales capital on survivors.
 4. **Compound + automate** — longer runs to compound the rebate on the winners; build
    `scripts/learn-from-run.ts` (the training loop: run → fitters → proposed next-config diff,
    human-gated — [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md)); re-run the standing κ-gate across more markets/volume.
@@ -127,4 +141,5 @@ MASTER PLAN I (S1–S9): S1/S2 (leak table + the warehouse-drift framing) done; 
 - **Logs:** [QUANT_JOURNAL.md](QUANT_JOURNAL.md) (chronological #NN entries) · [RESEARCH_FINDINGS.md](RESEARCH_FINDINGS.md) (citable verdicts) · [SESSION_HISTORY.md](SESSION_HISTORY.md).
 - **Operate / read the desk:** [RUN_THE_DESK.md](RUN_THE_DESK.md) · [MM_TRADING_USER_GUIDE.md](MM_TRADING_USER_GUIDE.md) · [DESK_GLOSSARY.md](DESK_GLOSSARY.md) · [RUN_TRAINING_LOOP.md](RUN_TRAINING_LOOP.md).
 - **Engine reference:** [MARKET_MAKING.md](MARKET_MAKING.md) · [HEDGING_MODEL.md](HEDGING_MODEL.md) · [PNL_ACCOUNTING.md](PNL_ACCOUNTING.md) · [FLOW_REACTIVE_QUOTING.md](FLOW_REACTIVE_QUOTING.md) · [DATA_SOURCES.md](DATA_SOURCES.md) · [UNIVERSE_DISCOVERY.md](UNIVERSE_DISCOVERY.md).
+- **UI (role-scoped desk):** [UI_ARCHITECTURE.md](UI_ARCHITECTURE.md) (design contract — read before adding a role page) · [UI_ROLE_GUIDE.md](UI_ROLE_GUIDE.md) (operator's driver's manual).
 - **[`docs/archive/`](archive/)** — superseded plans (the F-chain, ROADMAP, MASTER_PLAN_III, residual-risk roadmap+study, and the NEXT_SESSION*/PREREG/FOLLOWUP/briefing/prompt handoffs), kept for detail.

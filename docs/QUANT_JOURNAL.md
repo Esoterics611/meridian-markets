@@ -2829,3 +2829,184 @@ pre-registered #62 fill-edge lever) + the time-stop come in the CONCENTRATE run,
 + MM_HEDGE_BETA_MAP=12. Cross-checked 25/25/12+13. **NEXT (operator): run it 10h → leak table +
 κ-gate per book → the ranked realised-fillEdge board IS the next desk. No journal needed on the
 currently-running peek-run.**
+
+---
+
+## 2026-06-14 — Entry #67 (the 25-screen verdict + THE CONCENTRATE RUN: pick the winners, cut the drift)
+
+**The screen (#66) ran ~3.7h, $25M / 25 books. Leak table: `leak-table-screen25-s2.md`.**
+Desk **realised −$2,783** (net −3,091; fees +474; hedge legs measured −75). DD control held —
+**every book maxDD < 0.7%** (the governor works). The verdict is the #49/#66 thesis at full scale:
+
+- **The quoter is fine.** Realised **fillEdge (spread − adverse) is POSITIVE on the clean books**:
+  TRUMP +20, ZEC +18, ENA +17, SUI +16 (adverse +1 — pristine), XRP +9, XMR +6, BNB +4.
+- **The whole bleed is WAREHOUSE DRIFT.** Ranked leaks are almost all warehouse MTM: WLD −371,
+  XPL −321, XMR −258, CRV −257, VVV −237, FARTCOIN −210, TON −159, XRP −118, ZEC −110. Books with
+  a GOOD quoter (XMR/ZEC/XRP fillEdge +6/+18/+9) still lost — same quoter, unlucky drift.
+- **Green-on-luck, not edge:** HYPE net **+226** is fillEdge **−120** (picked off, adverse +509)
+  rescued by **+344 favourable warehouse drift** — that reverts; NOT a keeper. SUI's +143 net is
+  also mostly +125 warehouse, but its fillEdge +16 / adverse +1 is the real thing underneath.
+- **Structural losers (negative fillEdge = genuinely picked off, no time-stop fixes a bad quoter):**
+  TAO −187 (mk300s −14bps), HYPE −120, TON −104, CRV −96, XPL −70, VVV −54, DOGE −36 (4 fills),
+  FARTCOIN −19, AAVE −14, WLD −14, LIT −10. **CUT.**
+- **Directional stays PARKED (confirmed again):** the leak table's alignment split (A = sign(q)·
+  sign(flow), markout@300s) is inconsistent across books — ZEC even *paid* to be contra-flow
+  (A− +19.4bps vs A+ −10.4bps). No desk-wide flow lead ⇒ a blind lean is leverage on noise (#65).
+
+**Time-stop validated this session (`timestop-sweep.md`, OOS on the 06-04/05 majors tapes — a
+mechanism read, not a per-market law):** bounding holding time cuts warehouse MTM. **T=30m /
+shift=8bps** is the cell: BTC net −2127→−730 (**Δ +1397**, maxDD 0.85→**0.35**), ETH +295, did
+NOT hurt SOL (+47). The aggressive **10m variant is dangerous** — SOL −1524 (forces taker exits
+on a book that's fine). So 30m/8bps, never 10m. The time-stop is **live-wired** already
+(`MM_TIME_STOP` / `_AGE_MIN` / `_SHIFT_BPS`) — no code change to arm it.
+
+**THE CONCENTRATE RUN (`scripts/launch-concentrate.sh`, committed) — picks the winners, cuts the
+drift, arms the queue lever:**
+- **Concentrate-8** (ranked by realised fillEdge, positive + clean adverse): **SUI, TRUMP, ENA,
+  ZEC, XMR, BNB, XRP, SOL.** $1M/book ($8M desk) — capital HELD CONSTANT vs the screen to isolate
+  the 3 changes. Hedged: SOL/SUI→ETH, XRP/BNB→BTC. Naked (no factor hedge exists, R²<0.5):
+  TRUMP/ENA/ZEC/XMR — **for these the time-stop IS the warehouse control** (substitutes the
+  impossible delta hedge by capping holding time). ENA runs naked on purpose (its self-hedge leg
+  bled −187 on the screen).
+- **Cut (17):** ADA DOGE FARTCOIN kPEPE AAVE PUMP CRV TAO HYPE NEAR WLD VVV XPL LIT TON MEGA ONDO.
+- **Armed:** `MM_TIME_STOP=true AGE_MIN=30 SHIFT_BPS=8` (the drift cut) + `MM_REQUOTE_MIN_BPS=1`
+  (F2 queue lever). **Kept ON (the fixes that worked):** inventory governor (cap 0.10 / skew 6),
+  F3 toxicity widen-only, micro-price + 100ms requote, 0.01% loss-stop, delta hedge w/ anti-churn.
+  **Left OFF:** directional lean (OOS-gated to neutral).
+- **PRE-REGISTERED metric:** desk **realised ≥ 0** AND every book maxDD ≤ ~1.5% over a multi-hour
+  window; secondary: per-book warehouse MTM materially smaller than the screen (= the time-stop
+  doing its job). This is the first run that tests for **real realised profit**, not a bounded loss.
+- **NEXT (operator):** `bash scripts/start-desk.sh` (with the concentrate overrides in the
+  launch-concentrate.sh header) → `bash scripts/launch-concentrate.sh` → leak table at label
+  `concentrate`. If realised flips +, the run after that **scales capital** on the survivors.
+
+**Op note:** filed issue **#29** — closing the UI looked like it stopped the desk, but the loop is
+a server-side `setInterval` (it kept booking NAV the whole time); the live feed just goes stale
+(`desk-feed.js` releases its SSE on tab-hide). Confirm perceived-vs-real with the operator.
+
+---
+
+## 2026-06-15 — Entry #68 (the concentrate run FAILED — the time-stop never fired; root cause + fix)
+
+**Result: NOT profitable. Desk realised −$1,126 / 3.4h / $8M** (net −1,441, unreal +104, fees +420).
+maxDD held (ZEC 0.92%, rest <0.6%, all < the 1.5% bar) — risk control worked, edge did not. Per-hour
+desk netΔ −410 → −313 → **−715** (deepest overnight), no convergence. Leak table: `leak-table-concentrate.md`.
+
+**THE SMOKING GUN: the inventory time-stop fired ZERO times in 3.4h.** The entire thesis of the run —
+"cut warehouse drift with the time-stop" — never executed. Root cause (grounded in time-stop-quoter.ts +
+the live config), a self-inflicted DESIGN ERROR:
+- The time-stop was armed at **AGE_MIN=30** while the loss-stop sat at **0.0001 (−$100/book)**.
+- On a volatile alt a −$100 adverse move happens in **minutes**, so the loss-stop flattened every
+  drifting position long before it could age 30min. Worse: flattening drops inventory into the time-stop's
+  flat band, which **RESETS its age clock** (time-stop-quoter.ts:72). So the clock never even approached
+  30min. The loss-stop fired constantly (cumulative ×8/book, $420 in taker fees) and **was** the de-facto
+  warehouse control — bluntly, at fee cost, by REALISING the drift instead of preventing it.
+- Two warehouse controls that cancel: the slow one is dead weight behind the fast one.
+
+**Process failure (own it):** the time-stop was "validated" in `timestop-sweep.ts`, a harness that has
+**no loss-stop in it** — so "30m/8bps validated" was true in isolation and false in the live config. And
+the live "verification" checked that the env vars were *present*, not that the config was *coherent* (could
+the time-stop physically engage given the loss-stop? no — a 2-line arithmetic check that wasn't done). An
+8h experiment shipped with its headline lever dead on arrival. Lesson logged in [[feedback_math_param_correctness]]:
+**validate a lever in a harness that includes the controls it will run against, and sanity-check
+coherence (can it fire?), not just presence.**
+
+**Edge also collapsed in the toxic overnight regime:** vpin climbed 0.16 → 0.30; the screen's "clean"
+books got picked off (TRUMP fillEdge +20→−190, ENA +17→−73, SUI +16→−32). **BNB was the lone survivor**
+(fillEdge +11, net +25, vpin 0.13) — the clean-edge, two-sided-flow book the concentrate is hunting for.
+ZEC/XRP kept POSITIVE fillEdge (+95/+57) but warehouse drift (−804/−125) killed them — exactly the books
+a *working* time-stop is meant to rescue.
+
+**THE #68 FIX — REVISED after a full journal re-read (the operator's call: read it all, incorporate every
+lesson). My first #68 fix (loosen the loss-stop, make the time-stop primary) was WRONG and the journal
+already said so in three places I had not read:**
+- **#62 VALIDATED the 0.01% loss-stop as THE warehouse control** (warehouse −95% on replay, maxDD halved,
+  "keep 0.01% as the desk-wide default"). Loosening it to 0.0005 abandons a validated result. → **KEEP 0.0001.**
+- **#53: the time-stop is MIXED / regime-dependent — "enable ONLY behind the regime gate"** (it killed SOL
+  −$1,524 in the aggressive variant), and it is **redundant** with the validated loss-stop. In #67 it never
+  fired *because the loss-stop was already doing the warehouse job.* → **DROP the time-stop** (wrong lever).
+- **#55: "a guardrail bounds inventory losses; it CANNOT make a picked-off book profitable."** The #67 loss
+  was **negative fillEdge in a toxic overnight regime** — no warehouse knob fixes that. → **regime + market
+  selection is the P&L driver**, not the warehouse knob.
+
+**The corrected config (baked into `launch-concentrate.sh`):**
+1. **Arm the F4 FLOW REGIME GATE — `MM_REGIME_GATE=flow`.** #56 calls the trend/sweep detector "the most
+   important knob": it pulls quotes BEFORE one-sided inventory builds into a sweep — attacking the warehouse
+   drift at its SOURCE, not bounding it after. #63 shipped it OFF because it was a no-op on CALM tapes and
+   said the verdict needs "a live A/B... a real directional sweep day" — the toxic #67 regime IS that test.
+2. **KEEP the validated 0.01% loss-stop** (default 0.0001) as the backstop; **time-stop stays OFF.**
+3. **KEEP F2** (`MM_REQUOTE_MIN_BPS=1`), same concentrate-8, same hedge map.
+4. **LAUNCH IN A LIQUID SESSION (London/US open), not deep overnight** — the single biggest lever, and free.
+- **Pre-flight (the check that was missing):** `grep -E 'F4 flow:|REGIME ▸' <log>` must show the gate engaging
+  on the toxic books within the first ~15min; and confirm all 8 are fast-path (`F2 requote: … moves=` ≫ bar rate).
+
+**Honest caveat (no over-promising):** arming the flow gate is the live A/B #63 asked for — it is a BET that
+the gate helps in a toxic regime, not a proven win (it was a no-op on calm tapes). Profit still needs positive
+fillEdge, which is regime-dependent. The standing positive signal is **BNB — it held POSITIVE fillEdge through
+the #67 toxicity**; clean-edge books that earn through toxicity are the template to clone.
+
+**Lesson for me, logged:** read the whole journal before changing a knob. Validate a lever in a harness that
+includes the controls it runs against (the time-stop was "validated" in a sweep with no loss-stop in it), and
+check coherence (can it physically fire?) — not just that the env var is present. [[feedback_math_param_correctness]]
+
+**#68 addendum (operator pushback — the desk must be REGIME-SELF-ADAPTING, not hour-scheduled).**
+Ronnie's binding constraint: he runs ONE program, can't switch configs by hour ("at work"), so the
+desk must DETECT regime change itself. That reframes the whole #68 fix — "launch in a liquid session"
+is operationally useless AND statistically unsupported (3 windows = noise, not a tradeable clock). The
+answer is the **F4 flow regime gate as the standing per-book auto-detector** (not an A/B): NORMAL when
+flow is two-sided (capture), DEFENSIVE/FLATTEN-ONLY when one-sided AGAINST inventory (widen/cut/pull).
+It does BOTH jobs the operator asked about: stops one-sided ACCUMULATION (warehouse drift) AND avoids
+picked-off FILLS (fillEdge) — at the source. Honest gap #68 exposed: F3 + VPIN pause were ON and still
+didn't save the toxic night — because **VPIN peaked ~0.6 and the pause threshold was 0.75 (never
+fired)**. Fix: VPIN pause → 0.6 (backstop actually engages) + arm the flow gate (the precise,
+alignment-aware tool). **fillEdge is NOT "fixed" — it is regime-dependent** (same book flips +20→−190
+calm→toxic); the gross pick-off is fixed (micro-price+F3, #47/#64), the toxic re-opening is what the
+flow gate defends. **Directional lean STAYS off — κ=0 is DATA (#65), implementing it loses; that is the
+one thing I won't turn on.** **Book set OPTIMISED to the ROBUST-6 on two windows + hedgeability:**
+keep BNB(+4/+11, the only book + through both regimes)/XRP/SUI/SOL (factor-HEDGED) + ZEC(+18/+95 best
+quoter, warehouses hard)/XMR (naked, no factor). **CUT TRUMP** (regime-fragile +20→−190) **+ ENA**
+(worst #68 −385, self-hedge bled −187). **Re-hedged BNB/XRP** (my earlier trim used one noisy live
+window R²0.43/0.44; the longer fits are BNB.61/XRP.76 — they ARE hedgeable, #55b). Committed to
+`launch-concentrate.sh`. Run it 24/7; judge realised-first through a toxic patch (the desk should defend
+through one, not dodge the clock).
+
+**#68 — the CORRECTED run is LIVE and the auto-defense is WORKING (2026-06-15 ~01:02Z).** Launched
+`run-20260615-040228-mm10h.log`: the ROBUST-6 (BNB/XRP/SUI/SOL hedged + ZEC/XMR naked), `MM_REGIME_GATE=flow`,
+VPIN pause 0.6, F2=1, validated 0.01% loss-stop, time-stop OFF, hedge map SOL/SUI→ETH + XRP/BNB→BTC. All
+6 on the fast L2 path, viol=0, no boot errors. **Unlike #68's inert time-stop, the flow gate engaged within
+2 minutes:** XMR DEFENSIVE on one-sided sell flow (f=−0.53, 19/20 ticks), SOL/BNB defensive, in the same
+overnight-toxic regime that sank the first run — the auto-detection is doing its job (stops the one-sided
+build + the picked-off fills at the source). Too early for a verdict (realised flat, warming); leak-table
+scorecard due after a multi-hour window. **Regression-hardening shipped this session so #68 can't recur:**
+(1) `mm-run-review` skill gained a mandatory **STEP −1** (read the journal + a config-COHERENCE check —
+can the knob physically fire? — + "validate a lever only in a harness with the live controls" + "verify a
+live control is ENGAGING, not just env-present") and a **regime-gate read** in the data map; (2) **CLAUDE.md
+§10.1 (BINDING)** — every session runs `tsc`+`jest` before committing, new behaviour ships a locking spec,
+config changes pass STEP −1 first. The lesson lives in [[feedback_math_param_correctness]].
+
+---
+
+## 2026-06-15 — Entry #69 (the ruthless-concentration test: BNB solo, sized up, hedged to BTC)
+
+The corrected concentrate run (#68, robust-6 + flow gate) was scored at ~3h: **desk realised ≈ −$800**
+(−$267/h vs #68's −$331/h — better, still losing). Same disease: warehouse drift (XRP −233 / SUI −174
+/ ZEC −392 warehouse, quoters fine on XRP/SUI) + pick-off (XMR fillEdge −175 on 350 fills; ZEC flipped
+to −64). The flow gate ENGAGED (SOL/XMR defensive) but did NOT stop the SLOW warehouse build — XRP/SUI/
+ZEC warehoused in `normal` regime (drift without a one-sided sweep slips past a flow-triggered gate).
+DD control was excellent again (maxDD ZEC 0.63%, rest <0.25%). Artifact: `leak-table-concentrate.md`.
+
+**The honest pattern named (operator agreed):** this is the NINTH straight realised-negative multi-book
+run (#41→#68). The rebate + spread has never out-earned warehouse drift + adverse selection across HL
+alt books, under any defence stack. **The ONE exception in EVERY run is BNB** — net flat-to-positive,
+fillEdge +1/+4/+11, maxDD 0.03–0.12%, the cleanest two-sided-flow book. So instead of config-tweak #10,
+the last empirical question: **can a SINGLE clean book, sized up and hedged, post POSITIVE realised?**
+
+**BNB-solo run (`scripts/launch-bnb-solo.sh`, committed):** BNB only, **$5M capital (5×) / $100k quote
+(2×)** — "do it big on real edge", DD-safe because BNB's DD is tiny — **hedged BNB→BTC β0.92** (R².61,
+#55b). All validated defences kept (micro-price + 100ms requote, F3 widen-only, 0.01% loss-stop,
+governor, F2=1, flow gate + VPIN 0.6); time-stop OFF; directional OFF (κ=0). **Pre-registered: BNB
+realised ≥ 0 AND fillEdge ≥ 0 over a multi-hour window.** This is the decisive test: a clean green is the
+first real edge (→ scale); a clean red AT SIZE on the desk's cleanest book is the honest verdict that
+paper MM on HL has no positive realised edge after costs — at which point we stop tweaking and report
+THAT (the mission is honesty, not a tenth losing run dressed as progress). Built under the new §10.1
+regression discipline (STEP −1 coherence check passed; bash -n clean; tsc clean this session).

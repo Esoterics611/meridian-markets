@@ -148,6 +148,15 @@ docker-compose.yml                     Postgres 16 on :5433
 - Integration specs: `*.int-spec.ts` — require Postgres on `:5433`. Auto-skip via `describeIfDb` when the DB is unreachable; failing the assertion would be a worse experience than a silent skip during local iteration. CI MUST start Postgres before invoking `npm test` so the integration suites actually fire.
 - 51 tests across 9 suites today. New surfaces add specs in the same shape.
 
+### 10.1 Regression discipline (BINDING — every session, no exceptions; added 2026-06-15 after the #68 regression)
+
+A session must not END in a state that silently regresses the desk. Before committing **any** change:
+
+1. **Run the regression suite and quote the result.** `npx tsc --noEmit` MUST pass (exit 0), and `npx jest <touched-area>` (e.g. `src/market-making`) green. If something is red, say so with the output — never commit over a red build, never claim "tests pass" without running them. The one tolerated red is the long-known `telemetry.module.spec` isolation flake (see [[feedback_no_wheel_spinning_on_tooling]]) — note it, don't chase it.
+2. **New behaviour ships with a spec that locks it in.** A bug fixed without a regression test will come back (the #47 rehydrate trap is the canon example — it got a test; the #68 config mistake did not, so it recurred). When you fix a class of mistake, add the test/guard that makes it impossible to reintroduce.
+3. **Config / strategy changes pass the STEP −1 coherence check FIRST** (the `mm-run-review` skill): read the relevant `docs/QUANT_JOURNAL.md` entries (cite them), verify the new knobs can physically fire given the others (a tight loss-stop preempts a slower age-stop; a hedge map must cover every non-naked book), and confirm a live control is actually *engaging* (grep its log line), not merely that its env var is set. **Validate a lever only in a harness that includes the controls it will run against** — an offline sweep missing the live loss-stop is not a validation.
+4. **Leave the repo green and committed** (CLAUDE.md §0): the build passes, the journal records the run/decision, and no deliverable is left only in a worktree.
+
 ## 11. SecretProvider Contract
 
 `SecretProvider` interface is the Vault swap point. `EnvSecretProvider` reads `process.env`. No other module may access `process.env` directly — all secret reads go through `ISecretProvider.get()`. The `SECRET_PROVIDER` token is provided globally by `SecretsModule` (imported in `AppModule`).

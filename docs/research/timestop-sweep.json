@@ -40,6 +40,19 @@
  },
  {
   "coin": "BTC",
+  "label": "T=60m,shift=3bps",
+  "netUsd": -2126.379255,
+  "realisedUsd": -217.627348,
+  "unrealUsd": -1915.472383,
+  "maxDdPct": 0.8498979441238135,
+  "fills": 35,
+  "finalInvUsd": 102711.1293275,
+  "spreadUsd": 55.767216,
+  "adverseUsd": 58.102706,
+  "feesUsd": -6.720476
+ },
+ {
+  "coin": "BTC",
   "label": "T=30m,shift=8bps",
   "netUsd": -730.10582,
   "realisedUsd": -443.073107,
@@ -50,6 +63,19 @@
   "spreadUsd": 89.870308,
   "adverseUsd": 27.660255,
   "feesUsd": -19.778768
+ },
+ {
+  "coin": "BTC",
+  "label": "T=60m,shift=8bps",
+  "netUsd": -2125.283843,
+  "realisedUsd": -217.627348,
+  "unrealUsd": -1914.376949,
+  "maxDdPct": 0.8498960825547559,
+  "fills": 35,
+  "finalInvUsd": 102711.1293275,
+  "spreadUsd": 56.86265,
+  "adverseUsd": 58.102706,
+  "feesUsd": -6.720454
  },
  {
   "coin": "ETH",
@@ -92,7 +118,33 @@
  },
  {
   "coin": "ETH",
+  "label": "T=60m,shift=3bps",
+  "netUsd": 899.446575,
+  "realisedUsd": 661.362869,
+  "unrealUsd": 29.023067,
+  "maxDdPct": 0.125647686972751,
+  "fills": 5055,
+  "finalInvUsd": 14255.08994945,
+  "spreadUsd": 343.38929,
+  "adverseUsd": 293.106031,
+  "feesUsd": -209.060639
+ },
+ {
+  "coin": "ETH",
   "label": "T=30m,shift=8bps",
+  "netUsd": 899.446575,
+  "realisedUsd": 661.362869,
+  "unrealUsd": 29.023067,
+  "maxDdPct": 0.125647686972751,
+  "fills": 5055,
+  "finalInvUsd": 14255.08994945,
+  "spreadUsd": 343.38929,
+  "adverseUsd": 293.106031,
+  "feesUsd": -209.060639
+ },
+ {
+  "coin": "ETH",
+  "label": "T=60m,shift=8bps",
   "netUsd": 899.446575,
   "realisedUsd": 661.362869,
   "unrealUsd": 29.023067,
@@ -144,6 +196,19 @@
  },
  {
   "coin": "SOL",
+  "label": "T=60m,shift=3bps",
+  "netUsd": -2639.209992,
+  "realisedUsd": 203.756122,
+  "unrealUsd": -2880.198264,
+  "maxDdPct": 1.0237383416453336,
+  "fills": 791,
+  "finalInvUsd": 71690.09793598749,
+  "spreadUsd": 180.886772,
+  "adverseUsd": 257.992934,
+  "feesUsd": -37.23215
+ },
+ {
+  "coin": "SOL",
   "label": "T=30m,shift=8bps",
   "netUsd": -2589.7567,
   "realisedUsd": 211.362889,
@@ -154,6 +219,19 @@
   "spreadUsd": 179.184157,
   "adverseUsd": 248.872341,
   "feesUsd": -36.7818
+ },
+ {
+  "coin": "SOL",
+  "label": "T=60m,shift=8bps",
+  "netUsd": -2639.209992,
+  "realisedUsd": 203.756122,
+  "unrealUsd": -2880.198264,
+  "maxDdPct": 1.0237383416453336,
+  "fills": 791,
+  "finalInvUsd": 71690.09793598749,
+  "spreadUsd": 180.886772,
+  "adverseUsd": 257.992934,
+  "feesUsd": -37.23215
  },
  {
   "coin": "DOGE",
@@ -196,6 +274,19 @@
  },
  {
   "coin": "DOGE",
+  "label": "T=60m,shift=3bps",
+  "netUsd": -118.245882,
+  "realisedUsd": -119.881614,
+  "unrealUsd": -19.418734,
+  "maxDdPct": 0.1060291837708025,
+  "fills": 14964,
+  "finalInvUsd": -3493.955448616962,
+  "spreadUsd": 53.455609,
+  "adverseUsd": 29.727573,
+  "feesUsd": -21.054466
+ },
+ {
+  "coin": "DOGE",
   "label": "T=30m,shift=8bps",
   "netUsd": -118.245882,
   "realisedUsd": -119.881614,
@@ -206,5 +297,96 @@
   "spreadUsd": 53.455609,
   "adverseUsd": 29.727573,
   "feesUsd": -21.054466
+ },
+ {
+  "coin": "DOGE",
+  "label": "T=60m,shift=8bps",
+  "netUsd": -118.245882,
+  "realisedUsd": -119.881614,
+  "unrealUsd": -19.418734,
+  "maxDdPct": 0.1060291837708025,
+  "fills": 14964,
+  "finalInvUsd": -3493.955448616962,
+  "spreadUsd": 53.455609,
+  "adverseUsd": 29.727573,
+  "feesUsd": -21.054466
+ },
+ {
+  "coin": "HYPE",
+  "label": "baseline",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
+ },
+ {
+  "coin": "HYPE",
+  "label": "T=10m,shift=3bps",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
+ },
+ {
+  "coin": "HYPE",
+  "label": "T=30m,shift=3bps",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
+ },
+ {
+  "coin": "HYPE",
+  "label": "T=60m,shift=3bps",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
+ },
+ {
+  "coin": "HYPE",
+  "label": "T=30m,shift=8bps",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
+ },
+ {
+  "coin": "HYPE",
+  "label": "T=60m,shift=8bps",
+  "netUsd": 279.201618,
+  "realisedUsd": 0,
+  "unrealUsd": 278.206006,
+  "maxDdPct": 0.2799089198471851,
+  "fills": 1,
+  "finalInvUsd": -49502.405083171,
+  "spreadUsd": 39.905563,
+  "adverseUsd": 59.298873,
+  "feesUsd": -0.995612
  }
 ]
