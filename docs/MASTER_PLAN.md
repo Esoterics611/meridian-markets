@@ -60,8 +60,20 @@ archived `ROADMAP`.
 
 ## 3. The path to profit — THE active priority chain
 
-The strategy is empirical: **find the markets where the rebate beats the drift → concentrate
-there → cut the drift → compound.** In order:
+> **STRATEGIC PIVOT (2026-06-15, Journal #70 + [PROFIT_PIVOT.md](PROFIT_PIVOT.md)).** The external
+> MM-edge report + our own ~10-run record (every one realised-negative; BNB-solo ≈$0 at size) settle
+> it: **passive spread-MM has no positive-EV edge for us** (no latency/colo, rebate tier, flow,
+> balance-sheet, or token subsidy). The spread-MM chain below (items 1–4) is therefore **SUPERSEDED /
+> demoted** — it stays as a recorder/benchmark, not the profit path. **The new active priority is the
+> PROFIT PIVOT:** move from spread-capture (negative residual) to **funding/basis carry + cross-venue
+> fair value** (positive residual from *holding* — the one edge we actually have). Full plan +
+> proposed toolkit (T1 CrossVenueFairValue, T2 FundingCarryBook, T3 funding-aware skew, T4 basis arb,
+> T5 cascade reversion, T6 staleness instrumentation, T7 HLP benchmark) in
+> **[PROFIT_PIVOT.md](PROFIT_PIVOT.md)**. xyz/HIP-3 markets are CUT (2× fees). Sequence: P1 = T1 (measure
+> the Binance↔HL basis) + T2 (delta-neutral funding carry, persistence-gated) — the first run that
+> tests for **positive-residual** P&L.
+
+The (now superseded) spread-MM chain, kept for the record:
 
 1. **[DONE #66/#67] The 25-market wide screen** — 25 books × $1M ranked the HL universe by realised
    fillEdge (`leak-table-screen25-s2.md`). Verdict: quoter fine, warehouse drift is the whole bleed.
