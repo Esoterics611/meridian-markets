@@ -3046,3 +3046,48 @@ rebuilt. **Next = build P1: T1 CrossVenueFairValue (measure the basis/lead-lag) 
 (delta-neutral funding harvest, persistence-gated)** — the first run that tests for positive-residual
 P&L. Toolkit T1–T7, markets, honesty gates, sequence: [PROFIT_PIVOT.md](PROFIT_PIVOT.md). Spread-MM
 chain is SUPERSEDED (recorder/benchmark only). See [[project_mm_frontier_state]].
+
+---
+
+## 2026-06-15 — Entry #71 (P1 of the Profit Pivot: T1 CrossVenueFairValue + T2 FundingCarryBook shipped)
+
+**What shipped (both phases committed to `feat/mm-profit-pivot-plan`):**
+
+**T1 — `CrossVenueFairValue` (measure-only basis/lead-lag engine):**
+- `src/market-data/cross-venue/cross-venue-fair-value.interface.ts` — `ICrossVenueFairValue` interface + `BasisSnapshot` type + `MockCrossVenueFairValue` (safe offline default). `BasisSnapshot` carries: `binanceMid`, `hlMid`, `basis` (hlMid−binanceMid), `basisBps` (signed, bps), `hlServerTsMs` (HL's own reported timestamp), `hlDataAgeMs` (HL fetch time − HL server ts — the staleness proxy to validate the ~100ms report claim).
+- `src/market-data/cross-venue/cross-venue-fair-value.ts` — `CrossVenueFairValue` real impl: fetches Binance `lastPrice` + HL `l2Snapshot` **concurrently** (parallel `Promise.all`), computes the HL mid from best-bid/ask. Reuses `BinancePublicClient` (the existing global spot feed) + `HyperliquidClient` (the existing L2/candle client) — no new HTTP clients.
+- `scripts/cross-venue-basis.ts` — live measurement script: polls N symbols at configurable interval, logs per-sample basis + hlDataAge, then prints a stats table (mean/std/p5/p95 of basisBps and hlDataAgeMs). **Validation gate**: checks `hlDataAge.mean` in [50ms, 1000ms] band (matches the "HL lags Binance ~100ms" report claim). Run: `CV_SAMPLES=60 npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts`.
+- Spec: 7 tests covering basis computation, hlDataAgeMs, empty-book handling, interface satisfaction.
+
+**T2 — `FundingCarryBook` (OOS persistence gate + research harness + live tracker):**
+- `src/market-data/funding/funding-carry-oos.ts` — `oosCarryGate` library function (the honesty gate PROFIT_PIVOT §5 #1): splits funding history 2/3 train / 1/3 OOS, scores `posFrac` independently in each window via the existing `staticCarry`, passes only when BOTH windows are stable (≥ `minPosFrac`, default 0.65). Supports `LONG_PERP` direction (persistently negative funding). `rankCarryUniverse` batches over a symbol list. Reuses `staticCarry` / `FundingPoint` — no new model code.
+- `scripts/funding-carry-oos.ts` — OOS research harness: fetches `FCO_DAYS` (default 90d) of HL hourly funding per symbol, runs `oosCarryGate`, prints the ranked board (IS posFrac / OOS posFrac / full carry % / breakeven / PASS/FAIL). Supports `FCO_SOURCE=hl|binance|both`. Prints the **pre-registered success metric** for the forward paper run.
+- `scripts/funding-carry-live.ts` — operator live paper tracker: runs the gate first (refuses to track any symbol that fails OOS posFrac today), opens simulated carry positions for gate-passers, polls HL `currentFunding` every `FCL_POLL_MS`, accumulates simulated funding accrual, prints net-vs-fee status each poll. Final verdict at `FCL_HOURS`. **No orders placed — purely observational paper tracking.**
+- Spec: 14 tests covering gate logic, direction handling, split boundary, breakeven formula, ranking, edge cases.
+
+**Regression discipline (§10.1 — done before commit):**
+- `npx tsc --noEmit`: clean (exit 0).
+- `npx jest src/market-data src/market-making`: 88 suites / 583 tests, all green. New: 2 suites / 21 tests.
+
+**Pre-registered success metric (T2 forward run):**
+> PASS = net funding accrued across all OOS-gated carry symbols > entry+exit fee cost over the full breakeven window (~0.5–5d on HL hourly funding at current BTC/ETH rates).
+> Judge: realised-first — total_funding_received − total_fees_paid.
+> Do NOT churn before the symbol's breakeven date.
+> Do NOT simulate (or count) symbols that fail the OOS posFrac gate.
+
+**How to run (operator):**
+1. T1 live basis: `CV_SAMPLES=120 npx ts-node -r tsconfig-paths/register scripts/cross-venue-basis.ts` → logs 120s of BTC/ETH/SOL/BNB/XRP basis + validates hlDataAge.
+2. T2 OOS gate: `FCO_DAYS=90 FCO_SOURCE=hl npx ts-node -r tsconfig-paths/register scripts/funding-carry-oos.ts` → prints the gated carry board + pre-registered metric.
+3. T2 live paper track: `FCL_HOURS=48 FCL_SYMBOLS=BTC,ETH npx ts-node -r tsconfig-paths/register scripts/funding-carry-live.ts` → runs gate then tracks accrual.
+
+**Design notes:**
+- T1 uses `hlDataAgeMs = hlFetchMs − hlServerTsMs` as the staleness proxy. This is a conservative lower bound on HL's true lag behind Binance (it includes HL's own internal latency + network RTT, not just the inter-venue lag). The "~100ms" claim from the report should show up as `hlDataAge.mean` in the 50–200ms band.
+- T2 uses the 2/3 / 1/3 split rather than a rolling OOS to keep the gate simple and audit-able. A symbol that passes the static OOS can still fail forward (regime change) — that's why the live tracker re-gates before opening any position.
+- Both tools are **swap-seam compliant** (interface + real + mock; safe default is the mock). The real impls use only public APIs — no keys, no accounts.
+
+**What's NOT done (P2 sequence):**
+- T3 funding-aware inventory skew (for any residual MM quoting): needs the live desk config wiring, deferred.
+- T4 cross-venue basis arb (larger, slower dislocations): deferred after T1 live measurement accumulates data.
+- T6 staleness-markout instrumentation: deferred to after T2 shows carry numbers.
+- The actual carry execution path (wiring the carry book into `MmPortfolioTrader`): T2 is paper-tracking for now — the live execution path is the P2 deliverable once the paper track record is positive.
+
