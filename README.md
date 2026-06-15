@@ -163,3 +163,17 @@ The DB-backed suites (`*.int-spec.ts`) auto-skip when Postgres is not reachable;
 Modular monolith — one repo, one Postgres, one ordered migration history. Every external integration sits behind a swap-seam interface (a mock and a real impl, selected by config), so the engine is testable offline and paper-tradable without ceremony. The repo is **self-contained** — no cross-repo coupling.
 
 The binding rules and the maintained file map live in [`CLAUDE.md`](CLAUDE.md): §6 architecture, §7 execution modes & swap seams, §8 session log, §9 file map. Per-session history is in [`docs/SESSION_HISTORY.md`](docs/SESSION_HISTORY.md).
+
+---
+
+## Research Journey
+
+Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (72 entries). The short version:
+
+**Stat-arb (entries #1–#40):** We built a rigorous crypto stat-arb engine — cointegration, walk-forward OOS, deflated Sharpe, purged k-fold, half-spread + impact cost gates. The honest finding: *crypto taker stat-arb is dead.* Cointegration that looks real on 30d windows collapses to near-zero by 90–180d. It's a short-window artefact, not an edge. Equities sector stat-arb is real but ~0.06 Sharpe and survivorship-bound — worth running on paper for months before sizing up.
+
+**Market-making (#41–#65):** We pivoted to maker-rebate MM on Hyperliquid (−0.2 bps rebate). Built a full MM desk: Avellaneda-Stoikov / GLFT / Directional quoters, VPIN risk gate, LOB replay with queue-aware fills, 4-component P&L attribution, per-book NAV curve. The key insight: *naive MM loses to adverse selection — it's a fair-value problem, not a spread-width problem.* The micro-price quote center + sub-second re-quote cadence flipped the desk from −$1,020 to +$133 on an 8h window. First honest net-positive read.
+
+**Carry trade (#66–#72 — current frontier):** The desk's structural edge. HL perpetuals trade at a persistent discount to Binance spot; positive funding means the short (hedge) leg collects. We built the full carry stack: T1 cross-venue fair-value, T2 OOS persistence gate (60d, posFrac ≥ 0.65), T3 funding-aware inventory skew, T4 basis-arb detector. First live paper run: ETH carry is clean and structural — +0.125 bps/hr stable every poll, cleared fees in ~56 min, running at ~11% annualised gross on a $50K leg. BNB passed the 60d OOS gate but live funding flipped regime immediately — the gate needs recency weighting.
+
+**Where we're going:** carry trade + long-horizon stat-arb across many markets. More perp CLOBs (dYdX, Drift, Bybit, OKX), more symbols, longer track records. The OOS / cost / queue-aware gates are the discipline that keeps the paper P&L honest.
