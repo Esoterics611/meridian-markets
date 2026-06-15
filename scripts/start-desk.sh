@@ -118,7 +118,10 @@ MM_MAX_INVENTORY_NOTIONAL_FRAC="${MM_MAX_INVENTORY_NOTIONAL_FRAC:-0.10}" \
 MM_INVENTORY_SKEW_MULT="${MM_INVENTORY_SKEW_MULT:-6}" \
 MM_LOSS_STOP_FRAC="${MM_LOSS_STOP_FRAC:-0.0001}" \
 MM_LOSS_STOP_COOLDOWN_MIN="${MM_LOSS_STOP_COOLDOWN_MIN:-15}" \
-MM_SESSION_GATE="${MM_SESSION_GATE:-xyz:NVDA,xyz:TSLA,xyz:SKHX,xyz:ORCL,xyz:SNDK,xyz:MU,xyz:MRVL=1330-2000}" \
+# xyz / HIP-3 markets (stocks, commodities) are CUT — Journal #70 / the MM-edge report: HIP-3 runs at
+# 2× base fees, no rebate, and needs expensive single-leg taker hedges (BRENTOIL/PAXG) — the WORST
+# maker economics on the venue. No xyz books ⇒ the session gate + the xyz hedge legs are retired.
+MM_SESSION_GATE="${MM_SESSION_GATE:-}" \
 MM_EVENT_BLACKOUT="${MM_EVENT_BLACKOUT:-}" \
 MM_PERSIST="${MM_PERSIST:-true}" \
 MM_FAST_REQUOTE_MS="${MM_FAST_REQUOTE_MS:-100}" \

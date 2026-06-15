@@ -1,0 +1,163 @@
+{
+ "since": "2026-06-15T05:55:00.000Z",
+ "until": "2026-06-15T07:36:03.243Z",
+ "desk": {
+  "netUsd": -82.81337,
+  "realisedUsd": 0.787724,
+  "unrealUsd": -86.127397,
+  "feesUsd": -1.966899,
+  "hours": 1.57689
+ },
+ "hedgeMeasuredUsd": 55.639397000002106,
+ "hedgeLegImplied": 55.63939699999999,
+ "hedge": {
+  "orders": 1,
+  "notionalUsd": 88785,
+  "estCostUsd": 23.97195,
+  "flips": 0,
+  "opens": 1,
+  "tracks": 0,
+  "zombieLines": 0
+ },
+ "hedgeLegs": [
+  {
+   "underlying": "BTC",
+   "n": 67,
+   "pnl": 55.639397000002106,
+   "funding": 0,
+   "fees": 26.63539,
+   "resid": -112.10250069998438,
+   "notional": -88702.3361385
+  }
+ ],
+ "hedgeQuality": [
+  {
+   "book_key": "BNB",
+   "underlying": "BTC",
+   "beta_cfg": 0.92,
+   "beta_live": 0.6228054972044373,
+   "r2": 0.2908556530975565,
+   "basis_share": 0.6085362343386828
+  }
+ ],
+ "varReduction": [
+  {
+   "underlying": "BTC",
+   "books": [
+    "BNB"
+   ],
+   "volPrimaryHr": 173.2841853001423,
+   "volHedgedHr": 184.34959489824072,
+   "reductionPct": -0.06385700794871862,
+   "feesUsd": 26.63539,
+   "verdict": "FLATTEN-ONLY candidate (no variance cut for the fees)"
+  }
+ ],
+ "books": [
+  {
+   "book": "BNB",
+   "source": "hyperliquid",
+   "netUsd": -138.452767,
+   "realisedUsd": 0.787724,
+   "unrealUsd": -141.766794,
+   "feesUsd": -1.966899,
+   "fundingUsd": 0.575449,
+   "inventoryMtmUsd": -86.245715,
+   "fillEdgeUsd": -54.74939999999999,
+   "spreadCapturedUsd": 32.648448,
+   "adverseUsd": 34.9466,
+   "wedgeUsd": -52.45124799999999,
+   "maxDdPct": 0.3001005251007488,
+   "worstBucketUsd": -158.783095,
+   "worstBucketShare": 0.49747303474880733,
+   "worstBucketSuspect": false,
+   "corruptRowsDropped": 0,
+   "fills": 4,
+   "vpin": 0,
+   "markoutShortBps": -2.5930270884445163,
+   "markoutLongBps": 0.9315658951441625,
+   "stateAgeOk": true
+  }
+ ],
+ "leaks": [
+  {
+   "term": "BNB warehouse MTM",
+   "usd": -86.245715
+  },
+  {
+   "term": "BNB fill edge (picked off)",
+   "usd": -54.74939999999999
+  },
+  {
+   "term": "hedge churn (est taker cost)",
+   "usd": -23.97195
+  }
+ ],
+ "hourly": [
+  {
+   "hr": "2026-06-15T06:00:00.000Z",
+   "fills": 3,
+   "aflow": 1,
+   "vpin": 0,
+   "sigma": 0.0001,
+   "bps": 0.8364511322203193,
+   "usd": 0.12369219607751669
+  },
+  {
+   "hr": "2026-06-15T07:00:00.000Z",
+   "fills": 1,
+   "aflow": 1,
+   "vpin": 0,
+   "sigma": 0.0001,
+   "bps": 1.2169101839156924,
+   "usd": 11.803111611432465
+  }
+ ],
+ "quad": [
+  {
+   "book_key": "BNB",
+   "quad": "A0",
+   "n": 1,
+   "bps": 3.8041894648233883,
+   "usd": 0.012687828949072425
+  },
+  {
+   "book_key": "BNB",
+   "quad": "A+",
+   "n": 2,
+   "bps": -1.3766525494912014,
+   "usd": 11.658576289318367
+  },
+  {
+   "book_key": "BNB",
+   "quad": "A-",
+   "n": 1,
+   "bps": 2.6753792147356643,
+   "usd": 0.2555396892425434
+  }
+ ],
+ "terciles": [
+  {
+   "t": 1,
+   "n": 2,
+   "bps": 3.2397843397795265
+  },
+  {
+   "t": 2,
+   "n": 1,
+   "bps": -3.970215282898095
+  },
+  {
+   "t": 3,
+   "n": 1,
+   "bps": 1.2169101839156924
+  }
+ ],
+ "topOfHour": [
+  {
+   "w": "rest",
+   "n": 4,
+   "bps": 0.9315658951441625
+  }
+ ]
+}
