@@ -82,3 +82,52 @@ describe('buildQuotePair — F4 per-side throttle scales (ctx.*HalfSpreadScale /
     expect(q.bid.priceMicros).toBe(100_000_000n - 1n);
   });
 });
+
+describe('buildQuotePair — T3 funding-carry reservation bias (ctx.fundingBiasBps)', () => {
+  // mid = $100 → 1 bps = 100_000_000n × 100 / 1_000_000n = 10_000n micros
+
+  it('does not shift quotes when fundingBiasBps is undefined (default off — legacy unchanged)', () => {
+    const q = build(ctx()); // no fundingBiasBps
+    expect(q.bid.priceMicros).toBe(100_000_000n - 50_000n);
+    expect(q.ask.priceMicros).toBe(100_000_000n + 50_000n);
+    expect(q.reservationMicros).toBe(100_000_000n);
+  });
+
+  it('does not shift quotes when fundingBiasBps is 0', () => {
+    const q = build(ctx({ fundingBiasBps: 0 }));
+    expect(q.reservationMicros).toBe(100_000_000n);
+  });
+
+  it('shifts BOTH prices UP for positive fundingBiasBps (funding negative → bias long → center UP)', () => {
+    // +2bps of $100 → +20_000 micros shift
+    const q = build(ctx({ fundingBiasBps: 2 }));
+    expect(q.reservationMicros).toBe(100_000_000n + 20_000n);
+    expect(q.bid.priceMicros).toBe(100_000_000n + 20_000n - 50_000n);
+    expect(q.ask.priceMicros).toBe(100_000_000n + 20_000n + 50_000n);
+  });
+
+  it('shifts BOTH prices DOWN for negative fundingBiasBps (funding positive → bias short → center DOWN)', () => {
+    // -3bps of $100 → -30_000 micros shift
+    const q = build(ctx({ fundingBiasBps: -3 }));
+    expect(q.reservationMicros).toBe(100_000_000n - 30_000n);
+    expect(q.bid.priceMicros).toBe(100_000_000n - 30_000n - 50_000n);
+    expect(q.ask.priceMicros).toBe(100_000_000n - 30_000n + 50_000n);
+  });
+
+  it('composes with hedgeCostBps (funding shift is to reservation, hedge cost is to half-spread)', () => {
+    // fundingBiasBps=-2 → -20_000 micros to reservation; hedgeCostBps=1 → +10_000 micros to each half
+    const q = build(ctx({ fundingBiasBps: -2, hedgeCostBps: 1 }));
+    expect(q.reservationMicros).toBe(100_000_000n - 20_000n);
+    expect(q.bid.priceMicros).toBe(100_000_000n - 20_000n - (50_000n + 10_000n));
+    expect(q.ask.priceMicros).toBe(100_000_000n - 20_000n + (50_000n + 10_000n));
+  });
+
+  it('spread width is unchanged — only the center moves', () => {
+    const base = build(ctx());
+    const biased = build(ctx({ fundingBiasBps: 5 }));
+    // spread (ask-bid) must be identical
+    const baseSpread = base.ask.priceMicros - base.bid.priceMicros;
+    const biasedSpread = biased.ask.priceMicros - biased.bid.priceMicros;
+    expect(biasedSpread).toBe(baseSpread);
+  });
+});

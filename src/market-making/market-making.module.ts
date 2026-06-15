@@ -365,6 +365,9 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
                 // so the rehydrate path gets it too (the #47 trap — both makeBook and
                 // rebuildBook call buildFastEngine).
                 flowMachine: makeFlowMachine(p.symbol),
+                // T3: funding-carry reservation skew (PROFIT_PIVOT.md §3). Off by default;
+                // arm with MM_FUNDING_SKEW_MULT after T2 OOS gate validates the carry.
+                fundingSkewMult: mm.fundingSkewMult > 0 ? mm.fundingSkewMult : undefined,
               })
             : undefined;
 

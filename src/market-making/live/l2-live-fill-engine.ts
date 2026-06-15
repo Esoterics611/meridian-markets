@@ -55,6 +55,13 @@ function valueUnits(qtyUnits: bigint, priceMicros: bigint): bigint {
   return (qtyUnits * priceMicros) / MICROS;
 }
 
+/** T3: compute the funding-carry reservation bias (bps of mid, signed). */
+function fundingSkewBiasBps(rate: number, mult: number | undefined): number | undefined {
+  if (!mult || mult <= 0 || rate === 0) return undefined;
+  // Positive funding (longs pay shorts) → negative bias (prefer short inventory → funding offsets drift).
+  return -rate * 24 * 10_000 * mult;
+}
+
 /** A resting order plus the live-loop bookkeeping the engine needs (latency + fair value). */
 interface LiveResting extends RestingQuote {
   /** Epoch ms from which this order is actually LIVE in the book (cancel/replace latency). */
@@ -158,6 +165,13 @@ export interface L2LiveFillEngineConfig {
    * Supersedes the binary S4 SweepRegimeDetector on this path. Omit ⇒ off (unchanged).
    */
   flowMachine?: FlowRegimeMachine;
+  /**
+   * T3 funding-carry reservation skew (PROFIT_PIVOT.md §3 T3): scale applied to the live
+   * funding rate to compute ctx.fundingBiasBps. Positive funding rate × positive mult → negative
+   * biasBps (shifts reservation toward short, where funding income offsets warehouse drift).
+   * 0/undefined ⇒ off (safe default; arm with MM_FUNDING_SKEW_MULT after OOS validation).
+   */
+  fundingSkewMult?: number;
 }
 
 export interface L2LiveFillEngineMetrics {
@@ -431,6 +445,7 @@ export class L2LiveFillEngine {
       riskAversion: this.cfg.gamma,
       arrivalDecay: this.cfg.kappa,
       horizonBars: this.cfg.horizonBars,
+      fundingBiasBps: fundingSkewBiasBps(this.fundingRatePerHour, this.cfg.fundingSkewMult),
       schemaVersion: 1,
     };
     const quote = this.cfg.quoter.quote(ctx, this.cfg.symbol);

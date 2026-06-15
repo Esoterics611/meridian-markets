@@ -199,6 +199,7 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     fundingBiasSymbols: (process.env['MM_FUNDING_BIAS_SYMBOLS'] ?? 'BTC').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
     fundingBiasMax: parseFloat(process.env['MM_FUNDING_BIAS_MAX'] ?? '0.39'),
     fundingBiasFullRate: parseFloat(process.env['MM_FUNDING_BIAS_FULL_RATE'] ?? '0.0000125'),
+    fundingSkewMult: parseFloat(process.env['MM_FUNDING_SKEW_MULT'] ?? '0'),
     flowShadow: (process.env['MM_FLOW_SHADOW'] ?? 'false').toLowerCase() === 'true',
     flowFullImbalance: parseFloat(process.env['MM_FLOW_FULL_IMBALANCE'] ?? '0.6'),
     flowMaxBias: parseFloat(process.env['MM_FLOW_MAX_BIAS'] ?? '0.5'),
