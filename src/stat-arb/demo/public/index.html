@@ -678,6 +678,10 @@
         const railPct = capNotional > 0 ? Math.abs(exposure) / capNotional * 100 : null;
         const skewBps = (b.reservationMicros && b.midMicros)
           ? (Number(b.reservationMicros) - Number(b.midMicros)) / Number(b.midMicros) * 10000 : null;
+        // T3 (Profit Pivot): funding rate in 8h bps (the HL convention: rate×8×10000).
+        // Positive = longs pay shorts; negative = shorts pay longs.
+        const fundingRate = typeof b.fundingRatePerHour === 'number' ? b.fundingRatePerHour : 0;
+        const fundingRate8hBps = fundingRate * 8 * 10000;
         const spreadBps = (b.bidMicros && b.askMicros && b.midMicros)
           ? (Number(b.askMicros) - Number(b.bidMicros)) / Number(b.midMicros) * 10000 : null;
         const age = b.lastBarAt ? Math.round((Date.now() - new Date(b.lastBarAt)) / 1000) : null;
@@ -700,7 +704,8 @@
             ${mini('bid', px6(b.bidMicros))}
             ${mini('ask', px6(b.askMicros))}
             ${mini('spread', spreadBps != null ? num(spreadBps, 1) + ' bps' : '—')}
-            ${mini('skew', skewBps != null ? num(skewBps, 1) + ' bps' : '—', '', 'quote-center lean off the mid — the inventory/bias skew the quoter applies to shed position')}
+            ${mini('skew', skewBps != null ? num(skewBps, 1) + ' bps' : '—', '', 'quote-center lean off the mid (reservation − mid). Includes inventory skew + T3 funding bias (MM_FUNDING_SKEW_MULT): when positive funding is live, center shifts DOWN → less long accumulation. A negative skew = quoter is biased short.')}
+            ${fundingRate !== 0 ? mini('fund rate', (fundingRate8hBps >= 0 ? '+' : '') + num(fundingRate8hBps, 2) + ' bps/8h', fundingRate8hBps > 0 ? 'neg' : 'pos', 'live HL perp funding rate in 8h bps (HL convention: annualised ÷ 3×8h periods per day). Positive = longs pay shorts (a short position earns this). T3 (MM_FUNDING_SKEW_MULT) uses this rate to shift the reservation center each tick.') : ''}
             ${mini('VPIN', b.vpinBuckets > 0 ? num(vpin, 2) : '—', vpin >= 0.7 ? 'neg' : '', 'volume-synchronised toxicity (informed-flow probability, 0–1) — BVC on bars, real aggressor flow on the fast path. High = one-sided/informed flow; arm a pause via MM_VPIN_PAUSE_THRESHOLD<1.')}
             ${mini('flow', flowArrow, flow != null && Math.abs(flow) > 0.4 ? 'neg' : '', 'signed aggressor-flow imbalance ∈[−1,1] — the FRONT of the move. ▲ = buyers sweeping, ▼ = sellers sweeping; a sign flip = the move flipping. |flow|>0.4 highlighted: one-sided (informed) tape.')}
             ${mini('lean', bias == null ? '—' : (bias === 0 ? 'neutral' : (bias > 0 ? '+' : '') + num(bias, 2)), bias != null && bias !== 0 ? (bias > 0 ? 'pos' : 'neg') : '', 'the OOS-GATED directional bias the quoter is ACTUALLY applying (q* = bias × max lots). 0/neutral = the signal has not cleared the validation gate — the desk does not lean on an unproven view.')}
@@ -715,7 +720,7 @@
             ${mini('inv carry', fmtUsdc(invCarry), invCarry >= 0 ? 'pos' : 'neg', 'mark-to-market drift on inventory we were already holding — the third attribution column beside spread and adverse (diagnostic)')}
             ${(b.markout || []).map((p) => mini('mo ' + moLabel(p.ms), p.bps != null ? num(p.bps, 1) + ' bps' : '—', p.bps != null ? (p.bps < 0 ? 'neg' : 'pos') : '', 'forward markout at ' + moLabel(p.ms) + ': avg per-fill mid move from our side — negative = adverse/picked off (' + (p.count || 0) + ' fills). A curve sinking with horizon = toxic flow.')).join('')}
             ${mini('fees / reb', fmtUsdc(b.feesUnits), Number(b.feesUnits) <= 0 ? 'pos' : 'neg', 'signed: negative = maker rebate earned, positive = fee paid')}
-            ${funding !== 0 ? mini('funding', fmtUsdc(funding), funding >= 0 ? 'pos' : 'neg', 'perp funding accrued on the open position') : ''}
+            ${(funding !== 0 || fundingRate !== 0) ? mini('funding', fmtUsdc(funding), funding >= 0 ? 'pos' : 'neg', 'perp funding accrued on this position so far. Rate × open inventory × dt each tick — earns when position is on the paying side (positive rate + short, or negative rate + long). See "fund rate" for the live per-hour rate.') : ''}
             ${mini('net', fmtUsdc(net), net >= 0 ? 'pos' : 'neg', 'realised − fees + unrealised + funding')}
             ${mini('equity', fmtUsdc(b.equityUnits), (Number(b.equityUnits) - Number(b.capitalUnits)) >= 0 ? 'pos' : 'neg')}
             ${mini('maxDD', Number.isFinite(dd) ? num(dd, 2) + '%' : '—', dd >= 5 ? 'neg' : '', 'peak-to-trough drawdown — the metric the desk minimises')}
