@@ -2969,3 +2969,17 @@ quoter, warehouses hard)/XMR (naked, no factor). **CUT TRUMP** (regime-fragile +
 window R²0.43/0.44; the longer fits are BNB.61/XRP.76 — they ARE hedgeable, #55b). Committed to
 `launch-concentrate.sh`. Run it 24/7; judge realised-first through a toxic patch (the desk should defend
 through one, not dodge the clock).
+
+**#68 — the CORRECTED run is LIVE and the auto-defense is WORKING (2026-06-15 ~01:02Z).** Launched
+`run-20260615-040228-mm10h.log`: the ROBUST-6 (BNB/XRP/SUI/SOL hedged + ZEC/XMR naked), `MM_REGIME_GATE=flow`,
+VPIN pause 0.6, F2=1, validated 0.01% loss-stop, time-stop OFF, hedge map SOL/SUI→ETH + XRP/BNB→BTC. All
+6 on the fast L2 path, viol=0, no boot errors. **Unlike #68's inert time-stop, the flow gate engaged within
+2 minutes:** XMR DEFENSIVE on one-sided sell flow (f=−0.53, 19/20 ticks), SOL/BNB defensive, in the same
+overnight-toxic regime that sank the first run — the auto-detection is doing its job (stops the one-sided
+build + the picked-off fills at the source). Too early for a verdict (realised flat, warming); leak-table
+scorecard due after a multi-hour window. **Regression-hardening shipped this session so #68 can't recur:**
+(1) `mm-run-review` skill gained a mandatory **STEP −1** (read the journal + a config-COHERENCE check —
+can the knob physically fire? — + "validate a lever only in a harness with the live controls" + "verify a
+live control is ENGAGING, not just env-present") and a **regime-gate read** in the data map; (2) **CLAUDE.md
+§10.1 (BINDING)** — every session runs `tsc`+`jest` before committing, new behaviour ships a locking spec,
+config changes pass STEP −1 first. The lesson lives in [[feedback_math_param_correctness]].
