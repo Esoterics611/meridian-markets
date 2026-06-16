@@ -1,6 +1,7 @@
 # Regime Directional Book — the standalone "take sides" strategy
 
-> **Status:** P1–P3 BUILT (2026-06-16), P4 designed. The book core + the consensus gate +
+> **Status:** P1–P4 BUILT (2026-06-16) — the standalone build is complete; S4–S6 (the `/demo` web
+> cockpit + the multi-hour forward run) remain. The book core + the consensus gate +
 > the directional stop ship offline and unit-tested on `feat/mm-profit-pivot-plan`. This is
 > the **standalone** expression of "taking sides" — distinct from the axed *market-maker*
 > ([DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)), which expresses a view by
@@ -136,9 +137,10 @@ inherits each signal's OOS gate rather than re-implementing it.
    regime changes" deliverable, on `/demo`). Drives the book's `standAside` (STAND_ASIDE only from a
    basis blowout / vol spike / stale feed). Color law exported once for the S4 chips. The same
    funding-regime read later tightens the carry gate (the BNB fix — shared spine).
-4. **P4 — `scripts/regime-book-live.ts`.** Gate first, open conviction-sized paper positions, mark each
-   tick, apply the stop + stand-aside, accrue funding, emit events, persist the equity curve to `mm_nav`,
-   print a **realised-first** verdict. Forward-paper track record = the demo. (Template: `funding-carry-live.ts`.)
+4. **P4 — `scripts/regime-book-live.ts` (DONE — #76).** Gate first (shared `regime-board.ts` scorer), open
+   conviction-sized paper positions, mark each tick, apply the stop + stand-aside, accrue funding, emit
+   events, redraw a terminal cockpit (per-book card + distance-to-stop gauge + weather strip), print a
+   **realised-first** verdict. Forward-paper track record = the demo. (Template: `funding-carry-live.ts`.)
 
 ---
 

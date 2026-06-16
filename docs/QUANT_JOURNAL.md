@@ -3316,3 +3316,55 @@ This is the gate doing its job: most symbols don't earn a side.
 + `ConsensusBiasSource` + this `RegimeMonitor` per eligible symbol, forward-paper with the terminal
 dashboard (the distance-to-stop gauge as the hero widget), print the realised-first verdict = the track record.
 
+---
+
+## 2026-06-16 — Entry #76 (Take Sides P4: the LIVE FORWARD-PAPER RUNNER + terminal cockpit)
+
+**What this is (playbook S3).** The forward-paper runner you leave running for hours — `scripts/regime-book-live.ts`
+— and the live terminal cockpit that produces the track record. It **gates first** (the exact same OOS gate
+as the morning board, now a shared module so they cannot drift), trades ONLY today's VALIDATED symbols, and
+prints why the rest are refused.
+
+**What shipped:**
+- `src/market-making/directional/regime-board.ts` — the **shared scorer** extracted from the board script:
+  `scoreRegimeBoard` (every symbol×signal×horizon trial, deflated over the whole sweep) + `bestPerSymbol`
+  (the printable board) + `validatedSignalsPerSymbol` (the constituent set the live consensus votes over).
+  `scripts/regime-bias-oos.ts` **refactored** onto it — the morning board and the live gate are now one
+  definition (no drift between what validates and what trades).
+- `src/market-making/bias/momentum-bias-source.ts` — the missing `MomentumBiasSource` (long the trend, reads
+  `recentReturns`), the second consensus constituent beside `FundingBiasSource`. `validated` defaults FALSE.
+- `scripts/regime-book-live.ts` — per eligible symbol: a `RegimeDirectionalBook` + a `ConsensusBiasSource`
+  (the symbol's validated funding/momentum signals + a manual house-view slot) + a `RegimeMonitor`. Each poll
+  fetches HL mid + funding + Binance basis, feeds the monitor (stand-aside) and the consensus (the bias),
+  calls `book.update` with the OOS IC for the conviction cap, and books the fill paper-only against the book's
+  own `InventoryBook`. The dashboard redraws in place: a CARD per book (side, size, entry/mark, uPnL, funding,
+  the **distance-to-stop gauge** — the hero widget — the bias with a ↗/↘ decay arrow, age), a desk header
+  (realised + unrealised, **maxDD**, books live/aside), and a weather-strip footer. The verdict is
+  **realised-first**: realised + funding − fees per book + desk, judged on realised, never the open mark.
+  Funding subtlety handled honestly: the **trailing-mean** funding (what validated) drives the signal +
+  monitor; the **instantaneous** rate drives the book's funding accrual (the real carry).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias src/market-making/events` → **16 suites / 120 tests green** (regime-board + momentum
+new). Scripts type-check.
+
+**First forward-paper micro-run (bounded smoke, HL, 2 polls — proves the pipeline, NOT a track record).**
+Gate (30d, over-fit short window) validated BTC (momentum, IC +0.28) and ETH (funding, IC +0.56). The runner
+then behaved exactly as designed: **BTC opened SHORT on validated momentum** (conv 0.27, IC-capped, $13.7k of
+$50k base), while **ETH stood FLAT** — on 30d both its funding signal (short) *and* momentum (long) validated,
+so the consensus `vetoOnConflict` neutralised them (the "stand aside on internal disagreement" rule, working
+live). The stop gauge (empty — no drawdown), weather strip (both TRADEABLE, vol ×1.00), decay arrows, and the
+realised-first verdict all rendered. Over the 10-second smoke desk realised was just the **−$6.17 entry fee**,
+maxDD −$11.38, 1 entry, 0 stops — a pipeline proof, not a number to trust.
+
+**Observation for the operator (a trading-policy choice, yours):** with `vetoOnConflict` on, a symbol whose
+funding and momentum *both* validate but *disagree* in sign trades nothing — conservative-correct, but it
+means fewer positions. `RBL_MIN_AGREE` / the veto are the knobs. The authoritative **90d** gate (#75) validates
+only **BTC** (funding), so the conflict case won't bind on the real run today — but it will when more symbols
+validate.
+
+**This completes the standalone "take sides" build (P1–P4): the book + consensus gate + stop (P1), the OOS
+VALIDATED board (P2), the regime monitor / weather (P3), and the live forward-paper runner + cockpit (P4).**
+The remaining playbook sessions (S4–S6) are the `/demo` web cockpit + the multi-hour forward run that becomes
+the demo's track record.
+

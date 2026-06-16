@@ -37,20 +37,10 @@ import { HyperliquidFundingClient } from '../src/market-data/funding/hyperliquid
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
 import { BinanceFundingClient } from '../src/market-data/funding/binance-funding-client';
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
-import {
-  RegimeSeries,
-  RegimeSignalSpec,
-  defaultRegimeSignalSpecs,
-  regimeSignalPairs,
-} from '../src/market-making/directional/regime-signals';
-import {
-  oosForwardReturnIc,
-  verdictFor,
-  biasMagnitudeCap,
-  OosIcReport,
-  BiasVerdict,
-} from '../src/market-making/bias/oos/forward-return-ic';
-import { sharpeStats } from '../src/stat-arb/research/deflated-sharpe';
+import { RegimeSeries, defaultRegimeSignalSpecs } from '../src/market-making/directional/regime-signals';
+// The gate is the SHARED scorer — identical to the live runner's gate (no drift).
+import { scoreRegimeBoard, bestPerSymbol, BoardRow } from '../src/market-making/directional/regime-board';
+import { BiasVerdict } from '../src/market-making/bias/oos/forward-return-ic';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const SOURCE = (process.env.RBO_SOURCE ?? 'hyperliquid').trim().toLowerCase();
@@ -113,23 +103,6 @@ async function fetchSymbol(symbol: string, fromMs: number, toMs: number): Promis
   }
 }
 
-interface Trial {
-  symbol: string;
-  spec: RegimeSignalSpec;
-  fwdHours: number;
-  report: OosIcReport;
-  verdict: BiasVerdict;
-}
-
-/** The best signal a symbol can bet on: a VALIDATED one with the strongest IC if any
- *  exists, else the highest-IC contender (shown so the trader sees the near-miss). */
-function bestForSymbol(trials: Trial[]): Trial | null {
-  if (!trials.length) return null;
-  const validated = trials.filter((t) => t.verdict === 'VALIDATED');
-  const pool = validated.length ? validated : trials;
-  return pool.reduce((a, b) => (b.report.spearmanIc > a.report.spearmanIc ? b : a));
-}
-
 async function main() {
   const toMs = Date.now();
   const fromMs = toMs - DAYS * 86_400_000;
@@ -163,54 +136,11 @@ async function main() {
     return;
   }
 
-  // ── Build every (symbol × signal × horizon) trial, then deflate over the WHOLE
-  //    sweep (TRIALS + σ_SR = the honest multiple-testing haircut) ──────────────
-  interface Pending { symbol: string; spec: RegimeSignalSpec; fwdHours: number; horizonBars: number; pairs: ReturnType<typeof regimeSignalPairs>; rawSharpe: number; }
-  const pending: Pending[] = [];
-  for (const L of loaded) {
-    for (const fh of FWD_HOURS) {
-      const horizonBars = Math.max(1, Math.round(fh / ivHours));
-      for (const spec of specs) {
-        const pairs = regimeSignalPairs(spec, L.series, horizonBars);
-        if (pairs.length < FOLDS) continue;
-        const rawSharpe = sharpeStats(pairs.map((p) => Math.sign(p.signal) * p.forwardReturn)).sharpe;
-        pending.push({ symbol: L.symbol, spec, fwdHours: fh, horizonBars, pairs, rawSharpe });
-      }
-    }
-  }
-  const TRIALS = pending.length;
-  const SIGMA_SR = std(pending.map((p) => p.rawSharpe).filter(Number.isFinite));
-  console.log(dim(`\ntrials (symbol × signal × horizon) = ${TRIALS} · σ_SR = ${r3(SIGMA_SR)} (deflation scale)\n`));
-
-  const trials: Trial[] = pending.map((p) => {
-    const report = oosForwardReturnIc(p.pairs, p.horizonBars, { folds: FOLDS, embargoFrac: EMBARGO_FRAC, trials: TRIALS, sigmaSR: SIGMA_SR });
-    return { symbol: p.symbol, spec: p.spec, fwdHours: p.fwdHours, report, verdict: verdictFor(report) };
-  });
-
-  // ── Collapse to ONE best-signal row per symbol → the board ──────────────────
-  const bySymbol = new Map<string, Trial[]>();
-  for (const t of trials) (bySymbol.get(t.symbol) ?? bySymbol.set(t.symbol, []).get(t.symbol)!).push(t);
-
-  interface Row { symbol: string; signal: string; fwdHours: number; oosIc: number; hitRate: number; dsr: number; psr: number; verdict: BiasVerdict; convCap: number; eligible: boolean; }
-  const rows: Row[] = [];
-  for (const [symbol, ts] of bySymbol) {
-    const best = bestForSymbol(ts);
-    if (!best) continue;
-    const eligible = best.verdict === 'VALIDATED';
-    rows.push({
-      symbol,
-      signal: `${best.spec.name} ${best.fwdHours}h`,
-      fwdHours: best.fwdHours,
-      oosIc: best.report.spearmanIc,
-      hitRate: best.report.hitRate,
-      dsr: best.report.deflated.dsr,
-      psr: best.report.deflated.psr,
-      verdict: best.verdict,
-      convCap: eligible ? biasMagnitudeCap(best.report.spearmanIc) : 0,
-      eligible,
-    });
-  }
-  rows.sort((a, b) => b.oosIc - a.oosIc);
+  // ── Score every trial through the SHARED gate (deflated over the WHOLE sweep) ──
+  const board = scoreRegimeBoard(loaded, specs, { fwdHours: FWD_HOURS, ivHours, folds: FOLDS, embargoFrac: EMBARGO_FRAC });
+  const TRIALS = board.trials;
+  console.log(dim(`\ntrials (symbol × signal × horizon) = ${TRIALS} · σ_SR = ${r3(board.sigmaSR)} (deflation scale)\n`));
+  const rows: BoardRow[] = bestPerSymbol(board);
 
   // ── Print the board ─────────────────────────────────────────────────────────
   const W = { sym: 7, sig: 28, ic: 9, hit: 6, dsr: 6, verdict: 15, cap: 9, elig: 8 };
@@ -226,7 +156,7 @@ async function main() {
     const eligCell = r.eligible ? green('✅ yes') : red('⛔ no');
     console.log(
       pad(r.symbol, W.sym) +
-      pad(r.signal, W.sig) +
+      pad(`${r.spec.name} ${r.fwdHours}h`, W.sig) +
       padL(signed(r.oosIc), W.ic) +
       padL(pctI(r.hitRate), W.hit) +
       padL(r3(r.dsr, 2), W.dsr) + '  ' +
@@ -263,20 +193,12 @@ async function main() {
   writeFileSync(outPath, JSON.stringify({
     generatedAt: new Date().toISOString(), source: SOURCE, days: DAYS, interval: INTERVAL,
     fwdHours: FWD_HOURS, momLookbackHours: MOM_LOOKBACK_HOURS, fundingWindowHours: FUNDING_WINDOW_HOURS,
-    folds: FOLDS, embargoFrac: EMBARGO_FRAC, trials: TRIALS, sigmaSR: SIGMA_SR,
+    folds: FOLDS, embargoFrac: EMBARGO_FRAC, trials: TRIALS, sigmaSR: board.sigmaSR,
     eligibleSymbols: eligible.map((r) => r.symbol),
     board: rows,
   }, null, 2));
   console.log(dim(`\n  wrote ${outPath}`));
   console.log(green('\nREGIME-BIAS-OOS OK\n'));
-}
-
-function std(xs: number[]): number {
-  if (xs.length < 2) return 0;
-  const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
-  let v = 0;
-  for (const x of xs) v += (x - mean) ** 2;
-  return Math.sqrt(v / (xs.length - 1));
 }
 
 main().catch((e) => {
