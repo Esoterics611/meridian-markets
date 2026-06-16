@@ -39,8 +39,9 @@ import { ConsensusBiasSource } from '../src/market-making/directional/consensus-
 import { FundingBiasSource } from '../src/market-making/bias/funding-bias-source';
 import { MomentumBiasSource } from '../src/market-making/bias/momentum-bias-source';
 import { ManualBiasSource } from '../src/market-making/bias/manual-bias-source';
-import { IBiasSource, effectiveBias } from '../src/market-making/bias/bias-source.interface';
-import { DeskEventInput } from '../src/market-making/events/desk-event';
+import { IBiasSource, effectiveBias, BiasReading } from '../src/market-making/bias/bias-source.interface';
+import { DeskEventInput, controlEvent } from '../src/market-making/events/desk-event';
+import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market-making/directional/regime-desk-risk';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
@@ -65,6 +66,18 @@ const MOM_FULL_RETURN = Number(process.env.RBL_MOM_FULL_RETURN ?? 0.05); // a 5%
 const HOURS = Number(process.env.RBL_HOURS ?? 6);
 const POLL_MS = Number(process.env.RBL_POLL_MS ?? 60_000);
 const MAX_POLLS = Number(process.env.RBL_MAX_POLLS ?? Infinity); // bounded smoke knob
+
+// ── P5 desk-risk spine (caps + kill-switch). Defaults scale to the universe. ───
+const N_DEFAULT = Math.max(1, SYMBOLS.length);
+const MAX_GROSS_USD = Number(process.env.RBL_MAX_GROSS_USD ?? MAX_NOTIONAL_USD * N_DEFAULT); // Σ|notional| cap
+const MAX_NET_USD = Number(process.env.RBL_MAX_NET_USD ?? MAX_NOTIONAL_USD * Math.ceil(N_DEFAULT / 2)); // |Σ signed| cap
+const DESK_CAPITAL_USD = Number(process.env.RBL_DESK_CAPITAL_USD ?? BASE_NOTIONAL_USD * N_DEFAULT);
+const DAILY_LOSS_USD = Number(process.env.RBL_DAILY_LOSS_USD ?? DESK_CAPITAL_USD * 0.015); // realised-loss kill
+const DESK_MAX_DD_FRAC = Number(process.env.RBL_DESK_MAX_DD_FRAC ?? 0.02); // peak-to-trough equity budget
+const START_HALTED = process.env.RBL_HALT === '1' || process.env.RBL_HALT === 'true';
+const START_FLATTEN = (process.env.RBL_FLATTEN ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+
+const NEUTRAL_READING: BiasReading = { bias: 0, validated: true, reason: 'desk-risk: new entry blocked (exposure cap)' };
 
 // ── ANSI ──────────────────────────────────────────────────────────────────────
 const USE_COLOR = !!process.stdout.isTTY && !process.env.NO_COLOR;
@@ -158,6 +171,24 @@ function onEvent(e: DeskEventInput): void {
 // ── desk-level running stats ────────────────────────────────────────────────
 let peakTotalUnits = 0n;
 let maxDDUnits = 0n;
+let lastAssessment: DeskRiskAssessment | null = null;
+
+/** Current per-book risk input from the book's snapshot at its last-known mid. */
+function bookRiskInput(bs: BookState): BookRiskInput {
+  if (bs.lastMidMicros === 0n) return { symbol: bs.symbol, notionalUsd: 0, side: 'FLAT', realisedPnlUsd: 0, unrealisedPnlUsd: 0 };
+  const snap = bs.book.snapshot(bs.lastMidMicros);
+  const inv = snap.inventoryUnits;
+  const absInv = inv < 0n ? -inv : inv;
+  const notionalUsd = Number((absInv * bs.lastMidMicros) / BigInt(MICROS)) / MICROS;
+  const side = inv > 0n ? 'LONG' : inv < 0n ? 'SHORT' : 'FLAT';
+  return {
+    symbol: bs.symbol,
+    notionalUsd,
+    side,
+    realisedPnlUsd: Number(snap.realisedUnits - snap.feesUnits + snap.fundingUnits) / MICROS,
+    unrealisedPnlUsd: Number(snap.unrealisedUnits) / MICROS,
+  };
+}
 
 function deskTotals(books: BookState[]): { realised: bigint; unrealised: bigint; funding: bigint; total: bigint; live: number; aside: number } {
   let realised = 0n;
@@ -192,6 +223,15 @@ function renderFrame(books: BookState[], pollNo: number): string {
     `unrealised ${dim(usd(t.unrealised))}   funding ${usd(t.funding)}   ` +
     `maxDD ${red(usd(-maxDDUnits))} (${ddPct.toFixed(2)}%)   ${green(String(t.live))} live / ${amber(String(t.aside))} aside`,
   );
+  if (lastAssessment) {
+    const a = lastAssessment;
+    const deskTag = a.desk.kind === 'Halt' ? red(bold(`HALT — ${a.desk.reason}`)) : green('RUN');
+    out.push(
+      `  ${dim('desk-risk')} ${deskTag}   gross $${Math.round(a.grossUsd).toLocaleString('en-US')}/${Math.round(MAX_GROSS_USD).toLocaleString('en-US')}   ` +
+      `net $${Math.round(a.netUsd).toLocaleString('en-US')}/±${Math.round(MAX_NET_USD).toLocaleString('en-US')}   ` +
+      `DD ${(a.drawdownFrac * 100).toFixed(2)}%/${(DESK_MAX_DD_FRAC * 100).toFixed(1)}%   ${dim('[h]=halt [f]=flatten-all')}`,
+    );
+  }
   out.push(dim('─'.repeat(64)));
 
   for (const bs of books) {
@@ -305,14 +345,50 @@ async function main() {
     books.push(bs);
   }
 
+  // ── P5 desk-risk spine + manual controls ───────────────────────────────────
+  const deskRisk = new RegimeDeskRisk({
+    maxGrossUsd: MAX_GROSS_USD, maxNetUsd: MAX_NET_USD, dailyLossLimitUsd: DAILY_LOSS_USD,
+    capitalUsd: DESK_CAPITAL_USD, maxDrawdownFrac: DESK_MAX_DD_FRAC,
+  });
+  if (START_HALTED) deskRisk.manualHalt('RBL_HALT=1 at launch');
+  for (const sym of START_FLATTEN) deskRisk.manualFlatten(sym);
+  console.log(dim(`desk-risk: gross≤$${MAX_GROSS_USD.toLocaleString('en-US')}  net≤±$${MAX_NET_USD.toLocaleString('en-US')}  daily-loss kill −$${Math.round(DAILY_LOSS_USD).toLocaleString('en-US')}  maxDD ${(DESK_MAX_DD_FRAC * 100).toFixed(1)}% of $${DESK_CAPITAL_USD.toLocaleString('en-US')}${START_HALTED ? red('  · LAUNCHED HALTED') : ''}\n`));
+
   // ── Poll loop ──────────────────────────────────────────────────────────────
   const endMs = Date.now() + HOURS * 3_600_000;
   let poll = 0;
   let stopped = false;
+  let haltAnnounced = false;
   process.on('SIGINT', () => { stopped = true; });
+
+  // Live "react" controls: [h] kill-switch the desk, [f] flatten every book. TTY only;
+  // a non-interactive run (piped / bounded smoke) is unaffected. Ctrl-C ⇒ graceful flatten.
+  const stdin = process.stdin as NodeJS.ReadStream & { setRawMode?: (m: boolean) => void };
+  const rawCapable = !!stdin.isTTY && typeof stdin.setRawMode === 'function';
+  if (rawCapable) {
+    stdin.setRawMode!(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+    stdin.on('data', (key: string) => {
+      if (key === '') { stopped = true; return; } // Ctrl-C (raw mode swallows SIGINT)
+      if (key === 'h' || key === 'H') {
+        deskRisk.manualHalt('keypress kill-switch');
+        onEvent(controlEvent({ ts: Date.now(), book: 'DESK', detail: 'KEYPRESS HALT — desk kill-switch engaged; flattening all books' }));
+      }
+      if (key === 'f' || key === 'F') {
+        for (const bs of books) deskRisk.manualFlatten(bs.symbol);
+        onEvent(controlEvent({ ts: Date.now(), book: 'DESK', detail: 'KEYPRESS FLATTEN — flattening all open books' }));
+      }
+    });
+  }
+  const restoreStdin = () => { if (rawCapable) { try { stdin.setRawMode!(false); stdin.pause(); } catch { /* best effort */ } } };
 
   while (!stopped && Date.now() < endMs && poll < MAX_POLLS) {
     poll++;
+
+    // PASS 1 — fetch + stage each symbol's fresh tick (no book.update yet, so the desk-risk
+    // assessment below sees one coherent snapshot of the whole desk).
+    const staged = new Map<string, { now: number; midMicros: bigint; reading: BiasReading; state: RegimeState; curRate: number }>();
     for (const bs of books) {
       try {
         const bars = await hlPx.klines(bs.symbol, INTERVAL, 80);
@@ -340,18 +416,37 @@ async function main() {
         const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret });
         const reading = bs.consensus.bias(bs.symbol, { fundingRatePerHour: fundingForSignal, recentReturns, nowMs: now, midMicros });
 
-        prevBias.set(bs.symbol, bs.lastBias);
-        const action = bs.book.update({ nowMs: now, midMicros, reading, ic: bs.ic, fundingRatePerHour: curRate, standAside: state.standAside });
-        if (action.action === 'open' || action.action === 'flip') { bs.entryMidMicros = midMicros; bs.entryMs = now; }
-        if (action.action === 'close') { bs.entryMidMicros = null; bs.entryMs = null; }
-
-        bs.lastBias = effectiveBias(reading);
+        staged.set(bs.symbol, { now, midMicros, reading, state, curRate });
         bs.lastMidMicros = midMicros;
         bs.lastState = state;
       } catch (e) {
         process.stdout.write(`  ${bs.symbol}: poll err ${(e as Error).message.slice(0, 40)}\n`);
       }
       await new Promise((r) => setTimeout(r, 150));
+    }
+
+    // PASS 2 — consult the desk-risk spine on the whole-desk snapshot (positions still pre-update).
+    const assessment = deskRisk.assess(books.map(bookRiskInput));
+    lastAssessment = assessment;
+    if (assessment.desk.kind === 'Halt' && !haltAnnounced) {
+      haltAnnounced = true;
+      onEvent(controlEvent({ ts: Date.now(), book: 'DESK', detail: `DESK HALT (${assessment.desk.component}): ${assessment.desk.reason} → flattening all books` }));
+    }
+
+    // PASS 3 — update each book under its verdict: FlattenNow/Halt ⇒ standAside (flatten);
+    // BlockNewEntry ⇒ a flat book is fed a neutral reading so it cannot open (open books unchanged).
+    for (const bs of books) {
+      const st = staged.get(bs.symbol);
+      if (!st) continue;
+      const verdict = assessment.perBook.get(bs.symbol);
+      const flatten = assessment.desk.kind === 'Halt' || verdict?.kind === 'FlattenNow';
+      const blockEntry = verdict?.kind === 'BlockNewEntry';
+      const reading = blockEntry && bs.book.inventoryUnits() === 0n ? NEUTRAL_READING : st.reading;
+      prevBias.set(bs.symbol, bs.lastBias);
+      const action = bs.book.update({ nowMs: st.now, midMicros: st.midMicros, reading, ic: bs.ic, fundingRatePerHour: st.curRate, standAside: st.state.standAside || flatten });
+      if (action.action === 'open' || action.action === 'flip') { bs.entryMidMicros = st.midMicros; bs.entryMs = st.now; }
+      if (action.action === 'close') { bs.entryMidMicros = null; bs.entryMs = null; }
+      bs.lastBias = effectiveBias(reading);
     }
 
     const frame = renderFrame(books, poll);
@@ -363,7 +458,25 @@ async function main() {
     }
   }
 
+  // ── GRACEFUL SHUTDOWN — flatten every open book (book the realised exit), never leave a
+  //    paper position dangling/unrealised at exit. Then the realised-first verdict.
+  flattenAllOpenBooks(books, stopped ? 'shutdown (Ctrl-C)' : 'run window elapsed');
+  restoreStdin();
   printVerdict(books, poll);
+}
+
+/** Flatten every open book at its last-known mid (standAside ⇒ books the realised exit + fee). */
+function flattenAllOpenBooks(books: BookState[], reason: string): void {
+  const now = Date.now();
+  let flattened = 0;
+  for (const bs of books) {
+    if (bs.book.inventoryUnits() === 0n || bs.lastMidMicros === 0n) continue;
+    bs.book.update({ nowMs: now, midMicros: bs.lastMidMicros, reading: NEUTRAL_READING, ic: bs.ic, standAside: true });
+    bs.entryMidMicros = null;
+    bs.entryMs = null;
+    flattened++;
+  }
+  if (flattened > 0) console.log(amber(`\n  flatten-on-exit (${reason}): closed ${flattened} open book(s) to realised.`));
 }
 
 function printVerdict(books: BookState[], poll: number): void {

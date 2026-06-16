@@ -3368,3 +3368,49 @@ VALIDATED board (P2), the regime monitor / weather (P3), and the live forward-pa
 The remaining playbook sessions (S4–S6) are the `/demo` web cockpit + the multi-hour forward run that becomes
 the demo's track record.
 
+---
+
+## 2026-06-16 — Entry #77 (Take Sides P5: the DESK RISK SPINE — caps, kill-switch, flatten-on-exit)
+
+**What this is (Playbook II P5).** The first institutional-grade phase: a **desk-level** risk layer so one
+bad book can't sink the desk, plus the manual "react" controls the terminal runner lacked. Until now each
+book policed only *itself* (its own stop/decay); nothing watched the **portfolio** — gross exposure, net
+beta, the desk's daily loss, or its aggregate drawdown — and Ctrl-C *abandoned* open paper positions
+unrealised instead of flattening them. P5 closes both gaps. This is the spine the universe expansion (P12)
+leans on — a bigger universe is only safe once desk-level caps + a kill-switch exist (Playbook II §3).
+
+**What shipped:**
+- `src/market-making/directional/regime-desk-risk.ts` — `RegimeDeskRisk`: a **pure, clock-free, stateful**
+  desk risk engine (mirrors `CompositeRiskGate`'s verdict shape). Each poll it ingests every book's
+  `{notionalUsd, side, realisedPnl, unrealisedPnl}` and enforces, in order: **(a)** GROSS + NET exposure
+  caps (USD) ⇒ `BlockNewEntry`; **(b)** a DAILY-LOSS limit (realised+funding−fees below −X) ⇒ **HALT**;
+  **(c)** a desk maxDD circuit breaker (peak-to-trough equity beyond Y% of capital) ⇒ **HALT**. Returns a
+  per-book verdict (`Allow` / `BlockNewEntry` / `FlattenNow`) + a desk verdict (`Run` / `Halt`). Plus manual
+  `manualHalt()` (kill-switch) + `manualFlatten(symbol)`. **The breakers LATCH** (a tripped daily-loss/maxDD/
+  manual halt stays tripped until `reset()` — a kill-switch you can un-trip by luck isn't one); the exposure
+  caps do **not** latch (they only block growth while over-cap). Peak equity starts at 0, so a loss from the
+  flat open counts as drawdown — the honest budget read.
+- `scripts/regime-book-live.ts` — **wired the spine in**. The poll loop is now **two-pass**: PASS 1 stages
+  every symbol's fresh tick (no `book.update` yet) so the desk-risk assessment sees one coherent whole-desk
+  snapshot; PASS 2 consults `RegimeDeskRisk.assess(...)`; PASS 3 updates each book under its verdict —
+  `FlattenNow`/`Halt` ⇒ `standAside` (flatten), `BlockNewEntry` ⇒ a flat book is fed a neutral reading so it
+  cannot open (open books unchanged, governed by their own exits). A **desk-risk banner** renders in the
+  cockpit (RUN/HALT, gross/net vs caps, DD vs budget, `[h]=halt [f]=flatten-all`). Live **keypress controls**
+  (TTY only, non-interactive runs unaffected): `h` engages the kill-switch, `f` flattens every book; both
+  emit a `controlEvent` on the tape. Env equivalents: `RBL_HALT=1`, `RBL_FLATTEN=BTC,ETH`. Caps default to
+  the universe size (gross ≤ maxNotional×N, net ≤ maxNotional×⌈N/2⌉, daily-loss 1.5% of capital, maxDD 2%).
+- **GRACEFUL SHUTDOWN:** on Ctrl-C (or window-elapsed) `flattenAllOpenBooks` books every open position to
+  realised at its last mid (via `standAside`), restores the TTY, then prints the realised-first verdict — **no
+  paper position is ever left dangling/unrealised at exit.** (Raw mode swallows SIGINT, so Ctrl-C `\x03` is
+  caught on the keypress stream.)
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean (exit 0); `npx jest src/market-making/directional`
+→ **6 suites / 67 tests green** incl. the new `regime-desk-risk.spec` (14 tests): caps fire at the boundary
+(gross ≥ cap blocks; net cap distinct from gross via a long+short pair), daily-loss HALT flattens **all**
+books and a halted desk opens nothing (latched), the maxDD breaker trips on peak-to-trough and latches,
+manual halt/flatten + `reset()`, and verdict precedence (a halt outranks a cap). Bounded live smoke (BTC,
+1 poll) ran end-to-end: gate→open short→desk-risk banner→**flatten-on-exit closed the book to realised** with
+no dangling unrealised. DB-free, no artifact written.
+
+**Next:** P6 — durable `mm_nav`-tagged persistence + restart recovery (the track record must survive a crash).
+
