@@ -1,6 +1,6 @@
 # Regime Directional Book — the standalone "take sides" strategy
 
-> **Status:** P1 BUILT (2026-06-16), P2–P4 designed. The book core + the consensus gate +
+> **Status:** P1–P2 BUILT (2026-06-16), P3–P4 designed. The book core + the consensus gate +
 > the directional stop ship offline and unit-tested on `feat/mm-profit-pivot-plan`. This is
 > the **standalone** expression of "taking sides" — distinct from the axed *market-maker*
 > ([DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)), which expresses a view by
@@ -126,9 +126,10 @@ inherits each signal's OOS gate rather than re-implementing it.
 > [REGIME_DIRECTIONAL_PLAYBOOK.md](REGIME_DIRECTIONAL_PLAYBOOK.md) — paste one block per session.
 
 1. **P1 — the book + consensus gate + stop (DONE).** Offline, unit-tested, paper-first.
-2. **P2 — `scripts/regime-bias-oos.ts`.** Per symbol, build `(signal, forwardReturn)` pairs from real
-   history and run `oosForwardReturnIc` + `verdictFor` → the per-symbol **VALIDATED board** + the
-   pre-registered success metric. Only VALIDATED symbols trade live. (Analogue of `funding-carry-oos.ts`.)
+2. **P2 — `scripts/regime-bias-oos.ts` (DONE — #74).** Per symbol, build `(signal, forwardReturn)` pairs
+   via the shared `regime-signals.ts` library and run `oosForwardReturnIc` + `verdictFor` → the
+   per-symbol **VALIDATED board** + the pre-registered success metric. Only VALIDATED symbols trade live.
+   (Analogue of `funding-carry-oos.ts`.)
 3. **P3 — `regime-monitor.ts` + tape wiring.** Per-symbol regime state from funding (`staticCarry`),
    basis (`CrossVenueFairValue`), and vol/flow (`FlowRegimeMachine`); fire a `DeskEvent` on every
    regime transition (the "monitor regime changes" deliverable, on `/demo`). Drives the book's

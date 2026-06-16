@@ -3225,3 +3225,47 @@ the "statistically obvious" gate) → P3 `regime-monitor.ts` (funding/basis/vol 
 events on `/demo` — the "monitor regime changes" deliverable, and the shared spine that later tightens
 the carry gate) → P4 `scripts/regime-book-live.ts` (forward-paper track record = the demo).
 
+---
+
+## 2026-06-16 — Entry #74 (Take Sides P2: the VALIDATED BOARD — per-symbol OOS gate + the trader's morning read)
+
+**What this is (playbook S1).** P2 of the standalone "take sides" book: the screen a trader reads each
+morning to know *what can I bet on today*. For every symbol it screens the candidate directional
+signals across several forward horizons, scores each through the repo's honest OOS gate, picks the
+**best signal per symbol**, and prints ONE row: `SYMBOL | BEST SIGNAL | OOS IC | HIT% | DSR | VERDICT |
+CONV CAP | ELIGIBLE`. Only ✅ VALIDATED symbols are ever allowed to take a side in the live book (P4).
+
+**What shipped:**
+- `src/market-making/directional/regime-signals.ts` — the PURE, no-look-ahead signal library, now the
+  **single home** of the two interpretable signals: `funding-paid-side` (bias = −trailing-mean funding)
+  and `momentum` (bias = trailing L-bar log return). Exposes `regimeSignalSeries` / `regimeSignalPairs`
+  (→ `buildSignalForwardPairs`) + `defaultRegimeSignalSpecs` (hours→bars by interval). Both the offline
+  gate AND the live runner (P4) consume it, so what gets validated is exactly what gets traded.
+- `scripts/directional-bias-oos.ts` **refactored** to import those builders instead of its own inline
+  copies — one definition, no drift between the research sweep and the morning board.
+- `scripts/regime-bias-oos.ts` — the VALIDATED BOARD. Builds every (symbol × signal × horizon) trial,
+  deflates over the WHOLE sweep's trial count + σ_SR (honest multiple-testing haircut), runs
+  `oosForwardReturnIc` + `verdictFor` + `biasMagnitudeCap`, collapses to the best signal per symbol
+  (a VALIDATED one with the strongest IC if any, else the highest-IC near-miss), prints an ANSI board
+  sorted by IC, and writes a compact `eligibleSymbols` JSON the P4 runner reads. Prints the
+  pre-registered success metric + the exact re-run command.
+- `regime-signals.spec.ts` — locks the gate's correctness: no-look-ahead (a future price/funding point
+  can't change a past signal), exact windowed-funding values, NaN where no view, a known-answer
+  trending series scores a positive momentum IC, and a flat market produces **zero** positions.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean (exit 0); `npx jest
+src/market-making/directional` → **3 suites / 36 tests green** (regime-signals new). Scripts type-check
+(in tsconfig scope).
+
+**First live read — pipeline proven, numbers NOT yet a board.** A bounded smoke (BTC/ETH, HL, **20d**,
+fwd 8/24h) ran end-to-end against live HL candles+funding and rendered the board: BTC momentum(24h)
++0.36 IC / ETH funding-paid-side(24h) +0.32 IC, both DSR 1.00 → VALIDATED. **Caveat (binding honesty):
+20d over-validates** — exactly the short-window cliff the desk has been burned by (#72 BNB lesson); the
+artifact was **deleted**, not committed, so it can't masquerade as a tradeable read. The authoritative
+morning board is the **90d** default; that run is the operator's to fire on a networked host:
+`RBO_DAYS=90 RBO_SYMBOLS=BTC,ETH,SOL,BNB,XRP,DOGE,ADA npx ts-node -r tsconfig-paths/register scripts/regime-bias-oos.ts`.
+
+**Next:** P3 `regime-monitor.ts` (funding/basis/vol "weather" + change events on the tape — the
+stand-aside source and `/demo` deliverable) → P4 `scripts/regime-book-live.ts` (gate-first forward-paper
+runner + terminal dashboard = the track record).
+

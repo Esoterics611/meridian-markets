@@ -51,6 +51,9 @@ import {
   OosIcReport,
   BiasVerdict,
 } from '../src/market-making/bias/oos/forward-return-ic';
+// The signal builders are the SHARED, no-look-ahead definitions (one home, so the
+// research sweep here and the morning board in regime-bias-oos.ts can never drift).
+import { trailingFundingPerHour, trailingMomentum } from '../src/market-making/directional/regime-signals';
 import { sharpeStats } from '../src/stat-arb/research/deflated-sharpe';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -82,39 +85,6 @@ function intervalHours(iv: string): number {
   if (!m) return 1;
   const n = Number(m[1]);
   return m[2] === 'h' ? n : m[2] === 'd' ? n * 24 : n / 60;
-}
-
-/** Inner-join price bars + a per-bar trailing-funding-mean series (no look-ahead). */
-function trailingFundingPerHour(barTimesMs: number[], funding: FundingPoint[], windowHours: number): number[] {
-  // funding sorted ascending by time; for each bar t, mean rate over (t−window, t].
-  const sorted = [...funding].sort((a, b) => a.fundingTimeMs - b.fundingTimeMs);
-  const out: number[] = new Array(barTimesMs.length).fill(NaN);
-  const winMs = windowHours * 3_600_000;
-  for (let i = 0; i < barTimesMs.length; i++) {
-    const t = barTimesMs[i];
-    let sum = 0;
-    let cnt = 0;
-    for (const f of sorted) {
-      if (f.fundingTimeMs > t) break; // strictly past data only
-      if (f.fundingTimeMs > t - winMs) {
-        sum += f.fundingRate;
-        cnt++;
-      }
-    }
-    out[i] = cnt > 0 ? sum / cnt : NaN; // mean funding/hr over the trailing window
-  }
-  return out;
-}
-
-/** Trailing L-bar log return at each bar (uses data up to t only). */
-function trailingMomentum(prices: number[], lookbackBars: number): number[] {
-  const out: number[] = new Array(prices.length).fill(NaN);
-  for (let i = lookbackBars; i < prices.length; i++) {
-    const p0 = prices[i - lookbackBars];
-    const p1 = prices[i];
-    out[i] = p0 > 0 && p1 > 0 ? Math.log(p1 / p0) : NaN;
-  }
-  return out;
 }
 
 interface TrialResult {
