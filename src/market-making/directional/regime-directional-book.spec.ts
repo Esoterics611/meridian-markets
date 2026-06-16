@@ -162,4 +162,46 @@ describe('RegimeDirectionalBook', () => {
       expect(() => book({ bEnter: 0.1, bExit: 0.1 })).toThrow(/bExit/);
     });
   });
+
+  describe('persistence (restart-safe books — the #47 rehydrate trap)', () => {
+    it('serialize → restore is a lossless round-trip', () => {
+      const orig = book();
+      orig.update(tick({ nowMs: 0, reading: reading(0.5) })); // open a real position
+      orig.update(tick({ nowMs: 3_600_000, reading: reading(0.4), fundingRatePerHour: 0.0001 }));
+      const state = orig.serializeState();
+      expect(BigInt(state.book.inventoryUnits)).not.toBe(0n); // there IS state to carry
+
+      const revived = book();
+      revived.restoreState(state);
+      expect(revived.serializeState()).toEqual(state); // exact
+      expect(revived.inventoryUnits()).toBe(orig.inventoryUnits());
+      expect(revived.fundingUnits()).toBe(orig.fundingUnits());
+      expect(revived.snapshot(MID)).toEqual(orig.snapshot(MID));
+    });
+
+    it('a REHYDRATED book trades IDENTICALLY to one that never restarted (no path drift)', () => {
+      // The #47 lesson: the restart path must not diverge from the live path. Drive an
+      // original into an open long with funding history, serialize, rebuild + restore, then
+      // feed BOTH the survivor (orig) and the rehydrated (revived) the SAME next tick.
+      const orig = book();
+      orig.update(tick({ nowMs: 0, reading: reading(0.5) }));
+      orig.update(tick({ nowMs: 3_600_000, reading: reading(0.4), fundingRatePerHour: 0.0001 }));
+      const state = orig.serializeState();
+
+      const revived = book();
+      revived.restoreState(state);
+
+      const next = tick({ nowMs: 7_200_000, reading: reading(0.05), fundingRatePerHour: 0.0001 }); // decay→flat, +1h funding
+      const aOrig = orig.update(next);
+      const aRevived = revived.update(next);
+
+      // Same decision, same fill, same booked P&L — funding accrues over the SAME Δt because
+      // lastMs was restored (drop it and the revived book mis-accrues — the trap this guards).
+      expect(aRevived.action).toBe(aOrig.action);
+      expect(aRevived.trigger).toBe(aOrig.trigger);
+      expect(aRevived.filledUnits).toBe(aOrig.filledUnits);
+      expect(revived.inventoryUnits()).toBe(orig.inventoryUnits());
+      expect(revived.snapshot(MID)).toEqual(orig.snapshot(MID));
+    });
+  });
 });

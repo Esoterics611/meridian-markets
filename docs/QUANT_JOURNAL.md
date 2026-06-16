@@ -3414,3 +3414,47 @@ no dangling unrealised. DB-free, no artifact written.
 
 **Next:** P6 — durable `mm_nav`-tagged persistence + restart recovery (the track record must survive a crash).
 
+---
+
+## 2026-06-16 — Entry #78 (Take Sides P6: DURABLE PERSISTENCE + restart recovery — the track record survives a crash)
+
+**What this is (Playbook II P6).** An unrecoverable paper run is not a track record. P6 makes the regime
+desk's equity curve **and** its open positions survive a crash/restart — on reboot the runner reloads each
+book's inventory, avg-cost, realised, fees, funding, and entry context and **resumes** the carried position
+instead of re-opening from flat. Built behind `MM_PERSIST` (off by default ⇒ DB-free runs unchanged).
+
+**What shipped:**
+- `RegimeDirectionalBook.serializeState()` / `restoreState()` + the `RegimeBookState` blob (InventoryBook
+  ledger + accrued funding + **`lastMs`**). `lastMs` is the regime analogue of the **#47 rehydrate trap** —
+  drop it and a revived book mis-accrues funding over the wrong Δt; the test below locks it.
+- `src/market-making/directional/regime-state-store.ts` — the persistence seam (`IRegimeStateStore`:
+  `saveBook`/`loadOpen`/`closeBook`/`appendNav`), a no-op `NullRegimeStateStore` (the safe default), and a
+  **pure** `reconcileResume(eligibleToday, openRecords)` → `{resume, startFlat, orphaned}`. A symbol that
+  validated yesterday but **not today** is ORPHANED — closed, not ridden (the BNB lesson, #72: regimes shift).
+- `src/market-making/directional/postgres-regime-state-store.ts` — the real backend, taking a TypeORM
+  `DataSource` directly (NOT the Nest `DbService`) so the standalone runner can persist without a Nest context,
+  using the app-role `DATABASE_URL_APP` (same grants the service uses). `regime_book_state` is a mutable
+  upsert/soft-close cache; `mm_nav` gets the equity curve.
+- `migrations/1724000000000-AddRegimeDeskState.ts` — `regime_book_state` (one row/symbol, JSONB state,
+  SELECT/INSERT/UPDATE, no DELETE — the `mm_book_state` posture) + an **additive** `mm_nav.desk` column
+  (DEFAULT `'mm'`). The regime desk writes `desk='regime'` under a **`@regime` book_key namespace**, so its
+  curve never collides with the MM desk's (`book_key '' / 'SYMBOL'`) — **the MM repo is untouched** (its INSERT
+  defaults `desk='mm'`, its `book_key` reads never match `@regime`). Zero MM blast radius, an explicit
+  filterable tag — exactly the P6 instruction.
+- `scripts/regime-book-live.ts` — wired it through: `buildStore()` opens the app-role DataSource when
+  `MM_PERSIST=true` **and the DB is reachable**, else falls back to the Null store with a clear warning (a
+  requested-but-down DB never crashes the operator's run). On boot: `loadOpen` → `reconcileResume` against
+  today's gated set → restore the resumed books (printing inv/realised/funding recovered), close orphans loudly.
+  Each poll: `appendNav` (desk row + per-book rows) + `saveBook` per book. On shutdown: a **final** checkpoint
+  after the flatten so the durable state reflects the realised (flat) desk, then the DataSource closes.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean (exit 0); `npx jest src/market-making/directional`
+→ **8 suites / 78 tests green**. New: the **#47 rehydrate-trap regression** (`regime-directional-book.spec`):
+a rehydrated book fed the SAME next tick as the never-restarted survivor produces the **identical** action,
+fill, and snapshot (incl. funding accrued over the same Δt) — restart-path drift is now impossible to
+reintroduce silently. Plus `regime-state-store.spec` (reconcile resume/start-flat/orphan + Null no-op) and
+`postgres-regime-state-store.int-spec` (save→load→upsert→close + regime-tagged nav round-trip; auto-skips
+without Postgres). Bounded live smoke: `MM_PERSIST=true` with the DB down ⇒ **graceful DB-free fallback** +
+warning, run completed, flatten-on-exit fired. No artifact written.
+
+**Next:** P7 — slippage + market-impact on the paper fill (frictionless mid-fills overstate the edge).

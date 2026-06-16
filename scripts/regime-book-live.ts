@@ -42,6 +42,9 @@ import { ManualBiasSource } from '../src/market-making/bias/manual-bias-source';
 import { IBiasSource, effectiveBias, BiasReading } from '../src/market-making/bias/bias-source.interface';
 import { DeskEventInput, controlEvent } from '../src/market-making/events/desk-event';
 import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market-making/directional/regime-desk-risk';
+import { IRegimeStateStore, NullRegimeStateStore, RegimeBookRecord, RegimeNavInsert, reconcileResume } from '../src/market-making/directional/regime-state-store';
+import { PostgresRegimeStateStore } from '../src/market-making/directional/postgres-regime-state-store';
+import { DataSource } from 'typeorm';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
@@ -78,6 +81,10 @@ const START_HALTED = process.env.RBL_HALT === '1' || process.env.RBL_HALT === 't
 const START_FLATTEN = (process.env.RBL_FLATTEN ?? '').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 
 const NEUTRAL_READING: BiasReading = { bias: 0, validated: true, reason: 'desk-risk: new entry blocked (exposure cap)' };
+
+// ── P6 durable persistence (off unless MM_PERSIST=true). ───────────────────────
+const PERSIST = (process.env.MM_PERSIST ?? 'false').toLowerCase() === 'true';
+const DATABASE_URL_APP = process.env.DATABASE_URL_APP ?? 'postgresql://meridian_markets_app:meridian_markets_app@localhost:5433/meridian_markets';
 
 // ── ANSI ──────────────────────────────────────────────────────────────────────
 const USE_COLOR = !!process.stdout.isTTY && !process.env.NO_COLOR;
@@ -188,6 +195,57 @@ function bookRiskInput(bs: BookState): BookRiskInput {
     realisedPnlUsd: Number(snap.realisedUnits - snap.feesUnits + snap.fundingUnits) / MICROS,
     unrealisedPnlUsd: Number(snap.unrealisedUnits) / MICROS,
   };
+}
+
+/** The durable checkpoint for a book (P6) — ledger state + entry context + identity. */
+function bookRecord(bs: BookState): RegimeBookRecord {
+  return {
+    symbol: bs.symbol,
+    signal: bs.row.spec.name,
+    ic: bs.ic,
+    entryMidMicros: bs.entryMidMicros === null ? null : bs.entryMidMicros.toString(),
+    entryMs: bs.entryMs,
+    state: bs.book.serializeState(),
+  };
+}
+
+/** Build the persistence store: a real Postgres store when MM_PERSIST=true and the DB is
+ *  reachable, else the no-op Null store (DB-free runs unchanged). Returns the store + its
+ *  DataSource (null when not persisting) so the caller can close it on shutdown. */
+async function buildStore(): Promise<{ store: IRegimeStateStore; ds: DataSource | null }> {
+  if (!PERSIST) return { store: new NullRegimeStateStore(), ds: null };
+  try {
+    const ds = new DataSource({ type: 'postgres', url: DATABASE_URL_APP, entities: [], synchronize: false, connectTimeoutMS: 2500, extra: { connectionTimeoutMillis: 2500 } });
+    await ds.initialize();
+    await ds.query('SELECT 1');
+    console.log(green(`persistence: ON — regime desk → regime_book_state + mm_nav (desk='regime')`));
+    return { store: new PostgresRegimeStateStore(ds), ds };
+  } catch (e) {
+    console.log(amber(`persistence: requested (MM_PERSIST=true) but DB unreachable (${(e as Error).message.slice(0, 50)}) — running DB-free.`));
+    return { store: new NullRegimeStateStore(), ds: null };
+  }
+}
+
+/** Persist the desk equity curve + each book's checkpoint for this poll (no-op when disabled). */
+async function persistDesk(books: BookState[], store: IRegimeStateStore, ddPct: number): Promise<void> {
+  if (!store.enabled) return;
+  const now = new Date();
+  const navRows: RegimeNavInsert[] = [];
+  let deskEquity = 0n, deskRealised = 0n, deskUnreal = 0n, deskFees = 0n, deskFunding = 0n;
+  for (const bs of books) {
+    if (bs.lastMidMicros === 0n) continue;
+    const s = bs.book.snapshot(bs.lastMidMicros);
+    const equity = s.realisedUnits - s.feesUnits + s.fundingUnits + s.unrealisedUnits;
+    deskEquity += equity; deskRealised += s.realisedUnits; deskUnreal += s.unrealisedUnits; deskFees += s.feesUnits; deskFunding += s.fundingUnits;
+    navRows.push({ asOf: now, bookKey: bs.symbol, equityUnits: equity, realisedPnlUnits: s.realisedUnits, unrealisedPnlUnits: s.unrealisedUnits, feesUnits: s.feesUnits, fundingUnits: s.fundingUnits, inventoryUnits: s.inventoryUnits, maxDrawdownPct: 0 });
+  }
+  navRows.unshift({ asOf: now, bookKey: '', equityUnits: deskEquity, realisedPnlUnits: deskRealised, unrealisedPnlUnits: deskUnreal, feesUnits: deskFees, fundingUnits: deskFunding, inventoryUnits: 0n, maxDrawdownPct: ddPct });
+  try {
+    await store.appendNav(navRows);
+    for (const bs of books) await store.saveBook(bookRecord(bs));
+  } catch (e) {
+    process.stdout.write(amber(`  persist err ${(e as Error).message.slice(0, 50)}\n`));
+  }
 }
 
 function deskTotals(books: BookState[]): { realised: bigint; unrealised: bigint; funding: bigint; total: bigint; live: number; aside: number } {
@@ -345,6 +403,30 @@ async function main() {
     books.push(bs);
   }
 
+  // ── P6 persistence + restart recovery ──────────────────────────────────────
+  const { store, ds: persistDs } = await buildStore();
+  if (store.enabled) {
+    try {
+      const open = await store.loadOpen();
+      const plan = reconcileResume(books.map((b) => b.symbol), open);
+      for (const rec of plan.resume) {
+        const bs = books.find((b) => b.symbol.toUpperCase() === rec.symbol.toUpperCase());
+        if (!bs) continue;
+        bs.book.restoreState(rec.state);
+        bs.entryMidMicros = rec.entryMidMicros === null ? null : BigInt(rec.entryMidMicros);
+        bs.entryMs = rec.entryMs;
+        console.log(green(`  resumed ${rec.symbol}: inv ${Number(bs.book.inventoryUnits()) / MICROS} units, realised ${usd(bs.book.realisedUnits() - bs.book.feesUnits())}, funding ${usd(bs.book.fundingUnits())}`));
+      }
+      for (const rec of plan.orphaned) {
+        await store.closeBook(rec.symbol);
+        console.log(amber(`  ⚠ orphaned ${rec.symbol} (signal de-validated today) — row closed, position NOT resumed; re-gate to re-open.`));
+      }
+      if (!plan.resume.length && !plan.orphaned.length) console.log(dim('  no prior open books to recover — starting flat.'));
+    } catch (e) {
+      console.log(amber(`  recovery skipped (${(e as Error).message.slice(0, 50)}) — starting flat.`));
+    }
+  }
+
   // ── P5 desk-risk spine + manual controls ───────────────────────────────────
   const deskRisk = new RegimeDeskRisk({
     maxGrossUsd: MAX_GROSS_USD, maxNetUsd: MAX_NET_USD, dailyLossLimitUsd: DAILY_LOSS_USD,
@@ -453,6 +535,10 @@ async function main() {
     if (REDRAW) process.stdout.write(`\x1b[2J\x1b[H${frame}\n`);
     else console.log(`\n${frame}`);
 
+    // P6: durably checkpoint the equity curve + each book's state every poll (no-op when off).
+    const capUsd = DESK_CAPITAL_USD;
+    await persistDesk(books, store, capUsd > 0 ? (Number(maxDDUnits) / MICROS / capUsd) * 100 : 0);
+
     if (!stopped && Date.now() < endMs - POLL_MS && poll < MAX_POLLS) {
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
@@ -462,6 +548,9 @@ async function main() {
   //    paper position dangling/unrealised at exit. Then the realised-first verdict.
   flattenAllOpenBooks(books, stopped ? 'shutdown (Ctrl-C)' : 'run window elapsed');
   restoreStdin();
+  // P6: final checkpoint so the persisted state reflects the flattened (realised) desk, then close.
+  await persistDesk(books, store, 0);
+  if (persistDs) { try { await persistDs.destroy(); } catch { /* best effort */ } }
   printVerdict(books, poll);
 }
 

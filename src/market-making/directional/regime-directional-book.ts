@@ -1,4 +1,4 @@
-import { InventoryBook } from '../inventory/inventory-book';
+import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { BiasReading, effectiveBias } from '../bias/bias-source.interface';
 import { biasMagnitudeCap } from '../bias/oos/forward-return-ic';
 import { DeskEventInput, FillSide, classifyFill, controlEvent, fillEvent } from '../events/desk-event';
@@ -77,6 +77,22 @@ export interface RegimeBookAction {
   /** Signed units actually traded this tick (0 if no change). */
   readonly filledUnits: bigint;
   readonly reason: string;
+}
+
+/**
+ * The full durable state of a RegimeDirectionalBook (P6 restart-safe books). The book
+ * is exactly reconstructable from this — config (sizing/stop/fees) is rebuilt fresh on boot
+ * from the gate, only the EVOLVING ledger + accumulators are persisted. bigints are decimal
+ * STRINGS so the blob survives JSON + a Postgres JSONB round-trip.
+ */
+export interface RegimeBookState {
+  /** The InventoryBook ledger (inventory, avg-cost, realised, fees, fill count). */
+  readonly book: InventoryBookState;
+  /** Accrued funding P&L, USDC-units. */
+  readonly fundingAccruedUnits: string;
+  /** The last-seen tick clock — REQUIRED so funding accrues over the right Δt after a restart
+   *  (the regime analogue of the #47 rehydrate trap: drop this and a revived book mis-accrues). */
+  readonly lastMs: number | null;
 }
 
 export interface RegimeBookSnapshot {
@@ -326,5 +342,23 @@ export class RegimeDirectionalBook {
       totalPnlUnits: this.totalPnlUnits(midMicros),
       fills: this.inv.fills(),
     };
+  }
+
+  // ── persistence (P6 — restart-safe books) ──────────────────────────────────────
+
+  /** Snapshot the full evolving state for durable persistence. */
+  serializeState(): RegimeBookState {
+    return {
+      book: this.inv.serialize(),
+      fundingAccruedUnits: this.fundingAccrued.toString(),
+      lastMs: this.lastMs,
+    };
+  }
+
+  /** Restore a previously-serialised state (overwrites the ledger, funding, and tick clock). */
+  restoreState(s: RegimeBookState): void {
+    this.inv.restore(s.book);
+    this.fundingAccrued = BigInt(s.fundingAccruedUnits);
+    this.lastMs = s.lastMs;
   }
 }
