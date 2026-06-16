@@ -134,6 +134,19 @@ knobs below. Server-wide defaults live in `AppConfig.marketMaking`
 | **Hedge β-map** (`hedgeBetaMap`) | Maps each book's symbol to `{ underlying, beta }` so a basket of alts is hedged by *one* major perp leg (β = how much major per unit alt). Empty = each book self-hedges 1:1. | self |
 | **Hedge costs** (`hedgeTakerBps`, `hedgeHalfSpreadBps`, `hedgeCostSpreadMult`) | The honest price of hedging: taker fee + half-spread crossed per rebalance, and how much of that round-trip you pre-charge into the maker spread. | — |
 
+### 3g. Taking sides — the regime directional book
+
+A separate book (not the market-maker) that **takes an outright position** — long or short — when a *validated* view is strong, and sits **flat** the rest of the time. It is the desk's "take sides" strategy: conservative by construction, managed inside the same engine (same accounting, same honesty gate, same event tape), only ever betting on a *statistically obvious* signal. Spec: [REGIME_DIRECTIONAL_BOOK.md](REGIME_DIRECTIONAL_BOOK.md).
+
+| Term | Plain meaning | Default |
+|---|---|---|
+| **Regime** | Which "weather" a market is in right now — is funding persistently paying one side, is the cross-venue basis calm or blown out, is volatility quiet or spiking. A *regime change* is the weather flipping (the BNB carry going from paying to costing, Journal #72). | — |
+| **Consensus bias** | The "take sides only when signals agree" gate: we lean the book **only when several independent, individually-OOS-validated signals (funding + trend + flow) point the same way**. Any disagreement → stand flat. This is what makes the bet *obvious* rather than a hunch. | ≥2 agree |
+| **Conviction sizing** | How big the position is scales with **how strong + how trustworthy** the signal is: weak or barely-validated view → tiny (or zero) position; strong, high-IC view → bigger (still capped). Low conviction collapses to flat. | bias × base |
+| **Directional stop** | The risk-averse backstop: if the position loses more than a set % of its notional (default ~2%), **flatten immediately** — a wrong view is cut, never ridden. It fires *before* any slow signal-decay exit. | 2% |
+| **Decay-to-flat** | A view that fades below the exit band, flips sign, or loses its validation is **exited to flat** — you don't hold a position the signal no longer supports. (Hysteresis: it holds through the in-between band so it doesn't churn.) | — |
+| **Stand-aside** | The regime monitor says "not now" (basis blowout, vol spike, stale feed) → **no new entry, flatten what's open**. The single switch that turns a regime *change* into a defensive action. | — |
+
 ---
 
 ## 4. Stat-arb levers — the pairs desk

@@ -3182,3 +3182,46 @@ The desk is carry + stat-arb over long horizons across many markets. This is the
 
 **tsc / tests:** No code changes this entry — journal-only.
 
+---
+
+## 2026-06-16 — Entry #73 (Take Sides P1: the standalone Regime Directional Book — book + consensus gate + stop, built & green)
+
+**The direction (operator):** beyond delta-neutral carry, start *taking sides* — a conservative,
+risk-averse, regime-driven directional strategy that is "not a bot, managed in our engine" and trades
+only "statistically obvious chances." Chosen over expanding the carry universe or building the regime
+monitor first. Expression chosen: a **standalone** directional book (an outright position), NOT the
+axed market-maker (a quote skew, [DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)).
+
+**Key finding before building:** most of this already existed — `IBiasSource` + the `validated`
+honesty flag, concrete signals (funding/flow/momentum/house view), the full OOS forward-return gate
+(`bias/oos/forward-return-ic.ts`: purged k-fold + deflated-Sharpe + IC + verdict + size cap), and the
+`InventoryBook` P&L engine. All built for the axed maker. The only missing piece is the **consumer**
+that turns a validated view into an outright, sized, stopped position. So P1 = build that one organ.
+
+**What shipped (`src/market-making/directional/`, paper-only, offline, unit-tested):**
+- `consensus-bias-source.ts` — `ConsensusBiasSource implements IBiasSource`: a non-zero view only when
+  ≥`minAgree` independent, individually-OOS-validated signals AGREE in sign (any opposing validated
+  vote ⇒ neutral, with `vetoOnConflict`). The literal "take sides only when funding + trend align"
+  gate; inherits each signal's OOS gate via `effectiveBias` rather than re-implementing it.
+- `regime-directional-book.ts` — `RegimeDirectionalBook`: pure + clock-free (caller passes nowMs +
+  tick), owns one `InventoryBook`. Per tick: (1) **directional stop** preempts all (flatten when
+  unrealised < −`stopFrac`·notional); (2) **stand-aside** flag flattens / blocks entry; (3) signal →
+  target: enter on `|effB| ≥ bEnter` sized by conviction `min(|bias|, biasMagnitudeCap(IC))`, **hold**
+  in the `[bExit,bEnter)` band (no resize churn), **decay** to flat below `bExit`, **flip** on a strong
+  sign change. Funding accrues on the held side (long pays / short receives when funding +). Every
+  entry/exit/stop emits a `DeskEvent` (reuses `fillEvent`/`controlEvent`).
+- Specs lock the acceptance criteria: neutral/**unvalidated** reading never opens (the gate + safe
+  swap-seam default — no regression); validated strong view opens the right side, **monotonic** in
+  conviction, **IC-capped**; stop **preempts** a still-bullish signal; decay/flip/stand-aside exit;
+  in-band same-side holds; funding sign correct + in total P&L; ctor rejects `bExit ≥ bEnter`.
+- Docs: [REGIME_DIRECTIONAL_BOOK.md](REGIME_DIRECTIONAL_BOOK.md) (the spec) + `DESK_GLOSSARY.md` §3g
+  (plain-language: regime, consensus bias, conviction sizing, directional stop, decay-to-flat, stand-aside).
+
+**Regression discipline (§10.1 — before commit):** `npx tsc --noEmit` clean (exit 0); `npx jest
+src/market-making/directional src/market-making/bias` → **10 suites / 70 tests green** (2 new suites).
+
+**Next (the arc, one change per run):** P2 `scripts/regime-bias-oos.ts` (per-symbol VALIDATED board —
+the "statistically obvious" gate) → P3 `regime-monitor.ts` (funding/basis/vol regime state + change
+events on `/demo` — the "monitor regime changes" deliverable, and the shared spine that later tightens
+the carry gate) → P4 `scripts/regime-book-live.ts` (forward-paper track record = the demo).
+
