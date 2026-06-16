@@ -3528,16 +3528,40 @@ window are where a real edge would have to show.
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P9 (handoff, 2026-06-16)
+## 2026-06-16 — Entry #81 (Take Sides P9: EXPOSURE TOGGLE — outright ⇄ beta-hedged)
 
-**Done + committed (this session):** P5 (desk risk spine — caps/kill-switch/flatten-on-exit, #77), P6
-(durable persistence + restart recovery, #78), P7 (slippage+impact fill model, #79), P8 (book-level
-walk-forward backtest + the honest first read, #80). Repo green: `npx tsc --noEmit` exit 0; `npx jest
-src/market-making/directional` → 10 suites / 93 tests.
+**What this is (Playbook II P9).** The operator's locked decision: build BOTH exposure modes behind a toggle
+(default OUTRIGHT). A desk long several alts can flip to HEDGED to neutralise its net crypto-beta and express
+only the signal's idiosyncratic edge — the two track records run side by side for comparison.
 
-**Resume at P9** and continue IN ORDER through P16 — the playbook blocks are in
+**What shipped:**
+- `src/market-making/directional/regime-beta-hedge.ts` — a PURE `RegimeBetaHedge`: net book beta (USD-beta) =
+  Σ(signedNotional·β); the hedge leg that flattens it is −netBookBeta in one hedge instrument (β=1 to itself);
+  a rebalance BAND avoids churn. `estimateBeta(assetRets, hedgeRets)` = cov/var (unit beta when data is thin).
+  Emits `hedgeEvent` + accrues a fee on each rebalance. Clock-free, fully unit-tested.
+- `scripts/regime-book-live.ts` — `RBL_EXPOSURE=outright|hedged` (default outright), `RBL_HEDGE_SYMBOL`
+  (default BTC), `RBL_HEDGE_BAND_USD`, `RBL_HEDGE_BETA_LOOKBACK`. In hedged mode a PASS-4 each poll estimates
+  every non-flat book's β to the hedge instrument from trailing returns, rebalances a paper perp leg (its own
+  `InventoryBook` for honest P&L+fees), and the verdict reports BOTH the gross book realised and the
+  **NET-OF-HEDGE** total. The hedge covers EVERY non-flat book (no naked net beta — the coherence rule).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**11 suites / 102 tests green** (new `regime-beta-hedge.spec`: beta estimation 1×/2×, target = −Σβ·notional,
+hedged drives residual→~0 covering all books, a partial set leaves naked residual, band suppresses churn,
+hedgeEvent+fee fire, outright leaves beta intact). Bounded live smoke (BTC+ETH, hedged): the leg bought
+**$11,741 BTC-perp**, residual β **$0**, verdict printed DESK vs NET-OF-HEDGE.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P10 (handoff, updated 2026-06-16)
+
+**Done + committed:** P5 (desk risk spine, #77), P6 (persistence + restart recovery, #78), P7 (slippage+impact
+fill model, #79), P8 (book-level walk-forward backtest + honest first read, #80), P9 (exposure toggle
+outright⇄beta-hedged, #81). Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional`
+→ 11 suites / 102 tests.
+
+**Resume at P10** and continue IN ORDER through P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P9** — exposure toggle: outright ⇄ beta-hedged (`regime-beta-hedge.ts`, `RBL_EXPOSURE`, default outright). Journal #81.
 - **P10** — desk risk aggregation + factor (beta vs idiosyncratic) split + TCA (`RegimeTcaAttributor`, reconciles to realised). #82.
 - **P11** — scenario/stress harness (`scripts/regime-stress.ts`: flash crash / vol spike / funding flip / feed blackout). #83.
 - **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.

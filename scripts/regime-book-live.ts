@@ -45,6 +45,8 @@ import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market
 import { IRegimeStateStore, NullRegimeStateStore, RegimeBookRecord, RegimeNavInsert, reconcileResume } from '../src/market-making/directional/regime-state-store';
 import { PostgresRegimeStateStore } from '../src/market-making/directional/postgres-regime-state-store';
 import { FillCostModel, NoSlippageModel, SlippageImpactModel } from '../src/market-making/directional/fill-cost-model';
+import { RegimeBetaHedge, BookBeta, estimateBeta } from '../src/market-making/directional/regime-beta-hedge';
+import { InventoryBook } from '../src/market-making/inventory/inventory-book';
 import { DataSource } from 'typeorm';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -65,6 +67,12 @@ const B_EXIT = Number(process.env.RBL_BEXIT ?? 0.07);
 const TAKER_FEE_BPS = Number(process.env.RBL_TAKER_FEE_BPS ?? 4.5);
 const SLIPPAGE_BPS = Number(process.env.RBL_SLIPPAGE_BPS ?? 0); // half-spread, bps (0 ⇒ frictionless)
 const IMPACT_BPS_PER_MM = Number(process.env.RBL_IMPACT_BPS_PER_MM ?? 0); // linear impact, bps per $1M notional
+
+// ── P9 exposure toggle: outright (default) vs beta-hedged / market-neutral. ────
+const EXPOSURE = (process.env.RBL_EXPOSURE ?? 'outright').toLowerCase() === 'hedged' ? 'hedged' : 'outright';
+const HEDGE_SYMBOL = (process.env.RBL_HEDGE_SYMBOL ?? 'BTC').toUpperCase();
+const HEDGE_BAND_USD = Number(process.env.RBL_HEDGE_BAND_USD ?? 5_000);
+const HEDGE_BETA_LOOKBACK = Number(process.env.RBL_HEDGE_BETA_LOOKBACK ?? 72); // bars of returns for beta
 const MIN_AGREE = Number(process.env.RBL_MIN_AGREE ?? 1); // each constituent is already OOS-gated
 const FUNDING_FULL_RATE = Number(process.env.RBL_FUNDING_FULL_RATE ?? 1.25e-5); // ~11%/yr ⇒ |b|=1
 const MOM_FULL_RETURN = Number(process.env.RBL_MOM_FULL_RETURN ?? 0.05); // a 5% trend ⇒ |b|=1
@@ -182,6 +190,8 @@ function onEvent(e: DeskEventInput): void {
 let peakTotalUnits = 0n;
 let maxDDUnits = 0n;
 let lastAssessment: DeskRiskAssessment | null = null;
+// P9: the beta-hedge leg (hedged mode only; null in outright). Paper perp in one hedge instrument.
+let hedge: { engine: RegimeBetaHedge; inv: InventoryBook; midMicros: bigint; lastResidualUsd: number; lastBetaUsd: number } | null = null;
 
 /** Current per-book risk input from the book's snapshot at its last-known mid. */
 function bookRiskInput(bs: BookState): BookRiskInput {
@@ -444,7 +454,15 @@ async function main() {
   });
   if (START_HALTED) deskRisk.manualHalt('RBL_HALT=1 at launch');
   for (const sym of START_FLATTEN) deskRisk.manualFlatten(sym);
-  console.log(dim(`desk-risk: gross≤$${MAX_GROSS_USD.toLocaleString('en-US')}  net≤±$${MAX_NET_USD.toLocaleString('en-US')}  daily-loss kill −$${Math.round(DAILY_LOSS_USD).toLocaleString('en-US')}  maxDD ${(DESK_MAX_DD_FRAC * 100).toFixed(1)}% of $${DESK_CAPITAL_USD.toLocaleString('en-US')}${START_HALTED ? red('  · LAUNCHED HALTED') : ''}\n`));
+  console.log(dim(`desk-risk: gross≤$${MAX_GROSS_USD.toLocaleString('en-US')}  net≤±$${MAX_NET_USD.toLocaleString('en-US')}  daily-loss kill −$${Math.round(DAILY_LOSS_USD).toLocaleString('en-US')}  maxDD ${(DESK_MAX_DD_FRAC * 100).toFixed(1)}% of $${DESK_CAPITAL_USD.toLocaleString('en-US')}${START_HALTED ? red('  · LAUNCHED HALTED') : ''}`));
+
+  // ── P9 exposure mode ────────────────────────────────────────────────────────
+  if (EXPOSURE === 'hedged') {
+    hedge = { engine: new RegimeBetaHedge({ hedgeSymbol: HEDGE_SYMBOL, rebalanceBandUsd: HEDGE_BAND_USD, takerFeeBps: TAKER_FEE_BPS }, onEvent), inv: new InventoryBook(), midMicros: 0n, lastResidualUsd: 0, lastBetaUsd: 0 };
+    console.log(dim(`exposure: HEDGED — net crypto-beta neutralised with ${HEDGE_SYMBOL}-perp (band $${HEDGE_BAND_USD.toLocaleString('en-US')}, β from ${HEDGE_BETA_LOOKBACK} bars)\n`));
+  } else {
+    console.log(dim(`exposure: OUTRIGHT (default) — directional bets carried unhedged\n`));
+  }
 
   // ── Poll loop ──────────────────────────────────────────────────────────────
   const endMs = Date.now() + HOURS * 3_600_000;
@@ -480,7 +498,7 @@ async function main() {
 
     // PASS 1 — fetch + stage each symbol's fresh tick (no book.update yet, so the desk-risk
     // assessment below sees one coherent snapshot of the whole desk).
-    const staged = new Map<string, { now: number; midMicros: bigint; reading: BiasReading; state: RegimeState; curRate: number }>();
+    const staged = new Map<string, { now: number; midMicros: bigint; reading: BiasReading; state: RegimeState; curRate: number; recentReturns: number[] }>();
     for (const bs of books) {
       try {
         const bars = await hlPx.klines(bs.symbol, INTERVAL, 80);
@@ -508,7 +526,7 @@ async function main() {
         const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret });
         const reading = bs.consensus.bias(bs.symbol, { fundingRatePerHour: fundingForSignal, recentReturns, nowMs: now, midMicros });
 
-        staged.set(bs.symbol, { now, midMicros, reading, state, curRate });
+        staged.set(bs.symbol, { now, midMicros, reading, state, curRate, recentReturns });
         bs.lastMidMicros = midMicros;
         bs.lastState = state;
       } catch (e) {
@@ -540,6 +558,10 @@ async function main() {
       if (action.action === 'close') { bs.entryMidMicros = null; bs.entryMs = null; }
       bs.lastBias = effectiveBias(reading);
     }
+
+    // PASS 4 — beta-hedge (hedged mode only): neutralise the desk's net crypto-beta with a
+    // paper perp leg. Covers EVERY non-flat book (no naked net beta) — the coherence rule.
+    if (hedge) await hedgeStep(books, staged, hlPx);
 
     const frame = renderFrame(books, poll);
     if (REDRAW) process.stdout.write(`\x1b[2J\x1b[H${frame}\n`);
@@ -578,6 +600,42 @@ function flattenAllOpenBooks(books: BookState[], reason: string): void {
   if (flattened > 0) console.log(amber(`\n  flatten-on-exit (${reason}): closed ${flattened} open book(s) to realised.`));
 }
 
+/** P9: re-aim the paper beta-hedge leg at the desk's current net beta (covers all non-flat books). */
+async function hedgeStep(books: BookState[], staged: Map<string, { recentReturns: number[] }>, hlPx: HyperliquidClient): Promise<void> {
+  if (!hedge) return;
+  try {
+    const hbars = await hlPx.klines(HEDGE_SYMBOL, INTERVAL, HEDGE_BETA_LOOKBACK + 4);
+    if (hbars.length < 2) return;
+    const hcloses = hbars.map((b) => b.close);
+    hedge.midMicros = toMicros(hcloses[hcloses.length - 1]);
+    const hRet: number[] = [];
+    for (let i = 1; i < hcloses.length; i++) hRet.push(Math.log(hcloses[i] / hcloses[i - 1]));
+    const hRecent = hRet.slice(-HEDGE_BETA_LOOKBACK);
+
+    const bookBetas: BookBeta[] = [];
+    for (const bs of books) {
+      const inv = bs.book.inventoryUnits();
+      if (inv === 0n || bs.lastMidMicros === 0n) continue;
+      const signedNotionalUsd = Number((inv * bs.lastMidMicros) / BigInt(MICROS)) / MICROS;
+      const beta = bs.symbol === HEDGE_SYMBOL ? 1 : estimateBeta((staged.get(bs.symbol)?.recentReturns ?? []).slice(-HEDGE_BETA_LOOKBACK), hRecent);
+      bookBetas.push({ symbol: bs.symbol, signedNotionalUsd, beta });
+    }
+    const reb = hedge.engine.rebalance(bookBetas, Date.now());
+    hedge.lastResidualUsd = reb.residualBetaUsd;
+    hedge.lastBetaUsd = reb.netBookBetaUsd;
+    if (reb.changed && hedge.midMicros > 0n) {
+      const side = reb.deltaNotionalUsd >= 0 ? 'BUY' : 'SELL';
+      const sizeUnits = (BigInt(Math.round(Math.abs(reb.deltaNotionalUsd) * MICROS)) * BigInt(MICROS)) / hedge.midMicros;
+      if (sizeUnits > 0n) {
+        const feeUnits = BigInt(Math.round(((Math.abs(reb.deltaNotionalUsd) * TAKER_FEE_BPS) / 10_000) * MICROS));
+        hedge.inv.apply({ side, sizeUnits, priceMicros: hedge.midMicros, feeUnits });
+      }
+    }
+  } catch (e) {
+    process.stdout.write(`  hedge err ${(e as Error).message.slice(0, 40)}\n`);
+  }
+}
+
 function printVerdict(books: BookState[], poll: number): void {
   const t = deskTotals(books);
   console.log(bold(cyan(`\n=== REGIME DESK VERDICT (realised-first · ${poll} polls) ===`)));
@@ -605,6 +663,16 @@ function printVerdict(books: BookState[], poll: number): void {
     `maxDD ${red(usd(-maxDDUnits))}  ·  entries ${entries}  ·  stops fired ${stops}  ·  ` +
     `${deskSlip > 0n ? `slippage ${dim(usd(-deskSlip))}  ·  ` : ''}open-unrealised ${dim(usd(t.unrealised))}`,
   );
+  if (hedge) {
+    const hRealised = hedge.inv.realisedUnits() - hedge.inv.feesUnits();
+    const hUnreal = hedge.midMicros > 0n ? hedge.inv.unrealisedUnits(hedge.midMicros) : 0n;
+    const netOfHedge = deskRealised + hRealised + hUnreal;
+    console.log(
+      `  HEDGE (${HEDGE_SYMBOL}-perp): leg $${Math.round(hedge.engine.hedgeNotionalUsd()).toLocaleString('en-US')}  ` +
+      `realised ${usd(hRealised)}  unrealised ${dim(usd(hUnreal))}  residual β $${Math.round(hedge.lastResidualUsd).toLocaleString('en-US')}  ·  ` +
+      `NET-OF-HEDGE ${(netOfHedge >= 0n ? green : red)(bold(usd(netOfHedge)))}`,
+    );
+  }
   console.log(dim(`\n  PRE-REGISTERED METRIC: realised + funding − fees > 0 with maxDD inside the desk's 2% budget,`));
   console.log(dim(`  on the symbols VALIDATED today. Judge realised, never the open unrealised mark.`));
   console.log(green('\nREGIME-BOOK-LIVE OK\n'));
