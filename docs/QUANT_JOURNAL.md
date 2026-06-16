@@ -3458,3 +3458,34 @@ without Postgres). Bounded live smoke: `MM_PERSIST=true` with the DB down ⇒ **
 warning, run completed, flatten-on-exit fired. No artifact written.
 
 **Next:** P7 — slippage + market-impact on the paper fill (frictionless mid-fills overstate the edge).
+
+---
+
+## 2026-06-16 — Entry #79 (Take Sides P7: HONEST FILLS — slippage + market-impact cost model)
+
+**What this is (Playbook II P7).** Frictionless mid-fills overstate the edge — a taker never executes at
+the mid. P7 gives the book a **pluggable fill-cost model** so the realised P&L is credible. Default OFF
+(byte-identical to the old mid-fill); callers opt in to honest costs.
+
+**What shipped:**
+- `src/market-making/directional/fill-cost-model.ts` — `FillCostModel` interface + two impls, mirroring the
+  `HistoricalReplayVenue` math: `NoSlippageModel` (mid-fill, the safe default) and `SlippageImpactModel
+  ({halfSpreadBps, impactBpsPerMillionUsd})` — adverse = half-spread + linear impact·(notional/$1M), BUY fills
+  above the mid, SELL below, capped at 500bps. Plus `slippageCostUnits(size, mid, fill)` (the ≥0 cost).
+- `RegimeDirectionalBook` — a `fillModel` ctor knob (default `NoSlippageModel`). The fill now EXECUTES at the
+  model's worsened price (so the cost lands in realised/unrealised via the avg-cost ledger), while the taker
+  fee stays computed on the mid notional — keeping **fee and slippage cleanly separable for TCA (P10)**. A new
+  `slippageAccrued` accumulator + `slippageUnits()` getter + `snapshot().slippageUnits` surface the cost as a
+  diagnostic (it is already inside realised — not double-counted). The fill-event tape now records the actual
+  executed price. Slippage is persisted/restored in `RegimeBookState` (optional field, backward-compatible).
+- `scripts/regime-book-live.ts` — `RBL_SLIPPAGE_BPS` (half-spread) + `RBL_IMPACT_BPS_PER_MM` (linear impact)
+  build the model (both 0 ⇒ frictionless, no change); the verdict shows per-book + desk `slip`.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**9 suites / 88 tests green**. New `fill-cost-model.spec` (default fills at mid; BUY above / SELL below;
+symmetric half-spread; monotone in size; **size 0 ⇒ no cost**; 500bps cap) + book-level P7 tests: **the
+default model produces zero slippage and a flat mark (no regression)**, a slipped entry is strictly costlier
+than mid+fee, and slippage survives a persist→restore. Bounded live smoke (BTC, 5bps + 10bps/$1M): a
+round-trip cost **$15.48 slippage**, booked into realised and shown separately (`slip −$15.48`). No artifact.
+
+**Next:** P8 — book-level walk-forward backtest (prove the BOOK makes money after costs, not just the signal IC).

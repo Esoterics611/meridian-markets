@@ -1,6 +1,7 @@
 import { RegimeDirectionalBook, RegimeTick } from './regime-directional-book';
 import { BiasReading } from '../bias/bias-source.interface';
 import { DeskEventInput } from '../events/desk-event';
+import { SlippageImpactModel } from './fill-cost-model';
 
 const MID = 50_000_000_000n; // $50,000 in price micros
 const reading = (bias: number, validated = true): BiasReading => ({ bias, validated, reason: `b=${bias}` });
@@ -160,6 +161,39 @@ describe('RegimeDirectionalBook', () => {
   describe('config guard', () => {
     it('rejects bExit ≥ bEnter (the hysteresis band must be ordered)', () => {
       expect(() => book({ bEnter: 0.1, bExit: 0.1 })).toThrow(/bExit/);
+    });
+  });
+
+  describe('fill-cost model (P7 — honest slippage)', () => {
+    it('the default model is frictionless: zero slippage, fills at the mid (no regression)', () => {
+      const b = book();
+      b.update(tick({ reading: reading(0.5) })); // open long at the mid
+      const s = b.snapshot(MID);
+      expect(s.slippageUnits).toBe(0n);
+      expect(s.unrealisedUnits).toBe(0n); // entered at mid ⇒ marking back to mid is flat (only the fee is the cost)
+    });
+
+    it('a slippage model worsens the fill: a slipped entry is strictly costlier than mid+fee', () => {
+      const frictionless = book();
+      const slipped = book({ fillModel: new SlippageImpactModel({ halfSpreadBps: 10 }) });
+      frictionless.update(tick({ reading: reading(0.5) }));
+      slipped.update(tick({ reading: reading(0.5) }));
+      const fs = frictionless.snapshot(MID);
+      const ss = slipped.snapshot(MID);
+      expect(ss.slippageUnits).toBeGreaterThan(0n);
+      // Bought ABOVE the mid ⇒ marking back to the mid is an immediate loss vs frictionless.
+      expect(ss.unrealisedUnits).toBeLessThan(fs.unrealisedUnits);
+      expect(ss.totalPnlUnits).toBeLessThan(fs.totalPnlUnits);
+    });
+
+    it('slippage is persisted + restored (survives a restart)', () => {
+      const b = book({ fillModel: new SlippageImpactModel({ halfSpreadBps: 10 }) });
+      b.update(tick({ reading: reading(0.5) }));
+      const slip = b.slippageUnits();
+      expect(slip).toBeGreaterThan(0n);
+      const revived = book(); // a fresh frictionless book restoring a slipped state
+      revived.restoreState(b.serializeState());
+      expect(revived.slippageUnits()).toBe(slip);
     });
   });
 

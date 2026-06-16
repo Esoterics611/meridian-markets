@@ -44,6 +44,7 @@ import { DeskEventInput, controlEvent } from '../src/market-making/events/desk-e
 import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market-making/directional/regime-desk-risk';
 import { IRegimeStateStore, NullRegimeStateStore, RegimeBookRecord, RegimeNavInsert, reconcileResume } from '../src/market-making/directional/regime-state-store';
 import { PostgresRegimeStateStore } from '../src/market-making/directional/postgres-regime-state-store';
+import { FillCostModel, NoSlippageModel, SlippageImpactModel } from '../src/market-making/directional/fill-cost-model';
 import { DataSource } from 'typeorm';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -62,6 +63,8 @@ const STOP_FRAC = Number(process.env.RBL_STOP_FRAC ?? 0.02);
 const B_ENTER = Number(process.env.RBL_BENTER ?? 0.15);
 const B_EXIT = Number(process.env.RBL_BEXIT ?? 0.07);
 const TAKER_FEE_BPS = Number(process.env.RBL_TAKER_FEE_BPS ?? 4.5);
+const SLIPPAGE_BPS = Number(process.env.RBL_SLIPPAGE_BPS ?? 0); // half-spread, bps (0 ⇒ frictionless)
+const IMPACT_BPS_PER_MM = Number(process.env.RBL_IMPACT_BPS_PER_MM ?? 0); // linear impact, bps per $1M notional
 const MIN_AGREE = Number(process.env.RBL_MIN_AGREE ?? 1); // each constituent is already OOS-gated
 const FUNDING_FULL_RATE = Number(process.env.RBL_FUNDING_FULL_RATE ?? 1.25e-5); // ~11%/yr ⇒ |b|=1
 const MOM_FULL_RETURN = Number(process.env.RBL_MOM_FULL_RETURN ?? 0.05); // a 5% trend ⇒ |b|=1
@@ -385,6 +388,13 @@ async function main() {
   console.log(green(bold(`\nELIGIBLE: ${eligible.map((r) => r.symbol).join(', ')} — building books.\n`)));
 
   // ── Build a book per eligible symbol ───────────────────────────────────────
+  const fillModel: FillCostModel =
+    SLIPPAGE_BPS > 0 || IMPACT_BPS_PER_MM > 0
+      ? new SlippageImpactModel({ halfSpreadBps: SLIPPAGE_BPS, impactBpsPerMillionUsd: IMPACT_BPS_PER_MM })
+      : new NoSlippageModel();
+  if (SLIPPAGE_BPS > 0 || IMPACT_BPS_PER_MM > 0) {
+    console.log(dim(`fill model: slippage ${SLIPPAGE_BPS}bps half-spread + impact ${IMPACT_BPS_PER_MM}bps/$1M notional (honest fills)`));
+  }
   const books: BookState[] = [];
   for (const r of eligible) {
     const validated = (validatedMap.get(r.symbol) ?? []).map((t) => ({ kind: t.spec.kind, lookbackBars: t.spec.lookbackBars }));
@@ -392,7 +402,7 @@ async function main() {
     const ld = loaded.find((l) => l.symbol === r.symbol)!;
     const book = new RegimeDirectionalBook({
       baseNotionalUsd: BASE_NOTIONAL_USD, maxNotionalUsd: MAX_NOTIONAL_USD, bEnter: B_ENTER, bExit: B_EXIT,
-      stopFrac: STOP_FRAC, takerFeeBps: TAKER_FEE_BPS, book: r.symbol, source: 'regime-directional', onEvent,
+      stopFrac: STOP_FRAC, takerFeeBps: TAKER_FEE_BPS, fillModel, book: r.symbol, source: 'regime-directional', onEvent,
     });
     const monitor = new RegimeMonitor(r.symbol, { onRegimeChange: (tr) => onEvent(regimeChangeEvent(tr)) });
     const bs: BookState = {
@@ -577,19 +587,23 @@ function printVerdict(books: BookState[], poll: number): void {
     if (e.kind === 'fill' && (e.action === 'open' || e.action === 'flip')) entries++;
     if (e.kind === 'control' && /loss-stop/.test(e.message)) stops++;
   }
+  let deskSlip = 0n;
   for (const bs of books) {
     const s = bs.book.snapshot(bs.lastMidMicros);
+    deskSlip += s.slippageUnits;
     const realised = s.realisedUnits - s.feesUnits + s.fundingUnits; // realised-first: realised − fees + funding
     console.log(
       `  ${bs.symbol.padEnd(5)} realised ${(realised >= 0n ? green : red)(usd(realised))} ` +
       `(realised ${usd(s.realisedUnits)} − fees ${usd(-s.feesUnits)} + funding ${usd(s.fundingUnits)})  ` +
+      `${s.slippageUnits > 0n ? dim(`slip ${usd(-s.slippageUnits)}  `) : ''}` +
       `${s.inventoryUnits !== 0n ? dim(`[open: unrealised ${usd(s.unrealisedUnits)}]`) : ''}  fills ${s.fills}`,
     );
   }
   const deskRealised = t.realised + t.funding;
   console.log(
     `\n  DESK REALISED (incl. funding, net of fees): ${(deskRealised >= 0n ? green : red)(bold(usd(deskRealised)))}  ·  ` +
-    `maxDD ${red(usd(-maxDDUnits))}  ·  entries ${entries}  ·  stops fired ${stops}  ·  open-unrealised ${dim(usd(t.unrealised))}`,
+    `maxDD ${red(usd(-maxDDUnits))}  ·  entries ${entries}  ·  stops fired ${stops}  ·  ` +
+    `${deskSlip > 0n ? `slippage ${dim(usd(-deskSlip))}  ·  ` : ''}open-unrealised ${dim(usd(t.unrealised))}`,
   );
   console.log(dim(`\n  PRE-REGISTERED METRIC: realised + funding − fees > 0 with maxDD inside the desk's 2% budget,`));
   console.log(dim(`  on the symbols VALIDATED today. Judge realised, never the open unrealised mark.`));

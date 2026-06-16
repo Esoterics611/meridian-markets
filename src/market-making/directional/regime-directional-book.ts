@@ -2,6 +2,7 @@ import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
 import { BiasReading, effectiveBias } from '../bias/bias-source.interface';
 import { biasMagnitudeCap } from '../bias/oos/forward-return-ic';
 import { DeskEventInput, FillSide, classifyFill, controlEvent, fillEvent } from '../events/desk-event';
+import { FillCostModel, NoSlippageModel, slippageCostUnits } from './fill-cost-model';
 
 // RegimeDirectionalBook — the standalone "take sides" book (REGIME_DIRECTIONAL_BOOK.md).
 // Unlike the axed market-maker (which expresses a view by SKEWING quotes), this book
@@ -45,6 +46,8 @@ export interface RegimeDirectionalConfig {
   readonly icSizeK?: number;
   /** biasMagnitudeCap hard cap. Default 0.5. */
   readonly icSizeHardCap?: number;
+  /** Pluggable fill-cost model (P7). Default = NoSlippageModel (mid-fill, no regression). */
+  readonly fillModel?: FillCostModel;
   /** Optional tape hook — a DeskEvent on every entry/exit/stop (like FlowRegimeMachine.onTransition). */
   readonly onEvent?: (e: DeskEventInput) => void;
   /** Book/symbol label for events. Default 'REGIME'. */
@@ -93,6 +96,9 @@ export interface RegimeBookState {
   /** The last-seen tick clock — REQUIRED so funding accrues over the right Δt after a restart
    *  (the regime analogue of the #47 rehydrate trap: drop this and a revived book mis-accrues). */
   readonly lastMs: number | null;
+  /** Cumulative slippage cost (diagnostic; already baked into realised via the worse fill price).
+   *  Optional for backward-compat with states persisted before P7. */
+  readonly slippageAccruedUnits?: string;
 }
 
 export interface RegimeBookSnapshot {
@@ -103,6 +109,9 @@ export interface RegimeBookSnapshot {
   readonly unrealisedUnits: bigint;
   /** realised − fees + funding + unrealised. */
   readonly totalPnlUnits: bigint;
+  /** Cumulative slippage paid (≥ 0). DIAGNOSTIC — already inside realised/unrealised via the
+   *  worse fill price; surfaced separately so TCA (P10) can attribute it. */
+  readonly slippageUnits: bigint;
   readonly fills: number;
 }
 
@@ -121,7 +130,9 @@ function bigAbs(x: bigint): bigint {
 export class RegimeDirectionalBook {
   private readonly inv = new InventoryBook();
   private fundingAccrued = 0n;
+  private slippageAccrued = 0n;
   private lastMs: number | null = null;
+  private readonly fillModel: FillCostModel;
 
   private readonly baseNotionalUsd: number;
   private readonly bEnter: number;
@@ -145,6 +156,7 @@ export class RegimeDirectionalBook {
     this.icSizeK = cfg.icSizeK ?? 4;
     this.icSizeHardCap = cfg.icSizeHardCap ?? 0.5;
     this.onEvent = cfg.onEvent;
+    this.fillModel = cfg.fillModel ?? new NoSlippageModel();
     this.book = cfg.book ?? 'REGIME';
     this.source = cfg.source ?? 'regime-directional';
     if (this.bExit >= this.bEnter) {
@@ -255,11 +267,16 @@ export class RegimeDirectionalBook {
 
     const side: FillSide = delta > 0n ? 'BUY' : 'SELL';
     const sizeUnits = bigAbs(delta);
+    // Fee is the taker fee on the mid notional (kept on the mid so fee and slippage stay
+    // cleanly separable for TCA). The fill EXECUTES at the model's worsened price — for the
+    // default NoSlippageModel that is the mid, so this path is byte-identical to before.
     const tradeValueUnits = (sizeUnits * tick.midMicros) / MICROS;
     const feeUnits = BigInt(Math.round((Number(tradeValueUnits) * this.takerFeeBps) / 10_000));
+    const fillPriceMicros = this.fillModel.fillPrice(side, sizeUnits, tick.midMicros);
+    this.slippageAccrued += slippageCostUnits(sizeUnits, tick.midMicros, fillPriceMicros);
 
     const realisedBefore = this.inv.realisedUnits();
-    this.inv.apply({ side, sizeUnits, priceMicros: tick.midMicros, feeUnits });
+    this.inv.apply({ side, sizeUnits, priceMicros: fillPriceMicros, feeUnits });
     const realisedDelta = this.inv.realisedUnits() - realisedBefore;
     const after = this.inv.inventoryUnits();
     const action = classifyFill(inv0, after);
@@ -273,7 +290,7 @@ export class RegimeDirectionalBook {
           side,
           action,
           sizeUnits,
-          priceMicros: tick.midMicros,
+          priceMicros: fillPriceMicros,
           inventoryUnits: after,
           realisedDeltaUnits: realisedDelta,
           feeUnits,
@@ -323,6 +340,11 @@ export class RegimeDirectionalBook {
     return this.fundingAccrued;
   }
 
+  /** Cumulative slippage cost paid (≥ 0) — diagnostic; already inside realised/unrealised. */
+  slippageUnits(): bigint {
+    return this.slippageAccrued;
+  }
+
   unrealisedUnits(midMicros: bigint): bigint {
     return this.inv.unrealisedUnits(midMicros);
   }
@@ -340,6 +362,7 @@ export class RegimeDirectionalBook {
       fundingUnits: this.fundingAccrued,
       unrealisedUnits: this.inv.unrealisedUnits(midMicros),
       totalPnlUnits: this.totalPnlUnits(midMicros),
+      slippageUnits: this.slippageAccrued,
       fills: this.inv.fills(),
     };
   }
@@ -352,6 +375,7 @@ export class RegimeDirectionalBook {
       book: this.inv.serialize(),
       fundingAccruedUnits: this.fundingAccrued.toString(),
       lastMs: this.lastMs,
+      slippageAccruedUnits: this.slippageAccrued.toString(),
     };
   }
 
@@ -360,5 +384,6 @@ export class RegimeDirectionalBook {
     this.inv.restore(s.book);
     this.fundingAccrued = BigInt(s.fundingAccruedUnits);
     this.lastMs = s.lastMs;
+    this.slippageAccrued = s.slippageAccruedUnits ? BigInt(s.slippageAccruedUnits) : 0n;
   }
 }
