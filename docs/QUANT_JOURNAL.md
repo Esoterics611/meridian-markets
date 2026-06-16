@@ -3269,3 +3269,50 @@ morning board is the **90d** default; that run is the operator's to fire on a ne
 stand-aside source and `/demo` deliverable) → P4 `scripts/regime-book-live.ts` (gate-first forward-paper
 runner + terminal dashboard = the track record).
 
+---
+
+## 2026-06-16 — Entry #75 (Take Sides P3: the REGIME MONITOR — the "weather" + change-alerts on the tape)
+
+**What this is (playbook S2).** The per-symbol WEATHER: each tick it reads funding / basis / vol,
+classifies the market into a tradeability state, and fires ONE event when the weather flips. It is the
+book's **stand-aside source** AND the "monitor regime changes" deliverable on the Activity feed.
+
+**What shipped (`src/market-making/directional/regime-monitor.ts`, pure + clock-free, same discipline
+as `FlowRegimeMachine`):**
+- Three sub-regimes on a shared FAVORABLE/NEUTRAL/ADVERSE ladder: **funding** (a TAILWIND read — a clear
+  one-sided carry regime is FAVORABLE, flat is NEUTRAL; the alert fires on a SIDE flip paid-short ⇄
+  paid-long), **basis** (calm → widening → BLOWOUT past the ≈19bp fee+margin threshold, reusing
+  `computeThreshold(14,5)`), **vol** (a relative short/slow EWMA realised-vol SPIKE detector,
+  price-scale-invariant, with a cold-start guard so it never false-spikes before warm).
+- `overall = STAND_ASIDE` iff a HAZARD dim (basis/vol) is ADVERSE or the feed is stale; `HOLD_ONLY` on a
+  hazard NEUTRAL; else `TRADEABLE`. **Funding is deliberately excluded from the hazard ladder** — being
+  paid-long is not a reason to sit out. So STAND_ASIDE is reachable ONLY from a real adverse read (asserted).
+- **Hysteresis + dwell, baseline-silent:** escalation to a worse hazard is immediate (protection must not
+  lag); de-escalation waits out a dwell (no chatter); the first observation per dimension sets the baseline
+  silently (alerts announce CHANGES, the Weather strip shows current state).
+- **The color law is exported ONCE** (`REGIME_LEVEL_COLOR` / `REGIME_OVERALL_COLOR`, semantic green/amber/
+  red) so the S4 UI chips mean exactly what the engine does. Tape wiring: `regimeEvent` (new `regime`
+  DeskEventKind) + `regimeChangeEvent(transition)` → `REGIME ▸ <symbol> <plain-English sentence>`.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias` → **12 suites / 95 tests green** (regime-monitor new: color law, boundary
+classification, one-event-per-flip + dwell suppression, blowout/spike ⇒ STAND_ASIDE, the invariant, feed
+staleness, tape mapping).
+
+**First live weather read (bounded smoke, HL, 14d hourly, funding+vol; basis not wired in the smoke):**
+BTC funding paid-short/NEUTRAL (+4.0%/yr) · ETH paid-short/FAVORABLE (+9.9%/yr) · SOL paid-short/NEUTRAL
+(+7.5%/yr) — all **vol FAVORABLE, overall TRADEABLE**, no spikes this calm window; the tape fired only
+benign `vol rising`/`vol quiet again` lines. The monitor classifies live data sensibly.
+
+**Authoritative 90d VALIDATED BOARD landed (the operator ran S1's default; recovered + kept at
+`docs/research/2026-06-16-14-23-regime-validated-board-hyperliquid.json`).** On the honest 90d window
+(63 trials, σ_SR 0.081) the 20d over-fit collapses to **1/7 eligible — only BTC** (funding-paid-side,
+72h horizon, OOS IC +0.20, hit 55%, **DSR 0.97**, conv cap 0.50). ETH had the highest IC (+0.24) but
+DSR 0.81 ⇒ INCONCLUSIVE; the rest INCONCLUSIVE/NOT_VALIDATED. The winning signal everywhere is the
+**carry-sign**, not momentum — consistent with the desk's standing finding that funding is the real edge.
+This is the gate doing its job: most symbols don't earn a side.
+
+**Next:** P4 `scripts/regime-book-live.ts` — gate first (BTC only, today), build a `RegimeDirectionalBook`
++ `ConsensusBiasSource` + this `RegimeMonitor` per eligible symbol, forward-paper with the terminal
+dashboard (the distance-to-stop gauge as the hero widget), print the realised-first verdict = the track record.
+

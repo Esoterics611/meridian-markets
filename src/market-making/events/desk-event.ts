@@ -23,6 +23,7 @@ export type DeskEventKind =
   | 'hedge' // the desk delta-hedge traded a perp leg to flatten net delta
   | 'blocked' // an automatic control SUPPRESSED an action (F1 anti-churn, F3 conc-cap), with its numbers
   | 'control' // an automatic control CHANGED state (F3 skew ramp etc.) — the CONTROL ▸ grammar
+  | 'regime' // a per-symbol REGIME ▸ "weather" change (funding flip / basis blowout / vol spike)
   | 'flow' // a book's aggressor-flow sign flipped (the F1 add-freeze trigger)
   | 'start' // the desk loop started ticking
   | 'stop'; // the desk loop stopped
@@ -222,6 +223,21 @@ export function controlEvent(p: { ts: number; book: string; detail: string }): D
     book: p.book,
     source: '',
     message: `CONTROL ▸ ${p.book} ${p.detail}`,
+  };
+}
+
+/** Build a per-symbol REGIME-change event (the standalone "take sides" book's weather
+ *  monitor, REGIME_DIRECTIONAL_BOOK.md P3): a funding flip / basis blowout / vol spike that
+ *  flips the symbol's tradeability. `detail` is a plain-English sentence a non-quant reads on
+ *  the Activity feed; `book`=symbol so the tape filters by it. Fired only on a real transition. */
+export function regimeEvent(p: { ts: number; symbol: string; detail: string; source?: string }): DeskEventInput {
+  return {
+    ts: p.ts,
+    desk: 'mm',
+    kind: 'regime',
+    book: p.symbol,
+    source: p.source ?? '',
+    message: `REGIME ▸ ${p.symbol} ${p.detail}`,
   };
 }
 

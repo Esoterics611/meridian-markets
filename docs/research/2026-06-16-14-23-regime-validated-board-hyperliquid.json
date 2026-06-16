@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-06-16T14:23:36.605Z",
+  "source": "hyperliquid",
+  "days": 90,
+  "interval": "1h",
+  "fwdHours": [
+    8,
+    24,
+    72
+  ],
+  "momLookbackHours": [
+    24,
+    72
+  ],
+  "fundingWindowHours": [
+    24
+  ],
+  "folds": 5,
+  "embargoFrac": 0.01,
+  "trials": 63,
+  "sigmaSR": 0.0811931091438918,
+  "eligibleSymbols": [
+    "BTC"
+  ],
+  "board": [
+    {
+      "symbol": "ETH",
+      "signal": "funding-paid-side(24h) 72h",
+      "fwdHours": 72,
+      "oosIc": 0.24409140305105384,
+      "hitRate": 0.5855294681360805,
+      "dsr": 0.8127670246150207,
+      "psr": 1,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "BTC",
+      "signal": "funding-paid-side(24h) 72h",
+      "fwdHours": 72,
+      "oosIc": 0.19554148737265686,
+      "hitRate": 0.5529468136080499,
+      "dsr": 0.9713945742346677,
+      "psr": 1,
+      "verdict": "VALIDATED",
+      "convCap": 0.5,
+      "eligible": true
+    },
+    {
+      "symbol": "BNB",
+      "signal": "funding-paid-side(24h) 72h",
+      "fwdHours": 72,
+      "oosIc": 0.13755503979175474,
+      "hitRate": 0.4959271681839962,
+      "dsr": 0.0020186398352861623,
+      "psr": 0.9999999999429523,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "SOL",
+      "signal": "funding-paid-side(24h) 72h",
+      "fwdHours": 72,
+      "oosIc": 0.09552216402692132,
+      "hitRate": 0.49353138476281744,
+      "dsr": 0.0000014282931061759818,
+      "psr": 0.9999863770176773,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "DOGE",
+      "signal": "funding-paid-side(24h) 24h",
+      "fwdHours": 24,
+      "oosIc": 0.08459016524365649,
+      "hitRate": 0.5063231850117096,
+      "dsr": 0.0000842050844549469,
+      "psr": 0.9999999291142538,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "ADA",
+      "signal": "funding-paid-side(24h) 8h",
+      "fwdHours": 8,
+      "oosIc": 0.06262109002834708,
+      "hitRate": 0.5239423523942353,
+      "dsr": 6.161737786669619e-15,
+      "psr": 0.8630961411127308,
+      "verdict": "NOT_VALIDATED",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "XRP",
+      "signal": "funding-paid-side(24h) 72h",
+      "fwdHours": 72,
+      "oosIc": 0.04691143074536177,
+      "hitRate": 0.5366554863440345,
+      "dsr": 0,
+      "psr": 0.037609142972170106,
+      "verdict": "NOT_VALIDATED",
+      "convCap": 0,
+      "eligible": false
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Regime Directional Book — the standalone "take sides" strategy
 
-> **Status:** P1–P2 BUILT (2026-06-16), P3–P4 designed. The book core + the consensus gate +
+> **Status:** P1–P3 BUILT (2026-06-16), P4 designed. The book core + the consensus gate +
 > the directional stop ship offline and unit-tested on `feat/mm-profit-pivot-plan`. This is
 > the **standalone** expression of "taking sides" — distinct from the axed *market-maker*
 > ([DIRECTIONAL_MM_STRATEGY.md](DIRECTIONAL_MM_STRATEGY.md)), which expresses a view by
@@ -130,10 +130,12 @@ inherits each signal's OOS gate rather than re-implementing it.
    via the shared `regime-signals.ts` library and run `oosForwardReturnIc` + `verdictFor` → the
    per-symbol **VALIDATED board** + the pre-registered success metric. Only VALIDATED symbols trade live.
    (Analogue of `funding-carry-oos.ts`.)
-3. **P3 — `regime-monitor.ts` + tape wiring.** Per-symbol regime state from funding (`staticCarry`),
-   basis (`CrossVenueFairValue`), and vol/flow (`FlowRegimeMachine`); fire a `DeskEvent` on every
-   regime transition (the "monitor regime changes" deliverable, on `/demo`). Drives the book's
-   `standAside`; the same funding-regime read later tightens the carry gate (the BNB fix — shared spine).
+3. **P3 — `regime-monitor.ts` + tape wiring (DONE — #75).** Per-symbol regime state from funding (sign +
+   magnitude), basis (|bps| vs the ≈19bp blowout threshold), and vol (a relative EWMA realised-vol spike
+   detector); fires a `regime` `DeskEvent` (`REGIME ▸ <symbol> …`) on every transition (the "monitor
+   regime changes" deliverable, on `/demo`). Drives the book's `standAside` (STAND_ASIDE only from a
+   basis blowout / vol spike / stale feed). Color law exported once for the S4 chips. The same
+   funding-regime read later tightens the carry gate (the BNB fix — shared spine).
 4. **P4 — `scripts/regime-book-live.ts`.** Gate first, open conviction-sized paper positions, mark each
    tick, apply the stop + stand-aside, accrue funding, emit events, persist the equity curve to `mm_nav`,
    print a **realised-first** verdict. Forward-paper track record = the demo. (Template: `funding-carry-live.ts`.)
