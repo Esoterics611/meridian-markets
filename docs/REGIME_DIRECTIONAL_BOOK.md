@@ -122,6 +122,9 @@ inherits each signal's OOS gate rather than re-implementing it.
 
 ## 7. Phased plan
 
+> **Execution:** the per-session copy-paste prompts (with the trader UI/cockpit spec) live in
+> [REGIME_DIRECTIONAL_PLAYBOOK.md](REGIME_DIRECTIONAL_PLAYBOOK.md) — paste one block per session.
+
 1. **P1 — the book + consensus gate + stop (DONE).** Offline, unit-tested, paper-first.
 2. **P2 — `scripts/regime-bias-oos.ts`.** Per symbol, build `(signal, forwardReturn)` pairs from real
    history and run `oosForwardReturnIc` + `verdictFor` → the per-symbol **VALIDATED board** + the
