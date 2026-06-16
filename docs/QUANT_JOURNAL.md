@@ -3489,3 +3489,65 @@ than mid+fee, and slippage survives a persist→restore. Bounded live smoke (BTC
 round-trip cost **$15.48 slippage**, booked into realised and shown separately (`slip −$15.48`). No artifact.
 
 **Next:** P8 — book-level walk-forward backtest (prove the BOOK makes money after costs, not just the signal IC).
+
+---
+
+## 2026-06-16 — Entry #80 (Take Sides P8: BOOK-LEVEL WALK-FORWARD BACKTEST — and the honest first read)
+
+**What this is (Playbook II P8).** The OOS gate (P2) proves a SIGNAL predicts forward return; P8 proves the
+**BOOK** — the whole chain gate→consensus→size→stop→fees→funding→slippage — actually makes money after costs
+on out-of-sample history. It is a distinct, **stricter** bar than the IC gate.
+
+**What shipped:**
+- `src/market-making/directional/regime-backtest.ts` — the PURE replay engine `replayRegimeBook(bars, cfg,
+  signalAt)`. It replays the EXACT live `RegimeDirectionalBook` + P7 fill model bar by bar, so backtest and
+  live are **one code path** (no drift). **No look-ahead is structural**: the engine hands the signal callback
+  only `bars[0..i]`. Returns a realised-first scorecard (realised−fees+funding, slippage, maxDD, #entries/
+  #stops, hit rate, exposure, the per-trade Sharpe stream).
+- `scripts/regime-book-backtest.ts` — the WALK-FORWARD driver: re-gates on a trailing TRAIN window
+  (`scoreRegimeBoard`), trades the next TEST window with that gate, rolls; a window where nothing validates
+  trades nothing. Per-symbol + desk scorecard with the **deflated** Sharpe (multiple-testing haircut over the
+  book grid), a JSON artifact under `docs/research/`, and the **pre-registered bar**: a book is "validated"
+  only if walk-forward realised > 0 AND per-trade Sharpe > 0 AND maxDD ≤ budget.
+- Tests: `regime-backtest.spec` (no-look-ahead structurally enforced; a known edge → positive realised; a
+  known stop → the stop fires + a cut loss is realised; an always-neutral signal trades nothing).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**10 suites / 93 tests green**.
+
+**THE FIRST HONEST READ (60d × 1h walk-forward, BTC + ETH, train 720 / test 168, slippage 1bps + impact
+5bps/$1M):** **0/2 books cleared the book-level bar.** BTC realised **−$713** (15 trades, 27% hit, 2 stops,
+maxDD 2.46%, SR −0.25); ETH realised **−$770** (9 trades, 56% hit, 4 stops, maxDD 4.04%, SR −0.17); **desk
+−$1,484**, PSR 0.20, DSR 0.16. Funding was a small positive (+$67) but fees (−$351) + slippage (−$85) + the
+adverse directional moves sank it. **This is the mission outcome working as designed:** the SIGNAL validated
+OOS on several windows (4/5 BTC, 3/5 ETH), but the BOOK — once it pays real fees, slippage, and rides the
+view through whipsaws — did **not** make money on this window. The book-level gate correctly **rejects** what
+the IC gate alone would have waved through. **Honest caveat:** one 60d window, 2 symbols, default knobs — this
+is a methodology proof + a first read, not a verdict on the strategy. The wider universe (P12) + a longer
+window are where a real edge would have to show.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P9 (handoff, 2026-06-16)
+
+**Done + committed (this session):** P5 (desk risk spine — caps/kill-switch/flatten-on-exit, #77), P6
+(durable persistence + restart recovery, #78), P7 (slippage+impact fill model, #79), P8 (book-level
+walk-forward backtest + the honest first read, #80). Repo green: `npx tsc --noEmit` exit 0; `npx jest
+src/market-making/directional` → 10 suites / 93 tests.
+
+**Resume at P9** and continue IN ORDER through P16 — the playbook blocks are in
+[REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
+- **P9** — exposure toggle: outright ⇄ beta-hedged (`regime-beta-hedge.ts`, `RBL_EXPOSURE`, default outright). Journal #81.
+- **P10** — desk risk aggregation + factor (beta vs idiosyncratic) split + TCA (`RegimeTcaAttributor`, reconciles to realised). #82.
+- **P11** — scenario/stress harness (`scripts/regime-stress.ts`: flash crash / vol spike / funding flip / feed blackout). #83.
+- **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.
+- **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
+- **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
+- **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
+- **P16** — the operator's single all-at-once forward run (hand over run commands + what to watch; do NOT run it for them). #88.
+
+**Two locked operator decisions (do not re-litigate):** (1) scope = institutional-grade, paper-only; (2) P9
+exposure is a TOGGLE, default outright. **Reuse map** is Playbook II §1; **dependencies** are §3 (risk spine
+before universe; slippage before backtest — both done; P5+P9 before the P13 web cockpit; P6 before P16).
+Per-poll/shutdown persistence, slippage, and the desk-risk spine are all wired into `scripts/regime-book-live.ts`
+already — P9's hedge + P13's cockpit build on that runner.
