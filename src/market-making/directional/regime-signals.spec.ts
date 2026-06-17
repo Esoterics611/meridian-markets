@@ -123,7 +123,8 @@ describe('regimeSignalPairs — known-answer IC', () => {
 
 describe('defaultRegimeSignalSpecs', () => {
   it('emits one funding spec per window and one momentum spec per lookback (hours→bars)', () => {
-    const specs = defaultRegimeSignalSpecs({ intervalHours: 1, momentumLookbackHours: [24, 72], fundingWindowHours: [8] });
+    // isolate funding+momentum by disabling the P12 families (reversal / vol-scaled-momentum).
+    const specs = defaultRegimeSignalSpecs({ intervalHours: 1, momentumLookbackHours: [24, 72], fundingWindowHours: [8], reversalLookbackHours: [], volScaledMomentumLookbackHours: [] });
     expect(specs.map((s) => s.name)).toEqual(['funding-paid-side(8h)', 'momentum(24h)', 'momentum(72h)']);
     expect(specs[0]).toMatchObject({ kind: 'funding-paid-side', windowHours: 8 });
     expect(specs[1]).toMatchObject({ kind: 'momentum', lookbackBars: 24 });
@@ -131,8 +132,13 @@ describe('defaultRegimeSignalSpecs', () => {
   });
 
   it('converts hour-lookbacks to bars by the interval', () => {
-    const specs = defaultRegimeSignalSpecs({ intervalHours: 4, momentumLookbackHours: [24], fundingWindowHours: [] });
+    const specs = defaultRegimeSignalSpecs({ intervalHours: 4, momentumLookbackHours: [24], fundingWindowHours: [], reversalLookbackHours: [], volScaledMomentumLookbackHours: [] });
     expect(specs).toHaveLength(1);
     expect(specs[0].lookbackBars).toBe(6); // 24h / 4h-bars
+  });
+
+  it('includes the P12 family set by default (funding + momentum + vol-scaled-momentum + reversal)', () => {
+    const kinds = new Set(defaultRegimeSignalSpecs({ intervalHours: 1 }).map((s) => s.kind));
+    expect(kinds).toEqual(new Set(['funding-paid-side', 'momentum', 'vol-scaled-momentum', 'reversal']));
   });
 });

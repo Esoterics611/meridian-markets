@@ -39,6 +39,9 @@ import { ConsensusBiasSource } from '../src/market-making/directional/consensus-
 import { FundingBiasSource } from '../src/market-making/bias/funding-bias-source';
 import { MomentumBiasSource } from '../src/market-making/bias/momentum-bias-source';
 import { ManualBiasSource } from '../src/market-making/bias/manual-bias-source';
+import { ReversalBiasSource, VolScaledMomentumBiasSource } from '../src/market-making/bias/trend-variant-bias-sources';
+import { allocateUniverse, AllocationCandidate } from '../src/market-making/directional/regime-universe-allocator';
+import { biasMagnitudeCap } from '../src/market-making/bias/oos/forward-return-ic';
 import { IBiasSource, effectiveBias, BiasReading } from '../src/market-making/bias/bias-source.interface';
 import { DeskEventInput, controlEvent } from '../src/market-making/events/desk-event';
 import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market-making/directional/regime-desk-risk';
@@ -52,7 +55,9 @@ import { InventoryBook } from '../src/market-making/inventory/inventory-book';
 import { DataSource } from 'typeorm';
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+// P12 widened the default universe (more majors + liquid alts). The gate stays honest — most
+// won't validate, which is the correct outcome; the allocator then funds only the top-N that do.
+const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 const GATE_DAYS = Number(process.env.RBL_GATE_DAYS ?? 90);
 const INTERVAL = process.env.RBL_INTERVAL ?? '1h';
 const FWD_HOURS = (process.env.RBL_FWD_HOURS ?? '8,24,72').split(',').map(Number).filter((h) => h > 0);
@@ -83,6 +88,11 @@ const VAR_HORIZON_BARS = Number(process.env.RBL_VAR_HORIZON_BARS ?? 24); // para
 const MIN_AGREE = Number(process.env.RBL_MIN_AGREE ?? 1); // each constituent is already OOS-gated
 const FUNDING_FULL_RATE = Number(process.env.RBL_FUNDING_FULL_RATE ?? 1.25e-5); // ~11%/yr ⇒ |b|=1
 const MOM_FULL_RETURN = Number(process.env.RBL_MOM_FULL_RETURN ?? 0.05); // a 5% trend ⇒ |b|=1
+const REV_FULL_RETURN = Number(process.env.RBL_REV_FULL_RETURN ?? 0.03); // a 3% pop ⇒ full fade (P12)
+const VSM_FULL_Z = Number(process.env.RBL_VSM_FULL_Z ?? 1.5); // vol-scaled-momentum z ⇒ |b|=1 (P12)
+
+// P12 cross-sectional capital allocator: fund the TOP-N strongest validated edges, gross-capped.
+const TOP_N = Number(process.env.RBL_TOP_N ?? 8);
 
 const HOURS = Number(process.env.RBL_HOURS ?? 6);
 const POLL_MS = Number(process.env.RBL_POLL_MS ?? 60_000);
@@ -175,6 +185,8 @@ function buildConsensus(symbol: string, validated: { kind: string; lookbackBars?
   for (const v of validated) {
     if (v.kind === 'funding-paid-side') sources.push(new FundingBiasSource({ fullBiasRatePerHour: FUNDING_FULL_RATE, validated: true }));
     else if (v.kind === 'momentum') sources.push(new MomentumBiasSource({ fullBiasReturn: MOM_FULL_RETURN, lookback: v.lookbackBars, validated: true }));
+    else if (v.kind === 'reversal') sources.push(new ReversalBiasSource({ fullBiasReturn: REV_FULL_RETURN, lookback: v.lookbackBars, validated: true }));
+    else if (v.kind === 'vol-scaled-momentum') sources.push(new VolScaledMomentumBiasSource({ fullBiasZ: VSM_FULL_Z, lookback: v.lookbackBars, validated: true }));
   }
   const manual = new ManualBiasSource(); // the house-view slot (control-plane seam; empty by default)
   const houseRaw = (process.env.RBL_HOUSE_VIEW ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -501,9 +513,30 @@ async function main() {
     console.log(amber(bold(`\n0 symbols validated today — the desk trades NOTHING. (Correct outcome — re-gate next session.)`)));
     return;
   }
-  console.log(green(bold(`\nELIGIBLE: ${eligible.map((r) => r.symbol).join(', ')} — building books.\n`)));
+  // ── P12 cross-sectional allocation: fund the TOP-N strongest validated edges, gross-capped.
+  //    Conviction = the IC-capped |bias| the book sizes on (biasMagnitudeCap of the OOS IC). The
+  //    net cap is enforced LIVE by RegimeDeskRisk (sides aren't known until the loop runs), so the
+  //    allocator runs net-uncapped and just selects + budgets the per-book notional.
+  const candidates: AllocationCandidate[] = eligible.map((r) => ({
+    symbol: r.symbol,
+    side: 1, // placeholder — capital budgeting is side-agnostic; live net is RegimeDeskRisk's job
+    conviction: biasMagnitudeCap(r.oosIc),
+    ic: r.oosIc,
+  }));
+  const allocation = allocateUniverse(candidates, {
+    topN: TOP_N, baseNotionalUsd: BASE_NOTIONAL_USD, perSymbolMaxUsd: MAX_NOTIONAL_USD,
+    maxGrossUsd: MAX_GROSS_USD, maxNetUsd: Number.MAX_SAFE_INTEGER,
+  });
+  const allocBySymbol = new Map(allocation.allocations.map((a) => [a.symbol, a]));
+  const funded = eligible.filter((r) => allocBySymbol.has(r.symbol));
+  console.log(green(bold(`\nALLOCATION (top-${TOP_N} by conviction, gross≤$${MAX_GROSS_USD.toLocaleString('en-US')}${allocation.grossCapBound ? ' — TRIMMED' : ''}):`)));
+  for (const a of allocation.allocations) {
+    console.log(`  ${a.symbol.padEnd(5)} $${Math.round(a.notionalUsd).toLocaleString('en-US')}  IC ${signed(a.ic)}  ${dim(a.reason)}`);
+  }
+  if (allocation.excluded.length) console.log(dim(`  excluded (below top-${TOP_N} / no view): ${allocation.excluded.join(', ')}`));
+  console.log('');
 
-  // ── Build a book per eligible symbol ───────────────────────────────────────
+  // ── Build a book per FUNDED symbol (maxNotional = the allocated budget) ─────
   const fillModel: FillCostModel =
     SLIPPAGE_BPS > 0 || IMPACT_BPS_PER_MM > 0
       ? new SlippageImpactModel({ halfSpreadBps: SLIPPAGE_BPS, impactBpsPerMillionUsd: IMPACT_BPS_PER_MM })
@@ -512,12 +545,13 @@ async function main() {
     console.log(dim(`fill model: slippage ${SLIPPAGE_BPS}bps half-spread + impact ${IMPACT_BPS_PER_MM}bps/$1M notional (honest fills)`));
   }
   const books: BookState[] = [];
-  for (const r of eligible) {
+  for (const r of funded) {
     const validated = (validatedMap.get(r.symbol) ?? []).map((t) => ({ kind: t.spec.kind, lookbackBars: t.spec.lookbackBars }));
     const ic = Math.max(...(validatedMap.get(r.symbol) ?? [{ oosIc: r.oosIc }]).map((t) => t.oosIc));
     const ld = loaded.find((l) => l.symbol === r.symbol)!;
+    const allocNotional = allocBySymbol.get(r.symbol)!.notionalUsd;
     const book = new RegimeDirectionalBook({
-      baseNotionalUsd: BASE_NOTIONAL_USD, maxNotionalUsd: MAX_NOTIONAL_USD, bEnter: B_ENTER, bExit: B_EXIT,
+      baseNotionalUsd: BASE_NOTIONAL_USD, maxNotionalUsd: allocNotional, bEnter: B_ENTER, bExit: B_EXIT,
       stopFrac: STOP_FRAC, takerFeeBps: TAKER_FEE_BPS, fillModel, book: r.symbol, source: 'regime-directional', onEvent,
     });
     const monitor = new RegimeMonitor(r.symbol, { onRegimeChange: (tr) => onEvent(regimeChangeEvent(tr)) });

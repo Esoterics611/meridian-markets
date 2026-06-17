@@ -3622,17 +3622,54 @@ the deterministic-path builder). Script runs + prints `STRESS OK`.
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P12 (handoff, updated 2026-06-17)
+## 2026-06-17 — Entry #84 (Take Sides P12: UNIVERSE EXPANSION — signals, venues, cross-sectional allocator)
 
-**Done + committed:** P5 (desk risk spine, #77), P6 (persistence + restart recovery, #78), P7 (slippage+impact
-fill model, #79), P8 (book-level walk-forward backtest + honest first read, #80), P9 (exposure toggle
-outright⇄beta-hedged, #81), P10 (desk risk aggregation + factor split + TCA, #82), **P11 (scenario/stress
-harness, #83)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional` → **14 suites
-/ 133 tests**.
+**What this is (Playbook II P12, the headline).** Expand what the desk can take sides on — more symbols, more
+validated signals, another venue, and a CROSS-SECTIONAL ranking gate that funds the top-N edges instead of an
+equal split. The desk-risk spine (P5–P10) exists so a wider universe is *safe*.
 
-**Resume at P12** and continue IN ORDER through P16 — the playbook blocks are in
+**What shipped (every new signal pure + no-look-ahead + known-answer spec + OOS-gated — no exceptions):**
+- **SIGNALS** (`regime-signals.ts`): `reversal` (−trailing return, fade the pop), `vol-scaled-momentum`
+  (trailing return / realised vol — risk-adjusted trend), and `trailingRealisedVol`. All in
+  `defaultRegimeSignalSpecs` now. Live bias sources `ReversalBiasSource` + `VolScaledMomentumBiasSource`
+  (`trend-variant-bias-sources.ts`) wired into the runner's `buildConsensus`.
+- **CROSS-SECTIONAL** (`regime-cross-sectional.ts`): `crossSectionalRankSignals(universe, lookback)` ranks the
+  whole universe each bar → [−1,1] demeaned bias (top +1, bottom −1). Scored IN-SWEEP via a new `extraSignals`
+  param on `scoreRegimeBoard` (honest deflation across the full candidate set); wired into the morning board
+  (`regime-bias-oos.ts`). Kind `cross-sectional-momentum` is gate-only (universe-wide ⇒ not a per-symbol live
+  consensus source yet — a clean follow-on).
+- **VENUE** (`bybit-client.ts`): `BybitClient` — Bybit v5 public perp klines (`category=linear`, newest-first,
+  injected GET) behind `IReferenceBarSource`. A second order-book venue + Binance/HL basis breadth.
+  DATA_SOURCES.md updated (WIRED; L2+funding ingest still open).
+- **ALLOCATOR** (`regime-universe-allocator.ts`): `allocateUniverse` selects the top-N by conviction
+  (IC-capped |bias|), sizes notional = base·conviction (per-symbol capped), then **TRIMS to the gross cap
+  uniformly and the net cap pro-rata on the heavier side — an over-budget request is trimmed, never breached**.
+  Wired into the runner: it funds the top-N validated symbols (net handled live by RegimeDeskRisk) and prints
+  the allocation table. Universe defaults widened to 16 symbols.
+
+**Live read (bounded smoke, 6-symbol gate, 126 trials):** ETH validated on funding-paid-side, **SOL validated on
+the NEW vol-scaled-momentum(72h)** — the allocator funded both ($25k each, top-4), and the runner opened ETH
+short + SOL long live. The new signal flowing gate→allocator→book is the proof the expansion is real, not cosmetic.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias src/market-data/reference` → **36 suites / 268 tests** (+ the P12 specs: new-signal
+known-answers, cross-sectional rank flip/warmup/exclusion/demean, allocator top-N + gross/net trim-not-breach,
+Bybit parse/interval/error). Wider-universe scripts run.
+
+**Honest caveat:** the new signals + cross-sectional are SCREENED honestly but most won't validate on any given
+window (the smoke: 2/6 validated) — that is the correct outcome. The cross-sectional is gate-reported, not yet a
+live consensus source. Bybit is OHLCV-only so far.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P13 (handoff, updated 2026-06-17)
+
+**Done + committed:** P5 (#77), P6 (#78), P7 (#79), P8 (#80), P9 (#81), P10 (#82), P11 (#83), **P12 (universe
+expansion — signals/venue/allocator, #84)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest
+src/market-making/directional src/market-making/bias src/market-data/reference` → **36 suites / 268 tests**.
+
+**Resume at P13** and continue IN ORDER through P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.
 - **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
 - **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
 - **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
