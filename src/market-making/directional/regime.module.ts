@@ -5,11 +5,20 @@ import { RegimeDeskTrader } from './regime-desk-trader';
 import { RegimeController } from './regime.controller';
 import { RegimeLiveDriver } from './regime-live-driver';
 
-// RegimeModule — hosts the standalone "take sides" Regime Desk in-process + serves its /demo
-// cockpit (Playbook II P13). INERT by default: with REGIME_DESK off, the RegimeDeskTrader provider
-// resolves to null, the controller returns { enabled:false }, and no driver runs — nothing about
-// existing desks changes. With REGIME_DESK=true the bootstrap gates + seats the top-N validated
-// books and starts the live poll driver (real HL data).
+// RegimeModule — serves the standalone "take sides" Regime Desk cockpit/control-plane on /demo
+// (Playbook II P13). INERT by default: with REGIME_DESK off, the RegimeDeskTrader provider resolves
+// to null, the controller returns { enabled:false }, and no driver runs — nothing about existing
+// desks changes.
+//
+// Two-flag split (so the UI backend never competes with the desk scripts):
+//   REGIME_DESK=true        → SERVE the cockpit/control-plane only (read-only; no HL polling).
+//   REGIME_DESK_DRIVE=true  → ALSO run the in-process trading driver (the OOS gate + HL poll loop +
+//                             in-memory trading). OFF by default.
+// The desk is meant to be RUN by scripts/regime-book-live.ts (the self-contained terminal cockpit);
+// the backend only serves the UI. Running the in-process driver AND the script at once would mean
+// two regime desks double-polling HL and competing for the event loop — exactly the interference
+// this split removes. Flip REGIME_DESK_DRIVE only for the all-in-one web cockpit, and then don't
+// also run the script.
 
 const REGIME_ENV = {
   symbols: (process.env['REGIME_SYMBOLS'] ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
@@ -21,19 +30,39 @@ const REGIME_ENV = {
   marketSymbol: (process.env['REGIME_MARKET_SYMBOL'] ?? 'BTC').toUpperCase(),
 };
 
-/** Lifecycle owner: when the trader is present (REGIME_DESK on), gate + seat + start the poll driver. */
+/**
+ * Lifecycle owner. The in-process trading DRIVER runs ONLY when both the trader is present
+ * (REGIME_DESK on) AND REGIME_DESK_DRIVE is on. Serving the cockpit alone (REGIME_DESK on,
+ * drive off) starts NO driver — no HL polling, no boot-time gate — so the backend never
+ * competes with the standalone scripts/regime-book-live.ts runner.
+ */
 @Injectable()
 export class RegimeBootstrap implements OnModuleInit, OnApplicationShutdown {
   private readonly log = new Logger('RegimeDesk');
   private driver: RegimeLiveDriver | null = null;
+  /** True iff the in-process trading driver is running (exposed for the controller + tests). */
+  driving = false;
 
-  constructor(@Optional() @Inject(RegimeDeskTrader) private readonly trader: RegimeDeskTrader | null = null) {}
+  constructor(
+    private readonly config: ConfigService<AppConfig>,
+    @Optional() @Inject(RegimeDeskTrader) private readonly trader: RegimeDeskTrader | null = null,
+  ) {}
 
   onModuleInit(): void {
     if (!this.trader) {
-      this.log.log('OFF (set REGIME_DESK=true to host the take-sides cockpit on /demo).');
+      this.log.log('OFF (set REGIME_DESK=true to serve the take-sides cockpit on /demo).');
       return;
     }
+    const drive = this.config.get('marketMaking', { infer: true })?.regimeDeskDrive ?? false;
+    if (!drive) {
+      this.log.log(
+        'SERVE-ONLY: cockpit + control plane hosted on /demo, but the in-process driver is OFF. ' +
+          'Run the desk via scripts/regime-book-live.ts (terminal cockpit), or set REGIME_DESK_DRIVE=true ' +
+          'to also drive it in-process. No HL polling here — it will not interfere with the desk scripts.',
+      );
+      return;
+    }
+    this.driving = true;
     this.driver = new RegimeLiveDriver(this.trader, REGIME_ENV);
     // fire-and-forget: gate + seat + poll. Guarded internally so a network miss never crashes boot.
     void this.driver.start();

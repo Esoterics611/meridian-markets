@@ -1584,7 +1584,15 @@
         const badge = el('rg-badge'); const hdr = el('rg-header'); const attr = el('rg-attr'); const cards = el('rg-cards'); const weather = el('rg-weather');
         if (!s || s.enabled === false) {
           if (badge) badge.textContent = '· OFF (set REGIME_DESK=true)';
-          if (hdr) hdr.textContent = 'Regime Desk is not hosted. Launch the engine with REGIME_DESK=true to run the cockpit.';
+          if (hdr) hdr.textContent = 'Regime Desk is not hosted. Launch the engine with REGIME_DESK=true to serve the cockpit.';
+          if (attr) attr.textContent = ''; if (cards) cards.innerHTML = ''; if (weather) weather.innerHTML = '';
+          return;
+        }
+        if (s.driving === false) {
+          if (badge) { badge.textContent = '· SERVE-ONLY'; badge.style.color = RG_COLOR.amber || '#d29922'; }
+          if (hdr) hdr.innerHTML = 'Cockpit served, but the <b>in-process driver is OFF</b> (REGIME_DESK_DRIVE unset). '
+            + 'Run the desk in the terminal: <span class="mono">scripts/regime-book-live.ts</span> — the backend won\'t compete with it. '
+            + 'Set <span class="mono">REGIME_DESK_DRIVE=true</span> to drive it here instead.';
           if (attr) attr.textContent = ''; if (cards) cards.innerHTML = ''; if (weather) weather.innerHTML = '';
           return;
         }

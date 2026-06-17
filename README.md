@@ -145,31 +145,62 @@ curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd,
 
 ### E. The Regime Desk — "take sides" directional book
 
-The standalone **Regime Desk** (the cross-sectional directional/"take-sides" book) is hosted
-in-process and **OFF by default**. Flip `REGIME_DESK=true` and it gates + seats the top-N
-validated symbols and runs the live HL poll driver; the cockpit renders on `/demo` → **Regime
-Desk** tab. Full design in [docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md).
+The standalone **Regime Desk** (the cross-sectional directional/"take-sides" book) is a *separate
+desk*. The default + supported way to run it is the **terminal cockpit script** — the web backend
+only **serves the UI**. These two are deliberately decoupled so they never interfere: **run the
+backend for the `/demo` UI, run the script for the desk.** Full design in
+[docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md).
+
+**1) Run the desk — the terminal cockpit (this is the desk runner / track record).**
+`scripts/regime-book-live.ts` is self-contained: it gates, seats the top-N validated symbols, polls
+real Hyperliquid data itself, and **does not need the backend running**. It redraws a live position
+table with the **STOP gauge**, desk-risk RUN/HALT + gross/net vs caps, the idio-vs-beta `attr` line,
+and a tear-sheet vs BTC at Ctrl-C:
 
 ```bash
-# Web cockpit (in-process, on the same paper desk) — open http://localhost:3100/demo → Regime Desk tab
-REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper \
-  MOCK_TRADING_ENABLED=false npm run start:dev
-```
-
-```bash
-# Headless multi-hour run (persisted, honest fills) — outright vs hedged exposure
 MM_PERSIST=true RBL_HOURS=8 RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8 \
   npx ts-node -r tsconfig-paths/register scripts/regime-book-live.ts
 ```
 
-Knobs (defaults shown): `REGIME_SYMBOLS=BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA`,
-`REGIME_TOP_N=8`, `REGIME_GATE_DAYS=90`, `REGIME_INTERVAL=1h`, `REGIME_BASE_NOTIONAL_USD=50000`,
-`REGIME_POLL_MS=60000`, `REGIME_MARKET_SYMBOL=BTC` (beta benchmark). Watch it / control it:
+Knobs (defaults shown): `RBL_TOP_N=8`, `RBL_EXPOSURE=outright` (or `hedged` — beta-neutral via
+`RBL_HEDGE_SYMBOL`/`RBL_HEDGE_BAND_USD`/`RBL_HEDGE_BETA_LOOKBACK`), `RBL_HOURS=8`, `RBL_SLIPPAGE_BPS`,
+`RBL_SYMBOLS`, `RBL_GATE_DAYS`, `RBL_INTERVAL`, `RBL_BASE_NOTIONAL_USD`, `RBL_STOP_FRAC`, plus
+desk-risk caps `RBL_MAX_GROSS_USD` / `RBL_MAX_NET_USD` / `RBL_DAILY_LOSS_USD` / `RBL_DESK_MAX_DD_FRAC`.
+With `MM_PERSIST=true` the curve lands in `mm_nav` (desk=`regime`) — review it with the `mm-run-review`
+skill (don't read the log end-to-end). Re-gate first (`scripts/regime-bias-oos.ts`) and stress-check
+(`scripts/regime-stress.ts`) before a long run.
+
+**2) Run the backend — serves the `/demo` UI (the Regime Desk tab + control plane).**
+`REGIME_DESK=true` **serves the cockpit only** — it does **not** spin up an in-process desk, so it
+runs **light** and never competes with the script in (1) (no double HL polling, no event-loop
+contention). The tab + `/api/regime/*` are live; the snapshot shows `driving:false` (SERVE-ONLY).
 
 ```bash
-curl -s localhost:3100/api/regime/snapshot | jq         # books, gross/net vs caps, STOP gauge, attr
-curl -sX POST localhost:3100/api/regime/flatten | jq     # flatten all positions
-curl -sX POST localhost:3100/api/regime/halt | jq        # halt the desk
+# Serve the cockpit + every other desk's UI — open http://localhost:3100/demo → Regime Desk tab
+REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper \
+  MOCK_TRADING_ENABLED=false npm run start:dev
+```
+
+**Optional all-in-one:** to also *drive* the desk **inside** the backend (the old in-process
+behaviour), add `REGIME_DESK_DRIVE=true`. Then the backend runs the OOS gate + HL poll loop + trading
+itself — so **do not also run the script** in (1), or you'd have two regime desks competing. Use this
+only when you want a single process; otherwise prefer (1) + (2).
+
+```bash
+REGIME_DESK=true REGIME_DESK_DRIVE=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper \
+  MOCK_TRADING_ENABLED=false npm run start:dev
+```
+
+In-process driver knobs (only apply with `REGIME_DESK_DRIVE=true`; defaults shown):
+`REGIME_SYMBOLS=BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA`, `REGIME_TOP_N=8`,
+`REGIME_GATE_DAYS=90`, `REGIME_INTERVAL=1h`, `REGIME_BASE_NOTIONAL_USD=50000`, `REGIME_POLL_MS=60000`,
+`REGIME_MARKET_SYMBOL=BTC` (beta benchmark). Watch it / control it (works in both serve-only and
+driven modes — read-only in serve-only):
+
+```bash
+curl -s localhost:3100/api/regime/snapshot | jq         # enabled, driving, books, gross/net, STOP gauge, attr
+curl -sX POST localhost:3100/api/regime/flatten | jq     # flatten all positions (driven mode)
+curl -sX POST localhost:3100/api/regime/halt | jq        # halt the desk (driven mode)
 ```
 
 Review a finished run with the `mm-run-review` skill (realised P&L from `mm_nav` desk=`regime`).
@@ -199,12 +230,14 @@ The binding rules and the maintained file map live in [`CLAUDE.md`](CLAUDE.md): 
 
 ## Research Journey
 
-Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (72 entries). The short version:
+Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (88 entries). The short version:
 
 **Stat-arb (entries #1–#40):** We built a rigorous crypto stat-arb engine — cointegration, walk-forward OOS, deflated Sharpe, purged k-fold, half-spread + impact cost gates. The honest finding: *crypto taker stat-arb is dead.* Cointegration that looks real on 30d windows collapses to near-zero by 90–180d. It's a short-window artefact, not an edge. Equities sector stat-arb is real but ~0.06 Sharpe and survivorship-bound — worth running on paper for months before sizing up.
 
 **Market-making (#41–#65):** We pivoted to maker-rebate MM on Hyperliquid (−0.2 bps rebate). Built a full MM desk: Avellaneda-Stoikov / GLFT / Directional quoters, VPIN risk gate, LOB replay with queue-aware fills, 4-component P&L attribution, per-book NAV curve. The key insight: *naive MM loses to adverse selection — it's a fair-value problem, not a spread-width problem.* The micro-price quote center + sub-second re-quote cadence flipped the desk from −$1,020 to +$133 on an 8h window. First honest net-positive read.
 
-**Carry trade (#66–#72 — current frontier):** The desk's structural edge. HL perpetuals trade at a persistent discount to Binance spot; positive funding means the short (hedge) leg collects. We built the full carry stack: T1 cross-venue fair-value, T2 OOS persistence gate (60d, posFrac ≥ 0.65), T3 funding-aware inventory skew, T4 basis-arb detector. First live paper run: ETH carry is clean and structural — +0.125 bps/hr stable every poll, cleared fees in ~56 min, running at ~11% annualised gross on a $50K leg. BNB passed the 60d OOS gate but live funding flipped regime immediately — the gate needs recency weighting.
+**Carry trade (#66–#72):** The desk's structural edge. HL perpetuals trade at a persistent discount to Binance spot; positive funding means the short (hedge) leg collects. We built the full carry stack: T1 cross-venue fair-value, T2 OOS persistence gate (60d, posFrac ≥ 0.65), T3 funding-aware inventory skew, T4 basis-arb detector. First live paper run: ETH carry is clean and structural — +0.125 bps/hr stable every poll, cleared fees in ~56 min, running at ~11% annualised gross on a $50K leg. BNB passed the 60d OOS gate but live funding flipped regime immediately — the gate needs recency weighting.
+
+**Take Sides / Regime Desk (#73–#88 — the standalone directional book):** A separate, institutional-grade "take-sides" desk that goes directional **only on OOS-validated symbols**, conviction-sized and directional-stopped, with a desk-risk spine (caps + kill-switch + flatten-on-exit), durable restart recovery, honest slippage/impact fills, a walk-forward backtest, an outright⇄beta-hedged exposure toggle, desk-risk aggregation + factor split + TCA, a stress harness, a 16-symbol universe with cross-sectional allocation, a `/demo` cockpit, a tear-sheet vs BTC, and a feed watchdog. It runs as a self-contained terminal cockpit (`scripts/regime-book-live.ts`); the web backend only *serves* its cockpit (§E) — the two are decoupled so a desk run never interferes with the UI backend. The pre-registered verdict is realised-first (realised + funding − fees − slippage > 0, maxDD inside 2%), measured on a multi-hour forward run.
 
 **Where we're going:** carry trade + long-horizon stat-arb across many markets. More perp CLOBs (dYdX, Drift, Bybit, OKX), more symbols, longer track records. The OOS / cost / queue-aware gates are the discipline that keeps the paper P&L honest.

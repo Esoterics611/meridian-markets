@@ -122,8 +122,16 @@ export interface AppConfig {
     defaultStrategyId: string;
     /** Default instrument the MM screen loads. */
     defaultSymbol: string;
-    /** P13: host the standalone "take sides" Regime Desk in-process + its /demo cockpit. OFF by default. */
+    /** P13: serve the standalone "take sides" Regime Desk cockpit/control-plane on /demo. OFF by default. */
     regimeDeskEnabled: boolean;
+    /**
+     * Run the in-process Regime trading DRIVER (OOS gate + HL poll loop + in-memory trading)
+     * inside the UI backend. OFF by default: serving the cockpit (`regimeDeskEnabled`) no longer
+     * also spins up a desk, so running `scripts/regime-book-live.ts` alongside `npm run start:dev`
+     * never collides (two desks double-polling HL / competing for the event loop). Set true ONLY
+     * for the all-in-one web cockpit — and then do NOT also run the standalone script.
+     */
+    regimeDeskDrive: boolean;
     /**
      * Default MM venue/source for a bare launch with no `source` (the desk's
      * primary market-making venue). 'hyperliquid' = the maker-rebate perp CLOB

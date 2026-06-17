@@ -3788,7 +3788,37 @@ build sandbox (dev server exits 144) — verify them in this first local run. Ev
 
 ---
 
-## ⏭️ NEXT SESSION — the operator forward run (P16) + write #89
+## 2026-06-17 — Entry #89 (Regime Desk: SERVE-vs-DRIVE split — stop the UI backend running a competing desk)
+
+**Problem (Ronnie):** running the take-sides desk was *interfering with the backend needed for the UI.* The P13
+cockpit hosted the desk **in-process**: `REGIME_DESK=true npm run start:dev` fired the heavy `RegimeLiveDriver`
+inside the UI backend — a 16-symbol × 90-day OOS gate at boot, then a 60s HL poll loop + in-memory trading. So if
+the operator ran the standalone `scripts/regime-book-live.ts` (the real desk / track record) AND the backend (for
+the UI), there were **two regime desks** double-polling Hyperliquid and competing for the one event loop. The
+principle Ronnie wants: **run the backend for the UI, run the scripts for the desks — they must not interfere.**
+
+**Fix — split "serve the cockpit" from "drive the desk" behind two flags (the driver now OFF by default):**
+- `REGIME_DESK=true` → **SERVE ONLY**: the `/demo` Regime tab + `/api/regime/*` control plane are hosted, but
+  **no in-process driver runs** — no boot gate, no HL polling, no trading. The backend stays light and never
+  competes with the desk scripts. Snapshot reports `driving:false` + a SERVE-ONLY note; the UI renders it honestly
+  instead of a misleading empty "0 validated" desk.
+- `REGIME_DESK_DRIVE=true` (new) → additionally run the in-process `RegimeLiveDriver` (the old all-in-one). Use
+  this only for a single-process web cockpit, and then **don't** also run the script.
+
+Implementation: `regimeDeskDrive` config (`REGIME_DESK_DRIVE`) in the one sanctioned env reader; `RegimeBootstrap`
+only news-up/starts the driver when drive is on (else logs SERVE-ONLY); the controller surfaces `driving` + the
+note (reads `ConfigService`, no module cycle); `/demo` renders the SERVE-ONLY banner. No DB collision either: the
+in-process trader never persisted (no store in the module factory) — only the script writes `mm_nav` desk='regime'.
+
+**Tests + build:** `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional` green (22 suites / 190
+tests). Pinned the split with direct-construction specs (offline, no network): `RegimeBootstrap.driving` stays
+false when serve-only, and the controller returns `driving:false`+SERVE-ONLY note vs `driving:true` with no note.
+README §E rewritten around the two-step run (script = desk, backend = UI). The operator forward run (P16, #90) is
+unchanged — run it via the terminal cockpit; the web backend can serve the UI alongside without interfering.
+
+---
+
+## ⏭️ NEXT SESSION — the operator forward run (P16) + write #90
 
 **Done + committed:** P5–P15 (#77–#87) — the take-sides desk is institutional-grade in paper. Repo green:
 `npx tsc --noEmit` exit 0; `npx jest src/market-making` green (31 suites / 243 tests in directional+bias).

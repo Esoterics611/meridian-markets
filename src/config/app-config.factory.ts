@@ -103,9 +103,13 @@ export const appConfigFactory = registerAs<AppConfig>('app', (): AppConfig => ({
     // (FEED_SOURCE) stays Binance — HL is perps-only, a per-book source not the spine.
     defaultStrategyId: process.env['MM_STRATEGY_ID'] ?? 'mm-glft',
     defaultSymbol: process.env['MM_SYMBOL'] ?? 'BTC',
-    // P13: host the standalone "take sides" Regime Desk in-process + serve its /demo cockpit.
+    // P13: serve the standalone "take sides" Regime Desk cockpit/control-plane on /demo.
     // OFF by default — nothing about existing runs changes unless explicitly enabled.
     regimeDeskEnabled: process.env['REGIME_DESK'] === 'true' || process.env['REGIME_DESK'] === '1',
+    // Drive the desk IN-PROCESS (gate + HL poll loop + trading) inside the UI backend. OFF by
+    // default so the backend just serves the cockpit and never competes with the standalone
+    // scripts/regime-book-live.ts runner — the desk is run by the script, the UI only serves.
+    regimeDeskDrive: process.env['REGIME_DESK_DRIVE'] === 'true' || process.env['REGIME_DESK_DRIVE'] === '1',
     defaultSource: process.env['MM_SOURCE'] ?? 'hyperliquid',
     quoteSizeUnits: BigInt(process.env['MM_QUOTE_SIZE_UNITS'] ?? '1000000000'), // 1000 asset units
     capitalUnits: BigInt(process.env['MM_CAPITAL_UNITS'] ?? '100000000000'), // 100k USDC

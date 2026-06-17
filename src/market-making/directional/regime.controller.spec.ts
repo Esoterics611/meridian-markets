@@ -41,4 +41,27 @@ describe('RegimeController (P13)', () => {
       expect(c.halt()).toMatchObject({ enabled: true, ok: true, halted: true });
     });
   });
+
+  describe('driving flag (serve-vs-drive split)', () => {
+    const cfg = (regimeDeskDrive: boolean) => ({ get: () => ({ regimeDeskDrive }) }) as never;
+    const trader = () => {
+      const t = new RegimeDeskTrader({ deskRisk: { maxGrossUsd: 3e5, maxNetUsd: 2e5, dailyLossLimitUsd: 6e3, capitalUsd: 1.5e5, maxDrawdownFrac: 0.02 } });
+      t.seat([seatBook('ETH')]);
+      return t;
+    };
+    it('serve-only (REGIME_DESK_DRIVE off) ⇒ driving:false + a SERVE-ONLY note', () => {
+      const s = new RegimeController(trader(), cfg(false)).snapshot() as { driving: boolean; note?: string };
+      expect(s.driving).toBe(false);
+      expect(s.note).toMatch(/SERVE-ONLY/);
+    });
+    it('driving (REGIME_DESK_DRIVE on) ⇒ driving:true, no note', () => {
+      const s = new RegimeController(trader(), cfg(true)).snapshot() as { driving: boolean; note?: string };
+      expect(s.driving).toBe(true);
+      expect(s.note).toBeUndefined();
+    });
+    it('defaults to driving:false when no ConfigService is injected', () => {
+      const s = new RegimeController(trader()).snapshot() as { driving: boolean };
+      expect(s.driving).toBe(false);
+    });
+  });
 });
