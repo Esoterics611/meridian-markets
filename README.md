@@ -143,6 +143,37 @@ curl -s localhost:3100/api/market-making/snapshot | jq '.books[] | {symbol, netP
 curl -s localhost:3100/api/market-making/snapshot | jq '.hedge | {grossDeltaUsd, residualUsd, hedgePnlUsd}'
 ```
 
+### E. The Regime Desk — "take sides" directional book
+
+The standalone **Regime Desk** (the cross-sectional directional/"take-sides" book) is hosted
+in-process and **OFF by default**. Flip `REGIME_DESK=true` and it gates + seats the top-N
+validated symbols and runs the live HL poll driver; the cockpit renders on `/demo` → **Regime
+Desk** tab. Full design in [docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md).
+
+```bash
+# Web cockpit (in-process, on the same paper desk) — open http://localhost:3100/demo → Regime Desk tab
+REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper \
+  MOCK_TRADING_ENABLED=false npm run start:dev
+```
+
+```bash
+# Headless multi-hour run (persisted, honest fills) — outright vs hedged exposure
+MM_PERSIST=true RBL_HOURS=8 RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8 \
+  npx ts-node -r tsconfig-paths/register scripts/regime-book-live.ts
+```
+
+Knobs (defaults shown): `REGIME_SYMBOLS=BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA`,
+`REGIME_TOP_N=8`, `REGIME_GATE_DAYS=90`, `REGIME_INTERVAL=1h`, `REGIME_BASE_NOTIONAL_USD=50000`,
+`REGIME_POLL_MS=60000`, `REGIME_MARKET_SYMBOL=BTC` (beta benchmark). Watch it / control it:
+
+```bash
+curl -s localhost:3100/api/regime/snapshot | jq         # books, gross/net vs caps, STOP gauge, attr
+curl -sX POST localhost:3100/api/regime/flatten | jq     # flatten all positions
+curl -sX POST localhost:3100/api/regime/halt | jq        # halt the desk
+```
+
+Review a finished run with the `mm-run-review` skill (realised P&L from `mm_nav` desk=`regime`).
+
 ### Execution modes
 `EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +
 simulated fills) · `live` (real venue, requires `LIVE_TRADING_ARMED=true`).
