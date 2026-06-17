@@ -60,6 +60,60 @@ docker compose up -d postgres      # Postgres on :5433 (sudo on this host if nee
 npm run migration:run              # one-time / when the schema changes
 ```
 
+### The full operator flow — step by step (and why it never interferes)
+
+There is **one backend** (the UI + the market-making desk) and **separate desk scripts** that run in
+their own terminals. They are decoupled on purpose:
+
+| Process | Role | Touches |
+|---|---|---|
+| **The backend** (`npm run start:dev`) | Serves `/demo` + every `/api/*` control plane, **and runs the MM desk in-process**. The only process that binds `:3100`. | `mm_nav` desk=`''`/symbol |
+| **MM book launcher** (`scripts/launch-mm-10h.sh`) | **Drives the running backend** (`POST /api/market-making/launch`). Not a second trading process. | the backend |
+| **Regime Desk** (`scripts/regime-book-live.ts`) | A **self-contained** directional desk in its own process — gates, seats, polls Hyperliquid, trades on paper. Needs no backend. | `mm_nav` desk=`regime` |
+
+**Why no interference:** only the backend binds the port (and `start-desk.sh` refuses to start a
+second one); the MM launcher *drives* that one backend rather than spawning a rival; the Regime script
+writes a **different** `mm_nav` tag (`regime`) so curves never collide; and the backend **does not run
+its own Regime desk** unless you explicitly set `REGIME_DESK_DRIVE=true`. So you can run all three at
+once. The **one rule**: don't set `REGIME_DESK_DRIVE=true` *and* run `regime-book-live.ts` — that's the
+only way to get two Regime desks competing.
+
+**Step by step:**
+
+```bash
+# 0) One-time, then whenever the schema changes
+npm install
+docker compose up -d postgres && npm run migration:run
+
+# 1) TERMINAL 1 — the backend: UI + MM desk + serves the Regime cockpit (read-only).
+#    REGIME_DESK=true just serves the /demo tab; it does NOT start a Regime desk here.
+REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper \
+  MOCK_TRADING_ENABLED=false LIVE_AUTOSTART=false npm run start:dev
+#    → open http://localhost:3100/demo
+
+# 2) TERMINAL 2 — launch the MM books onto that backend (drives it; not a new process)
+bash scripts/launch-mm-10h.sh
+#    confirm the books took the fast L2 path in Terminal 1's log (Journal #47), then let it run.
+
+# 3) TERMINAL 3 — the Regime "take-sides" desk, in its own process (re-gate + stress-check first)
+RBO_DAYS=90 npx ts-node -r tsconfig-paths/register scripts/regime-bias-oos.ts   # today's validated set
+npx ts-node -r tsconfig-paths/register scripts/regime-stress.ts                  # expect STRESS OK
+MM_PERSIST=true RBL_HOURS=8 RBL_EXPOSURE=outright RBL_TOP_N=8 \
+  npx ts-node -r tsconfig-paths/register scripts/regime-book-live.ts
+```
+
+```bash
+# 4) WATCH (any terminal) — the UI at /demo, or the control planes:
+curl -s localhost:3100/api/market-making/snapshot | jq '.books[] | {symbol, netPnlUnits, maxDrawdownPct}'
+curl -s localhost:3100/api/regime/snapshot        | jq '{enabled, driving, desk}'   # driving:false ⇒ desk is in the script
+# the Regime script prints its own live cockpit + a realised-first verdict + tear-sheet at Ctrl-C.
+
+# 5) REVIEW a finished run — use the mm-run-review skill (pulls realised P&L from mm_nav; don't read the log end-to-end).
+```
+
+Details for each piece are in **A–E** below. To run the Regime desk **inside** the backend instead of
+its own terminal (single process), see §E (`REGIME_DESK_DRIVE=true`) — and then skip step 3.
+
 ### A. The cockpit — launch strategies and watch them live
 ```bash
 FEED_SOURCE=binance EXECUTION_MODE=paper MOCK_TRADING_ENABLED=false \
