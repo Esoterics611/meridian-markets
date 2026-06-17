@@ -3697,14 +3697,37 @@ the server; wiring regime events onto the shared `/api/market-making/events` Act
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P14 (handoff, updated 2026-06-17)
+## 2026-06-17 — Entry #86 (Take Sides P14: TEAR-SHEET vs BTC BENCHMARK)
 
-**Done + committed:** P5 (#77), P6 (#78), P7 (#79), P8 (#80), P9 (#81), P10 (#82), P11 (#83), P12 (#84),
-**P13 (web cockpit, #85)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making` green.
+**What this is (Playbook II P14).** Prove the demo honestly — a QuantStats-style, benchmark-relative scorecard
+from the run's equity curve. Realised-first: the curve is realised − fees + funding, never an unrealised-led mark.
 
-**Resume at P14** and continue IN ORDER through P16 — the playbook blocks are in
+**What shipped:**
+- `regime-tearsheet.ts` — `computeTearsheet(curve, benchmark, …)` → Sharpe + Sortino (annualised via barsPerYear),
+  maxDD% + its underwater duration, hit rate / avg win-loss / payoff (from per-trade P&L), exposure, turnover, and
+  the **BTC buy-hold benchmark** read: total return, **excess return (pp)**, **β** (cov/var to the benchmark), and
+  correlation. Pure + clock-free.
+- `scripts/regime-book-live.ts` — samples the realised-first equity curve + the BTC mid each poll and prints the
+  tear-sheet at session end (return · Sharpe · Sortino · maxDD+duration · exposure; and vs-BTC bench/excess/β/ρ).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional/regime-tearsheet`
+→ **8 tests** (total-return = Δequity/capital, maxDD%+duration, annualised Sharpe + Sortino on a dip curve,
+Sortino=0 when no losing bars, excess return vs BTC, β≈k recovered when desk = k·bench, hit/payoff from trades,
+degenerate-curve no-NaN guard).
+
+**Honest caveat:** the tear-sheet is only as honest as the curve fed it — the runner samples realised-first equity
+(the judged number), so the headline can't be inflated by an open mark. Per-trade hit/payoff in the live runner is
+omitted (passed only when available); the curve-based + benchmark metrics are the headline.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P15 (handoff, updated 2026-06-17)
+
+**Done + committed:** P5 (#77) … P13 (#85), **P14 (tear-sheet, #86)**. Repo green: `npx tsc --noEmit` exit 0;
+`npx jest src/market-making` green.
+
+**Resume at P15** then P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
 - **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
 - **P16** — the operator's single all-at-once forward run (hand over run commands + what to watch; do NOT run it for them). #88.
 

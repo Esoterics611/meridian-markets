@@ -51,6 +51,7 @@ import { FillCostModel, NoSlippageModel, SlippageImpactModel } from '../src/mark
 import { RegimeBetaHedge, BookBeta, estimateBeta } from '../src/market-making/directional/regime-beta-hedge';
 import { attributeDesk, assertReconciles, BookTcaInput } from '../src/market-making/directional/regime-tca';
 import { aggregatePortfolioRisk, betaPnlIncrementUnits, BookRiskRead, PortfolioRisk } from '../src/market-making/directional/regime-portfolio-risk';
+import { computeTearsheet, EquityPoint, BenchPoint } from '../src/market-making/directional/regime-tearsheet';
 import { InventoryBook } from '../src/market-making/inventory/inventory-book';
 import { DataSource } from 'typeorm';
 
@@ -219,6 +220,10 @@ let hedge: { engine: RegimeBetaHedge; inv: InventoryBook; midMicros: bigint; las
 // last market-factor mid for the per-interval beta-P&L accrual.
 let lastRisk: PortfolioRisk | null = null;
 let lastMarketMid: number | null = null;
+// P14: the realised-first equity curve + BTC benchmark, sampled each poll → the session tear-sheet.
+const equityCurve: EquityPoint[] = [];
+const benchCurve: BenchPoint[] = [];
+let exposedPolls = 0;
 
 /** Current per-book risk input from the book's snapshot at its last-known mid. */
 function bookRiskInput(bs: BookState): BookRiskInput {
@@ -680,6 +685,15 @@ async function main() {
     // Done on pre-update positions (the position held over the just-elapsed interval).
     await marketRiskStep(books, staged, hlPx);
 
+    // P14 — sample the realised-first equity curve + BTC benchmark for the session tear-sheet.
+    {
+      const t = deskTotals(books);
+      const nowMs = Date.now();
+      equityCurve.push({ tMs: nowMs, equityUsd: Number(t.realised + t.funding) / MICROS }); // realised-first
+      if (lastMarketMid && lastMarketMid > 0) benchCurve.push({ tMs: nowMs, price: lastMarketMid });
+      if (t.live > 0) exposedPolls++;
+    }
+
     // PASS 2 — consult the desk-risk spine on the whole-desk snapshot (positions still pre-update).
     const assessment = deskRisk.assess(books.map(bookRiskInput));
     lastAssessment = assessment;
@@ -842,6 +856,26 @@ function printVerdict(books: BookState[], poll: number): void {
       `NET-OF-HEDGE ${(netOfHedge >= 0n ? green : red)(bold(usd(netOfHedge)))}`,
     );
   }
+  // P14 — the realised-first tear-sheet vs a BTC buy-hold over the same window.
+  if (equityCurve.length >= 3) {
+    const barsPerYear = (365 * 24 * 3_600_000) / POLL_MS;
+    const ts = computeTearsheet({
+      curve: equityCurve, benchmark: benchCurve, capitalUsd: DESK_CAPITAL_USD, barsPerYear,
+      exposureFrac: poll > 0 ? exposedPolls / poll : 0,
+    });
+    console.log(bold(`\n  TEAR-SHEET (realised-first, vs BTC buy-hold · ${ts.bars} samples):`));
+    console.log(
+      `  return ${(ts.totalReturnPct >= 0 ? green : red)(`${ts.totalReturnPct >= 0 ? '+' : ''}${ts.totalReturnPct.toFixed(3)}%`)}  ` +
+      `Sharpe ${ts.sharpe.toFixed(2)}  Sortino ${ts.sortino.toFixed(2)}  ` +
+      `maxDD ${red(`${ts.maxDrawdownPct.toFixed(2)}%`)} (${ts.maxDrawdownDurationBars} bars)  exposure ${(ts.exposureFrac * 100).toFixed(0)}%`,
+    );
+    console.log(
+      `  vs BTC: bench ${ts.benchmark.totalReturnPct >= 0 ? '+' : ''}${ts.benchmark.totalReturnPct.toFixed(2)}%  ` +
+      `excess ${(ts.benchmark.excessReturnPct >= 0 ? green : red)(`${ts.benchmark.excessReturnPct >= 0 ? '+' : ''}${ts.benchmark.excessReturnPct.toFixed(2)}pp`)}  ` +
+      `β ${ts.benchmark.beta.toFixed(2)}  ρ ${ts.benchmark.correlation.toFixed(2)}`,
+    );
+  }
+
   console.log(dim(`\n  PRE-REGISTERED METRIC: realised + funding − fees > 0 with maxDD inside the desk's 2% budget,`));
   console.log(dim(`  on the symbols VALIDATED today. Judge realised, never the open unrealised mark.`));
   console.log(green('\nREGIME-BOOK-LIVE OK\n'));
