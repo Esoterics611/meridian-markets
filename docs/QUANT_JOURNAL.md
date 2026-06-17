@@ -3662,15 +3662,48 @@ live consensus source. Bybit is OHLCV-only so far.
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P13 (handoff, updated 2026-06-17)
+## 2026-06-17 — Entry #85 (Take Sides P13: /demo REGIME DESK WEB COCKPIT)
 
-**Done + committed:** P5 (#77), P6 (#78), P7 (#79), P8 (#80), P9 (#81), P10 (#82), P11 (#83), **P12 (universe
-expansion — signals/venue/allocator, #84)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest
-src/market-making/directional src/market-making/bias src/market-data/reference` → **36 suites / 268 tests**.
+**What this is (Playbook II P13).** Host the take-sides desk in-process + a live `/demo` "◆ Regime Desk" tab so
+a trader with no terminal can run + watch + intervene. Behind a `REGIME_DESK` flag, **OFF by default** (nothing
+about existing desks changes).
 
-**Resume at P13** and continue IN ORDER through P16 — the playbook blocks are in
+**What shipped:**
+- `regime-desk-trader.ts` — `RegimeDeskTrader`, the in-process analogue of `MmPortfolioTrader`. Tick-driven +
+  network-free (the driver feeds it): one `tick()` runs the same PASS sequence as the runner (weather →
+  desk-risk assess → beta-P&L accrual + portfolio risk read → book updates), and `snapshot()` returns the
+  cockpit DTO (desk totals · risk/VaR · TCA · position cards w/ stop gauge · weather). `halt()` / `flatten(sym)`
+  controls. Fully unit-tested (open on a view, TCA reconciles, halt flattens all, flatten one).
+- `regime.controller.ts` — `GET /api/regime/snapshot`, `POST /api/regime/flatten`, `POST /api/regime/halt`.
+  **Inert when the trader is null** (flag off) ⇒ `{ enabled:false }`. Unit-tested both ways.
+- `regime.module.ts` — trader factory (null unless `marketMaking.regimeDeskEnabled`) + a `RegimeBootstrap`
+  (`OnModuleInit`) that, when enabled, builds + starts `RegimeLiveDriver`. Wired into `AppModule`.
+  `app-config.factory` reads `REGIME_DESK` (the only sanctioned env reader, §6).
+- `regime-live-driver.ts` — the NETWORK leg: gate (HL candles+funding) → cross-sectional allocator → seat the
+  top-N validated books → poll + feed the trader. Thin + fully guarded (a fetch miss never crashes boot).
+- `index.html` — a "Regime Desk" tab: desk header (realised/maxDD/βexp/VaR), the `attr` TCA line, position
+  cards with the **STOP GAUGE** (the hero widget) + per-book FLATTEN, a HALT button, and the weather strip —
+  reusing the engine's green/amber/red weather color law. Polls `/api/regime/snapshot` every 5s; shows
+  "OFF — set REGIME_DESK=true" when inert.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias` → **29 suites / 223 tests** (+ trader tick/snapshot/halt/flatten + controller inert &
+enabled). **Visual acceptance (cockpit renders live)** needs a local `npm run start:dev` with `REGIME_DESK=true`
+— the sandbox can't run the dev server (exits 144), so this one item is handed to the operator (P16).
+
+**Honest caveat:** the trader + controller + inert default are unit-tested green; the `RegimeLiveDriver` network
+gate+poll is real but UNTESTED HERE (no network in the sandbox) — verify in the local run. Cockpit events log to
+the server; wiring regime events onto the shared `/api/market-making/events` Activity tape is a clean follow-on.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P14 (handoff, updated 2026-06-17)
+
+**Done + committed:** P5 (#77), P6 (#78), P7 (#79), P8 (#80), P9 (#81), P10 (#82), P11 (#83), P12 (#84),
+**P13 (web cockpit, #85)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making` green.
+
+**Resume at P14** and continue IN ORDER through P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
 - **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
 - **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
 - **P16** — the operator's single all-at-once forward run (hand over run commands + what to watch; do NOT run it for them). #88.

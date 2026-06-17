@@ -122,6 +122,8 @@ export interface AppConfig {
     defaultStrategyId: string;
     /** Default instrument the MM screen loads. */
     defaultSymbol: string;
+    /** P13: host the standalone "take sides" Regime Desk in-process + its /demo cockpit. OFF by default. */
+    regimeDeskEnabled: boolean;
     /**
      * Default MM venue/source for a bare launch with no `source` (the desk's
      * primary market-making venue). 'hyperliquid' = the maker-rebate perp CLOB
