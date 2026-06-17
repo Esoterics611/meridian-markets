@@ -39,6 +39,9 @@ import { ConsensusBiasSource } from '../src/market-making/directional/consensus-
 import { FundingBiasSource } from '../src/market-making/bias/funding-bias-source';
 import { MomentumBiasSource } from '../src/market-making/bias/momentum-bias-source';
 import { ManualBiasSource } from '../src/market-making/bias/manual-bias-source';
+import { ReversalBiasSource, VolScaledMomentumBiasSource } from '../src/market-making/bias/trend-variant-bias-sources';
+import { allocateUniverse, AllocationCandidate } from '../src/market-making/directional/regime-universe-allocator';
+import { biasMagnitudeCap } from '../src/market-making/bias/oos/forward-return-ic';
 import { IBiasSource, effectiveBias, BiasReading } from '../src/market-making/bias/bias-source.interface';
 import { DeskEventInput, controlEvent } from '../src/market-making/events/desk-event';
 import { RegimeDeskRisk, BookRiskInput, DeskRiskAssessment } from '../src/market-making/directional/regime-desk-risk';
@@ -46,11 +49,17 @@ import { IRegimeStateStore, NullRegimeStateStore, RegimeBookRecord, RegimeNavIns
 import { PostgresRegimeStateStore } from '../src/market-making/directional/postgres-regime-state-store';
 import { FillCostModel, NoSlippageModel, SlippageImpactModel } from '../src/market-making/directional/fill-cost-model';
 import { RegimeBetaHedge, BookBeta, estimateBeta } from '../src/market-making/directional/regime-beta-hedge';
+import { attributeDesk, assertReconciles, BookTcaInput } from '../src/market-making/directional/regime-tca';
+import { aggregatePortfolioRisk, betaPnlIncrementUnits, BookRiskRead, PortfolioRisk } from '../src/market-making/directional/regime-portfolio-risk';
+import { computeTearsheet, EquityPoint, BenchPoint } from '../src/market-making/directional/regime-tearsheet';
+import { FeedWatchdog, AlertDispatcher, buildAlertSink } from '../src/market-making/directional/feed-watchdog';
 import { InventoryBook } from '../src/market-making/inventory/inventory-book';
 import { DataSource } from 'typeorm';
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+// P12 widened the default universe (more majors + liquid alts). The gate stays honest — most
+// won't validate, which is the correct outcome; the allocator then funds only the top-N that do.
+const SYMBOLS = (process.env.RBL_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA').split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
 const GATE_DAYS = Number(process.env.RBL_GATE_DAYS ?? 90);
 const INTERVAL = process.env.RBL_INTERVAL ?? '1h';
 const FWD_HOURS = (process.env.RBL_FWD_HOURS ?? '8,24,72').split(',').map(Number).filter((h) => h > 0);
@@ -73,9 +82,26 @@ const EXPOSURE = (process.env.RBL_EXPOSURE ?? 'outright').toLowerCase() === 'hed
 const HEDGE_SYMBOL = (process.env.RBL_HEDGE_SYMBOL ?? 'BTC').toUpperCase();
 const HEDGE_BAND_USD = Number(process.env.RBL_HEDGE_BAND_USD ?? 5_000);
 const HEDGE_BETA_LOOKBACK = Number(process.env.RBL_HEDGE_BETA_LOOKBACK ?? 72); // bars of returns for beta
+
+// ── P10 desk risk aggregation + factor split + TCA. ───────────────────────────
+const MARKET_SYMBOL = (process.env.RBL_MARKET_SYMBOL ?? HEDGE_SYMBOL).toUpperCase(); // the crypto-beta factor (default BTC)
+const RISK_LOOKBACK = Number(process.env.RBL_RISK_LOOKBACK ?? 72); // bars of returns for vol/beta in the risk read
+const VAR_HORIZON_BARS = Number(process.env.RBL_VAR_HORIZON_BARS ?? 24); // parametric-VaR horizon (bars)
 const MIN_AGREE = Number(process.env.RBL_MIN_AGREE ?? 1); // each constituent is already OOS-gated
 const FUNDING_FULL_RATE = Number(process.env.RBL_FUNDING_FULL_RATE ?? 1.25e-5); // ~11%/yr ⇒ |b|=1
 const MOM_FULL_RETURN = Number(process.env.RBL_MOM_FULL_RETURN ?? 0.05); // a 5% trend ⇒ |b|=1
+const REV_FULL_RETURN = Number(process.env.RBL_REV_FULL_RETURN ?? 0.03); // a 3% pop ⇒ full fade (P12)
+const VSM_FULL_Z = Number(process.env.RBL_VSM_FULL_Z ?? 1.5); // vol-scaled-momentum z ⇒ |b|=1 (P12)
+
+// P12 cross-sectional capital allocator: fund the TOP-N strongest validated edges, gross-capped.
+const TOP_N = Number(process.env.RBL_TOP_N ?? 8);
+
+// P15 feed watchdog + alerting. Alert sink is no-op unless RBL_ALERT_WEBHOOK is set.
+const ALERT_WEBHOOK = process.env.RBL_ALERT_WEBHOOK ?? '';
+const WATCHDOG_MAX_STALE_MS = Number(process.env.RBL_WATCHDOG_STALE_MS ?? POLL_MS_RAW() * 3);
+const WATCHDOG_MAX_GAP_FRAC = Number(process.env.RBL_WATCHDOG_GAP_FRAC ?? 0.1);
+const WATCHDOG_MAX_DIVERGENCE_FRAC = Number(process.env.RBL_WATCHDOG_DIVERGENCE_FRAC ?? 0.02);
+function POLL_MS_RAW(): number { return Number(process.env.RBL_POLL_MS ?? 60_000); }
 
 const HOURS = Number(process.env.RBL_HOURS ?? 6);
 const POLL_MS = Number(process.env.RBL_POLL_MS ?? 60_000);
@@ -141,6 +167,10 @@ interface BookState {
   lastBias: number;
   lastMidMicros: bigint;
   lastState: RegimeState | null;
+  /** P10: market-factor (beta) P&L accrued on the held position, USDC-units (session-local, not persisted). */
+  betaPnlAccrued: bigint;
+  /** P10: last-estimated beta to the market factor (for the risk read + accrual). */
+  betaForRisk: number;
 }
 
 async function fetchHistory(sym: string, fromMs: number, toMs: number): Promise<{ bars: Bar[]; funding: FundingPoint[] } | null> {
@@ -164,6 +194,8 @@ function buildConsensus(symbol: string, validated: { kind: string; lookbackBars?
   for (const v of validated) {
     if (v.kind === 'funding-paid-side') sources.push(new FundingBiasSource({ fullBiasRatePerHour: FUNDING_FULL_RATE, validated: true }));
     else if (v.kind === 'momentum') sources.push(new MomentumBiasSource({ fullBiasReturn: MOM_FULL_RETURN, lookback: v.lookbackBars, validated: true }));
+    else if (v.kind === 'reversal') sources.push(new ReversalBiasSource({ fullBiasReturn: REV_FULL_RETURN, lookback: v.lookbackBars, validated: true }));
+    else if (v.kind === 'vol-scaled-momentum') sources.push(new VolScaledMomentumBiasSource({ fullBiasZ: VSM_FULL_Z, lookback: v.lookbackBars, validated: true }));
   }
   const manual = new ManualBiasSource(); // the house-view slot (control-plane seam; empty by default)
   const houseRaw = (process.env.RBL_HOUSE_VIEW ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -183,6 +215,8 @@ const prevBias = new Map<string, number>();
 const lastBiasPrevFor = (symbol: string): number => prevBias.get(symbol) ?? 0;
 function onEvent(e: DeskEventInput): void {
   events.push(e);
+  // P15: a fired loss-stop is an alert condition (the book emits it as a control event).
+  if (e.kind === 'control' && /loss-stop/.test(e.message)) alerts.lossStop(e.book ?? 'DESK', e.message);
   if (!REDRAW) console.log(dim(`  ${e.message}`)); // in redraw mode the cards show state; log only when scrolling
 }
 
@@ -192,6 +226,17 @@ let maxDDUnits = 0n;
 let lastAssessment: DeskRiskAssessment | null = null;
 // P9: the beta-hedge leg (hedged mode only; null in outright). Paper perp in one hedge instrument.
 let hedge: { engine: RegimeBetaHedge; inv: InventoryBook; midMicros: bigint; lastResidualUsd: number; lastBetaUsd: number } | null = null;
+// P10: the latest portfolio risk read (gross/net/βexp + vol + VaR), refreshed each poll; and the
+// last market-factor mid for the per-interval beta-P&L accrual.
+let lastRisk: PortfolioRisk | null = null;
+let lastMarketMid: number | null = null;
+// P14: the realised-first equity curve + BTC benchmark, sampled each poll → the session tear-sheet.
+const equityCurve: EquityPoint[] = [];
+const benchCurve: BenchPoint[] = [];
+let exposedPolls = 0;
+// P15: feed watchdog (drives monitor.feedStale) + alert dispatcher (fires once per condition).
+const feedWatchdog = new FeedWatchdog({ maxStaleMs: WATCHDOG_MAX_STALE_MS, maxGapFrac: WATCHDOG_MAX_GAP_FRAC, maxDivergenceFrac: WATCHDOG_MAX_DIVERGENCE_FRAC });
+const alerts = new AlertDispatcher(buildAlertSink(ALERT_WEBHOOK));
 
 /** Current per-book risk input from the book's snapshot at its last-known mid. */
 function bookRiskInput(bs: BookState): BookRiskInput {
@@ -208,6 +253,82 @@ function bookRiskInput(bs: BookState): BookRiskInput {
     realisedPnlUsd: Number(snap.realisedUnits - snap.feesUnits + snap.fundingUnits) / MICROS,
     unrealisedPnlUsd: Number(snap.unrealisedUnits) / MICROS,
   };
+}
+
+/** This book's current signed position notional in USD (+ long, − short, 0 flat). */
+function signedNotionalUsd(bs: BookState): number {
+  const inv = bs.book.inventoryUnits();
+  if (inv === 0n || bs.lastMidMicros === 0n) return 0;
+  return Number((inv * bs.lastMidMicros) / BigInt(MICROS)) / MICROS;
+}
+
+/**
+ * P10 — the desk risk read + per-interval beta-P&L accrual. Fetches the market factor
+ * (MARKET_SYMBOL) returns once, estimates each book's beta, accrues the market-factor P&L on the
+ * position HELD over the interval since the last poll (exactly as funding accrues — done BEFORE the
+ * books update so it uses the held position), then aggregates the portfolio risk (gross/net/βexp,
+ * realised vol, single-factor parametric VaR). Reuses the staged market data when MARKET_SYMBOL is
+ * itself a traded book, else one extra klines fetch. Best-effort: a market miss leaves last reads intact.
+ */
+async function marketRiskStep(
+  books: BookState[],
+  staged: Map<string, { recentReturns: number[]; midMicros: bigint }>,
+  hlPx: HyperliquidClient,
+): Promise<void> {
+  try {
+    // Market-factor returns: reuse the staged book if the factor is traded, else fetch it.
+    let marketReturns: number[];
+    let marketMid: number;
+    const stagedMkt = staged.get(MARKET_SYMBOL);
+    if (stagedMkt) {
+      marketReturns = stagedMkt.recentReturns.slice(-RISK_LOOKBACK);
+      marketMid = Number(stagedMkt.midMicros) / MICROS;
+    } else {
+      const bars = await hlPx.klines(MARKET_SYMBOL, INTERVAL, RISK_LOOKBACK + 4);
+      if (bars.length < 2) return;
+      const closes = bars.map((b) => b.close);
+      marketReturns = [];
+      for (let i = 1; i < closes.length; i++) marketReturns.push(Math.log(closes[i] / closes[i - 1]));
+      marketReturns = marketReturns.slice(-RISK_LOOKBACK);
+      marketMid = closes[closes.length - 1];
+    }
+    const marketReturn = lastMarketMid && lastMarketMid > 0 ? Math.log(marketMid / lastMarketMid) : 0;
+
+    const riskBooks: BookRiskRead[] = [];
+    for (const bs of books) {
+      const st = staged.get(bs.symbol);
+      if (!st) continue;
+      const beta = bs.symbol === MARKET_SYMBOL ? 1 : estimateBeta(st.recentReturns.slice(-RISK_LOOKBACK), marketReturns);
+      bs.betaForRisk = beta;
+      const n = signedNotionalUsd(bs);
+      // Accrue beta P&L on the position held over the just-elapsed interval (pre-update inv).
+      bs.betaPnlAccrued += betaPnlIncrementUnits(n, beta, marketReturn);
+      riskBooks.push({ symbol: bs.symbol, signedNotionalUsd: n, beta, returns: st.recentReturns.slice(-RISK_LOOKBACK) });
+    }
+    lastRisk = aggregatePortfolioRisk(riskBooks, marketReturns, { capitalUsd: DESK_CAPITAL_USD, horizonBars: VAR_HORIZON_BARS });
+    lastMarketMid = marketMid;
+  } catch (e) {
+    process.stdout.write(`  risk err ${(e as Error).message.slice(0, 40)}\n`);
+  }
+}
+
+/** P10 — build the per-book TCA inputs from the current snapshots + accrued beta P&L. */
+function deskTcaInputs(books: BookState[]): BookTcaInput[] {
+  const inputs: BookTcaInput[] = [];
+  for (const bs of books) {
+    if (bs.lastMidMicros === 0n) continue;
+    const s = bs.book.snapshot(bs.lastMidMicros);
+    inputs.push({
+      symbol: bs.symbol,
+      realisedUnits: s.realisedUnits,
+      feesUnits: s.feesUnits,
+      fundingUnits: s.fundingUnits,
+      unrealisedUnits: s.unrealisedUnits,
+      slippageUnits: s.slippageUnits,
+      betaPnlUnits: bs.betaPnlAccrued,
+    });
+  }
+  return inputs;
 }
 
 /** The durable checkpoint for a book (P6) — ledger state + entry context + identity. */
@@ -303,6 +424,21 @@ function renderFrame(books: BookState[], pollNo: number): string {
       `DD ${(a.drawdownFrac * 100).toFixed(2)}%/${(DESK_MAX_DD_FRAC * 100).toFixed(1)}%   ${dim('[h]=halt [f]=flatten-all')}`,
     );
   }
+  // P10 — the risk-manager read: factor exposure, desk vol, parametric VaR (heat).
+  if (lastRisk) {
+    const r = lastRisk;
+    const usdN = (x: number) => `$${Math.round(x).toLocaleString('en-US')}`;
+    out.push(
+      `  ${dim('risk')} βexp ${usdN(r.netBetaUsd)}   σdesk ${usdN(r.deskVolUsd)}/bar (factor ${usdN(r.factorVolUsd)} · idio ${usdN(r.idioVolUsd)})   ` +
+      `VaR95 ${usdN(r.var95Usd)} (${(r.var95FracOfCapital * 100).toFixed(2)}% cap)`,
+    );
+  }
+  // P10 — the desk-level P&L attribution (reconciles to total to the cent).
+  const tca = attributeDesk(deskTcaInputs(books));
+  out.push(
+    `  ${dim('attr')} P&L ${(tca.totalUnits >= 0n ? green : red)(usd(tca.totalUnits))} = idio ${usd(tca.idiosyncraticUnits)} · beta ${usd(tca.betaUnits)} · ` +
+    `funding ${usd(tca.fundingUnits)} · fees ${usd(-tca.feesUnits)} · slip ${usd(-tca.slippageUnits)}`,
+  );
   out.push(dim('─'.repeat(64)));
 
   for (const bs of books) {
@@ -395,9 +531,30 @@ async function main() {
     console.log(amber(bold(`\n0 symbols validated today — the desk trades NOTHING. (Correct outcome — re-gate next session.)`)));
     return;
   }
-  console.log(green(bold(`\nELIGIBLE: ${eligible.map((r) => r.symbol).join(', ')} — building books.\n`)));
+  // ── P12 cross-sectional allocation: fund the TOP-N strongest validated edges, gross-capped.
+  //    Conviction = the IC-capped |bias| the book sizes on (biasMagnitudeCap of the OOS IC). The
+  //    net cap is enforced LIVE by RegimeDeskRisk (sides aren't known until the loop runs), so the
+  //    allocator runs net-uncapped and just selects + budgets the per-book notional.
+  const candidates: AllocationCandidate[] = eligible.map((r) => ({
+    symbol: r.symbol,
+    side: 1, // placeholder — capital budgeting is side-agnostic; live net is RegimeDeskRisk's job
+    conviction: biasMagnitudeCap(r.oosIc),
+    ic: r.oosIc,
+  }));
+  const allocation = allocateUniverse(candidates, {
+    topN: TOP_N, baseNotionalUsd: BASE_NOTIONAL_USD, perSymbolMaxUsd: MAX_NOTIONAL_USD,
+    maxGrossUsd: MAX_GROSS_USD, maxNetUsd: Number.MAX_SAFE_INTEGER,
+  });
+  const allocBySymbol = new Map(allocation.allocations.map((a) => [a.symbol, a]));
+  const funded = eligible.filter((r) => allocBySymbol.has(r.symbol));
+  console.log(green(bold(`\nALLOCATION (top-${TOP_N} by conviction, gross≤$${MAX_GROSS_USD.toLocaleString('en-US')}${allocation.grossCapBound ? ' — TRIMMED' : ''}):`)));
+  for (const a of allocation.allocations) {
+    console.log(`  ${a.symbol.padEnd(5)} $${Math.round(a.notionalUsd).toLocaleString('en-US')}  IC ${signed(a.ic)}  ${dim(a.reason)}`);
+  }
+  if (allocation.excluded.length) console.log(dim(`  excluded (below top-${TOP_N} / no view): ${allocation.excluded.join(', ')}`));
+  console.log('');
 
-  // ── Build a book per eligible symbol ───────────────────────────────────────
+  // ── Build a book per FUNDED symbol (maxNotional = the allocated budget) ─────
   const fillModel: FillCostModel =
     SLIPPAGE_BPS > 0 || IMPACT_BPS_PER_MM > 0
       ? new SlippageImpactModel({ halfSpreadBps: SLIPPAGE_BPS, impactBpsPerMillionUsd: IMPACT_BPS_PER_MM })
@@ -406,12 +563,13 @@ async function main() {
     console.log(dim(`fill model: slippage ${SLIPPAGE_BPS}bps half-spread + impact ${IMPACT_BPS_PER_MM}bps/$1M notional (honest fills)`));
   }
   const books: BookState[] = [];
-  for (const r of eligible) {
+  for (const r of funded) {
     const validated = (validatedMap.get(r.symbol) ?? []).map((t) => ({ kind: t.spec.kind, lookbackBars: t.spec.lookbackBars }));
     const ic = Math.max(...(validatedMap.get(r.symbol) ?? [{ oosIc: r.oosIc }]).map((t) => t.oosIc));
     const ld = loaded.find((l) => l.symbol === r.symbol)!;
+    const allocNotional = allocBySymbol.get(r.symbol)!.notionalUsd;
     const book = new RegimeDirectionalBook({
-      baseNotionalUsd: BASE_NOTIONAL_USD, maxNotionalUsd: MAX_NOTIONAL_USD, bEnter: B_ENTER, bExit: B_EXIT,
+      baseNotionalUsd: BASE_NOTIONAL_USD, maxNotionalUsd: allocNotional, bEnter: B_ENTER, bExit: B_EXIT,
       stopFrac: STOP_FRAC, takerFeeBps: TAKER_FEE_BPS, fillModel, book: r.symbol, source: 'regime-directional', onEvent,
     });
     const monitor = new RegimeMonitor(r.symbol, { onRegimeChange: (tr) => onEvent(regimeChangeEvent(tr)) });
@@ -419,6 +577,7 @@ async function main() {
       symbol: r.symbol, row: r, ic, book, monitor, consensus: buildConsensus(r.symbol, validated),
       fundingBuf: ld.funding.filter((f) => f.fundingTimeMs >= toMs - 3 * 86_400_000),
       entryMidMicros: null, entryMs: null, lastBias: 0, lastMidMicros: 0n, lastState: null,
+      betaPnlAccrued: 0n, betaForRisk: 0,
     };
     books.push(bs);
   }
@@ -523,7 +682,11 @@ async function main() {
         const binPx = await binance.lastPrice(bs.symbol).catch(() => NaN);
         const basisBps = Number.isFinite(binPx) && binPx > 0 ? ((mid - binPx) / binPx) * 10_000 : undefined;
 
-        const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret });
+        // P15: feed health (stale / gap / cross-venue divergence) ⇒ monitor.feedStale ⇒ STAND_ASIDE.
+        const health = feedWatchdog.check(bs.symbol, { nowMs: now, price: mid, crossVenuePrice: Number.isFinite(binPx) && binPx > 0 ? binPx : undefined });
+        alerts.feedStale(bs.symbol, health.feedStale, health.detail, now);
+
+        const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret, feedStale: health.feedStale });
         const reading = bs.consensus.bias(bs.symbol, { fundingRatePerHour: fundingForSignal, recentReturns, nowMs: now, midMicros });
 
         staged.set(bs.symbol, { now, midMicros, reading, state, curRate, recentReturns });
@@ -535,13 +698,29 @@ async function main() {
       await new Promise((r) => setTimeout(r, 150));
     }
 
+    // PASS 1.5 — desk risk read (gross/net/βexp + vol + VaR) + per-interval beta-P&L accrual.
+    // Done on pre-update positions (the position held over the just-elapsed interval).
+    await marketRiskStep(books, staged, hlPx);
+
+    // P14 — sample the realised-first equity curve + BTC benchmark for the session tear-sheet.
+    {
+      const t = deskTotals(books);
+      const nowMs = Date.now();
+      equityCurve.push({ tMs: nowMs, equityUsd: Number(t.realised + t.funding) / MICROS }); // realised-first
+      if (lastMarketMid && lastMarketMid > 0) benchCurve.push({ tMs: nowMs, price: lastMarketMid });
+      if (t.live > 0) exposedPolls++;
+    }
+
     // PASS 2 — consult the desk-risk spine on the whole-desk snapshot (positions still pre-update).
     const assessment = deskRisk.assess(books.map(bookRiskInput));
     lastAssessment = assessment;
     if (assessment.desk.kind === 'Halt' && !haltAnnounced) {
       haltAnnounced = true;
       onEvent(controlEvent({ ts: Date.now(), book: 'DESK', detail: `DESK HALT (${assessment.desk.component}): ${assessment.desk.reason} → flattening all books` }));
+      alerts.deskHalt(assessment.desk.reason); // P15 alert (once)
     }
+    // P15: alert on a maxDD-budget breach (once), independent of whether it tripped the kill-switch.
+    if (assessment.drawdownFrac > DESK_MAX_DD_FRAC) alerts.drawdownBreach(assessment.drawdownFrac, DESK_MAX_DD_FRAC);
 
     // PASS 3 — update each book under its verdict: FlattenNow/Halt ⇒ standAside (flatten);
     // BlockNewEntry ⇒ a flat book is fed a neutral reading so it cannot open (open books unchanged).
@@ -663,6 +842,30 @@ function printVerdict(books: BookState[], poll: number): void {
     `maxDD ${red(usd(-maxDDUnits))}  ·  entries ${entries}  ·  stops fired ${stops}  ·  ` +
     `${deskSlip > 0n ? `slippage ${dim(usd(-deskSlip))}  ·  ` : ''}open-unrealised ${dim(usd(t.unrealised))}`,
   );
+
+  // P10 — DESK ATTRIBUTION (TCA): the factor split + where every basis point came from. Each line
+  // reconciles to the cent (assertReconciles throws otherwise). Post-flatten the open mark is 0, so
+  // the total equals the realised-first DESK REALISED above (the honest, judged number).
+  const tca = attributeDesk(deskTcaInputs(books));
+  console.log(bold(`\n  DESK ATTRIBUTION (TCA — total = idio · beta · funding · fees · slip, reconciles to the cent):`));
+  for (const b of tca.perBook) {
+    assertReconciles(b);
+    console.log(
+      `  ${b.symbol.padEnd(5)} total ${(b.totalUnits >= 0n ? green : red)(usd(b.totalUnits))} = idio ${usd(b.idiosyncraticUnits)} · beta ${usd(b.betaUnits)} · ` +
+      `funding ${usd(b.fundingUnits)} · fees ${usd(-b.feesUnits)} · slip ${usd(-b.slippageUnits)}`,
+    );
+  }
+  console.log(
+    `  ${bold('DESK '.padEnd(5))} total ${(tca.totalUnits >= 0n ? green : red)(bold(usd(tca.totalUnits)))} = idio ${usd(tca.idiosyncraticUnits)} · beta ${usd(tca.betaUnits)} · ` +
+    `funding ${usd(tca.fundingUnits)} · fees ${usd(-tca.feesUnits)} · slip ${usd(-tca.slippageUnits)}`,
+  );
+  if (lastRisk) {
+    const r = lastRisk;
+    const usdN = (x: number) => `$${Math.round(x).toLocaleString('en-US')}`;
+    console.log(
+      dim(`  risk (last live read): βexp ${usdN(r.netBetaUsd)} · σdesk ${usdN(r.deskVolUsd)}/bar · VaR95 ${usdN(r.var95Usd)} (${(r.var95FracOfCapital * 100).toFixed(2)}% cap) · VaR99 ${usdN(r.var99Usd)}`),
+    );
+  }
   if (hedge) {
     const hRealised = hedge.inv.realisedUnits() - hedge.inv.feesUnits();
     const hUnreal = hedge.midMicros > 0n ? hedge.inv.unrealisedUnits(hedge.midMicros) : 0n;
@@ -673,6 +876,26 @@ function printVerdict(books: BookState[], poll: number): void {
       `NET-OF-HEDGE ${(netOfHedge >= 0n ? green : red)(bold(usd(netOfHedge)))}`,
     );
   }
+  // P14 — the realised-first tear-sheet vs a BTC buy-hold over the same window.
+  if (equityCurve.length >= 3) {
+    const barsPerYear = (365 * 24 * 3_600_000) / POLL_MS;
+    const ts = computeTearsheet({
+      curve: equityCurve, benchmark: benchCurve, capitalUsd: DESK_CAPITAL_USD, barsPerYear,
+      exposureFrac: poll > 0 ? exposedPolls / poll : 0,
+    });
+    console.log(bold(`\n  TEAR-SHEET (realised-first, vs BTC buy-hold · ${ts.bars} samples):`));
+    console.log(
+      `  return ${(ts.totalReturnPct >= 0 ? green : red)(`${ts.totalReturnPct >= 0 ? '+' : ''}${ts.totalReturnPct.toFixed(3)}%`)}  ` +
+      `Sharpe ${ts.sharpe.toFixed(2)}  Sortino ${ts.sortino.toFixed(2)}  ` +
+      `maxDD ${red(`${ts.maxDrawdownPct.toFixed(2)}%`)} (${ts.maxDrawdownDurationBars} bars)  exposure ${(ts.exposureFrac * 100).toFixed(0)}%`,
+    );
+    console.log(
+      `  vs BTC: bench ${ts.benchmark.totalReturnPct >= 0 ? '+' : ''}${ts.benchmark.totalReturnPct.toFixed(2)}%  ` +
+      `excess ${(ts.benchmark.excessReturnPct >= 0 ? green : red)(`${ts.benchmark.excessReturnPct >= 0 ? '+' : ''}${ts.benchmark.excessReturnPct.toFixed(2)}pp`)}  ` +
+      `β ${ts.benchmark.beta.toFixed(2)}  ρ ${ts.benchmark.correlation.toFixed(2)}`,
+    );
+  }
+
   console.log(dim(`\n  PRE-REGISTERED METRIC: realised + funding − fees > 0 with maxDD inside the desk's 2% budget,`));
   console.log(dim(`  on the symbols VALIDATED today. Judge realised, never the open unrealised mark.`));
   console.log(green('\nREGIME-BOOK-LIVE OK\n'));

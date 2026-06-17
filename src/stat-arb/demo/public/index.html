@@ -160,6 +160,7 @@
     <button class="tab" data-tab="launch">Launch</button>
     <button class="tab" data-tab="mm">Market Making</button>
     <button class="tab" data-tab="signal">Signal</button>
+    <button class="tab" data-tab="regime">Regime Desk</button>
     <button class="tab" data-tab="research">Research</button>
   </div>
 
@@ -385,6 +386,22 @@
       <div id="sa-events" style="max-height:300px;overflow-y:auto;border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:6px 10px;background:rgba(0,0,0,0.18);">
         <div class="muted">no activity yet — launch a book and start the desk. Every OPEN/CLOSE, risk-block and launch/stop streams here.</div>
       </div>
+    </section>
+
+    <!-- ◆ REGIME DESK cockpit (P13) — the standalone "take sides" book, hosted in-process when
+         REGIME_DESK=true. Weather strip · validated/position cards w/ STOP GAUGE · desk risk + TCA. -->
+    <section class="panel span-12" data-tab="regime">
+      <div class="spark-k" style="margin-bottom:6px;">◆ Regime Desk — take sides <span id="rg-badge" class="muted" style="text-transform:none;letter-spacing:0;"></span></div>
+      <div class="desc">The standalone directional book: gate-validated symbols only, conviction-sized, directional-stopped, beta-aware. Realised-first. Polls <span class="mono">/api/regime/snapshot</span> (host with <span class="mono">REGIME_DESK=true</span>).</div>
+      <div id="rg-header" class="muted" style="margin:8px 0;">loading…</div>
+      <div id="rg-attr" class="mono muted" style="font-size:11px;margin-bottom:8px;"></div>
+      <div style="margin-bottom:10px;">
+        <button id="rg-halt" class="btn" style="background:#5a1a1a;">HALT DESK</button>
+        <span class="muted" style="font-size:11px;margin-left:8px;">flatten a book from its card</span>
+      </div>
+      <div id="rg-cards"></div>
+      <div class="spark-k" style="margin:12px 0 6px;">Weather</div>
+      <div id="rg-weather" class="mono" style="font-size:11px;"></div>
     </section>
   </main>
 
@@ -1507,7 +1524,7 @@
     // can sit on a different screen. tab-hidden uses !important so it wins over a
     // panel's own inline display toggles (e.g. the portfolio panel).
     function showTab(name) {
-      const tabs = ['desk', 'launch', 'mm', 'signal', 'research'];
+      const tabs = ['desk', 'launch', 'mm', 'signal', 'regime', 'research'];
       if (!tabs.includes(name)) name = 'desk';
       document.querySelectorAll('main > section').forEach((s) => {
         s.classList.toggle('tab-hidden', s.getAttribute('data-tab') !== name);
@@ -1542,6 +1559,75 @@
       tickClock(); setInterval(tickClock, 1000);
       pollAll(); setInterval(pollAll, 4000);
       showTab((location.hash || '').replace('#', '') || 'desk');
+    })();
+  </script>
+
+  <!-- ◆ Regime Desk cockpit poller (P13) — self-contained; reuses the engine's weather color law
+       (green=TRADEABLE, amber=HOLD_ONLY, red=STAND_ASIDE). Inert when REGIME_DESK is off. -->
+  <script>
+    (function () {
+      const RG_COLOR = { green: '#3fb950', amber: '#d29922', red: '#f85149' };
+      const usd = (x) => (x >= 0 ? '+$' : '−$') + Math.abs(x).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      const usdN = (x) => '$' + Math.round(x).toLocaleString('en-US');
+      const el = (id) => document.getElementById(id);
+      function gauge(frac) {
+        const w = 16, n = Math.max(0, Math.min(w, Math.round((frac || 0) * w)));
+        const c = frac >= 0.85 ? RG_COLOR.red : frac >= 0.6 ? RG_COLOR.amber : RG_COLOR.green;
+        return '<span style="color:' + c + ';font-family:monospace;">' + '█'.repeat(n) + '░'.repeat(w - n) + '</span>';
+      }
+      async function flatten(sym) {
+        try { await fetch('/api/regime/flatten', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ symbol: sym }) }); } catch (e) {}
+      }
+      async function refresh() {
+        let s;
+        try { s = await (await fetch('/api/regime/snapshot')).json(); } catch (e) { return; }
+        const badge = el('rg-badge'); const hdr = el('rg-header'); const attr = el('rg-attr'); const cards = el('rg-cards'); const weather = el('rg-weather');
+        if (!s || s.enabled === false) {
+          if (badge) badge.textContent = '· OFF (set REGIME_DESK=true)';
+          if (hdr) hdr.textContent = 'Regime Desk is not hosted. Launch the engine with REGIME_DESK=true to serve the cockpit.';
+          if (attr) attr.textContent = ''; if (cards) cards.innerHTML = ''; if (weather) weather.innerHTML = '';
+          return;
+        }
+        if (s.driving === false) {
+          if (badge) { badge.textContent = '· SERVE-ONLY'; badge.style.color = RG_COLOR.amber || '#d29922'; }
+          if (hdr) hdr.innerHTML = 'Cockpit served, but the <b>in-process driver is OFF</b> (REGIME_DESK_DRIVE unset). '
+            + 'Run the desk in the terminal: <span class="mono">scripts/regime-book-live.ts</span> — the backend won\'t compete with it. '
+            + 'Set <span class="mono">REGIME_DESK_DRIVE=true</span> to drive it here instead.';
+          if (attr) attr.textContent = ''; if (cards) cards.innerHTML = ''; if (weather) weather.innerHTML = '';
+          return;
+        }
+        badge.textContent = s.halted ? '· HALTED' : (s.running ? '· LIVE' : '· seated');
+        badge.style.color = s.halted ? RG_COLOR.red : RG_COLOR.green;
+        const d = s.desk;
+        hdr.innerHTML = 'realised <b style="color:' + (d.realisedUsd >= 0 ? RG_COLOR.green : RG_COLOR.red) + '">' + usd(d.realisedUsd) + '</b>'
+          + '  ·  unrealised ' + usd(d.unrealisedUsd) + '  ·  funding ' + usd(d.fundingUsd)
+          + '  ·  maxDD <span style="color:' + RG_COLOR.red + '">−' + usdN(d.maxDrawdownUsd) + '</span>'
+          + '  ·  gross ' + usdN(d.grossUsd) + '  net ' + usdN(d.netUsd)
+          + '  ·  ' + d.live + ' live / ' + d.aside + ' aside'
+          + (s.risk ? '  ·  βexp ' + usdN(s.risk.netBetaUsd) + '  VaR95 ' + usdN(s.risk.var95Usd) + ' (' + (s.risk.var95FracOfCapital * 100).toFixed(2) + '% cap)' : '');
+        const a = s.attribution;
+        attr.textContent = 'attr  P&L ' + usd(a.totalUsd) + ' = idio ' + usd(a.idiosyncraticUsd) + ' · beta ' + usd(a.betaUsd)
+          + ' · funding ' + usd(a.fundingUsd) + ' · fees ' + usd(-a.feesUsd) + ' · slip ' + usd(-a.slippageUsd);
+        cards.innerHTML = (s.positions || []).map(function (p) {
+          const sideC = p.side === 'LONG' ? RG_COLOR.green : p.side === 'SHORT' ? RG_COLOR.red : '#8b949e';
+          return '<div style="border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:8px 10px;margin-bottom:6px;background:rgba(0,0,0,0.18);">'
+            + '<b>' + p.symbol + '</b> <span style="color:' + sideC + '">' + p.side + '</span> '
+            + '<span class="muted" style="font-size:11px;">' + p.signalName + ' (IC ' + (p.ic >= 0 ? '+' : '') + p.ic.toFixed(2) + ')</span>'
+            + (p.side !== 'FLAT' ? ' · ' + usdN(p.notionalUsd) + ' · uPnL ' + usd(p.unrealisedUsd) + ' · funding ' + usd(p.fundingUsd)
+                + '<br>STOP ' + gauge(p.stopGaugeFrac) + ' &nbsp; bias ' + (p.bias >= 0 ? '+' : '') + p.bias.toFixed(2)
+                + ' &nbsp; <button class="btn" style="padding:2px 8px;font-size:10px;" onclick="window.__rgFlatten(\'' + p.symbol + '\')">FLATTEN</button>'
+              : ' · <span class="muted">flat · realised ' + usd(p.realisedUsd) + '</span>')
+            + '</div>';
+        }).join('') || '<div class="muted">no books seated — 0 symbols validated today (the correct outcome when the gate finds no edge).</div>';
+        weather.innerHTML = (s.weather || []).map(function (w) {
+          return '<div><b>' + w.symbol + '</b> <span style="color:' + (RG_COLOR[w.color] || '#8b949e') + '">' + w.overall + '</span>'
+            + ' · funding ' + w.fundingSide + ' · basis ' + w.basisBps.toFixed(1) + 'bp · vol ×' + w.volRatio.toFixed(2) + '</div>';
+        }).join('') || '<div class="muted">—</div>';
+      }
+      window.__rgFlatten = function (sym) { flatten(sym).then(refresh); };
+      const haltBtn = document.getElementById('rg-halt');
+      if (haltBtn) haltBtn.onclick = function () { fetch('/api/regime/halt', { method: 'POST' }).then(refresh); };
+      refresh(); setInterval(refresh, 5000);
     })();
   </script>
 </body>

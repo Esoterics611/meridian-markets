@@ -45,6 +45,7 @@ is judged against two engines and one discipline:
 | **DefiLlama** | Reference (peg) | no-key | peg level (1 bar) | — | reference readout | `IReferenceBarSource` | flat series, not scanned |
 | **Bit2C** | Reference (ILS) | no-key | last + 24h (1 bar) | — | stat-arb (ILS basis, pending) | `IReferenceBarSource` | needs cross-source pairing |
 | **GeckoTerminal** | DEX (AMM, 100+ chains) | no-key | OHLCV | LP-fee→maker (pool-dependent) | MM + discovery | `IReferenceBarSource` (+ MM `source`) | S28/S29; `dex-eth-bluechip` |
+| **Bybit** | Perp-DEX (CLOB) | no-key (public v5) | OHLCV (L2 not ingested yet) | rebate tiers | regime desk (2nd perp venue) + cross-venue basis | `IReferenceBarSource` | **P12** — `BybitClient` (`/v5/market/kline?category=linear`, newest-first, injected GET). A second order-book venue for the take-sides universe + Binance/HL basis breadth. |
 | **Hyperliquid** ⭐ **default MM venue** | Perp-DEX (CLOB) | no-key (market data) | OHLCV + **L2 (20×20)** (funding not ingested yet) | **rebate −0.2 bps** | MM (top) + queue-aware fills + funding-carry + basis | `IReferenceBarSource` + `IL2BookSource` (+ MM `source`) | **S32/S33/S35** — `HyperliquidClient` (candleSnapshot + `l2Snapshot`, both via POST), `hl-perps` scanner + MM presets. The maker-rebate CLOB the book needs; quotable since σ-normalization (S31). **L2 feeds `LobReplayHarness`/`SimpleQueueModel`** → FIFO queue-aware fills (S33); per-pool γ/κ tuned on those fills (S34). **S35: HL is now the desk's DEFAULT MM venue** (`marketMaking.defaultSource`, `MM_SOURCE`) — a bare MM launch quotes HL, priced at the −0.2bps rebate via `venueFeeFor`; the global feed stays Binance (HL is perps-only). Funding ingest still open. Majors are tight (BTC TOB 0.15bps) → wide-spread edge is long-tail. |
 
 ---
@@ -70,7 +71,7 @@ is judged against two engines and one discipline:
 ### B. CEXs — cross-venue basis, funding dispersion, deeper universe (stat-arb + MM A/B)
 | Source | Posture | Data | Maker | Why / Status |
 |---|---|---|---|---|
-| **Bybit** | no-key (public) | OHLCV + L2 + funding | rebate tiers | Biggest non-Binance perp/spot; basis + funding vs Binance/HL. CANDIDATE (high). |
+| **Bybit** | no-key (public) | OHLCV + L2 + funding | rebate tiers | Biggest non-Binance perp/spot; basis + funding vs Binance/HL. **WIRED (P12 — OHLCV via `BybitClient`)**; L2 + funding ingest still open. |
 | **OKX** | no-key (public) | OHLCV + L2 + funding | rebate tiers | CANDIDATE (high). |
 | **Deribit** | no-key (public) | **options-IV** + OHLCV + funding | — | Feeds the Greeks layer + options vol-selling (rewrite #4). CANDIDATE (high for options). |
 | **Coinbase / Kraken** | no-key (public) | OHLCV + L2 | — | US-venue reference + basis. CANDIDATE (med). |

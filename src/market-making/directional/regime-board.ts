@@ -8,7 +8,7 @@
 
 import { sharpeStats } from '../../stat-arb/research/deflated-sharpe';
 import { RegimeSeries, RegimeSignalSpec, regimeSignalPairs } from './regime-signals';
-import { oosForwardReturnIc, verdictFor, biasMagnitudeCap, BiasVerdict } from '../bias/oos/forward-return-ic';
+import { oosForwardReturnIc, verdictFor, biasMagnitudeCap, BiasVerdict, buildSignalForwardPairs } from '../bias/oos/forward-return-ic';
 
 export interface LoadedSeries {
   readonly symbol: string;
@@ -62,8 +62,25 @@ function std(xs: number[]): number {
   return Math.sqrt(v / (xs.length - 1));
 }
 
+/**
+ * A signal whose per-symbol series is precomputed by the caller (e.g. the CROSS-SECTIONAL
+ * rank signal, which needs the whole universe and so cannot be derived from one symbol's
+ * RegimeSeries). Scored in the SAME sweep as the per-symbol specs so the deflation haircut
+ * (trials, σ_SR) is honest across the entire candidate set.
+ */
+export interface ExtraSignal {
+  readonly spec: RegimeSignalSpec;
+  /** symbol → per-bar signal value (aligned to that symbol's RegimeSeries.prices; NaN = no view). */
+  readonly perSymbolSeries: Map<string, number[]>;
+}
+
 /** Score every (symbol × signal × horizon) trial through the deflated OOS gate. */
-export function scoreRegimeBoard(loaded: readonly LoadedSeries[], specs: readonly RegimeSignalSpec[], cfg: BoardScoreConfig): RegimeBoard {
+export function scoreRegimeBoard(
+  loaded: readonly LoadedSeries[],
+  specs: readonly RegimeSignalSpec[],
+  cfg: BoardScoreConfig,
+  extraSignals: readonly ExtraSignal[] = [],
+): RegimeBoard {
   interface Pending {
     symbol: string;
     spec: RegimeSignalSpec;
@@ -81,6 +98,15 @@ export function scoreRegimeBoard(loaded: readonly LoadedSeries[], specs: readonl
         if (pairs.length < cfg.folds) continue;
         const rawSharpe = sharpeStats(pairs.map((p) => Math.sign(p.signal) * p.forwardReturn)).sharpe;
         pending.push({ symbol: L.symbol, spec, fwdHours: fh, horizonBars, pairs, rawSharpe });
+      }
+      // Extra (precomputed) signals — e.g. the cross-sectional rank — scored in-sweep.
+      for (const ex of extraSignals) {
+        const series = ex.perSymbolSeries.get(L.symbol);
+        if (!series) continue;
+        const pairs = buildSignalForwardPairs(L.series.prices as number[], series, horizonBars);
+        if (pairs.length < cfg.folds) continue;
+        const rawSharpe = sharpeStats(pairs.map((p) => Math.sign(p.signal) * p.forwardReturn)).sharpe;
+        pending.push({ symbol: L.symbol, spec: ex.spec, fwdHours: fh, horizonBars, pairs, rawSharpe });
       }
     }
   }

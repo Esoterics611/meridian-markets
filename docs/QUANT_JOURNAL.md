@@ -3553,22 +3553,280 @@ hedgeEvent+fee fire, outright leaves beta intact). Bounded live smoke (BTC+ETH, 
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P10 (handoff, updated 2026-06-16)
+## 2026-06-17 — Entry #82 (Take Sides P10: DESK RISK AGGREGATION + FACTOR SPLIT + TCA)
 
-**Done + committed:** P5 (desk risk spine, #77), P6 (persistence + restart recovery, #78), P7 (slippage+impact
-fill model, #79), P8 (book-level walk-forward backtest + honest first read, #80), P9 (exposure toggle
-outright⇄beta-hedged, #81). Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional`
-→ 11 suites / 102 tests.
+**What this is (Playbook II P10).** See the desk like a risk manager: portfolio heat, factor exposure, and
+where every basis point of P&L came from. Two pure modules + runner wiring.
 
-**Resume at P10** and continue IN ORDER through P16 — the playbook blocks are in
-[REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P10** — desk risk aggregation + factor (beta vs idiosyncratic) split + TCA (`RegimeTcaAttributor`, reconciles to realised). #82.
-- **P11** — scenario/stress harness (`scripts/regime-stress.ts`: flash crash / vol spike / funding flip / feed blackout). #83.
-- **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.
-- **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
-- **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
-- **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
-- **P16** — the operator's single all-at-once forward run (hand over run commands + what to watch; do NOT run it for them). #88.
+**What shipped:**
+- `src/market-making/directional/regime-tca.ts` — `RegimeTcaAttributor` (the `PnlAttributor` analogue for the
+  directional desk). `attributeBook`/`attributeDesk` split each book's realised-first P&L into **idiosyncratic ·
+  beta · funding · fees · slippage**. The algebra: realised+unrealised already carries the slippage drag (worse
+  fills), so `directionalGross = realised + unrealised + slippage` (add it back) and `idiosyncratic =
+  directionalGross − betaPnl` (the honest residual after the supplied market-factor P&L). **THE INVARIANT
+  (asserted): `total = idio + beta + funding − fees − slip`, exactly, to the cent** — and because idio is DEFINED
+  as the residual, it reconciles for ANY beta estimate (the split is a modelling choice; the total is invariant).
+  `reconciliationResidual`/`assertReconciles` are the guard.
+- `src/market-making/directional/regime-portfolio-risk.ts` — `aggregatePortfolioRisk` gives gross / net / **net-β
+  exposure** (Σ N·β = $/1.00 market move), per-symbol realised vol, and a **single-factor parametric VaR**: the
+  market (hedge instrument) is the common factor, so `factorVol$ = |Σ N·β|·σ_m` (does NOT diversify) and
+  `idioVol$ = √Σ(N·σ_idio)²` (independent ⇒ DOES diversify), `σ_desk = √(factor²+idio²)`, `VaR = z·σ_desk·√h`
+  (Z95 1.645 / Z99 2.326). Ties the VaR to the SAME β the P9 hedge neutralises. `betaPnlIncrementUnits(N,β,r_m)`
+  accrues the market-factor P&L each interval on the held position (like funding).
+- `scripts/regime-book-live.ts` — PASS 1.5 each poll: fetch the market factor (`RBL_MARKET_SYMBOL`, default BTC,
+  reuses the staged book when traded), estimate each book's β, accrue beta-P&L on the **pre-update** (held)
+  position, and aggregate the risk read. Header gains a **risk** line (βexp · σdesk factor/idio · VaR95 %cap) and
+  an **attr** line (P&L = idio · beta · funding · fees · slip); the verdict prints a **DESK ATTRIBUTION (TCA)**
+  block (per-book + desk, `assertReconciles` on every line) + the parting risk read. β-P&L is session-local
+  (not persisted — a within-session attribution, like maxDD/peak). Knobs: `RBL_MARKET_SYMBOL`, `RBL_RISK_LOOKBACK`
+  (72), `RBL_VAR_HORIZON_BARS` (24).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**13 suites / 123 tests** (+21: `regime-tca.spec` — reconciliation exact, slippage backed out, beta/idio split
+on constructed cases, reconciles for any β, desk sum, tampered-attribution throws; `regime-portfolio-risk.spec`
+— sample stdev, gross/net/β-exposure, factor-vs-idio decomposition with factor-not-diversifying / idio-does,
+VaR scales with z and √h, heat fraction, boundaries). Bounded 2-poll live smoke (BTC,ETH): header printed
+`risk βexp −$32,403 · σdesk $170/bar (factor $137 · idio $101) · VaR95 $1,372 (1.37% cap)`; verdict TCA
+reconciled to the cent (βexp/$25k ETH short ⇒ β≈1.3, correct).
+
+**Honest caveat:** the β/idio split is a single-factor (BTC-beta) model — beta-P&L is an estimate accrued on the
+realised market path; idiosyncratic is its residual. The TOTAL it reconciles to is exact regardless; the split's
+*accuracy* is only as good as the trailing-β estimate. VaR is Gaussian-parametric (thin-tailed vs crypto reality)
+— a floor, not a worst case; P11's stress harness is the tail read.
+
+---
+
+## 2026-06-17 — Entry #83 (Take Sides P11: SCENARIO / STRESS HARNESS)
+
+**What this is (Playbook II P11).** Prove the desk SURVIVES the tails before trusting it: a flash crash, a
+simultaneous vol spike, a funding sign-flip, and a stale feed — run through the REAL components, asserting the
+protective response. The stress harness doubles as a regression guard.
+
+**What shipped:**
+- `src/market-making/directional/regime-stress.ts` — pure scenario engine. `buildStressPath(kind, cfg)`
+  synthesises a warmup (seats a validated LONG, warms the vol EWMA) + a shock per symbol; `runStressScenario`
+  runs `RegimeDirectionalBook` (stop) + `RegimeMonitor` (STAND_ASIDE) + `RegimeDeskRisk` (kill-switch) over it
+  and returns a scorecard (stops fired, books stood aside, regime transitions, desk HALT, **maxDD vs budget**,
+  flat-at-end). The headline invariant: `budgetRespected = maxDD ≤ budget OR halted`.
+- `scripts/regime-stress.ts` — prints the scorecard (DB-free, no network, deterministic), exit 1 if any
+  scenario breaches the budget without halting.
+
+**The reads (deterministic):** **flash crash** (−15% gap, 3 books) → 3 stops fire + desk HALTs (maxDD 7.6% >
+2% ⇒ kill-switch engages, flat-at-end) — *breached but never silently*; **vol spike** (×6 alternating) → every
+held book STAND_ASIDE, maxDD 0.07%; **funding flip** (paid-short→paid-long) → regime transition fires, book
+flips, budget intact; **feed blackout** (feedStale) → every book STAND_ASIDE + flat. All four `budgetRespected`.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**14 suites / 133 tests** (+10: the four scenarios' protective responses + the whole-set budget invariant +
+the deterministic-path builder). Script runs + prints `STRESS OK`.
+
+---
+
+## 2026-06-17 — Entry #84 (Take Sides P12: UNIVERSE EXPANSION — signals, venues, cross-sectional allocator)
+
+**What this is (Playbook II P12, the headline).** Expand what the desk can take sides on — more symbols, more
+validated signals, another venue, and a CROSS-SECTIONAL ranking gate that funds the top-N edges instead of an
+equal split. The desk-risk spine (P5–P10) exists so a wider universe is *safe*.
+
+**What shipped (every new signal pure + no-look-ahead + known-answer spec + OOS-gated — no exceptions):**
+- **SIGNALS** (`regime-signals.ts`): `reversal` (−trailing return, fade the pop), `vol-scaled-momentum`
+  (trailing return / realised vol — risk-adjusted trend), and `trailingRealisedVol`. All in
+  `defaultRegimeSignalSpecs` now. Live bias sources `ReversalBiasSource` + `VolScaledMomentumBiasSource`
+  (`trend-variant-bias-sources.ts`) wired into the runner's `buildConsensus`.
+- **CROSS-SECTIONAL** (`regime-cross-sectional.ts`): `crossSectionalRankSignals(universe, lookback)` ranks the
+  whole universe each bar → [−1,1] demeaned bias (top +1, bottom −1). Scored IN-SWEEP via a new `extraSignals`
+  param on `scoreRegimeBoard` (honest deflation across the full candidate set); wired into the morning board
+  (`regime-bias-oos.ts`). Kind `cross-sectional-momentum` is gate-only (universe-wide ⇒ not a per-symbol live
+  consensus source yet — a clean follow-on).
+- **VENUE** (`bybit-client.ts`): `BybitClient` — Bybit v5 public perp klines (`category=linear`, newest-first,
+  injected GET) behind `IReferenceBarSource`. A second order-book venue + Binance/HL basis breadth.
+  DATA_SOURCES.md updated (WIRED; L2+funding ingest still open).
+- **ALLOCATOR** (`regime-universe-allocator.ts`): `allocateUniverse` selects the top-N by conviction
+  (IC-capped |bias|), sizes notional = base·conviction (per-symbol capped), then **TRIMS to the gross cap
+  uniformly and the net cap pro-rata on the heavier side — an over-budget request is trimmed, never breached**.
+  Wired into the runner: it funds the top-N validated symbols (net handled live by RegimeDeskRisk) and prints
+  the allocation table. Universe defaults widened to 16 symbols.
+
+**Live read (bounded smoke, 6-symbol gate, 126 trials):** ETH validated on funding-paid-side, **SOL validated on
+the NEW vol-scaled-momentum(72h)** — the allocator funded both ($25k each, top-4), and the runner opened ETH
+short + SOL long live. The new signal flowing gate→allocator→book is the proof the expansion is real, not cosmetic.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias src/market-data/reference` → **36 suites / 268 tests** (+ the P12 specs: new-signal
+known-answers, cross-sectional rank flip/warmup/exclusion/demean, allocator top-N + gross/net trim-not-breach,
+Bybit parse/interval/error). Wider-universe scripts run.
+
+**Honest caveat:** the new signals + cross-sectional are SCREENED honestly but most won't validate on any given
+window (the smoke: 2/6 validated) — that is the correct outcome. The cross-sectional is gate-reported, not yet a
+live consensus source. Bybit is OHLCV-only so far.
+
+---
+
+## 2026-06-17 — Entry #85 (Take Sides P13: /demo REGIME DESK WEB COCKPIT)
+
+**What this is (Playbook II P13).** Host the take-sides desk in-process + a live `/demo` "◆ Regime Desk" tab so
+a trader with no terminal can run + watch + intervene. Behind a `REGIME_DESK` flag, **OFF by default** (nothing
+about existing desks changes).
+
+**What shipped:**
+- `regime-desk-trader.ts` — `RegimeDeskTrader`, the in-process analogue of `MmPortfolioTrader`. Tick-driven +
+  network-free (the driver feeds it): one `tick()` runs the same PASS sequence as the runner (weather →
+  desk-risk assess → beta-P&L accrual + portfolio risk read → book updates), and `snapshot()` returns the
+  cockpit DTO (desk totals · risk/VaR · TCA · position cards w/ stop gauge · weather). `halt()` / `flatten(sym)`
+  controls. Fully unit-tested (open on a view, TCA reconciles, halt flattens all, flatten one).
+- `regime.controller.ts` — `GET /api/regime/snapshot`, `POST /api/regime/flatten`, `POST /api/regime/halt`.
+  **Inert when the trader is null** (flag off) ⇒ `{ enabled:false }`. Unit-tested both ways.
+- `regime.module.ts` — trader factory (null unless `marketMaking.regimeDeskEnabled`) + a `RegimeBootstrap`
+  (`OnModuleInit`) that, when enabled, builds + starts `RegimeLiveDriver`. Wired into `AppModule`.
+  `app-config.factory` reads `REGIME_DESK` (the only sanctioned env reader, §6).
+- `regime-live-driver.ts` — the NETWORK leg: gate (HL candles+funding) → cross-sectional allocator → seat the
+  top-N validated books → poll + feed the trader. Thin + fully guarded (a fetch miss never crashes boot).
+- `index.html` — a "Regime Desk" tab: desk header (realised/maxDD/βexp/VaR), the `attr` TCA line, position
+  cards with the **STOP GAUGE** (the hero widget) + per-book FLATTEN, a HALT button, and the weather strip —
+  reusing the engine's green/amber/red weather color law. Polls `/api/regime/snapshot` every 5s; shows
+  "OFF — set REGIME_DESK=true" when inert.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias` → **29 suites / 223 tests** (+ trader tick/snapshot/halt/flatten + controller inert &
+enabled). **Visual acceptance (cockpit renders live)** needs a local `npm run start:dev` with `REGIME_DESK=true`
+— the sandbox can't run the dev server (exits 144), so this one item is handed to the operator (P16).
+
+**Honest caveat:** the trader + controller + inert default are unit-tested green; the `RegimeLiveDriver` network
+gate+poll is real but UNTESTED HERE (no network in the sandbox) — verify in the local run. Cockpit events log to
+the server; wiring regime events onto the shared `/api/market-making/events` Activity tape is a clean follow-on.
+
+---
+
+## 2026-06-17 — Entry #86 (Take Sides P14: TEAR-SHEET vs BTC BENCHMARK)
+
+**What this is (Playbook II P14).** Prove the demo honestly — a QuantStats-style, benchmark-relative scorecard
+from the run's equity curve. Realised-first: the curve is realised − fees + funding, never an unrealised-led mark.
+
+**What shipped:**
+- `regime-tearsheet.ts` — `computeTearsheet(curve, benchmark, …)` → Sharpe + Sortino (annualised via barsPerYear),
+  maxDD% + its underwater duration, hit rate / avg win-loss / payoff (from per-trade P&L), exposure, turnover, and
+  the **BTC buy-hold benchmark** read: total return, **excess return (pp)**, **β** (cov/var to the benchmark), and
+  correlation. Pure + clock-free.
+- `scripts/regime-book-live.ts` — samples the realised-first equity curve + the BTC mid each poll and prints the
+  tear-sheet at session end (return · Sharpe · Sortino · maxDD+duration · exposure; and vs-BTC bench/excess/β/ρ).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional/regime-tearsheet`
+→ **8 tests** (total-return = Δequity/capital, maxDD%+duration, annualised Sharpe + Sortino on a dip curve,
+Sortino=0 when no losing bars, excess return vs BTC, β≈k recovered when desk = k·bench, hit/payoff from trades,
+degenerate-curve no-NaN guard).
+
+**Honest caveat:** the tear-sheet is only as honest as the curve fed it — the runner samples realised-first equity
+(the judged number), so the headline can't be inflated by an open mark. Per-trade hit/payoff in the live runner is
+omitted (passed only when available); the curve-based + benchmark metrics are the headline.
+
+---
+
+## 2026-06-17 — Entry #87 (Take Sides P15: FEED WATCHDOG + ALERTING)
+
+**What this is (Playbook II P15).** Data-integrity protection + one alert channel so a trader away from the
+screen still gets warned. Bad data is a silent killer (a stale tick freezes a position; a spike mis-marks the
+book; a cross-venue divergence means a feed is lying).
+
+**What shipped (`feed-watchdog.ts`, pure + guarded):**
+- `FeedWatchdog` — per-symbol detection of **stale** (no update within N×poll), **gap/outlier** (|Δprice| past a
+  band), and **cross-venue divergence** (HL vs Binance past a band). Drives `RegimeMonitor.feedStale` ⇒
+  STAND_ASIDE (the input nothing computed before). A gap/divergent print does NOT become the new baseline (so a
+  bad mark can't be silently accepted next tick).
+- `IAlertSink` (swap seam) — `NoopAlertSink` default (no webhook ⇒ no behaviour change) + `WebhookAlertSink`
+  (Slack-style `{text}` POST, injected ⇒ offline-testable). `AlertDispatcher` fires **exactly once per
+  condition**: desk-halt + dd-breach once ever, feed-stale once per false→true transition per symbol (re-arms on
+  recovery), stop-hit per distinct event. `buildAlertSink(url)` selects the impl.
+- `regime-book-live.ts` — the watchdog runs each poll (price + Binance cross-venue) → `monitor.feedStale`; the
+  dispatcher fires from the same trigger points the desk-event tape uses: loss-stop (in `onEvent`), DESK HALT +
+  maxDD-budget breach (PASS 2), feed-stale (PASS 1). Sink no-op unless `RBL_ALERT_WEBHOOK` is set.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias` → **31 suites / 243 tests** (+12: stale/gap/divergence at the boundary + baseline-not-
+adopted, dispatcher once-per-condition for halt/dd/stale-transition/stop, no-op default no-throw, webhook payload).
+Bounded live smoke (BTC,ETH,SOL): watchdog ran clean, TCA reconciled to the cent, no crash.
+
+---
+
+## 2026-06-17 — Entry #88 (Take Sides P16: ALL-AT-ONCE FORWARD RUN — OPERATOR HANDOVER, READY)
+
+**Status: P5–P15 are ALL built, green, and committed (#77–#87).** The institutional-grade take-sides desk is
+complete in paper. P16 is the operator's single multi-hour forward run — **the operator runs it; this entry is
+the handover, not a result** (per the playbook: do NOT run it for them). When Ronnie runs it, the result goes in
+a follow-up #89 with the DB-sourced realised numbers + the tear-sheet.
+
+**The full institutional stack now on `scripts/regime-book-live.ts` + the `/demo` cockpit:** OOS gate-first
+(P2) · desk-risk spine — caps, kill-switch, flatten-on-exit (P5) · durable persistence + restart recovery (P6,
+`MM_PERSIST`) · slippage+impact fills (P7) · book-level walk-forward backtest (P8) · exposure toggle
+outright⇄hedged (P9) · desk risk aggregation + factor split + TCA (P10) · stress harness (P11,
+`scripts/regime-stress.ts`) · universe expansion: 16 symbols + reversal/vol-scaled-momentum/cross-sectional
+signals + Bybit venue + cross-sectional allocator (P12) · `/demo` Regime Desk cockpit behind `REGIME_DESK` (P13)
+· realised-first tear-sheet vs BTC (P14) · feed watchdog + alerting (P15).
+
+**HOW TO RUN THE FORWARD TEST (operator):**
+1. **Re-gate first** (regimes shift — never trust a stale board):
+   `RBO_DAYS=90 npx ts-node -r tsconfig-paths/register scripts/regime-bias-oos.ts` — note today's validated set.
+2. **Stress check** (deterministic, ~instant): `npx ts-node -r tsconfig-paths/register scripts/regime-stress.ts`
+   → expect `STRESS OK`.
+3. **Launch the multi-hour run** (terminal cockpit, persisted, honest fills) — pick OUTRIGHT then HEDGED to
+   compare:
+   `MM_PERSIST=true RBL_HOURS=8 RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8 \
+     npx ts-node -r tsconfig-paths/register scripts/regime-book-live.ts`
+   (or the web cockpit: `REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper
+   MOCK_TRADING_ENABLED=false npm run start:dev` → `/demo` → Regime Desk tab.)
+4. **Review** with the `mm-run-review` skill (pull realised P&L from `mm_nav` desk='regime' — do NOT read the
+   multi-MB log end to end, §12). The runner prints the realised-first verdict + DESK ATTRIBUTION (TCA) + the
+   tear-sheet vs BTC at Ctrl-C.
+
+**What to watch:** the STOP gauge (distance to the directional stop), desk-risk RUN/HALT + gross/net vs caps,
+the `attr` line (idio vs beta — is the edge idiosyncratic or just carried market beta?), and maxDD vs the 2%
+budget. **Pre-registered metric:** realised + funding − fees − slippage > 0 with maxDD inside 2%, on the symbols
+validated today. A flat, honest "we sat aside / the edge didn't survive costs" is the correct mission outcome,
+not a failure (CLAUDE.md §1).
+
+**Caveat:** the web cockpit's live render + the `RegimeLiveDriver` network gate (P13) were not runnable in the
+build sandbox (dev server exits 144) — verify them in this first local run. Everything else is unit-tested green.
+
+---
+
+## 2026-06-17 — Entry #89 (Regime Desk: SERVE-vs-DRIVE split — stop the UI backend running a competing desk)
+
+**Problem (Ronnie):** running the take-sides desk was *interfering with the backend needed for the UI.* The P13
+cockpit hosted the desk **in-process**: `REGIME_DESK=true npm run start:dev` fired the heavy `RegimeLiveDriver`
+inside the UI backend — a 16-symbol × 90-day OOS gate at boot, then a 60s HL poll loop + in-memory trading. So if
+the operator ran the standalone `scripts/regime-book-live.ts` (the real desk / track record) AND the backend (for
+the UI), there were **two regime desks** double-polling Hyperliquid and competing for the one event loop. The
+principle Ronnie wants: **run the backend for the UI, run the scripts for the desks — they must not interfere.**
+
+**Fix — split "serve the cockpit" from "drive the desk" behind two flags (the driver now OFF by default):**
+- `REGIME_DESK=true` → **SERVE ONLY**: the `/demo` Regime tab + `/api/regime/*` control plane are hosted, but
+  **no in-process driver runs** — no boot gate, no HL polling, no trading. The backend stays light and never
+  competes with the desk scripts. Snapshot reports `driving:false` + a SERVE-ONLY note; the UI renders it honestly
+  instead of a misleading empty "0 validated" desk.
+- `REGIME_DESK_DRIVE=true` (new) → additionally run the in-process `RegimeLiveDriver` (the old all-in-one). Use
+  this only for a single-process web cockpit, and then **don't** also run the script.
+
+Implementation: `regimeDeskDrive` config (`REGIME_DESK_DRIVE`) in the one sanctioned env reader; `RegimeBootstrap`
+only news-up/starts the driver when drive is on (else logs SERVE-ONLY); the controller surfaces `driving` + the
+note (reads `ConfigService`, no module cycle); `/demo` renders the SERVE-ONLY banner. No DB collision either: the
+in-process trader never persisted (no store in the module factory) — only the script writes `mm_nav` desk='regime'.
+
+**Tests + build:** `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional` green (22 suites / 190
+tests). Pinned the split with direct-construction specs (offline, no network): `RegimeBootstrap.driving` stays
+false when serve-only, and the controller returns `driving:false`+SERVE-ONLY note vs `driving:true` with no note.
+README §E rewritten around the two-step run (script = desk, backend = UI). The operator forward run (P16, #90) is
+unchanged — run it via the terminal cockpit; the web backend can serve the UI alongside without interfering.
+
+---
+
+## ⏭️ NEXT SESSION — the operator forward run (P16) + write #90
+
+**Done + committed:** P5–P15 (#77–#87) — the take-sides desk is institutional-grade in paper. Repo green:
+`npx tsc --noEmit` exit 0; `npx jest src/market-making` green (31 suites / 243 tests in directional+bias).
+
+**Next is the OPERATOR's job (P16, #88 handover above):** re-gate → stress-check → run the multi-hour forward
+test (outright + hedged) → review via `mm-run-review` (DB-sourced) → write **#89** with the honest realised
+numbers + tear-sheet. Then the open frontier returns to the MM desk (project_mm_frontier_state) + the broader
+master plan. **Real-money stays PARKED** (CLAUDE.md §1).
 
 **Two locked operator decisions (do not re-litigate):** (1) scope = institutional-grade, paper-only; (2) P9
 exposure is a TOGGLE, default outright. **Reuse map** is Playbook II §1; **dependencies** are §3 (risk spine

@@ -7,6 +7,7 @@ import { StatArbModule } from './stat-arb/stat-arb.module';
 import { MarketDataModule } from './market-data/market-data.module';
 import { ExecutionModule } from './execution/execution.module';
 import { MarketMakingModule } from './market-making/market-making.module';
+import { RegimeModule } from './market-making/directional/regime.module';
 import { TelemetryModule } from './telemetry/telemetry.module';
 import { UiModule } from './ui/ui.module';
 
@@ -16,7 +17,7 @@ import { UiModule } from './ui/ui.module';
   imports: [
     ConfigModule, SecretsModule, DatabaseModule,
     TreasuryModule, StatArbModule, MarketDataModule, ExecutionModule,
-    MarketMakingModule, TelemetryModule, UiModule,
+    MarketMakingModule, RegimeModule, TelemetryModule, UiModule,
   ],
 })
 export class AppModule {}

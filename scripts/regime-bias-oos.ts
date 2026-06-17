@@ -39,7 +39,8 @@ import { BinanceFundingClient } from '../src/market-data/funding/binance-funding
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
 import { RegimeSeries, defaultRegimeSignalSpecs } from '../src/market-making/directional/regime-signals';
 // The gate is the SHARED scorer — identical to the live runner's gate (no drift).
-import { scoreRegimeBoard, bestPerSymbol, BoardRow } from '../src/market-making/directional/regime-board';
+import { scoreRegimeBoard, bestPerSymbol, BoardRow, ExtraSignal } from '../src/market-making/directional/regime-board';
+import { crossSectionalRankSignals } from '../src/market-making/directional/regime-cross-sectional';
 import { BiasVerdict } from '../src/market-making/bias/oos/forward-return-ic';
 
 // ── Config ──────────────────────────────────────────────────────────────────
@@ -52,8 +53,10 @@ const MOM_LOOKBACK_HOURS = (process.env.RBO_MOM_LOOKBACK_HOURS ?? '24,72').split
 const FUNDING_WINDOW_HOURS = (process.env.RBO_FUNDING_WINDOW_HOURS ?? '24').split(',').map(Number).filter((h) => h > 0);
 const FOLDS = Number(process.env.RBO_FOLDS ?? 5);
 const EMBARGO_FRAC = Number(process.env.RBO_EMBARGO_FRAC ?? 0.01);
-const SYMBOLS = (process.env.RBO_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,SUI')
+const SYMBOLS = (process.env.RBO_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX,LINK,LTC,SUI,APT,ARB,OP,INJ,TIA')
   .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+// P12 cross-sectional momentum rank lookback (HOURS). Empty/0 ⇒ skip the cross-sectional screen.
+const XS_LOOKBACK_HOURS = Number(process.env.RBO_XS_LOOKBACK_HOURS ?? 72);
 
 // ── ANSI (guarded: off on non-TTY / NO_COLOR so piping stays clean) ───────────
 const USE_COLOR = !!process.stdout.isTTY && !process.env.NO_COLOR;
@@ -136,8 +139,20 @@ async function main() {
     return;
   }
 
+  // ── P12 cross-sectional momentum rank: ONE extra signal over the whole universe, scored
+  //    in the SAME sweep (honest deflation). Long the strongest, short the weakest each bar.
+  const extraSignals: ExtraSignal[] = [];
+  if (XS_LOOKBACK_HOURS > 0 && loaded.length >= 2) {
+    const xsLookbackBars = Math.max(1, Math.round(XS_LOOKBACK_HOURS / ivHours));
+    const xs = crossSectionalRankSignals(
+      loaded.map((l) => ({ symbol: l.symbol, prices: l.series.prices, barTimesMs: l.series.barTimesMs })),
+      xsLookbackBars,
+    );
+    extraSignals.push({ spec: { name: `xs-momentum-rank(${XS_LOOKBACK_HOURS}h)`, kind: 'cross-sectional-momentum', lookbackBars: xsLookbackBars }, perSymbolSeries: xs });
+  }
+
   // ── Score every trial through the SHARED gate (deflated over the WHOLE sweep) ──
-  const board = scoreRegimeBoard(loaded, specs, { fwdHours: FWD_HOURS, ivHours, folds: FOLDS, embargoFrac: EMBARGO_FRAC });
+  const board = scoreRegimeBoard(loaded, specs, { fwdHours: FWD_HOURS, ivHours, folds: FOLDS, embargoFrac: EMBARGO_FRAC }, extraSignals);
   const TRIALS = board.trials;
   console.log(dim(`\ntrials (symbol × signal × horizon) = ${TRIALS} · σ_SR = ${r3(board.sigmaSR)} (deflation scale)\n`));
   const rows: BoardRow[] = bestPerSymbol(board);

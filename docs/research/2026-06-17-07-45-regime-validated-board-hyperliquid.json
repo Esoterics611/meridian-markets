@@ -1,0 +1,316 @@
+{
+  "generatedAt": "2026-06-17T07:45:12.402Z",
+  "source": "hyperliquid",
+  "days": 90,
+  "interval": "1h",
+  "fwdHours": [
+    8,
+    24,
+    72
+  ],
+  "momLookbackHours": [
+    24,
+    72
+  ],
+  "fundingWindowHours": [
+    24
+  ],
+  "folds": 5,
+  "embargoFrac": 0.01,
+  "trials": 384,
+  "sigmaSR": 0.08149279118265941,
+  "eligibleSymbols": [
+    "BTC",
+    "ARB"
+  ],
+  "board": [
+    {
+      "symbol": "BTC",
+      "spec": {
+        "name": "xs-momentum-rank(72h)",
+        "kind": "cross-sectional-momentum",
+        "lookbackBars": 72
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.3303032710609592,
+      "hitRate": 0.6001984126984127,
+      "dsr": 0.9793365946159139,
+      "psr": 1,
+      "n": 2016,
+      "verdict": "VALIDATED",
+      "convCap": 0.5,
+      "eligible": true
+    },
+    {
+      "symbol": "ARB",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.31632073500483926,
+      "hitRate": 0.6645903210349784,
+      "dsr": 0.9678730602636909,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "VALIDATED",
+      "convCap": 0.5,
+      "eligible": true
+    },
+    {
+      "symbol": "ETH",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.21840388879052908,
+      "hitRate": 0.5725922376617154,
+      "dsr": 0.0022270618357873584,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "AVAX",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.18222919074299293,
+      "hitRate": 0.5960709151892669,
+      "dsr": 0.9339610741282827,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "SUI",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.1701108253744781,
+      "hitRate": 0.5491135601341639,
+      "dsr": 0.011440356882147673,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "LINK",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.14806843684388254,
+      "hitRate": 0.5727360308285164,
+      "dsr": 2.807853949349237e-11,
+      "psr": 0.999987838381949,
+      "n": 2076,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "BNB",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.14653737583589668,
+      "hitRate": 0.5002395783421179,
+      "dsr": 1.6314042472487245e-7,
+      "psr": 0.9999999999875959,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "DOGE",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.145944120964951,
+      "hitRate": 0.5740566037735849,
+      "dsr": 1.3790206643271574e-8,
+      "psr": 0.9999999772291064,
+      "n": 2120,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "SOL",
+      "spec": {
+        "name": "xs-momentum-rank(72h)",
+        "kind": "cross-sectional-momentum",
+        "lookbackBars": 72
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.13388892131231472,
+      "hitRate": 0.5339147286821705,
+      "dsr": 0.0000034829170210692872,
+      "psr": 0.9999999999852295,
+      "n": 2064,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "OP",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.12229238897537868,
+      "hitRate": 0.5475409836065573,
+      "dsr": 7.138999558176096e-9,
+      "psr": 0.9999999546313478,
+      "n": 2135,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "LTC",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.12101486364857651,
+      "hitRate": 0.5663632007666507,
+      "dsr": 0.1646164835860709,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "TIA",
+      "spec": {
+        "name": "momentum(72h)",
+        "kind": "momentum",
+        "lookbackBars": 72
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.11724503713283865,
+      "hitRate": 0.5444168734491315,
+      "dsr": 1.815757105783078e-8,
+      "psr": 0.9999999709196206,
+      "n": 2015,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "INJ",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.11287611652929899,
+      "hitRate": 0.5697057404727448,
+      "dsr": 7.848166561075232e-13,
+      "psr": 0.9999643767413042,
+      "n": 2073,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "ADA",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.11192370294821002,
+      "hitRate": 0.5541941564561734,
+      "dsr": 1.3877787807814457e-15,
+      "psr": 0.9979935552870555,
+      "n": 2122,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "XRP",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.10989583447193114,
+      "hitRate": 0.5421970768505422,
+      "dsr": 1.0103029524088925e-12,
+      "psr": 0.9999881423552834,
+      "n": 2121,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "APT",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 24,
+      "horizonBars": 24,
+      "oosIc": 0.09109773416631751,
+      "hitRate": 0.5554506842850401,
+      "dsr": 8.520961713998076e-14,
+      "psr": 0.999892452514012,
+      "n": 2119,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    }
+  ]
+}
