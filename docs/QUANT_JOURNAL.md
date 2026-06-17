@@ -3553,16 +3553,58 @@ hedgeEvent+fee fire, outright leaves beta intact). Bounded live smoke (BTC+ETH, 
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P10 (handoff, updated 2026-06-16)
+## 2026-06-17 — Entry #82 (Take Sides P10: DESK RISK AGGREGATION + FACTOR SPLIT + TCA)
+
+**What this is (Playbook II P10).** See the desk like a risk manager: portfolio heat, factor exposure, and
+where every basis point of P&L came from. Two pure modules + runner wiring.
+
+**What shipped:**
+- `src/market-making/directional/regime-tca.ts` — `RegimeTcaAttributor` (the `PnlAttributor` analogue for the
+  directional desk). `attributeBook`/`attributeDesk` split each book's realised-first P&L into **idiosyncratic ·
+  beta · funding · fees · slippage**. The algebra: realised+unrealised already carries the slippage drag (worse
+  fills), so `directionalGross = realised + unrealised + slippage` (add it back) and `idiosyncratic =
+  directionalGross − betaPnl` (the honest residual after the supplied market-factor P&L). **THE INVARIANT
+  (asserted): `total = idio + beta + funding − fees − slip`, exactly, to the cent** — and because idio is DEFINED
+  as the residual, it reconciles for ANY beta estimate (the split is a modelling choice; the total is invariant).
+  `reconciliationResidual`/`assertReconciles` are the guard.
+- `src/market-making/directional/regime-portfolio-risk.ts` — `aggregatePortfolioRisk` gives gross / net / **net-β
+  exposure** (Σ N·β = $/1.00 market move), per-symbol realised vol, and a **single-factor parametric VaR**: the
+  market (hedge instrument) is the common factor, so `factorVol$ = |Σ N·β|·σ_m` (does NOT diversify) and
+  `idioVol$ = √Σ(N·σ_idio)²` (independent ⇒ DOES diversify), `σ_desk = √(factor²+idio²)`, `VaR = z·σ_desk·√h`
+  (Z95 1.645 / Z99 2.326). Ties the VaR to the SAME β the P9 hedge neutralises. `betaPnlIncrementUnits(N,β,r_m)`
+  accrues the market-factor P&L each interval on the held position (like funding).
+- `scripts/regime-book-live.ts` — PASS 1.5 each poll: fetch the market factor (`RBL_MARKET_SYMBOL`, default BTC,
+  reuses the staged book when traded), estimate each book's β, accrue beta-P&L on the **pre-update** (held)
+  position, and aggregate the risk read. Header gains a **risk** line (βexp · σdesk factor/idio · VaR95 %cap) and
+  an **attr** line (P&L = idio · beta · funding · fees · slip); the verdict prints a **DESK ATTRIBUTION (TCA)**
+  block (per-book + desk, `assertReconciles` on every line) + the parting risk read. β-P&L is session-local
+  (not persisted — a within-session attribution, like maxDD/peak). Knobs: `RBL_MARKET_SYMBOL`, `RBL_RISK_LOOKBACK`
+  (72), `RBL_VAR_HORIZON_BARS` (24).
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**13 suites / 123 tests** (+21: `regime-tca.spec` — reconciliation exact, slippage backed out, beta/idio split
+on constructed cases, reconciles for any β, desk sum, tampered-attribution throws; `regime-portfolio-risk.spec`
+— sample stdev, gross/net/β-exposure, factor-vs-idio decomposition with factor-not-diversifying / idio-does,
+VaR scales with z and √h, heat fraction, boundaries). Bounded 2-poll live smoke (BTC,ETH): header printed
+`risk βexp −$32,403 · σdesk $170/bar (factor $137 · idio $101) · VaR95 $1,372 (1.37% cap)`; verdict TCA
+reconciled to the cent (βexp/$25k ETH short ⇒ β≈1.3, correct).
+
+**Honest caveat:** the β/idio split is a single-factor (BTC-beta) model — beta-P&L is an estimate accrued on the
+realised market path; idiosyncratic is its residual. The TOTAL it reconciles to is exact regardless; the split's
+*accuracy* is only as good as the trailing-β estimate. VaR is Gaussian-parametric (thin-tailed vs crypto reality)
+— a floor, not a worst case; P11's stress harness is the tail read.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P11 (handoff, updated 2026-06-17)
 
 **Done + committed:** P5 (desk risk spine, #77), P6 (persistence + restart recovery, #78), P7 (slippage+impact
 fill model, #79), P8 (book-level walk-forward backtest + honest first read, #80), P9 (exposure toggle
-outright⇄beta-hedged, #81). Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional`
-→ 11 suites / 102 tests.
+outright⇄beta-hedged, #81), **P10 (desk risk aggregation + factor split + TCA, #82)**. Repo green: `npx tsc
+--noEmit` exit 0; `npx jest src/market-making/directional` → **13 suites / 123 tests**.
 
-**Resume at P10** and continue IN ORDER through P16 — the playbook blocks are in
+**Resume at P11** and continue IN ORDER through P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P10** — desk risk aggregation + factor (beta vs idiosyncratic) split + TCA (`RegimeTcaAttributor`, reconciles to realised). #82.
 - **P11** — scenario/stress harness (`scripts/regime-stress.ts`: flash crash / vol spike / funding flip / feed blackout). #83.
 - **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.
 - **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
