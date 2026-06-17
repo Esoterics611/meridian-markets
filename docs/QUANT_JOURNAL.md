@@ -3596,16 +3596,42 @@ realised market path; idiosyncratic is its residual. The TOTAL it reconciles to 
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P11 (handoff, updated 2026-06-17)
+## 2026-06-17 — Entry #83 (Take Sides P11: SCENARIO / STRESS HARNESS)
+
+**What this is (Playbook II P11).** Prove the desk SURVIVES the tails before trusting it: a flash crash, a
+simultaneous vol spike, a funding sign-flip, and a stale feed — run through the REAL components, asserting the
+protective response. The stress harness doubles as a regression guard.
+
+**What shipped:**
+- `src/market-making/directional/regime-stress.ts` — pure scenario engine. `buildStressPath(kind, cfg)`
+  synthesises a warmup (seats a validated LONG, warms the vol EWMA) + a shock per symbol; `runStressScenario`
+  runs `RegimeDirectionalBook` (stop) + `RegimeMonitor` (STAND_ASIDE) + `RegimeDeskRisk` (kill-switch) over it
+  and returns a scorecard (stops fired, books stood aside, regime transitions, desk HALT, **maxDD vs budget**,
+  flat-at-end). The headline invariant: `budgetRespected = maxDD ≤ budget OR halted`.
+- `scripts/regime-stress.ts` — prints the scorecard (DB-free, no network, deterministic), exit 1 if any
+  scenario breaches the budget without halting.
+
+**The reads (deterministic):** **flash crash** (−15% gap, 3 books) → 3 stops fire + desk HALTs (maxDD 7.6% >
+2% ⇒ kill-switch engages, flat-at-end) — *breached but never silently*; **vol spike** (×6 alternating) → every
+held book STAND_ASIDE, maxDD 0.07%; **funding flip** (paid-short→paid-long) → regime transition fires, book
+flips, budget intact; **feed blackout** (feedStale) → every book STAND_ASIDE + flat. All four `budgetRespected`.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional` →
+**14 suites / 133 tests** (+10: the four scenarios' protective responses + the whole-set budget invariant +
+the deterministic-path builder). Script runs + prints `STRESS OK`.
+
+---
+
+## ⏭️ NEXT SESSION — resume at P12 (handoff, updated 2026-06-17)
 
 **Done + committed:** P5 (desk risk spine, #77), P6 (persistence + restart recovery, #78), P7 (slippage+impact
 fill model, #79), P8 (book-level walk-forward backtest + honest first read, #80), P9 (exposure toggle
-outright⇄beta-hedged, #81), **P10 (desk risk aggregation + factor split + TCA, #82)**. Repo green: `npx tsc
---noEmit` exit 0; `npx jest src/market-making/directional` → **13 suites / 123 tests**.
+outright⇄beta-hedged, #81), P10 (desk risk aggregation + factor split + TCA, #82), **P11 (scenario/stress
+harness, #83)**. Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional` → **14 suites
+/ 133 tests**.
 
-**Resume at P11** and continue IN ORDER through P16 — the playbook blocks are in
+**Resume at P12** and continue IN ORDER through P16 — the playbook blocks are in
 [REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P11** — scenario/stress harness (`scripts/regime-stress.ts`: flash crash / vol spike / funding flip / feed blackout). #83.
 - **P12** — THE HEADLINE: universe expansion (more symbols/signals/venues + `RegimeUniverseAllocator` cross-sectional top-N). #84.
 - **P13** — `/demo` Regime Desk web cockpit (`RegimeDeskTrader`, `/api/regime/*`, `REGIME_DESK` flag off by default). #85.
 - **P14** — tear-sheet vs BTC benchmark (`regime-tearsheet.ts`). #86.
