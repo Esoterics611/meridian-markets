@@ -52,6 +52,7 @@ import { RegimeBetaHedge, BookBeta, estimateBeta } from '../src/market-making/di
 import { attributeDesk, assertReconciles, BookTcaInput } from '../src/market-making/directional/regime-tca';
 import { aggregatePortfolioRisk, betaPnlIncrementUnits, BookRiskRead, PortfolioRisk } from '../src/market-making/directional/regime-portfolio-risk';
 import { computeTearsheet, EquityPoint, BenchPoint } from '../src/market-making/directional/regime-tearsheet';
+import { FeedWatchdog, AlertDispatcher, buildAlertSink } from '../src/market-making/directional/feed-watchdog';
 import { InventoryBook } from '../src/market-making/inventory/inventory-book';
 import { DataSource } from 'typeorm';
 
@@ -94,6 +95,13 @@ const VSM_FULL_Z = Number(process.env.RBL_VSM_FULL_Z ?? 1.5); // vol-scaled-mome
 
 // P12 cross-sectional capital allocator: fund the TOP-N strongest validated edges, gross-capped.
 const TOP_N = Number(process.env.RBL_TOP_N ?? 8);
+
+// P15 feed watchdog + alerting. Alert sink is no-op unless RBL_ALERT_WEBHOOK is set.
+const ALERT_WEBHOOK = process.env.RBL_ALERT_WEBHOOK ?? '';
+const WATCHDOG_MAX_STALE_MS = Number(process.env.RBL_WATCHDOG_STALE_MS ?? POLL_MS_RAW() * 3);
+const WATCHDOG_MAX_GAP_FRAC = Number(process.env.RBL_WATCHDOG_GAP_FRAC ?? 0.1);
+const WATCHDOG_MAX_DIVERGENCE_FRAC = Number(process.env.RBL_WATCHDOG_DIVERGENCE_FRAC ?? 0.02);
+function POLL_MS_RAW(): number { return Number(process.env.RBL_POLL_MS ?? 60_000); }
 
 const HOURS = Number(process.env.RBL_HOURS ?? 6);
 const POLL_MS = Number(process.env.RBL_POLL_MS ?? 60_000);
@@ -207,6 +215,8 @@ const prevBias = new Map<string, number>();
 const lastBiasPrevFor = (symbol: string): number => prevBias.get(symbol) ?? 0;
 function onEvent(e: DeskEventInput): void {
   events.push(e);
+  // P15: a fired loss-stop is an alert condition (the book emits it as a control event).
+  if (e.kind === 'control' && /loss-stop/.test(e.message)) alerts.lossStop(e.book ?? 'DESK', e.message);
   if (!REDRAW) console.log(dim(`  ${e.message}`)); // in redraw mode the cards show state; log only when scrolling
 }
 
@@ -224,6 +234,9 @@ let lastMarketMid: number | null = null;
 const equityCurve: EquityPoint[] = [];
 const benchCurve: BenchPoint[] = [];
 let exposedPolls = 0;
+// P15: feed watchdog (drives monitor.feedStale) + alert dispatcher (fires once per condition).
+const feedWatchdog = new FeedWatchdog({ maxStaleMs: WATCHDOG_MAX_STALE_MS, maxGapFrac: WATCHDOG_MAX_GAP_FRAC, maxDivergenceFrac: WATCHDOG_MAX_DIVERGENCE_FRAC });
+const alerts = new AlertDispatcher(buildAlertSink(ALERT_WEBHOOK));
 
 /** Current per-book risk input from the book's snapshot at its last-known mid. */
 function bookRiskInput(bs: BookState): BookRiskInput {
@@ -669,7 +682,11 @@ async function main() {
         const binPx = await binance.lastPrice(bs.symbol).catch(() => NaN);
         const basisBps = Number.isFinite(binPx) && binPx > 0 ? ((mid - binPx) / binPx) * 10_000 : undefined;
 
-        const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret });
+        // P15: feed health (stale / gap / cross-venue divergence) ⇒ monitor.feedStale ⇒ STAND_ASIDE.
+        const health = feedWatchdog.check(bs.symbol, { nowMs: now, price: mid, crossVenuePrice: Number.isFinite(binPx) && binPx > 0 ? binPx : undefined });
+        alerts.feedStale(bs.symbol, health.feedStale, health.detail, now);
+
+        const state = bs.monitor.update({ nowMs: now, fundingRatePerHour: fundingForSignal, basisBps, ret, feedStale: health.feedStale });
         const reading = bs.consensus.bias(bs.symbol, { fundingRatePerHour: fundingForSignal, recentReturns, nowMs: now, midMicros });
 
         staged.set(bs.symbol, { now, midMicros, reading, state, curRate, recentReturns });
@@ -700,7 +717,10 @@ async function main() {
     if (assessment.desk.kind === 'Halt' && !haltAnnounced) {
       haltAnnounced = true;
       onEvent(controlEvent({ ts: Date.now(), book: 'DESK', detail: `DESK HALT (${assessment.desk.component}): ${assessment.desk.reason} → flattening all books` }));
+      alerts.deskHalt(assessment.desk.reason); // P15 alert (once)
     }
+    // P15: alert on a maxDD-budget breach (once), independent of whether it tripped the kill-switch.
+    if (assessment.drawdownFrac > DESK_MAX_DD_FRAC) alerts.drawdownBreach(assessment.drawdownFrac, DESK_MAX_DD_FRAC);
 
     // PASS 3 — update each book under its verdict: FlattenNow/Halt ⇒ standAside (flatten);
     // BlockNewEntry ⇒ a flat book is fed a neutral reading so it cannot open (open books unchanged).

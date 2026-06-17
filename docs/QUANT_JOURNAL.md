@@ -3721,15 +3721,82 @@ omitted (passed only when available); the curve-based + benchmark metrics are th
 
 ---
 
-## ⏭️ NEXT SESSION — resume at P15 (handoff, updated 2026-06-17)
+## 2026-06-17 — Entry #87 (Take Sides P15: FEED WATCHDOG + ALERTING)
 
-**Done + committed:** P5 (#77) … P13 (#85), **P14 (tear-sheet, #86)**. Repo green: `npx tsc --noEmit` exit 0;
-`npx jest src/market-making` green.
+**What this is (Playbook II P15).** Data-integrity protection + one alert channel so a trader away from the
+screen still gets warned. Bad data is a silent killer (a stale tick freezes a position; a spike mis-marks the
+book; a cross-venue divergence means a feed is lying).
 
-**Resume at P15** then P16 — the playbook blocks are in
-[REGIME_DIRECTIONAL_PLAYBOOK_II.md](REGIME_DIRECTIONAL_PLAYBOOK_II.md) §2. Remaining:
-- **P15** — feed watchdog + alerting (`FeedWatchdog` drives the monitor's `feedStale`; no-op alert sink default). #87.
-- **P16** — the operator's single all-at-once forward run (hand over run commands + what to watch; do NOT run it for them). #88.
+**What shipped (`feed-watchdog.ts`, pure + guarded):**
+- `FeedWatchdog` — per-symbol detection of **stale** (no update within N×poll), **gap/outlier** (|Δprice| past a
+  band), and **cross-venue divergence** (HL vs Binance past a band). Drives `RegimeMonitor.feedStale` ⇒
+  STAND_ASIDE (the input nothing computed before). A gap/divergent print does NOT become the new baseline (so a
+  bad mark can't be silently accepted next tick).
+- `IAlertSink` (swap seam) — `NoopAlertSink` default (no webhook ⇒ no behaviour change) + `WebhookAlertSink`
+  (Slack-style `{text}` POST, injected ⇒ offline-testable). `AlertDispatcher` fires **exactly once per
+  condition**: desk-halt + dd-breach once ever, feed-stale once per false→true transition per symbol (re-arms on
+  recovery), stop-hit per distinct event. `buildAlertSink(url)` selects the impl.
+- `regime-book-live.ts` — the watchdog runs each poll (price + Binance cross-venue) → `monitor.feedStale`; the
+  dispatcher fires from the same trigger points the desk-event tape uses: loss-stop (in `onEvent`), DESK HALT +
+  maxDD-budget breach (PASS 2), feed-stale (PASS 1). Sink no-op unless `RBL_ALERT_WEBHOOK` is set.
+
+**Regression discipline (§10.1):** `npx tsc --noEmit` clean; `npx jest src/market-making/directional
+src/market-making/bias` → **31 suites / 243 tests** (+12: stale/gap/divergence at the boundary + baseline-not-
+adopted, dispatcher once-per-condition for halt/dd/stale-transition/stop, no-op default no-throw, webhook payload).
+Bounded live smoke (BTC,ETH,SOL): watchdog ran clean, TCA reconciled to the cent, no crash.
+
+---
+
+## 2026-06-17 — Entry #88 (Take Sides P16: ALL-AT-ONCE FORWARD RUN — OPERATOR HANDOVER, READY)
+
+**Status: P5–P15 are ALL built, green, and committed (#77–#87).** The institutional-grade take-sides desk is
+complete in paper. P16 is the operator's single multi-hour forward run — **the operator runs it; this entry is
+the handover, not a result** (per the playbook: do NOT run it for them). When Ronnie runs it, the result goes in
+a follow-up #89 with the DB-sourced realised numbers + the tear-sheet.
+
+**The full institutional stack now on `scripts/regime-book-live.ts` + the `/demo` cockpit:** OOS gate-first
+(P2) · desk-risk spine — caps, kill-switch, flatten-on-exit (P5) · durable persistence + restart recovery (P6,
+`MM_PERSIST`) · slippage+impact fills (P7) · book-level walk-forward backtest (P8) · exposure toggle
+outright⇄hedged (P9) · desk risk aggregation + factor split + TCA (P10) · stress harness (P11,
+`scripts/regime-stress.ts`) · universe expansion: 16 symbols + reversal/vol-scaled-momentum/cross-sectional
+signals + Bybit venue + cross-sectional allocator (P12) · `/demo` Regime Desk cockpit behind `REGIME_DESK` (P13)
+· realised-first tear-sheet vs BTC (P14) · feed watchdog + alerting (P15).
+
+**HOW TO RUN THE FORWARD TEST (operator):**
+1. **Re-gate first** (regimes shift — never trust a stale board):
+   `RBO_DAYS=90 npx ts-node -r tsconfig-paths/register scripts/regime-bias-oos.ts` — note today's validated set.
+2. **Stress check** (deterministic, ~instant): `npx ts-node -r tsconfig-paths/register scripts/regime-stress.ts`
+   → expect `STRESS OK`.
+3. **Launch the multi-hour run** (terminal cockpit, persisted, honest fills) — pick OUTRIGHT then HEDGED to
+   compare:
+   `MM_PERSIST=true RBL_HOURS=8 RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8 \
+     npx ts-node -r tsconfig-paths/register scripts/regime-book-live.ts`
+   (or the web cockpit: `REGIME_DESK=true MM_PERSIST=true FEED_SOURCE=binance EXECUTION_MODE=paper
+   MOCK_TRADING_ENABLED=false npm run start:dev` → `/demo` → Regime Desk tab.)
+4. **Review** with the `mm-run-review` skill (pull realised P&L from `mm_nav` desk='regime' — do NOT read the
+   multi-MB log end to end, §12). The runner prints the realised-first verdict + DESK ATTRIBUTION (TCA) + the
+   tear-sheet vs BTC at Ctrl-C.
+
+**What to watch:** the STOP gauge (distance to the directional stop), desk-risk RUN/HALT + gross/net vs caps,
+the `attr` line (idio vs beta — is the edge idiosyncratic or just carried market beta?), and maxDD vs the 2%
+budget. **Pre-registered metric:** realised + funding − fees − slippage > 0 with maxDD inside 2%, on the symbols
+validated today. A flat, honest "we sat aside / the edge didn't survive costs" is the correct mission outcome,
+not a failure (CLAUDE.md §1).
+
+**Caveat:** the web cockpit's live render + the `RegimeLiveDriver` network gate (P13) were not runnable in the
+build sandbox (dev server exits 144) — verify them in this first local run. Everything else is unit-tested green.
+
+---
+
+## ⏭️ NEXT SESSION — the operator forward run (P16) + write #89
+
+**Done + committed:** P5–P15 (#77–#87) — the take-sides desk is institutional-grade in paper. Repo green:
+`npx tsc --noEmit` exit 0; `npx jest src/market-making` green (31 suites / 243 tests in directional+bias).
+
+**Next is the OPERATOR's job (P16, #88 handover above):** re-gate → stress-check → run the multi-hour forward
+test (outright + hedged) → review via `mm-run-review` (DB-sourced) → write **#89** with the honest realised
+numbers + tear-sheet. Then the open frontier returns to the MM desk (project_mm_frontier_state) + the broader
+master plan. **Real-money stays PARKED** (CLAUDE.md §1).
 
 **Two locked operator decisions (do not re-litigate):** (1) scope = institutional-grade, paper-only; (2) P9
 exposure is a TOGGLE, default outright. **Reuse map** is Playbook II §1; **dependencies** are §3 (risk spine
