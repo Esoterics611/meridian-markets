@@ -217,30 +217,34 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-02 (session 1 of the plan — Journal #90).**
+> **Last updated: 2026-07-02 (session 2 of the plan — Journal #91).**
 >
-> **State:** **P0 steps 1–2 BUILT & COMMITTED** (2ec5d24 recency veto · e831c6f FundingCarryBook ·
-> 68ce390 persistence/migration · c919792 the runner). Repo green (tsc exit 0; carry+funding
-> 69/69). Bounded live smoke passed (real mids, honest accrual, flatten-on-exit). **P0 step 3 —
-> the 30-day launch — is the OPERATOR'S, not yet running.** Honesty note: #72's "fee-clear in
-> ~1h" was a 60× tracker accrual bug, corrected in #90; the carry rate itself stands.
+> **State:** **P0 steps 1–2 BUILT (#90); P1 items 1–3 BUILT & MEASURING (#91)** (7112c08 the
+> 231-perp scan · 202b45c E2 maker execution · df29fcf Bybit + differential board). Repo green
+> (tsc exit 0; touched-area jest 128 suites / 921 tests). Scan verdict: **68 gate-pass, 13
+> deployable** (`GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC`) — the "≥8 gated
+> legs" metric is fed. E2 live-smoked: 2/4 legs maker at 30s patience; BNB spot 0.9bps all-in
+> (≤2bps metric met on maker legs); escalations now MEASURE the real half-spread (DYDX spot
+> +11.65bps) instead of pretending mid. Differential board day 1/7: 7/30 harvestable, ADA
+> HL↔Bybit −18%/yr @0.86 stable; majors sub-fee (R4 confirmed). **The 30-day launch — the
+> OPERATOR'S — is still the next real event, now with breadth + honest entries.**
 >
 > **Pick up here (in order):**
-> 1. **Operator launches P0:** `sudo docker compose up -d postgres && npm run migration:run`, then
->    `MM_PERSIST=true npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts`
->    (Ctrl-C safe — pairs checkpoint OPEN and resume). Score each session from
->    `mm_nav WHERE desk='carry'` against the P0 metric below.
-> 2. **Next build session = P1:** (a) full-universe carry scan — `rankCarryUniverse` over all
->    ~230 HL perps (symbol list via `hl-universe-discovery`), ranked-board artifact under
->    `docs/research/`; (b) **E2 maker-execution service** — post-only entry with timeout-to-taker,
->    wired into `FundingCarryBook.open/close` as a fill-model/executor seam (kills the 7bps taker
->    entry, the whole breakeven story); (c) **E4 Bybit funding ingest** (mirror the two existing
->    funding clients) + the three-venue differential board (M2 — measure ≥1 week before trading).
-> 3. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward run
->    (#88) — now a benchmark track, not the priority.
+> 1. **Operator launches the run** (P0 metric, P1 breadth): postgres + migrations, then
+>    `CD_SYMBOLS=<the 13 deployables above> CD_MAKER_PATIENCE_S=300 MM_PERSIST=true
+>    npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts`.
+>    Score each session from `mm_nav WHERE desk='carry'` + the TCA log lines.
+> 2. **Daily:** `scripts/funding-differential-board.ts` (M2 needs ≥7 boards; 1 done) and a
+>    `scripts/carry-universe-scan.ts` refresh for the deployable set.
+> 3. **Next build session = finish P1:** item 4 — E7 allocator v0 (fixed weights) + aggregate
+>    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
+>    the no-spot passers (FARTCOIN/HYPE/PURR tail).
+> 4. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward
+>    run (#88) — now a benchmark track, not the priority.
 >
 > **Do-not-relitigate:** the #65 κ=0 verdict; the #70 spread-MM verdict; realised-first judging;
-> resume-not-flatten on the carry desk (this session's design decision, rationale in #90).
+> resume-not-flatten on the carry desk (#90); measurement-before-trading on M2 (#91 — 7 boards
+> before any differential leg opens).
 
 **P0 — Turn the validated edge on and leave it on (days, not weeks).**
 1. ~~Ship E3 recency veto (+spec)~~ **DONE #90** — default-ON, trailing-7d mean, BNB case locked.
@@ -252,13 +256,14 @@ running book attached. §12 context discipline and §10.1 regression discipline 
   ungated leg ever opens.
 
 **P1 — Breadth (weeks 1–2, while P0 accrues).**
-1. `rankCarryUniverse` over the full ~230-perp HL universe (the discovery scan already fetches
-   funding for all of them in one call) + Binance majors; gate with E3.
-2. E2 maker-execution service; route all new entries/rolls through it.
-3. E4 Bybit funding ingest + the three-venue differential board — measure for a week, then open
-   gated differential legs (M2).
+1. ~~`rankCarryUniverse` over the full ~230-perp HL universe~~ **DONE #91** — 2-stage
+   rate-limit-aware scan, 231 perps, 68 pass / 13 deployable (spot + liquidity annotated).
+2. ~~E2 maker-execution service; route all new entries/rolls through it~~ **DONE #91** —
+   patient paths routed, urgent paths never wait, per-leg TCA; live-smoked.
+3. ~~E4 Bybit funding ingest + the three-venue differential board~~ **BUILT #91** — measuring
+   (day 1/7); differential legs stay closed until the week of boards agrees (M2).
 4. E7 allocator v0 (fixed weights) + aggregate beta-hedge via the existing `RegimeBetaHedge` (one
-   BTC/ETH leg flattens the cross-sectional book's residual delta).
+   BTC/ETH leg flattens the cross-sectional book's residual delta). **← the remaining P1 item**
 - **Pre-registered:** ≥8 gated legs live; desk carry rate ≥ 2× the P0 ETH-solo rate at ≤ 2× its
   realised vol; measured entry cost ≤ 2bps/leg via E2 (vs 7bps taker in #72).
 

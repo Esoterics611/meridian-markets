@@ -3889,25 +3889,113 @@ live in [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) §4-ledger.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-02, #90)
+## 2026-07-02 — Entry #91 (P1 BREADTH, all three built + first measurements: 231-perp scan → 68 gated/13 deployable · E2 maker execution live-smoked · Bybit + three-venue differential board day 1/7)
+
+**Session 2 of PROFIT_PIVOT_II — the P1 build ledger items (a)/(b)/(c) in one pass.** Commits:
+`7112c08` (P1a scan), `202b45c` (P1b E2), `df29fcf` (P1c E4). Repo green: `npx tsc --noEmit`
+exit 0; `npx jest src/market-making src/market-data src/stat-arb/feed` **128 suites / 921
+tests** pass (the jest force-exit warning is the long-known teardown noise, not a failure).
+
+### P1a — the full-universe carry scan (`scripts/carry-universe-scan.ts`)
+
+The desk's OWN gate (`rankCarryUniverse`: 90d OOS split, posFrac ≥ 0.65 both windows, #72
+7d-recency veto) over **all 231 main-dex HL perps** — not the 10-major default. Two findings
+about the *scan itself* first:
+
+- **Rate-limit lesson (it cost one aborted run):** `fundingHistory` is a heavyweight HL info
+  call; a naive 231×5-page sweep 429'd after ~25 coins. The shipped scan is TWO-STAGE — one 14d
+  page per coin for the whole universe, then the full 90d gate only on coins whose 14d
+  |ann funding| ≥ 3.5%/yr — with a single ~1.1s-paced request pipe + exponential 429 backoff.
+  The sieve is a completeness trade-off and is RECORDED (`sievedOut` in the artifact): a coin
+  quiet for 14d but strong at 90d would be missed today and caught by tomorrow's scan.
+- **Deployability ≠ gate:** the pair needs a Binance spot leg. Each coin is annotated from one
+  `ticker/price` sweep (kPEPE→PEPEUSDT unwrapping handled); HIP-3 dex perps are out of scope
+  (no spot hedge).
+
+**The board (artifact `docs/research/carry-universe/scan-2026-07-02T17-57-21-501Z.json`):**
+231 universe → 231 stage-A scored (0 failures) → 143 survivors → 142 gated → **68 GATE-PASS →
+13 DEPLOYABLE**: `GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC`. The P1
+pre-registered "≥8 gated legs" is comfortably fed. Honest flags: **GRAM** prints +108%/yr at
+posFrac 1.00/1.00 but is a $7M/day small-cap — real stream, crowding/cap risk, the per-leg
+margin model + DD kill bound it; the reliable middle is **NEAR/LIT/DYDX/LINK/AAVE/XPL/UNI at
++8…+12%/yr** with 0.9+ posFrac both windows. 55 of the 68 passers fail deployability on spot
+availability or the $5M liquidity floor — the no-spot tail (FARTCOIN +13%, HYPE +9%, PURR…)
+is where an HL-only (perp-vs-perp or margin-spot) future variant would hunt.
+
+### P1b — E2 maker execution (`src/market-making/execution/maker-execution.ts`)
+
+`acquireFill(side, touchSource, cfg)`: join the touch post-only, poll every `tickMs`, fill by
+the **conservative cross-through rule** (a resting BUY fills only when the best ask trades down
+THROUGH it — no queue-position credit; under-fills vs a real book, honest in the conservative
+direction), escalate to a taker cross at the freshest touch after `patienceMs`. Every fill
+carries TCA: liquidity, waited ms, **signed shortfall vs arrival mid**. Wired end-to-end:
+`FundingCarryBook.openWithExecutions/closeWithExecutions` (executed prices + SIGNED fees — the
+HL −0.2bps rebate is revenue; the slippage diagnostic is now signed, taker path byte-identical),
+`BinancePublicClient.bookTicker` (spot touch), and `carry-desk-live` routes **patient** paths
+(boot/re-gate entries, de-validation + orphan closes) through it — **urgent paths (margin
+liquidation, DD kill) never wait**. `CD_MAKER_ENTRY=true` default; any touch failure falls back
+to the legacy taker-at-mid path, so an outage degrades, never blocks.
+
+**Bounded live smoke (2 pairs, 30s patience, real touches):** 2 of 4 entry legs filled MAKER —
+BNB spot maker at **0.9bps all-in** (−0.09bps shortfall + 1bps fee — *meets the ≤2bps P1
+metric*), DYDX perp maker at −0.38bps + the −0.2bps rebate. The two escalations are the honest
+part: DYDX spot crossed at **+11.65bps** — the ~23bps DYDX spot spread the old mid-fill model
+silently ignored. E2 didn't make entries more expensive; it made the cost REAL and measured.
+Consequences, not yet acted on: (1) the 30-day run should use **minutes** of patience
+(`CD_MAKER_PATIENCE_S`), a carry book has no urgency; (2) a wide-spread symbol arguably wants
+re-rest-instead-of-cross on timeout — parked until the run's TCA says it matters.
+
+### P1c — Bybit ingest + the three-venue differential board (E4/M2)
+
+`BybitFundingClient` (v5 public linear; newest-first pages → BACKWARDS pagination, re-sorted
+chronological; per-symbol funding intervals ⇒ never assume 8h) + `funding-differential.ts` —
+the cadence-honest core: **UTC-day funding sums** make HL (hourly) comparable with
+Binance/Bybit (8h); differential = daily A−B on common days; gates = overlap ≥5d, |ann| ≥3%,
+sign-stability ≥0.7, breakeven ≤20d vs a MAKER-routed 4-fill round trip (E2 is what makes that
+fee assumption real). `scripts/funding-differential-board.ts` writes daily boards to
+`docs/research/funding-differentials/`.
+
+**Day 1 of ≥7 (board-2026-07-02T19-08-53):** 30 pairs scored, **7 harvestable**. Top:
+**ADA hyperliquid↔bybit −18.0%/yr differential, 0.86 stable, 0.7d breakeven** (HL shorts PAY
+18.9%/yr ⇒ long HL perp / short Bybit perp receives the spread); LINK/LTC short-HL pairs at
++4.6…+5.9%/yr. **R4's suspicion confirmed on day 1: the majors are sub-fee** (BTC HL↔Binance
+−0.0%, ETH ≤0.5%) — the clientele spread lives in the mid-caps. M2 stays measurement-only until
+7 boards agree; the go/no-go cites the series, not this snapshot.
+
+**Verdict:** P1 items 1–3 are BUILT and MEASURING; the P1 chain's remaining item is **E7
+allocator v0 + the aggregate beta-hedge** (ledger item 4). The operator launch (P0→P1 combined:
+the scan's 13 deployables + maker entry + persistence) is the next real event — everything this
+session exists to make that run's numbers both bigger (breadth) and truer (execution honesty).
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-02, #91)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
 desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
-prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/carry
-src/market-data/funding` 69/69.
+prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making src/market-data
+src/stat-arb/feed` 128 suites / 921 tests.
 
-1. **OPERATOR: launch P0** — the 30-day carry run (#90 runbook above). Every session while it
-   runs: score it realised-first from `mm_nav desk='carry'` (rolling-7d funding + realised −
-   fees > 0; maxDD < 0.5%).
-2. **NEXT BUILD SESSION: P1 breadth** — (a) full-universe carry scan (`rankCarryUniverse` over
-   all ~230 HL perps via `hl-universe-discovery`'s symbol list + Binance majors; write the ranked
-   board artifact under `docs/research/`); (b) **E2 maker-execution service** (rest post-only
-   entries, timeout-to-taker; cuts the 7bps taker entry toward the −0.2bps rebate — the whole
-   breakeven story); (c) **E4 Bybit funding ingest** + the HL↔Binance↔Bybit funding-differential
-   board (M2 — measure a week before trading it).
-3. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
+1. **OPERATOR: launch the 30-day carry run — now with P1 breadth + honest execution (#91):**
+   ```bash
+   sudo docker compose up -d postgres && npm run migration:run
+   CD_SYMBOLS=GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC \
+   CD_MAKER_PATIENCE_S=300 MM_PERSIST=true \
+   npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
+   ```
+   (13 deployables from the #91 scan; 5-min maker patience — a carry book has no urgency.)
+   Every session while it runs: score realised-first from `mm_nav desk='carry'` + read the
+   entry TCA lines (P1 metric: ≤2bps/leg).
+2. **Daily (operator or session):** `scripts/funding-differential-board.ts` — the M2 verdict
+   needs ≥7 daily boards (day 1/7 done, #91); and re-run `scripts/carry-universe-scan.ts`
+   before/at re-gate to refresh the deployable set.
+3. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
+   the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
+   delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
+   no-spot gate-passers (FARTCOIN/HYPE/PURR tail, #91).
+4. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
    `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
-4. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
+5. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
    BENCHMARK track alongside the carry desk, not the priority.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
