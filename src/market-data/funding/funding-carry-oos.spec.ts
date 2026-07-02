@@ -105,6 +105,70 @@ describe('oosCarryGate', () => {
   });
 });
 
+describe('recency veto (#72 BNB regression)', () => {
+  // The BNB case: a long window passes the gate while the CURRENT regime has flipped.
+  // 240h of positive funding, then the last 72h negative. With recencyDays=3 the OOS
+  // window (last 1/3 ≈ 104h: 32 positive + 72 negative) would FAIL posFrac anyway, so
+  // shape it so OOS still clears: 720h positive + last 72h negative → OOS = 264h with
+  // 192 positive (posFrac 0.727 ≥ 0.65 passes) — ONLY the veto catches the flip.
+  const flipped = [...makeFunding(720, 0.0001, 1), ...makeFunding(72, 0.0001, -1, 720 * HOUR_MS)];
+
+  it('vetoes a symbol whose trailing window flipped against the direction (the BNB case)', () => {
+    const result = oosCarryGate('BNB', flipped, { ...BASE_CFG, recencyDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.direction).toBe('SHORT_PERP');
+    expect(result!.oos.posFrac).toBeGreaterThanOrEqual(0.65); // windows alone would pass…
+    expect(result!.recent.vetoed).toBe(true); // …the veto is what catches it
+    expect(result!.recent.annualizedFundingPct).toBeLessThan(0);
+    expect(result!.passGate).toBe(false);
+  });
+
+  it('recencyVeto=false restores the old (pre-#72-fix) behaviour', () => {
+    const result = oosCarryGate('BNB', flipped, { ...BASE_CFG, recencyDays: 3, recencyVeto: false });
+    expect(result).not.toBeNull();
+    expect(result!.recent.vetoed).toBe(false);
+    expect(result!.passGate).toBe(true);
+  });
+
+  it('mirrors for LONG_PERP: persistently negative funding whose trailing window turned positive', () => {
+    const funding = [...makeFunding(720, 0.0001, -1), ...makeFunding(72, 0.0001, 1, 720 * HOUR_MS)];
+    const result = oosCarryGate('X', funding, { ...BASE_CFG, recencyDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.direction).toBe('LONG_PERP');
+    expect(result!.recent.vetoed).toBe(true);
+    expect(result!.passGate).toBe(false);
+  });
+
+  it('does not veto a healthy carry, and reports the trailing read (signed by direction)', () => {
+    const steady = oosCarryGate('ETH', makeFunding(720, 0.0001), { ...BASE_CFG })!;
+    expect(steady.recent.vetoed).toBe(false);
+    expect(steady.passGate).toBe(true);
+    expect(steady.recent.meanRatePerPeriod).toBeCloseTo(0.0001, 10);
+    // 0.0001/h × 8760 × 100 = +87.6%/yr — the side is being paid.
+    expect(steady.recent.annualizedFundingPct).toBeCloseTo(87.6, 1);
+    // Trailing window: default 7d of hourly points = 168 periods.
+    expect(steady.recent.periods).toBe(7 * 24 + 1); // cutoff is inclusive at exactly 7d back
+    // LONG_PERP mirror: all-negative funding → the long side EARNS, reported positive.
+    const longSide = oosCarryGate('N', makeFunding(720, 0.0001, -1), { ...BASE_CFG })!;
+    expect(longSide.recent.vetoed).toBe(false);
+    expect(longSide.recent.annualizedFundingPct).toBeCloseTo(87.6, 1);
+  });
+
+  it('veto weighs magnitude, not just sign-counts: few large adverse settlements outweigh many tiny favourable ones', () => {
+    // Trailing 3d: 60h at +0.00001 (tiny) + 12h at −0.0005 (large) → mean negative ⇒ veto,
+    // even though positive settlements are the majority in the window.
+    const funding = [
+      ...makeFunding(720, 0.0001, 1),
+      ...makeFunding(60, 0.00001, 1, 720 * HOUR_MS),
+      ...makeFunding(12, 0.0005, -1, 780 * HOUR_MS),
+    ];
+    const result = oosCarryGate('Y', funding, { ...BASE_CFG, recencyDays: 3 });
+    expect(result).not.toBeNull();
+    expect(result!.recent.vetoed).toBe(true);
+    expect(result!.passGate).toBe(false);
+  });
+});
+
 describe('rankCarryUniverse', () => {
   it('ranks by annualizedFundingPct descending', () => {
     const histories = [
