@@ -1,5 +1,5 @@
 import { InventoryBook, InventoryBookState } from '../inventory/inventory-book';
-import { FillCostModel, NoSlippageModel, slippageCostUnits } from '../directional/fill-cost-model';
+import { FillCostModel, NoSlippageModel } from '../directional/fill-cost-model';
 import { CarryDirection } from '../../market-data/funding/funding-carry-discovery';
 import { DeskEventInput, fillEvent } from '../events/desk-event';
 
@@ -15,10 +15,15 @@ import { DeskEventInput, fillEvent } from '../events/desk-event';
 //              60s poll — a 60× overstatement; the regression spec locks this).
 //   basis    — the two legs' unrealised sum: directional moves wash out, what remains
 //              is the perp-vs-spot basis change over the hold.
-//   fees     — taker bps per side per leg, charged on the mid notional (slippage is
-//              separate, mirroring the P7 convention so TCA can split them).
-//   slippage — the FillCostModel worsens each leg's executed price (lands in the
-//              ledger); the magnitude is also accumulated as a diagnostic.
+//   fees     — bps per side per leg, charged on the mid notional (slippage is
+//              separate, mirroring the P7 convention so TCA can split them). On the
+//              mid-based open/close path this is the config taker fee; on the E2
+//              executions path it is the fee the executor actually paid — SIGNED,
+//              so an HL maker rebate (−0.2bps) is revenue.
+//   slippage — SIGNED implementation shortfall vs the reference mid, accumulated as
+//              a TCA diagnostic (+ = paid worse than mid, − = maker price
+//              improvement). The taker path's FillCostModel always worsens the
+//              price, so its reads are unchanged from the old absolute convention.
 //
 // Margin honesty (PROFIT_PIVOT_II R9a): "paper can hold forever" overstates capacity —
 // a real venue margins EACH leg separately, and the losing leg can be liquidated even
@@ -45,9 +50,9 @@ export interface FundingCarryBookConfig {
   direction: CarryDirection;
   /** Per-leg target notional, USD (both legs sized to equal quantity off the perp mid). */
   notionalUsd: number;
-  /** Taker fee per side, bps, spot leg (Binance-class default ~4.5). */
+  /** Taker fee per side, bps, spot leg — the mid-based open/close path (E2 executions carry their own fee). */
   spotFeeBps: number;
-  /** Taker fee per side, bps, perp leg (HL taker ~2.5; maker-entry lands in P1/E2). */
+  /** Taker fee per side, bps, perp leg — the mid-based path (route via E2 acquireFill for maker entry). */
   perpFeeBps: number;
   /** Funding settlement period, ms (Hyperliquid: 3_600_000 — hourly). */
   fundingPeriodMs: number;
@@ -59,6 +64,17 @@ export interface FundingCarryBookConfig {
   fillModel?: FillCostModel;
   /** Desk-event tape sink (optional — silent by default, the repo-wide no-op posture). */
   onEvent?: (e: DeskEventInput) => void;
+}
+
+/**
+ * One externally executed leg (the E2 maker-execution path): the executed price, the
+ * fee actually charged (signed bps — a maker rebate is negative), and the reference
+ * mid it is judged against (basis baseline + signed shortfall diagnostic).
+ */
+export interface LegExecution {
+  priceMicros: bigint;
+  feeBps: number;
+  midMicros: bigint;
 }
 
 /** The durable blob — bigints as decimal strings (JSONB/BIGINT round-trip safe). */
@@ -165,6 +181,46 @@ export class FundingCarryBook {
   }
 
   /**
+   * Open both legs at externally executed prices (the E2 maker-execution path).
+   * Quantity is sized off the perp REFERENCE mid (same rule as open()); the ledger
+   * takes the executed prices, the fee each leg actually paid (signed bps — a maker
+   * rebate is negative), and the mids anchor the basis baseline + signed shortfall.
+   */
+  openWithExecutions(nowMs: number, spot: LegExecution, perp: LegExecution): void {
+    if (this.isOpen()) throw new Error(`FundingCarryBook ${this.cfg.symbol}: already open`);
+    if (spot.midMicros <= 0n || perp.midMicros <= 0n || spot.priceMicros <= 0n || perp.priceMicros <= 0n) {
+      throw new Error('FundingCarryBook.openWithExecutions: prices and mids must be > 0');
+    }
+    this.qty = (this.notionalUnits * MICROS) / perp.midMicros;
+    if (this.qty <= 0n) throw new Error('FundingCarryBook.openWithExecutions: sized to zero quantity');
+
+    const spotSide = this.cfg.direction === 'SHORT_PERP' ? 'BUY' : 'SELL';
+    const perpSide = this.cfg.direction === 'SHORT_PERP' ? 'SELL' : 'BUY';
+    this.fillLegAt(this.spotLeg, 'spot', spotSide, spot.priceMicros, spot.midMicros, spot.feeBps, nowMs);
+    this.fillLegAt(this.perpLeg, 'perp', perpSide, perp.priceMicros, perp.midMicros, perp.feeBps, nowMs);
+
+    this.lastAccrualMs = nowMs;
+    this.openedMs = nowMs;
+    this.entrySpotMid = spot.midMicros;
+    this.entryPerpMid = perp.midMicros;
+  }
+
+  /** Close both legs at externally executed prices (the E2 path). Throws if flat. */
+  closeWithExecutions(nowMs: number, spot: LegExecution, perp: LegExecution): void {
+    if (!this.isOpen()) throw new Error(`FundingCarryBook ${this.cfg.symbol}: not open`);
+    if (spot.midMicros <= 0n || perp.midMicros <= 0n || spot.priceMicros <= 0n || perp.priceMicros <= 0n) {
+      throw new Error('FundingCarryBook.closeWithExecutions: prices and mids must be > 0');
+    }
+    const spotSide = this.cfg.direction === 'SHORT_PERP' ? 'SELL' : 'BUY';
+    const perpSide = this.cfg.direction === 'SHORT_PERP' ? 'BUY' : 'SELL';
+    this.fillLegAt(this.spotLeg, 'spot', spotSide, spot.priceMicros, spot.midMicros, spot.feeBps, nowMs);
+    this.fillLegAt(this.perpLeg, 'perp', perpSide, perp.priceMicros, perp.midMicros, perp.feeBps, nowMs);
+    this.qty = 0n;
+    this.entrySpotMid = null;
+    this.entryPerpMid = null;
+  }
+
+  /**
    * Accrue funding for the elapsed time at the current rate — TIME-WEIGHTED:
    * rate × (Δt / fundingPeriodMs) × leg notional at the perp mark. Returns the
    * accrued delta (signed: + = the carry side received). No-op when flat.
@@ -256,6 +312,7 @@ export class FundingCarryBook {
     return Number(loss) / Number(marginPerLeg);
   }
 
+  /** The mid-based path: the FillCostModel worsens the price, the config fee applies. */
   private fillLeg(
     leg: InventoryBook,
     legName: 'spot' | 'perp',
@@ -265,11 +322,25 @@ export class FundingCarryBook {
     nowMs: number,
   ): void {
     const fillPrice = this.fillModel.fillPrice(side, this.qty, midMicros);
+    this.fillLegAt(leg, legName, side, fillPrice, midMicros, feeBps, nowMs);
+  }
+
+  /** Ledger one leg at an explicit executed price; slippage accrues SIGNED vs the mid. */
+  private fillLegAt(
+    leg: InventoryBook,
+    legName: 'spot' | 'perp',
+    side: 'BUY' | 'SELL',
+    fillPrice: bigint,
+    midMicros: bigint,
+    feeBps: number,
+    nowMs: number,
+  ): void {
     const feeUnits = round((Number(valueUnits(this.qty, midMicros)) * feeBps) / 10_000);
     const before = leg.inventoryUnits();
     const realisedBefore = leg.realisedUnits();
     leg.apply({ side, sizeUnits: this.qty, priceMicros: fillPrice, feeUnits });
-    this.slippage += slippageCostUnits(this.qty, midMicros, fillPrice);
+    const shortfallMicros = side === 'BUY' ? fillPrice - midMicros : midMicros - fillPrice;
+    this.slippage += (this.qty * shortfallMicros) / MICROS;
     this.cfg.onEvent?.(
       fillEvent({
         ts: nowMs,

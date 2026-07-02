@@ -68,6 +68,62 @@ describe('FundingCarryBook — open/close mechanics', () => {
   });
 });
 
+describe('FundingCarryBook — E2 executed-fill path (openWithExecutions/closeWithExecutions)', () => {
+  // Maker fills at the touch: spot BUY at the bid (below mid), perp SELL at the ask
+  // (above mid) — both price-IMPROVED vs mid — with the maker fee (spot +1bps) and
+  // the HL maker REBATE (−0.2bps) instead of the taker schedule.
+  const spotExec = { priceMicros: micros(2_999.7), feeBps: 1, midMicros: SPOT }; // BUY 30¢ under mid
+  const perpExec = { priceMicros: micros(2_999.1), feeBps: -0.2, midMicros: PERP }; // SELL 30¢ over mid
+
+  it('ledgers executed prices, signed fees (rebate = revenue), and NEGATIVE slippage on price improvement', () => {
+    const book = new FundingCarryBook(BASE);
+    book.openWithExecutions(0, spotExec, perpExec);
+    const snap = book.snapshot(SPOT, PERP, 0);
+    expect(snap.isOpen).toBe(true);
+    expect(Number(snap.legNotionalUnits) / 1e6).toBeCloseTo(50_000, 0);
+    // Fees: +1bps on ~$50k (spot) − 0.2bps on ~$50k (perp rebate) ≈ $5 − $1 = $4.
+    expect(Number(snap.feesUnits) / 1e6).toBeCloseTo(4, 0);
+    // Both legs beat their mids by ~$0.30 on ~16.67 units ⇒ ~−$10 signed slippage (improvement).
+    expect(Number(snap.slippageUnits) / 1e6).toBeCloseTo(-10, 0);
+    // Basis baseline anchors at the MIDS, not the executed prices.
+    expect(snap.entryBasisBps).toBeCloseTo(-4, 1);
+  });
+
+  it('round trip at executed prices realises the executed spread, and the net identity holds', () => {
+    const book = new FundingCarryBook(BASE);
+    book.openWithExecutions(0, spotExec, perpExec);
+    book.accrueFunding(HOUR_MS, 0.0001, PERP);
+    // Close both legs maker at the touch again: spot SELL above mid, perp BUY below mid.
+    book.closeWithExecutions(
+      HOUR_MS,
+      { priceMicros: micros(3_000.3), feeBps: 1, midMicros: SPOT },
+      { priceMicros: micros(2_998.5), feeBps: -0.2, midMicros: PERP },
+    );
+    const snap = book.snapshot(SPOT, PERP, HOUR_MS);
+    expect(snap.isOpen).toBe(false);
+    // Each leg earned its touch-to-touch spread: spot +60¢/unit, perp +60¢/unit on ~16.67 units ≈ +$20.
+    expect(Number(snap.realisedUnits) / 1e6).toBeCloseTo(20, 0);
+    expect(snap.netUnits).toBe(snap.realisedUnits - snap.feesUnits + snap.fundingUnits);
+    // Four price-improved fills ⇒ the signed slippage diagnostic is firmly negative.
+    expect(snap.slippageUnits).toBeLessThan(0n);
+  });
+
+  it('guards: no double-open, no close-when-flat, no zero prices/mids', () => {
+    const book = new FundingCarryBook(BASE);
+    expect(() => book.closeWithExecutions(0, spotExec, perpExec)).toThrow(/not open/);
+    book.openWithExecutions(0, spotExec, perpExec);
+    expect(() => book.openWithExecutions(1, spotExec, perpExec)).toThrow(/already open/);
+    const flat = new FundingCarryBook(BASE);
+    expect(() => flat.openWithExecutions(0, { ...spotExec, priceMicros: 0n }, perpExec)).toThrow(/> 0/);
+  });
+
+  it('taker path is unchanged: the SlippageImpactModel still reports POSITIVE slippage', () => {
+    const book = new FundingCarryBook({ ...BASE, fillModel: new SlippageImpactModel({ halfSpreadBps: 1 }) });
+    book.open(0, SPOT, PERP);
+    expect(book.snapshot(SPOT, PERP, 0).slippageUnits).toBeGreaterThan(0n);
+  });
+});
+
 describe('FundingCarryBook — funding accrual (time-weighted; the #72 60× bug regression)', () => {
   const RATE = 0.0000125; // +0.125bps/h — the #72 ETH rate
 

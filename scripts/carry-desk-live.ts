@@ -17,10 +17,18 @@
  *   npm run migration:run                # once, if MM_PERSIST
  *   MM_PERSIST=true npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
  *
+ * MAKER ENTRY (P1/E2, default ON): patient entries/exits rest post-only at the touch
+ * (Binance bookTicker / HL L2 best) and escalate to a cross only after CD_MAKER_PATIENCE_S
+ * — killing the 14bps taker round trip that was the whole breakeven story (#72). Every
+ * leg logs its TCA (maker/taker, waited, signed shortfall vs arrival mid). Urgent paths
+ * (margin liquidation, DD kill-switch) never wait.
+ *
  * Knobs: CD_SYMBOLS CD_GATE_DAYS CD_MIN_POS_FRAC CD_RECENCY_DAYS CD_NOTIONAL_USD
  *        CD_MAX_LEGS CD_POLL_MS CD_HOURS(0=indefinite) CD_SPOT_FEE_BPS CD_PERP_FEE_BPS
  *        CD_SLIPPAGE_BPS CD_IMPACT_BPS_PER_MM CD_MAX_LEVERAGE CD_MAINT_FRAC
  *        CD_REGATE_HOURS CD_DD_BUDGET_FRAC CD_ALERT_WEBHOOK MM_PERSIST DATABASE_URL_APP
+ *        CD_MAKER_ENTRY(true) CD_MAKER_PATIENCE_S(45) CD_MAKER_TICK_MS(2000)
+ *        CD_SPOT_MAKER_FEE_BPS(1 = Binance spot maker) CD_PERP_MAKER_FEE_BPS(−0.2 = HL rebate)
  */
 import { DataSource } from 'typeorm';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
@@ -29,7 +37,9 @@ import { CrossVenueFairValue } from '../src/market-data/cross-venue/cross-venue-
 import { HyperliquidFundingClient, HYPERLIQUID_PERIODS_PER_YEAR } from '../src/market-data/funding/hyperliquid-funding-client';
 import { rankCarryUniverse, OosFundingResult, OosGateConfig } from '../src/market-data/funding/funding-carry-oos';
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
-import { FundingCarryBook } from '../src/market-making/carry/funding-carry-book';
+import { FundingCarryBook, LegExecution } from '../src/market-making/carry/funding-carry-book';
+import { acquireFill, ExecutedFill, TouchSource } from '../src/market-making/execution/maker-execution';
+import { venueFeeFor } from '../src/market-making/backtest/venue-fees';
 import {
   CarryNavInsert,
   ICarryStateStore,
@@ -59,6 +69,11 @@ const MAX_LEVERAGE = Number(process.env.CD_MAX_LEVERAGE ?? 3);
 const MAINT_FRAC = Number(process.env.CD_MAINT_FRAC ?? 0.8);
 const REGATE_HOURS = Number(process.env.CD_REGATE_HOURS ?? 24);
 const DD_BUDGET_FRAC = Number(process.env.CD_DD_BUDGET_FRAC ?? 0.005); // the P0 pre-registered 0.5%
+const MAKER_ENTRY = (process.env.CD_MAKER_ENTRY ?? 'true').toLowerCase() === 'true';
+const MAKER_PATIENCE_S = Number(process.env.CD_MAKER_PATIENCE_S ?? 45);
+const MAKER_TICK_MS = Number(process.env.CD_MAKER_TICK_MS ?? 2_000);
+const SPOT_MAKER_FEE_BPS = Number(process.env.CD_SPOT_MAKER_FEE_BPS ?? venueFeeFor('binance').makerBps);
+const PERP_MAKER_FEE_BPS = Number(process.env.CD_PERP_MAKER_FEE_BPS ?? venueFeeFor('hyperliquid').makerBps);
 const PERSIST = (process.env.MM_PERSIST ?? 'false').toLowerCase() === 'true';
 const DATABASE_URL_APP =
   process.env.DATABASE_URL_APP ?? 'postgresql://meridian_markets_app:meridian_markets_app@localhost:5433/meridian_markets';
@@ -114,6 +129,51 @@ function newBook(symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP'): Funding
     fillModel,
     onEvent: (e) => console.log(`  ${new Date(e.ts).toISOString().slice(11, 19)} ${e.message}`),
   });
+}
+
+// ── E2 maker execution (P1) ──────────────────────────────────────────────────────
+const spotTouchFor = (symbol: string): TouchSource => async () => {
+  const t = await binance.bookTicker(symbol);
+  return { bidMicros: micros(t.bidPrice), askMicros: micros(t.askPrice) };
+};
+const perpTouchFor = (symbol: string): TouchSource => async () => {
+  const l2 = await hl.l2Snapshot(symbol);
+  const bid = l2.bids[0];
+  const ask = l2.asks[0];
+  if (!bid || !ask) throw new Error(`${symbol}: empty HL book side`);
+  return { bidMicros: bid.priceMicros, askMicros: ask.priceMicros };
+};
+
+const tca = (leg: string, f: ExecutedFill): string =>
+  `${leg} ${f.liquidity}@${(Number(f.priceMicros) / 1e6).toFixed(4)} ` +
+  `(${f.shortfallBps >= 0 ? '+' : ''}${f.shortfallBps.toFixed(2)}bps vs mid, fee ${f.feeBps}bps, waited ${(f.waitedMs / 1000).toFixed(0)}s)`;
+
+/**
+ * Open/close a pair through the maker-execution service (rest post-only, escalate on
+ * timeout). Returns false when disabled or the touch cannot be fetched — the caller
+ * falls back to the legacy mid-based taker path, so an outage degrades, never blocks.
+ */
+async function executePair(book: FundingCarryBook, symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP', action: 'open' | 'close'): Promise<boolean> {
+  if (!MAKER_ENTRY) return false;
+  const opening = action === 'open';
+  const spotSide = (direction === 'SHORT_PERP') === opening ? 'BUY' : 'SELL';
+  const perpSide = spotSide === 'BUY' ? 'SELL' : 'BUY';
+  try {
+    const patienceMs = MAKER_PATIENCE_S * 1000;
+    const [spotFill, perpFill] = await Promise.all([
+      acquireFill(spotSide, spotTouchFor(symbol), { patienceMs, tickMs: MAKER_TICK_MS, makerFeeBps: SPOT_MAKER_FEE_BPS, takerFeeBps: SPOT_FEE_BPS }),
+      acquireFill(perpSide, perpTouchFor(symbol), { patienceMs, tickMs: MAKER_TICK_MS, makerFeeBps: PERP_MAKER_FEE_BPS, takerFeeBps: PERP_FEE_BPS }),
+    ]);
+    const spotExec: LegExecution = { priceMicros: spotFill.priceMicros, feeBps: spotFill.feeBps, midMicros: spotFill.arrivalMidMicros };
+    const perpExec: LegExecution = { priceMicros: perpFill.priceMicros, feeBps: perpFill.feeBps, midMicros: perpFill.arrivalMidMicros };
+    if (opening) book.openWithExecutions(Date.now(), spotExec, perpExec);
+    else book.closeWithExecutions(Date.now(), spotExec, perpExec);
+    console.log(`  ${symbol}: ${action} TCA — ${tca('spot', spotFill)} | ${tca('perp', perpFill)}`);
+    return true;
+  } catch (e) {
+    console.log(`  ${symbol}: maker-execution ${action} unavailable (${(e as Error).message}) — falling back to taker at mid`);
+    return false;
+  }
 }
 
 // ── Gate ─────────────────────────────────────────────────────────────────────────
@@ -200,6 +260,11 @@ async function main(): Promise<void> {
     `margin ${MAX_LEVERAGE}×/maint ${MAINT_FRAC} | DD kill ${(DD_BUDGET_FRAC * 100).toFixed(2)}% | ` +
     `re-gate every ${REGATE_HOURS}h | persist ${PERSIST}`,
   );
+  console.log(
+    `  execution: ${MAKER_ENTRY
+      ? `MAKER-FIRST (E2) — rest ≤${MAKER_PATIENCE_S}s at the touch (maker spot ${SPOT_MAKER_FEE_BPS} / perp ${PERP_MAKER_FEE_BPS}bps), escalate to taker on timeout; urgent closes never wait`
+      : 'taker-at-mid (CD_MAKER_ENTRY=false)'}`,
+  );
   console.log(`  PRE-REGISTERED (P0): rolling-7d (funding − fees + realised) > 0 AND desk maxDD < ${(DD_BUDGET_FRAC * 100).toFixed(1)}%.\n`);
 
   console.log(`Gate (${GATE_DAYS}d + recency veto)...`);
@@ -219,7 +284,9 @@ async function main(): Promise<void> {
       const snap = await fv.getBasis(rec.symbol);
       const b = newBook(rec.symbol, rec.direction);
       b.restoreState(rec.state);
-      if (b.isOpen()) b.close(Date.now(), micros(snap.binanceMid), micros(snap.hlMid));
+      if (b.isOpen() && !(await executePair(b, rec.symbol, rec.direction, 'close'))) {
+        b.close(Date.now(), micros(snap.binanceMid), micros(snap.hlMid));
+      }
       const s = b.snapshot(micros(snap.binanceMid), micros(snap.hlMid));
       console.log(`  ${rec.symbol}: ORPHANED (fails today's gate) — closed at market, realised-first ${usd(s.realisedFirstUnits)}`);
       await store.saveBook({ ...rec, state: b.serializeState() });
@@ -245,7 +312,7 @@ async function main(): Promise<void> {
         lb.entryMs = resumed.entryMs;
         await accrueOfflineGap(lb, perpMid);
       } else {
-        lb.book.open(Date.now(), spotMid, perpMid);
+        if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), spotMid, perpMid);
         lb.entryMs = Date.now();
         console.log(
           `  ${r.symbol}: OPEN ${r.direction === 'SHORT_PERP' ? 'long spot / SHORT perp' : 'short spot / LONG perp'} ` +
@@ -379,7 +446,9 @@ async function main(): Promise<void> {
           const g = stillGated.get(lb.symbol);
           if (!g || g.direction !== lb.gate.direction) {
             const s = lb.book.snapshot(lb.lastSpotMid, lb.lastPerpMid, Date.now());
-            if (lb.book.isOpen()) lb.book.close(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
+            if (lb.book.isOpen() && !(await executePair(lb.book, lb.symbol, lb.gate.direction, 'close'))) {
+              lb.book.close(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
+            }
             console.log(`  ${lb.symbol}: DE-VALIDATED at re-gate — closed (was realised-first ${usd(s.realisedFirstUnits)})`);
             await checkpoint(store, lb);
             await store.closeBook(lb.symbol);
@@ -394,7 +463,7 @@ async function main(): Promise<void> {
               symbol: r.symbol, gate: r, book: newBook(r.symbol, r.direction),
               entryMs: Date.now(), lastRatePerHour: 0, lastSpotMid: micros(snap.binanceMid), lastPerpMid: micros(snap.hlMid), stale: false,
             };
-            lb.book.open(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
+            if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
             books.set(r.symbol, lb);
             await checkpoint(store, lb);
             console.log(`  ${r.symbol}: NEWLY GATED — opened ${r.direction} (recent7d ${pct(r.recent.annualizedFundingPct)})`);
