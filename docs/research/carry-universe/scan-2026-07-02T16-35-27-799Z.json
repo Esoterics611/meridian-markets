@@ -1,0 +1,1174 @@
+{
+  "config": {
+    "days": 90,
+    "minPosFrac": 0.65,
+    "recencyDays": 7,
+    "minVolUsd": 5000000,
+    "spotFeeBps": 4.5,
+    "perpFeeBps": 2.5,
+    "universeSize": 231,
+    "scored": 25,
+    "gatePass": 6,
+    "deployable": 2,
+    "failures": [
+      "ARB: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "OP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "INJ: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SUI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kPEPE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CRV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LDO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LINK: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CFX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RNDR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "DOGE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SNX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FTM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "XRP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "APT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AAVE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "COMP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BCH: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "WLD: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MKR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FXS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "HPOS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RLB: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "YGG: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TRX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "UNI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "UNIBOT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RUNE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "OX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FRIEND: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SHIA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kSHIB: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CYBER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BLZ: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZRO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BANANA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SEI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "DOT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FTT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LOOM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TRB: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "OGN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RDNT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ARK: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BNT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CANTO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "REQ: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BIGTIME: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "KAS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ORBS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TIA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BSV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ADA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BLUR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TON: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MINA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "POLYX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GAS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PENDLE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STG: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FET: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STRAX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NEAR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MEME: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BADGER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ORDI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZEN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FIL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NEO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PYTH: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SUSHI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ILV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "IMX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kBONK: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GMT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "USTC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SUPER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NFTI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "JUP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kLUNC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RSR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GALA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "JTO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NTRN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ACE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MAV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "WIF: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PEOPLE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CAKE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ENS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ETC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "XAI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MANTA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "UMA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ONDO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ALT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZETA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "DYM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MAVIA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "W: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PANDORA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STRK: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PIXEL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TAO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MYRO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kFLOKI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BOME: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ETHFI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ENA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MNT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TNSR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SAGA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MERL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "HBAR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "EIGEN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "POPCAT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "OMNI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "REZ: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NOT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TURBO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BRETT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "IO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZK: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BLAST: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LISTA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MEW: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RENDER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kDOGS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "POL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CATI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CELO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "HMSTR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SCR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NEIROETH: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "kNEIRO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GOAT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MOODENG: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GRASS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PURR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PNUT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "XLM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CHILLGUY: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SPX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "S: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MORPHO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MELANIA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ANIME: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GRIFFAIN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "VINE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TRUMP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "VVV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BERA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LAYER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "TST: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "IP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "JELLY: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "OM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "KAITO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NIL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PAXG: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "BABY: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "WCT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "HYPER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "INIT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PROMPT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "DOOD: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LAUNCHCOIN: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZORA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "NXPC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SYRUP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "RESOLV: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PUMP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SOPH: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "PROVE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "XPL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "WLFI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LINEA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ASTER: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "YZY: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AVNT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STBL: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SKY: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "HEMI: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "APEX: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "2Z: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MON: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "0G: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MET: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "MEGA: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ICP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AERO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "STABLE: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "ZEC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "XMR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AXS: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "LIT: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "FOGO: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "DASH: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "SKR: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "AZTEC: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "CHIP: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429",
+      "GRAM: Hyperliquid info POST https://api.hyperliquid.xyz/info -> HTTP 429"
+    ]
+  },
+  "rows": [
+    {
+      "symbol": "FARTCOIN",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9868055555555556,
+        "annualizedFundingPct": 14.579085621666344,
+        "annualizedNetPct": 13.727418960296072
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9541666666666667,
+        "annualizedFundingPct": 11.182764028333429,
+        "annualizedNetPct": 9.47943047556874
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 13.446978423888343,
+        "annualizedNetPct": 12.879200599735391,
+        "breakevenDays": 3.800110209831353
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000019907691071428548,
+        "annualizedFundingPct": 17.43913737857141,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 19616994.69866698,
+      "liquid": true,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "DYDX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9625,
+        "annualizedFundingPct": 10.790612895000107,
+        "annualizedNetPct": 9.938946232167803
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9833333333333333,
+        "annualizedFundingPct": 12.692319835000124,
+        "annualizedNetPct": 10.988986247291987
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.424515208333041,
+        "annualizedNetPct": 10.856737391462365,
+        "breakevenDays": 4.47283749622283
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001886770833333331,
+        "annualizedFundingPct": 16.52811249999998,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 18283438.784340993,
+      "liquid": true,
+      "binanceSpotMarket": "DYDXUSDT",
+      "spotScaled": false,
+      "deployable": true
+    },
+    {
+      "symbol": "HYPE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8208333333333333,
+        "annualizedFundingPct": 6.752162496666779,
+        "annualizedNetPct": 5.900495832276427
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9555555555555556,
+        "annualizedFundingPct": 12.912916223333509,
+        "annualizedNetPct": 11.20958263051892
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.805747072222108,
+        "annualizedNetPct": 8.237969264780972,
+        "breakevenDays": 5.803028361011628
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011906774999999972,
+        "annualizedFundingPct": 10.430334899999975,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 506570585.8438697,
+      "liquid": true,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "GMX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8916666666666667,
+        "annualizedFundingPct": 7.632523090833472,
+        "annualizedNetPct": 6.780856426782739
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9319444444444445,
+        "annualizedFundingPct": 9.061439751666782,
+        "annualizedNetPct": 7.3581062480068
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.108828644444364,
+        "annualizedNetPct": 7.5410508395126765,
+        "breakevenDays": 6.301773319012032
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012442738690476155,
+        "annualizedFundingPct": 10.899839092857112,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 261194.7828859999,
+      "liquid": false,
+      "binanceSpotMarket": "GMXUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "LTC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8576388888888888,
+        "annualizedFundingPct": 7.365779083333453,
+        "annualizedNetPct": 6.514112419179828
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9055555555555556,
+        "annualizedFundingPct": 7.710253430000064,
+        "annualizedNetPct": 6.006919957617594
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.480603865555543,
+        "annualizedNetPct": 6.912826062885914,
+        "breakevenDays": 6.830999330854834
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008765632142857132,
+        "annualizedFundingPct": 7.678693757142847,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 4089950.4662300013,
+      "liquid": false,
+      "binanceSpotMarket": "LTCUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "BNB",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8868055555555555,
+        "annualizedFundingPct": 8.02441610833349,
+        "annualizedNetPct": 7.172749444433932
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7458333333333333,
+        "annualizedFundingPct": 4.2889236183333095,
+        "annualizedNetPct": 2.585590225148374
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.779251945000089,
+        "annualizedNetPct": 6.211474144855803,
+        "breakevenDays": 7.537704810880772
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000005714840476190483,
+        "annualizedFundingPct": 5.006200257142863,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 7031628.257049998,
+      "liquid": true,
+      "binanceSpotMarket": "BNBUSDT",
+      "spotScaled": false,
+      "deployable": true
+    },
+    {
+      "symbol": "ZEREBRO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5243055555555556,
+        "annualizedFundingPct": 116.81468109083322,
+        "annualizedNetPct": 115.96301446890548
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -1.703333293904322
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 77.87645406055549,
+        "annualizedNetPct": 77.30867600440291,
+        "breakevenDays": 0.6561675235015896
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0,
+        "annualizedFundingPct": 0,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 0,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "MOVE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.53125,
+        "annualizedFundingPct": 28.9385187450004,
+        "annualizedNetPct": -29.790185423159798
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6722222222222223,
+        "annualizedFundingPct": 64.59634220000058,
+        "annualizedNetPct": -66.29967399861864
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 40.82445989666718,
+        "annualizedNetPct": -41.39223752539832,
+        "breakevenDays": 1.251700576794935
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011195285714285685,
+        "annualizedFundingPct": -9.80707028571426,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 154917.840266,
+      "liquid": false,
+      "binanceSpotMarket": "MOVEUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "ME",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.78125,
+        "annualizedFundingPct": 14.02396630749983,
+        "annualizedNetPct": -14.875632979905726
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.2625,
+        "annualizedFundingPct": 70.31384357666681,
+        "annualizedNetPct": -72.01717524293578
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 32.78725873055549,
+        "annualizedNetPct": -33.355036388227745,
+        "breakevenDays": 1.5585322463197657
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00016084916071428567,
+        "annualizedFundingPct": 140.90386478571426,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1116164.0046150004,
+      "liquid": false,
+      "binanceSpotMarket": "MEUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "BIO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6666666666666666,
+        "annualizedFundingPct": 25.8065941483338,
+        "annualizedNetPct": -26.65826082528483
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6972222222222222,
+        "annualizedFundingPct": 5.220128408333321,
+        "annualizedNetPct": -6.9234615814013525
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 18.94443890166719,
+        "annualizedNetPct": -19.512216609184403,
+        "breakevenDays": 2.697361493008008
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -7.245833333334394e-8,
+        "annualizedFundingPct": 0.06347350000000929,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1257321.124487999,
+      "liquid": false,
+      "binanceSpotMarket": "BIOUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "APE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6472222222222223,
+        "annualizedFundingPct": 14.792223052500436,
+        "annualizedNetPct": -15.643889725202117
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7944444444444444,
+        "annualizedFundingPct": -4.8374103349999675,
+        "annualizedNetPct": 3.13407692911859
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.249011923333896,
+        "annualizedNetPct": -8.816789669363411,
+        "breakevenDays": 6.1946813115221655
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000048587946428571506,
+        "annualizedFundingPct": -4.256304107142864,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 443631.183147,
+      "liquid": false,
+      "binanceSpotMarket": "APEUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "ALGO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9416666666666667,
+        "annualizedFundingPct": 9.306993988333517,
+        "annualizedNetPct": 8.455327324928753
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7319444444444444,
+        "annualizedFundingPct": 2.283194841666643,
+        "annualizedNetPct": 0.5798614949106137
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.965727606111038,
+        "annualizedNetPct": 6.397949805295449,
+        "breakevenDays": 7.335917062730092
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000004208660714285708,
+        "annualizedFundingPct": -3.68678678571428,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 606160.6814639998,
+      "liquid": false,
+      "binanceSpotMarket": "ALGOUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "AIXBT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7673611111111112,
+        "annualizedFundingPct": -2.419034762500027,
+        "annualizedNetPct": 1.5673680964380279
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.33194444444444443,
+        "annualizedFundingPct": 24.183022075000046,
+        "annualizedNetPct": -25.886354809112156
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.448317516666662,
+        "annualizedNetPct": -7.016095269180727,
+        "breakevenDays": 7.9245477394567265
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000024126455952380844,
+        "annualizedFundingPct": 21.13477541428562,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 297581.5477410001,
+      "liquid": false,
+      "binanceSpotMarket": "AIXBTUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "AVAX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.94375,
+        "annualizedFundingPct": 9.427851754166843,
+        "annualizedNetPct": 8.576185090808714
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.41944444444444445,
+        "annualizedFundingPct": -5.299985054999981,
+        "annualizedNetPct": -7.003318226219485
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 4.5185728177778754,
+        "annualizedNetPct": 3.950795025773886,
+        "breakevenDays": 11.308880494069307
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000025539880952380943,
+        "annualizedFundingPct": 2.237293571428571,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 5374973.571460999,
+      "liquid": true,
+      "binanceSpotMarket": "AVAXUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "ETH",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7513888888888889,
+        "annualizedFundingPct": 4.161748189166705,
+        "annualizedNetPct": 3.3100815237770385
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6888888888888889,
+        "annualizedFundingPct": 3.2196982149999784,
+        "annualizedNetPct": 1.5163648465656285
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.8477315311111724,
+        "annualizedNetPct": 3.2799537415228,
+        "breakevenDays": 13.28055234280938
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000023100684523809527,
+        "annualizedFundingPct": -2.0236199642857144,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1065770841.7675221,
+      "liquid": true,
+      "binanceSpotMarket": "ETHUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "BTC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6416666666666667,
+        "annualizedFundingPct": 1.767469794999991,
+        "annualizedNetPct": 0.9158031286866526
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8333333333333334,
+        "annualizedFundingPct": 5.738493135000007,
+        "annualizedNetPct": 4.035159708260191
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.0911442416666888,
+        "annualizedNetPct": 2.523366454802693,
+        "breakevenDays": 16.531095285429906
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000004580635714285718,
+        "annualizedFundingPct": 4.012636885714289,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 3286947456.7522864,
+      "liquid": true,
+      "binanceSpotMarket": "BTCUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "VIRTUAL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8465277777777778,
+        "annualizedFundingPct": 6.574352077500105,
+        "annualizedNetPct": 5.72268541304116
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.575,
+        "annualizedFundingPct": -5.552547413333218,
+        "annualizedNetPct": -7.255880578706468
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.5320522472223406,
+        "annualizedNetPct": 1.9642744623714397,
+        "breakevenDays": 20.181258130062936
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000004046505357142858,
+        "annualizedFundingPct": 3.544738692857144,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1192798.6998060003,
+      "liquid": false,
+      "binanceSpotMarket": "VIRTUALUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "PENGU",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7361111111111112,
+        "annualizedFundingPct": 3.4445630350000673,
+        "annualizedNetPct": 2.5928963693336793
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6333333333333333,
+        "annualizedFundingPct": 0.6692406400000019,
+        "annualizedNetPct": -1.034092669396003
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.519455570000095,
+        "annualizedNetPct": 1.951677785194576,
+        "breakevenDays": 20.282159609585047
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00000535896428571429,
+        "annualizedFundingPct": 4.694452714285718,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 3403659.3996920004,
+      "liquid": false,
+      "binanceSpotMarket": "PENGUUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "ATOM",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6930555555555555,
+        "annualizedFundingPct": -1.3573594450000304,
+        "annualizedNetPct": 0.5056927785284309
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5097222222222222,
+        "annualizedFundingPct": 8.576990824999967,
+        "annualizedNetPct": -10.280323920362871
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.9540906449999715,
+        "annualizedNetPct": -2.521868413696976,
+        "breakevenDays": 26.150271038220307
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000013799761904761923,
+        "annualizedFundingPct": 1.2088591428571445,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 306343.817839,
+      "liquid": false,
+      "binanceSpotMarket": "ATOMUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "IOTA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8868055555555555,
+        "annualizedFundingPct": 6.531713690000104,
+        "annualizedNetPct": 5.68004702552471
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5708333333333333,
+        "annualizedFundingPct": -9.79513306500001,
+        "annualizedNetPct": -11.498466132165138
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.0894314383334573,
+        "annualizedNetPct": 0.521653658677173,
+        "breakevenDays": 46.90520045774475
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000036010345238095235,
+        "annualizedFundingPct": -31.545062428571423,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 207716.328694,
+      "liquid": false,
+      "binanceSpotMarket": "IOTAUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "USUAL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8493055555555555,
+        "annualizedFundingPct": 4.485372154166709,
+        "annualizedNetPct": 3.6337054889018927
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7194444444444444,
+        "annualizedFundingPct": -6.494607789999979,
+        "annualizedNetPct": -8.197940933566182
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.8253788394445355,
+        "annualizedNetPct": 0.2576010607390908,
+        "breakevenDays": 61.91096446619512
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000020506432738095174,
+        "annualizedFundingPct": -17.96363507857137,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 99573.168571,
+      "liquid": false,
+      "binanceSpotMarket": "USUALUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "SAND",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6048611111111111,
+        "annualizedFundingPct": 2.900785061666621,
+        "annualizedNetPct": -3.752451729781039
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7666666666666667,
+        "annualizedFundingPct": -3.593306739999986,
+        "annualizedNetPct": 1.8899733629172835
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.7360877944443774,
+        "annualizedNetPct": -1.3038655675272328,
+        "breakevenDays": 69.42106686957351
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010231186904761883,
+        "annualizedFundingPct": -8.96251972857141,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 122810.34892,
+      "liquid": false,
+      "binanceSpotMarket": "SANDUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "SOL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6069444444444444,
+        "annualizedFundingPct": 1.742049126666654,
+        "annualizedNetPct": 0.8903824603435118
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5375,
+        "annualizedFundingPct": -1.9658693166666903,
+        "annualizedNetPct": -3.669202565064756
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.5060763122222123,
+        "annualizedNetPct": -0.0617014653333795,
+        "breakevenDays": 100.97291409593298
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007431567261904759,
+        "annualizedFundingPct": 6.510052921428569,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 502673350.74230987,
+      "liquid": true,
+      "binanceSpotMarket": "SOLUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "MATIC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -0.8516666669952417
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -1.703333293904322
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -0.5677777757333103,
+        "breakevenDays": null
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0,
+        "annualizedFundingPct": 0,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 0,
+      "liquid": false,
+      "binanceSpotMarket": "MATICUSDT",
+      "spotScaled": false,
+      "deployable": false
+    },
+    {
+      "symbol": "AI16Z",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -0.8516666669952417
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -1.703333293904322
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0,
+        "annualizedNetPct": -0.5677777757333103,
+        "breakevenDays": null
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0,
+        "annualizedFundingPct": 0,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 0,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "deployable": false
+    }
+  ]
+}

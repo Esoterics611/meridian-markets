@@ -1,0 +1,6007 @@
+{
+  "config": {
+    "days": 90,
+    "sieveDays": 14,
+    "sieveMinPct": 3.5,
+    "minPosFrac": 0.65,
+    "recencyDays": 7,
+    "minVolUsd": 5000000,
+    "spotFeeBps": 4.5,
+    "perpFeeBps": 2.5,
+    "universeSize": 231,
+    "stageAScored": 231,
+    "gated": 142,
+    "gatePass": 68,
+    "deployable": 13,
+    "failures": [
+      "SUI: fetch failed"
+    ]
+  },
+  "rows": [
+    {
+      "symbol": "GRAM",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 4,
+        "windowDays": 0.1666669097222222,
+        "posFrac": 1,
+        "annualizedFundingPct": 51.70498020000001,
+        "annualizedNetPct": -254.89464807863823
+      },
+      "oos": {
+        "periods": 3,
+        "windowDays": 0.12500049768518517,
+        "posFrac": 1,
+        "annualizedFundingPct": 183.90603840000003,
+        "annualizedNetPct": -224.89306619242166
+      },
+      "full": {
+        "periods": 7,
+        "windowDays": 0.29166738425925925,
+        "annualizedFundingPct": 108.36257657142858,
+        "annualizedNetPct": -66.83725898769615,
+        "breakevenDays": 0.4715650145723213
+      },
+      "recent": {
+        "periods": 7,
+        "windowDays": 0.29166738425925925,
+        "meanRatePerPeriod": 0.00012370157142857144,
+        "annualizedFundingPct": 108.36257657142858,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 7165670.976499998,
+      "liquid": true,
+      "binanceSpotMarket": "GRAMUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 108.36257657142858,
+      "deployable": true
+    },
+    {
+      "symbol": "STABLE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.28055555555555556,
+        "annualizedFundingPct": 85.39187738500026,
+        "annualizedNetPct": -86.24354408493964
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.2375,
+        "annualizedFundingPct": 108.20773027500015,
+        "annualizedNetPct": -109.9110610640958
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 92.997161681667,
+        "annualizedNetPct": -93.56493912253366,
+        "breakevenDays": 0.5494791354484274
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00009353950119047617,
+        "annualizedFundingPct": 81.94060304285712,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 538136.558384,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 71.17830637857139,
+      "deployable": false
+    },
+    {
+      "symbol": "STBL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9972222222222222,
+        "annualizedFundingPct": 60.92940601749941,
+        "annualizedNetPct": 60.07773937401147
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": 22.05692700499987,
+        "annualizedNetPct": 20.353593200518674
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 47.9719130133326,
+        "annualizedNetPct": 47.40413506486165,
+        "breakevenDays": 1.0652066342611357
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00003228408809523835,
+        "annualizedFundingPct": 28.280861171428796,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 310468.840952,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 28.883225103571686,
+      "deployable": false
+    },
+    {
+      "symbol": "TRUMP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.30416666666666664,
+        "annualizedFundingPct": 37.22612947916694,
+        "annualizedNetPct": -38.07779616052384
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.09027777777777778,
+        "annualizedFundingPct": 54.78830674999995,
+        "annualizedNetPct": -56.49163877565652
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 43.08018856944468,
+        "annualizedNetPct": -43.647966190053616,
+        "breakevenDays": 1.1861600818582188
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00006404675892857143,
+        "annualizedFundingPct": 56.10496082142858,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2815463.59193,
+      "liquid": false,
+      "binanceSpotMarket": "TRUMPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 52.538093482142855,
+      "deployable": false
+    },
+    {
+      "symbol": "VINE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9944444444444445,
+        "annualizedFundingPct": 47.393748633332734,
+        "annualizedNetPct": 46.54208198462272
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9902777777777778,
+        "annualizedFundingPct": 15.846260623333489,
+        "annualizedNetPct": 14.14292696261743
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 36.8779192966659,
+        "annualizedNetPct": 36.3101413881425,
+        "breakevenDays": 1.385653013363471
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000020381327380952358,
+        "annualizedFundingPct": 17.854042785714267,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 231572.6144590001,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 18.63907122857152,
+      "deployable": false
+    },
+    {
+      "symbol": "XMR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9833333333333333,
+        "annualizedFundingPct": 34.359706855832925,
+        "annualizedNetPct": 33.50804020209415
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9763888888888889,
+        "annualizedFundingPct": 29.42809300166634,
+        "annualizedNetPct": 27.724759026556505
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 32.715835571110574,
+        "annualizedNetPct": 32.14805767757387,
+        "breakevenDays": 1.5619347361289284
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000014478451785714246,
+        "annualizedFundingPct": 12.68312376428568,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2602273.9885899993,
+      "liquid": false,
+      "binanceSpotMarket": "XMRUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 24.47305837500022,
+      "deployable": false
+    },
+    {
+      "symbol": "HEMI",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9791666666666666,
+        "annualizedFundingPct": 15.587033425832553,
+        "annualizedNetPct": 14.735366764851609
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9930555555555556,
+        "annualizedFundingPct": 56.95907392666605,
+        "annualizedNetPct": 55.255739314265284
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 29.377713592776978,
+        "annualizedNetPct": 28.809935711260522,
+        "breakevenDays": 1.7394137851682177
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000014806323809523786,
+        "annualizedFundingPct": 12.970339657142837,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2019254.2974270002,
+      "liquid": false,
+      "binanceSpotMarket": "HEMIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.498777239285705,
+      "deployable": false
+    },
+    {
+      "symbol": "PURR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9534722222222223,
+        "annualizedFundingPct": 21.14064955916664,
+        "annualizedNetPct": 20.28898290032754
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9916666666666667,
+        "annualizedFundingPct": 21.107207346666687,
+        "annualizedNetPct": 19.403873564169594
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 21.12950215499964,
+        "annualizedNetPct": 20.56172430318309,
+        "breakevenDays": 2.4184194982515845
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001710936369047615,
+        "annualizedFundingPct": 14.987802592857108,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 279054.797394,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 15.286530325000067,
+      "deployable": false
+    },
+    {
+      "symbol": "GRIFFAIN",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9229166666666667,
+        "annualizedFundingPct": 21.842902563332448,
+        "annualizedNetPct": 20.991235904765137
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": 11.97974858500015,
+        "annualizedNetPct": 10.27641501378669
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 18.55518457055457,
+        "annualizedNetPct": 17.98740672800831,
+        "breakevenDays": 2.7539472757975774
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000017435914880952336,
+        "annualizedFundingPct": 15.273861435714247,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 456262.7182450003,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 13.156604110714337,
+      "deployable": false
+    },
+    {
+      "symbol": "ZRO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9715277777777778,
+        "annualizedFundingPct": 14.939430472499765,
+        "annualizedNetPct": 14.087763811268427
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9652777777777778,
+        "annualizedFundingPct": 17.498729868333537,
+        "annualizedNetPct": 15.795396169365826
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 15.792530271110655,
+        "annualizedNetPct": 15.22475243851169,
+        "breakevenDays": 3.235706952765983
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000013931904166666657,
+        "annualizedFundingPct": 12.204348049999991,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 3779846.680192001,
+      "liquid": false,
+      "binanceSpotMarket": "ZROUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.107777767857103,
+      "deployable": false
+    },
+    {
+      "symbol": "APEX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 1,
+        "annualizedFundingPct": 14.094585108333133,
+        "annualizedNetPct": 13.242918446775818
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": 14.548764585000134,
+        "annualizedNetPct": 12.84543095431873
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 14.245978267221734,
+        "annualizedNetPct": 13.678200440191665,
+        "breakevenDays": 3.5869772536137368
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001811391845238092,
+        "annualizedFundingPct": 15.867792564285685,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 114533.38694,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 13.912106139285726,
+      "deployable": false
+    },
+    {
+      "symbol": "FARTCOIN",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9868055555555556,
+        "annualizedFundingPct": 14.579085621666344,
+        "annualizedNetPct": 13.727418960296072
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9541666666666667,
+        "annualizedFundingPct": 11.182764028333429,
+        "annualizedNetPct": 9.47943047556874
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 13.446978423888343,
+        "annualizedNetPct": 12.879200599735391,
+        "breakevenDays": 3.800110209831353
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000019907691071428548,
+        "annualizedFundingPct": 17.43913737857141,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 19588494.917342987,
+      "liquid": true,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 14.192701975000013,
+      "deployable": false
+    },
+    {
+      "symbol": "GRASS",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9993055555555556,
+        "annualizedFundingPct": 11.30294642250005,
+        "annualizedNetPct": 10.45127975986546
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9986111111111111,
+        "annualizedFundingPct": 16.547428908333444,
+        "annualizedNetPct": 14.844095231386683
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 13.051107251110828,
+        "annualizedNetPct": 12.483329428383074,
+        "breakevenDays": 3.9153766049735506
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000262252226190476,
+        "annualizedFundingPct": 22.973295014285696,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2652491.856394999,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 19.85168074642864,
+      "deployable": false
+    },
+    {
+      "symbol": "MNT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 1,
+        "annualizedFundingPct": 15.898260165832992,
+        "annualizedNetPct": 15.04659350497168
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8611111111111112,
+        "annualizedFundingPct": 5.613301541666657,
+        "annualizedNetPct": 3.9099681178248122
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.469940624443906,
+        "annualizedNetPct": 11.902162803809086,
+        "breakevenDays": 4.097854315347135
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000005365372023809529,
+        "annualizedFundingPct": 4.700065892857148,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 520304.449747,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.184274632142838,
+      "deployable": false
+    },
+    {
+      "symbol": "GOAT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9944444444444445,
+        "annualizedFundingPct": 13.647310032499663,
+        "annualizedNetPct": 12.795643370769927
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9708333333333333,
+        "annualizedFundingPct": 9.574425595000111,
+        "annualizedNetPct": 7.871092079465461
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.289681886666063,
+        "annualizedNetPct": 11.721904066680386,
+        "breakevenDays": 4.157959536401179
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012870899404761864,
+        "annualizedFundingPct": 11.274907878571392,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 308155.1090480001,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.112453939285702,
+      "deployable": false
+    },
+    {
+      "symbol": "NEAR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9395833333333333,
+        "annualizedFundingPct": 13.194996131666523,
+        "annualizedNetPct": 12.343329469762088
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9541666666666667,
+        "annualizedFundingPct": 10.350376661666804,
+        "annualizedNetPct": 8.647043128170298
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.24678964166623,
+        "annualizedNetPct": 11.679011821834834,
+        "breakevenDays": 4.172522064570027
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012531406547619013,
+        "annualizedFundingPct": 10.977512135714255,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 24808991.77862999,
+      "liquid": true,
+      "binanceSpotMarket": "NEARUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.117797392857101,
+      "deployable": true
+    },
+    {
+      "symbol": "LIT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9097222222222222,
+        "annualizedFundingPct": 9.499603880000201,
+        "annualizedNetPct": 8.64793721666973
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9819444444444444,
+        "annualizedFundingPct": 17.33964194166675,
+        "annualizedNetPct": 15.636308246381752
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.112949900555382,
+        "annualizedNetPct": 11.545172081205656,
+        "breakevenDays": 4.2186255552544685
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00003806418095238105,
+        "annualizedFundingPct": 33.344222514285796,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 124153361.09569992,
+      "liquid": true,
+      "binanceSpotMarket": "LITUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 23.949567032142898,
+      "deployable": true
+    },
+    {
+      "symbol": "SYRUP",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9923611111111111,
+        "annualizedFundingPct": 12.130628574166627,
+        "annualizedNetPct": 11.278961911851452
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9944444444444445,
+        "annualizedFundingPct": 11.510880656666812,
+        "annualizedNetPct": 9.807547096306783
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.924045934999594,
+        "annualizedNetPct": 11.35626811633031,
+        "breakevenDays": 4.2854581639953855
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000015728802380952343,
+        "annualizedFundingPct": 13.778430885714252,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 1326432.9704999994,
+      "liquid": false,
+      "binanceSpotMarket": "SYRUPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 12.364215442857127,
+      "deployable": false
+    },
+    {
+      "symbol": "CC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9673611111111111,
+        "annualizedFundingPct": 12.3301733441666,
+        "annualizedNetPct": 11.478506681928438
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.975,
+        "annualizedFundingPct": 10.731970535000153,
+        "annualizedNetPct": 9.028636992670439
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.79743907444402,
+        "annualizedNetPct": 11.229661256230642,
+        "breakevenDays": 4.331448518407221
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012379768452380919,
+        "annualizedFundingPct": 10.844677164285685,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 895127.95012,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.575087382142822,
+      "deployable": false
+    },
+    {
+      "symbol": "CFX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9986111111111111,
+        "annualizedFundingPct": 11.009123551666706,
+        "annualizedNetPct": 10.157456888918773
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": 12.707367690000163,
+        "annualizedNetPct": 11.004034101943654
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.575204931110765,
+        "annualizedNetPct": 11.007427113697537,
+        "breakevenDays": 4.4146086660339074
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000014167157142857112,
+        "annualizedFundingPct": 12.41042965714283,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 213139.818632,
+      "liquid": false,
+      "binanceSpotMarket": "CFXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.88011594285712,
+      "deployable": false
+    },
+    {
+      "symbol": "DYDX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9625,
+        "annualizedFundingPct": 10.790612895000107,
+        "annualizedNetPct": 9.938946232167803
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9833333333333333,
+        "annualizedFundingPct": 12.692319835000124,
+        "annualizedNetPct": 10.988986247291987
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.424515208333041,
+        "annualizedNetPct": 10.856737391462365,
+        "breakevenDays": 4.47283749622283
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001886770833333331,
+        "annualizedFundingPct": 16.52811249999998,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 18123241.05289899,
+      "liquid": true,
+      "binanceSpotMarket": "DYDXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 14.683542503571461,
+      "deployable": true
+    },
+    {
+      "symbol": "AZTEC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9125,
+        "annualizedFundingPct": 12.148551777499872,
+        "annualizedNetPct": 11.2968851151917
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9541666666666667,
+        "annualizedFundingPct": 9.749768553333457,
+        "annualizedNetPct": 8.046435033739929
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.348957369443987,
+        "annualizedNetPct": 10.781179552845547,
+        "breakevenDays": 4.502616261259559
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": 10.949999999999969,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 69518.55312,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.305822449999958,
+      "deployable": false
+    },
+    {
+      "symbol": "ENS",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9993055555555556,
+        "annualizedFundingPct": 11.042649410000037,
+        "annualizedNetPct": 10.190982747265041
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": 10.862740666666816,
+        "annualizedNetPct": 9.15940712131002
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 10.982679828888518,
+        "annualizedNetPct": 10.414902013608893,
+        "breakevenDays": 4.652780632427076
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012476395833333298,
+        "annualizedFundingPct": 10.929322749999969,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 158520.369494,
+      "liquid": false,
+      "binanceSpotMarket": "ENSUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.78135148928569,
+      "deployable": false
+    },
+    {
+      "symbol": "LINEA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9972222222222222,
+        "annualizedFundingPct": 11.003675987500023,
+        "annualizedNetPct": 10.152009324750004
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9805555555555555,
+        "annualizedFundingPct": 10.179850486666805,
+        "annualizedNetPct": 8.476516957117664
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 10.729067487221856,
+        "annualizedNetPct": 10.161289672855437,
+        "breakevenDays": 4.762762473146828
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011875994642857112,
+        "annualizedFundingPct": 10.40337130714283,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 363401.7869630001,
+      "liquid": false,
+      "binanceSpotMarket": "LINEAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.676685653571399,
+      "deployable": false
+    },
+    {
+      "symbol": "AR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9701388888888889,
+        "annualizedFundingPct": 10.056687989166806,
+        "annualizedNetPct": 9.205021326051321
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9833333333333333,
+        "annualizedFundingPct": 11.088742826666811,
+        "annualizedNetPct": 9.385409276078489
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 10.400706268333044,
+        "annualizedNetPct": 9.832928455148918,
+        "breakevenDays": 4.913127885899807
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000015016366071428541,
+        "annualizedFundingPct": 13.154336678571402,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 424025.7078560001,
+      "liquid": false,
+      "binanceSpotMarket": "ARUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 12.042143614285699,
+      "deployable": false
+    },
+    {
+      "symbol": "TRB",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9673611111111111,
+        "annualizedFundingPct": 10.040272418333467,
+        "annualizedNetPct": 9.188605755211656
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9888888888888889,
+        "annualizedFundingPct": 10.607813716666813,
+        "annualizedNetPct": 8.904480177211108
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 10.229452851110807,
+        "annualizedNetPct": 9.66167503854335,
+        "breakevenDays": 4.99537959104539
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010921199404761879,
+        "annualizedFundingPct": 9.566970678571405,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 74578.87784,
+      "liquid": false,
+      "binanceSpotMarket": "TRBUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.216743678571389,
+      "deployable": false
+    },
+    {
+      "symbol": "ASTER",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9159722222222222,
+        "annualizedFundingPct": 9.075657475000167,
+        "annualizedNetPct": 8.22399081150617
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9944444444444445,
+        "annualizedFundingPct": 12.142798465000146,
+        "annualizedNetPct": 10.439464890012387
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 10.098037804999768,
+        "annualizedNetPct": 9.530259992905442,
+        "breakevenDays": 5.060389056446118
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": 10.949999999999969,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 1110749.9629299995,
+      "liquid": false,
+      "binanceSpotMarket": "ASTERUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.90842571785712,
+      "deployable": false
+    },
+    {
+      "symbol": "ETHFI",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9305555555555556,
+        "annualizedFundingPct": 9.5064905783335,
+        "annualizedNetPct": 8.65482391500572
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9902777777777778,
+        "annualizedFundingPct": 10.824227813333485,
+        "annualizedNetPct": 9.120894268868188
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.94573632333305,
+        "annualizedNetPct": 9.377958511787186,
+        "breakevenDays": 5.137880026048708
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011443465476190446,
+        "annualizedFundingPct": 10.024475757142831,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 380971.691976,
+      "liquid": false,
+      "binanceSpotMarket": "ETHFIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.487237878571396,
+      "deployable": false
+    },
+    {
+      "symbol": "LDO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9645833333333333,
+        "annualizedFundingPct": 9.88174069083348,
+        "annualizedNetPct": 9.030074027650492
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9416666666666667,
+        "annualizedFundingPct": 9.34281362833344,
+        "annualizedNetPct": 7.639480118160183
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.702098336666413,
+        "annualizedNetPct": 9.134320525997817,
+        "breakevenDays": 5.266901883160841
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011858981547619019,
+        "annualizedFundingPct": 10.38846783571426,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 798327.033491,
+      "liquid": false,
+      "binanceSpotMarket": "LDOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.545118796428541,
+      "deployable": false
+    },
+    {
+      "symbol": "LINK",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9493055555555555,
+        "annualizedFundingPct": 9.687490671666819,
+        "annualizedNetPct": 8.835824008408883
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9138888888888889,
+        "annualizedFundingPct": 8.820925435000095,
+        "annualizedNetPct": 7.117591936907594
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.398635592777573,
+        "annualizedNetPct": 8.830857783201642,
+        "breakevenDays": 5.43695938581426
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000009918073809523788,
+        "annualizedFundingPct": 8.688232657142837,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 18899074.878650006,
+      "liquid": true,
+      "binanceSpotMarket": "LINKUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.52039001428568,
+      "deployable": true
+    },
+    {
+      "symbol": "HMSTR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9861111111111112,
+        "annualizedFundingPct": 13.518144684166755,
+        "annualizedNetPct": 12.666478022386762
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9152777777777777,
+        "annualizedFundingPct": 0.9920387316666791,
+        "annualizedNetPct": -0.7112945852015141
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.342776033333033,
+        "annualizedNetPct": 8.774998223958338,
+        "breakevenDays": 5.469466443130616
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011738175595238062,
+        "annualizedFundingPct": 10.282641821428543,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 113943.318883,
+      "liquid": false,
+      "binanceSpotMarket": "HMSTRUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.367524657142818,
+      "deployable": false
+    },
+    {
+      "symbol": "AAVE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9409722222222222,
+        "annualizedFundingPct": 9.693399230833483,
+        "annualizedNetPct": 8.84173256757783
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9097222222222222,
+        "annualizedFundingPct": 8.437211885000085,
+        "annualizedNetPct": 6.733878395789852
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.274670115555338,
+        "annualizedNetPct": 8.7068923064258,
+        "breakevenDays": 5.509629923580337
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011407932142857116,
+        "annualizedFundingPct": 9.993348557142834,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 13361043.853380004,
+      "liquid": true,
+      "binanceSpotMarket": "AAVEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.733284607142823,
+      "deployable": true
+    },
+    {
+      "symbol": "RUNE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9652777777777778,
+        "annualizedFundingPct": 9.832215848333497,
+        "annualizedNetPct": 8.980549185131386
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9097222222222222,
+        "annualizedFundingPct": 7.495431463333438,
+        "annualizedNetPct": 5.792097995923657
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.053287719999773,
+        "annualizedNetPct": 8.485509911667403,
+        "breakevenDays": 5.644358334830574
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010669695833333311,
+        "annualizedFundingPct": 9.346653549999981,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 155256.8187,
+      "liquid": false,
+      "binanceSpotMarket": "RUNEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.427786582142847,
+      "deployable": false
+    },
+    {
+      "symbol": "XPL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9006944444444445,
+        "annualizedFundingPct": 8.524579988333501,
+        "annualizedNetPct": 7.6729133246268955
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9527777777777777,
+        "annualizedFundingPct": 9.811095853333459,
+        "annualizedNetPct": 8.107762332320316
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.953418609999863,
+        "annualizedNetPct": 8.385640802027014,
+        "breakevenDays": 5.707317196464778
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012092338095238064,
+        "annualizedFundingPct": 10.592888171428545,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 6706609.055354003,
+      "liquid": true,
+      "binanceSpotMarket": "XPLUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.679782939285687,
+      "deployable": true
+    },
+    {
+      "symbol": "HYPE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8208333333333333,
+        "annualizedFundingPct": 6.752162496666779,
+        "annualizedNetPct": 5.900495832276427
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9555555555555556,
+        "annualizedFundingPct": 12.912916223333509,
+        "annualizedNetPct": 11.20958263051892
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.805747072222108,
+        "annualizedNetPct": 8.237969264780972,
+        "breakevenDays": 5.803028361011628
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011906774999999972,
+        "annualizedFundingPct": 10.430334899999975,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 504086883.3856694,
+      "liquid": true,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.98264455714284,
+      "deployable": false
+    },
+    {
+      "symbol": "PEOPLE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9291666666666667,
+        "annualizedFundingPct": 8.658851504166845,
+        "annualizedNetPct": 7.807184840512033
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9319444444444445,
+        "annualizedFundingPct": 8.995255640000103,
+        "annualizedNetPct": 7.291922137872173
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.770986216110959,
+        "annualizedNetPct": 8.203208408795032,
+        "breakevenDays": 5.826026713636503
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012049397619047587,
+        "annualizedFundingPct": 10.555272314285686,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 114156.327574,
+      "liquid": false,
+      "binanceSpotMarket": "PEOPLEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.452009235714245,
+      "deployable": false
+    },
+    {
+      "symbol": "MELANIA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9534722222222223,
+        "annualizedFundingPct": 8.822257867500177,
+        "annualizedNetPct": 7.970591203908409
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9458333333333333,
+        "annualizedFundingPct": 8.141567360000076,
+        "annualizedNetPct": 6.438233877633475
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.595361031666563,
+        "annualizedNetPct": 8.027583224982981,
+        "breakevenDays": 5.945067323145608
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": 10.949999999999969,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 127628.591732,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.703415646428544,
+      "deployable": false
+    },
+    {
+      "symbol": "NXPC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9631944444444445,
+        "annualizedFundingPct": 9.982478075000083,
+        "annualizedNetPct": 9.130811411856023
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8375,
+        "annualizedFundingPct": 5.807311330000004,
+        "annualizedNetPct": 4.103977901667178
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.59075582666642,
+        "annualizedNetPct": 8.022978019999565,
+        "breakevenDays": 5.948254266682956
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001221116607142854,
+        "annualizedFundingPct": 10.6969814785714,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 175787.8835700001,
+      "liquid": false,
+      "binanceSpotMarket": "NXPCUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.231965596428534,
+      "deployable": false
+    },
+    {
+      "symbol": "GMX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8916666666666667,
+        "annualizedFundingPct": 7.632523090833472,
+        "annualizedNetPct": 6.780856426782739
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9319444444444445,
+        "annualizedFundingPct": 9.061439751666782,
+        "annualizedNetPct": 7.3581062480068
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.108828644444364,
+        "annualizedNetPct": 7.5410508395126765,
+        "breakevenDays": 6.301773319012032
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012442738690476155,
+        "annualizedFundingPct": 10.899839092857112,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 262135.4878879999,
+      "liquid": false,
+      "binanceSpotMarket": "GMXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.844745699999965,
+      "deployable": false
+    },
+    {
+      "symbol": "UNI",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8625,
+        "annualizedFundingPct": 7.198911364166814,
+        "annualizedNetPct": 6.347244699948782
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.95,
+        "annualizedFundingPct": 9.589930795000118,
+        "annualizedNetPct": 7.886597279106546
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.995917841111076,
+        "annualizedNetPct": 7.428140036585915,
+        "breakevenDays": 6.390761012734391
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011458460119047593,
+        "annualizedFundingPct": 10.037611064285693,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 8072228.823670004,
+      "liquid": true,
+      "binanceSpotMarket": "UNIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.774999414285677,
+      "deployable": true
+    },
+    {
+      "symbol": "PENDLE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9222222222222223,
+        "annualizedFundingPct": 8.43437364500019,
+        "annualizedNetPct": 7.582706981258762
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8652777777777778,
+        "annualizedFundingPct": 6.658863021666699,
+        "annualizedNetPct": 4.955529573622
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.842536770555545,
+        "annualizedNetPct": 7.274758966582659,
+        "breakevenDays": 6.515748857162222
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012124639285714255,
+        "annualizedFundingPct": 10.621184014285687,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2668382.934899999,
+      "liquid": false,
+      "binanceSpotMarket": "PENDLEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.850986303571386,
+      "deployable": false
+    },
+    {
+      "symbol": "PUMP",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9423611111111111,
+        "annualizedFundingPct": 9.064531605833515,
+        "annualizedNetPct": 8.21286494233521
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8194444444444444,
+        "annualizedFundingPct": 5.37684736333333,
+        "annualizedNetPct": 3.6735139449649545
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.835303524999968,
+        "annualizedNetPct": 7.267525721053147,
+        "breakevenDays": 6.521763941493283
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012713232142857109,
+        "annualizedFundingPct": 11.136791357142828,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 27042288.920955997,
+      "liquid": true,
+      "binanceSpotMarket": "PUMPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.60302589999996,
+      "deployable": true
+    },
+    {
+      "symbol": "WCT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9194444444444444,
+        "annualizedFundingPct": 7.332036536666811,
+        "annualizedNetPct": 6.480369872500144
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9152777777777777,
+        "annualizedFundingPct": 8.267863443333441,
+        "annualizedNetPct": 6.564529958043288
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.643978838888847,
+        "annualizedNetPct": 7.076201035630963,
+        "breakevenDays": 6.6850001912653205
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000009022486309523796,
+        "annualizedFundingPct": 7.903698007142845,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 118958.774085,
+      "liquid": false,
+      "binanceSpotMarket": "WCTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.393870814285683,
+      "deployable": false
+    },
+    {
+      "symbol": "PAXG",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8743055555555556,
+        "annualizedFundingPct": 7.827429136666813,
+        "annualizedNetPct": 6.975762472691267
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8555555555555555,
+        "annualizedFundingPct": 7.053425466666698,
+        "annualizedNetPct": 5.350092009488611
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.569427913333368,
+        "annualizedNetPct": 7.001650110343852,
+        "breakevenDays": 6.750840431413391
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007760135119047614,
+        "annualizedFundingPct": 6.79787836428571,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 3561598.116700001,
+      "liquid": false,
+      "binanceSpotMarket": "PAXGUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.523044314285699,
+      "deployable": false
+    },
+    {
+      "symbol": "SPX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8652777777777778,
+        "annualizedFundingPct": 6.771989844166779,
+        "annualizedNetPct": 5.920323179784075
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9416666666666667,
+        "annualizedFundingPct": 8.95246790666674,
+        "annualizedNetPct": 7.249134405529295
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.49881586500004,
+        "annualizedNetPct": 6.93103806226478,
+        "breakevenDays": 6.814409224062167
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001406891785714285,
+        "annualizedFundingPct": 12.324372042857137,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 3809051.9339430025,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.363491553571388,
+      "deployable": false
+    },
+    {
+      "symbol": "MET",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.95,
+        "annualizedFundingPct": 7.201894022500118,
+        "annualizedNetPct": 6.350227358283268
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.925,
+        "annualizedFundingPct": 8.088970008333433,
+        "annualizedNetPct": 6.38563652718434
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.497586017777732,
+        "annualizedNetPct": 6.929808215046986,
+        "breakevenDays": 6.815527008137737
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000014202914880952343,
+        "annualizedFundingPct": 12.441753435714254,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 3494927.427830001,
+      "liquid": false,
+      "binanceSpotMarket": "METUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.583119403571411,
+      "deployable": false
+    },
+    {
+      "symbol": "TAO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8527777777777777,
+        "annualizedFundingPct": 7.641880474166779,
+        "annualizedNetPct": 6.790213810119681
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8388888888888889,
+        "annualizedFundingPct": 7.1677657316667185,
+        "annualizedNetPct": 5.464432271841845
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.483842226666643,
+        "annualizedNetPct": 6.916064423985365,
+        "breakevenDays": 6.828043463813148
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008959948214285702,
+        "annualizedFundingPct": 7.848914635714274,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 6526855.901299999,
+      "liquid": true,
+      "binanceSpotMarket": "TAOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.189875996428542,
+      "deployable": true
+    },
+    {
+      "symbol": "LTC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8576388888888888,
+        "annualizedFundingPct": 7.365779083333453,
+        "annualizedNetPct": 6.514112419179828
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9055555555555556,
+        "annualizedFundingPct": 7.710253430000064,
+        "annualizedNetPct": 6.006919957617594
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.480603865555543,
+        "annualizedNetPct": 6.912826062885914,
+        "breakevenDays": 6.830999330854834
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008765632142857132,
+        "annualizedFundingPct": 7.678693757142847,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 4085388.2281300006,
+      "liquid": false,
+      "binanceSpotMarket": "LTCUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.996360410714265,
+      "deployable": false
+    },
+    {
+      "symbol": "GALA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8569444444444444,
+        "annualizedFundingPct": 6.651448472500151,
+        "annualizedNetPct": 5.799781808070904
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9263888888888889,
+        "annualizedFundingPct": 8.704435441666776,
+        "annualizedNetPct": 7.001101946270788
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.335777462222248,
+        "annualizedNetPct": 6.767999660074075,
+        "breakevenDays": 6.965860164536688
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008679867261904745,
+        "annualizedFundingPct": 7.603563721428556,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 146210.132651,
+      "liquid": false,
+      "binanceSpotMarket": "GALAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.2301562071428265,
+      "deployable": false
+    },
+    {
+      "symbol": "kBONK",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8777777777777778,
+        "annualizedFundingPct": 7.338000150000126,
+        "annualizedNetPct": 6.486333485835777
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8486111111111111,
+        "annualizedFundingPct": 6.503736561666713,
+        "annualizedNetPct": 4.800403117212891
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.059912287222259,
+        "annualizedNetPct": 6.492134486067417,
+        "breakevenDays": 7.238050264800872
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007221928571428569,
+        "annualizedFundingPct": 6.326409428571426,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 1864806.389751,
+      "liquid": false,
+      "binanceSpotMarket": "BONKUSDT",
+      "spotScaled": true,
+      "sieveAnnualizedPct": 7.618995921428535,
+      "deployable": false
+    },
+    {
+      "symbol": "BNB",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8868055555555555,
+        "annualizedFundingPct": 8.02441610833349,
+        "annualizedNetPct": 7.172749444433932
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7458333333333333,
+        "annualizedFundingPct": 4.2889236183333095,
+        "annualizedNetPct": 2.585590225148374
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.779251945000089,
+        "annualizedNetPct": 6.211474144855803,
+        "breakevenDays": 7.537704810880772
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000005714840476190483,
+        "annualizedFundingPct": 5.006200257142863,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 7008113.582549999,
+      "liquid": true,
+      "binanceSpotMarket": "BNBUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.917337617857127,
+      "deployable": true
+    },
+    {
+      "symbol": "HBAR",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8291666666666667,
+        "annualizedFundingPct": 5.960883680833417,
+        "annualizedNetPct": 5.109217016137816
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9,
+        "annualizedFundingPct": 8.36533851833342,
+        "annualizedNetPct": 6.662005030786922
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.762368626666733,
+        "annualizedNetPct": 6.194590826583264,
+        "breakevenDays": 7.556523878111613
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000061869357142857175,
+        "annualizedFundingPct": 5.419755685714288,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 1403397.4957370008,
+      "liquid": false,
+      "binanceSpotMarket": "HBARUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.009419474999973,
+      "deployable": false
+    },
+    {
+      "symbol": "ONDO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8416666666666667,
+        "annualizedFundingPct": 6.860025532500124,
+        "annualizedNetPct": 6.008358868151373
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8430555555555556,
+        "annualizedFundingPct": 6.480925400000029,
+        "annualizedNetPct": 4.77759195607426
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.733658821666778,
+        "annualizedNetPct": 6.1658810216866415,
+        "breakevenDays": 7.588742072226233
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010710163690476168,
+        "annualizedFundingPct": 9.382103392857124,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2777762.59984,
+      "liquid": false,
+      "binanceSpotMarket": "ONDOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.2697012035714135,
+      "deployable": false
+    },
+    {
+      "symbol": "ORDI",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8826388888888889,
+        "annualizedFundingPct": 7.416446801666815,
+        "annualizedNetPct": 6.5647801375327095
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7347222222222223,
+        "annualizedFundingPct": 3.2852657199999835,
+        "annualizedNetPct": 1.5819323500478624
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.039386441111269,
+        "annualizedNetPct": 5.471608643631038,
+        "breakevenDays": 8.46112440365671
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010261083928571408,
+        "annualizedFundingPct": 8.988709521428554,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 412245.219287,
+      "liquid": false,
+      "binanceSpotMarket": "ORDIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.375982164285693,
+      "deployable": false
+    },
+    {
+      "symbol": "ENA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8173611111111111,
+        "annualizedFundingPct": 5.822068888333407,
+        "annualizedNetPct": 4.9704022235842595
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8388888888888889,
+        "annualizedFundingPct": 6.414679360000029,
+        "annualizedNetPct": 4.711345917607733
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.019605712222349,
+        "annualizedNetPct": 5.451827914813377,
+        "breakevenDays": 8.48892808647672
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007990001785714281,
+        "annualizedFundingPct": 6.99924156428571,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 13605924.58927599,
+      "liquid": true,
+      "binanceSpotMarket": "ENAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.234823514285687,
+      "deployable": true
+    },
+    {
+      "symbol": "BRETT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9381944444444444,
+        "annualizedFundingPct": 8.716094880000172,
+        "annualizedNetPct": 7.86442821636745
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7861111111111111,
+        "annualizedFundingPct": -0.996310448333333,
+        "annualizedNetPct": -2.699643719174914
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.478626437222357,
+        "annualizedNetPct": 4.910848641761347,
+        "breakevenDays": 9.327155371065508
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": 10.949999999999969,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 123729.7932009999,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.896285003571391,
+      "deployable": false
+    },
+    {
+      "symbol": "ZEN",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8354166666666667,
+        "annualizedFundingPct": 6.47658506333343,
+        "annualizedNetPct": 5.624918398836775
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7263888888888889,
+        "annualizedFundingPct": 2.787323838333323,
+        "annualizedNetPct": 1.0839904799076279
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.2468313216667966,
+        "annualizedNetPct": 4.679053527040445,
+        "breakevenDays": 9.73921151018949
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001246628452380949,
+        "annualizedFundingPct": 10.920465242857114,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 170227.766814,
+      "liquid": false,
+      "binanceSpotMarket": "ZENUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.395876374999974,
+      "deployable": false
+    },
+    {
+      "symbol": "NEO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8201388888888889,
+        "annualizedFundingPct": 3.9190728291666983,
+        "annualizedNetPct": 3.0674061636834127
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8972222222222223,
+        "annualizedFundingPct": 7.537432013333399,
+        "annualizedNetPct": 5.834098544951423
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.125192557222329,
+        "annualizedNetPct": 4.557414763034,
+        "breakevenDays": 9.970357099654878
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010224503571428545,
+        "annualizedFundingPct": 8.956665128571405,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 91559.051118,
+      "liquid": false,
+      "binanceSpotMarket": "NEOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.716433224999959,
+      "deployable": false
+    },
+    {
+      "symbol": "VVV",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8715277777777778,
+        "annualizedFundingPct": 13.136648144166463,
+        "annualizedNetPct": 12.284981482239576
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7194444444444444,
+        "annualizedFundingPct": -13.9012929099998,
+        "annualizedNetPct": -15.604625882115142
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 4.12400112611087,
+        "annualizedNetPct": 3.556223335528002,
+        "breakevenDays": 12.390879254727492
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012793576785714262,
+        "annualizedFundingPct": 11.207173264285695,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 17699809.690649986,
+      "liquid": true,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 41.76138375000049,
+      "deployable": false
+    },
+    {
+      "symbol": "MEGA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8104166666666667,
+        "annualizedFundingPct": 2.2969978033334613,
+        "annualizedNetPct": 1.4453311372242792
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8777777777777778,
+        "annualizedFundingPct": 6.678777300000033,
+        "annualizedNetPct": 4.975443851494355
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.757590968889038,
+        "annualizedNetPct": 3.1898131796251574,
+        "breakevenDays": 13.599138496734286
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012485619047619015,
+        "annualizedFundingPct": 10.937402285714256,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 1105314.2589809995,
+      "liquid": false,
+      "binanceSpotMarket": "MEGAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.780568824999973,
+      "deployable": false
+    },
+    {
+      "symbol": "WIF",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9138888888888889,
+        "annualizedFundingPct": 3.6643819125000934,
+        "annualizedNetPct": 2.812715246918486
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7569444444444444,
+        "annualizedFundingPct": 3.5683335616666505,
+        "annualizedNetPct": 1.8650001851620326
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.632365795555685,
+        "annualizedNetPct": 3.0645880067427385,
+        "breakevenDays": 14.067966409804452
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011358832142857116,
+        "annualizedFundingPct": 9.950336957142833,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2339261.318760001,
+      "liquid": false,
+      "binanceSpotMarket": "WIFUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.938883453571409,
+      "deployable": false
+    },
+    {
+      "symbol": "RESOLV",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9013888888888889,
+        "annualizedFundingPct": 5.59085051333341,
+        "annualizedNetPct": 4.739183848495056
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8777777777777778,
+        "annualizedFundingPct": -0.7441882799999961,
+        "annualizedNetPct": -2.4475215566777413
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.4791709155556947,
+        "annualizedNetPct": 2.9113931272943665,
+        "breakevenDays": 14.68740721288718
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007547482142857136,
+        "annualizedFundingPct": 6.6115943571428515,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 503709.061348,
+      "liquid": false,
+      "binanceSpotMarket": "RESOLVUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 14.099003607142668,
+      "deployable": false
+    },
+    {
+      "symbol": "AERO",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8020833333333334,
+        "annualizedFundingPct": 1.1286563458333774,
+        "annualizedNetPct": 0.27698967927352997
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8777777777777778,
+        "annualizedFundingPct": 6.513108545000018,
+        "annualizedNetPct": 4.80977510032928
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.9234737455556075,
+        "annualizedNetPct": 2.3556959592953333,
+        "breakevenDays": 17.4792060567277
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001262752976190473,
+        "annualizedFundingPct": 11.061716071428544,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 2459830.3412700007,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 16.557379503571575,
+      "deployable": false
+    },
+    {
+      "symbol": "PNUT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7076388888888889,
+        "annualizedFundingPct": 2.0459029883333133,
+        "annualizedNetPct": 1.194236322127406
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7916666666666666,
+        "annualizedFundingPct": 4.626581346666647,
+        "annualizedNetPct": 2.9232479456655565
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.906129107777802,
+        "annualizedNetPct": 2.33835132158001,
+        "breakevenDays": 17.58352712659558
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010403771428571403,
+        "annualizedFundingPct": 9.113703771428549,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 360217.109837,
+      "liquid": false,
+      "binanceSpotMarket": "PNUTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.398917492857109,
+      "deployable": false
+    },
+    {
+      "symbol": "ZEC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8631944444444445,
+        "annualizedFundingPct": 7.21690866250009,
+        "annualizedNetPct": 6.3652419982890605
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6680555555555555,
+        "annualizedFundingPct": -8.447657819999838,
+        "annualizedNetPct": -10.15099091835669
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.995386501666737,
+        "annualizedNetPct": 1.4276087187483224,
+        "breakevenDays": 25.60907370943745
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012633267857142822,
+        "annualizedFundingPct": 11.066742642857113,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 94950979.85200009,
+      "liquid": true,
+      "binanceSpotMarket": "ZECUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.08523608571426,
+      "deployable": true
+    },
+    {
+      "symbol": "CAKE",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7194444444444444,
+        "annualizedFundingPct": 0.8397458883333313,
+        "annualizedNetPct": -0.011920778337932399
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8388888888888889,
+        "annualizedFundingPct": 3.9294391333333047,
+        "annualizedNetPct": 2.2261057484697746
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.8696436366666642,
+        "annualizedNetPct": 1.3018658542011003,
+        "breakevenDays": 27.331411718173612
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008739566666666653,
+        "annualizedFundingPct": 7.6558603999999875,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 229630.27589,
+      "liquid": false,
+      "binanceSpotMarket": "CAKEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.052738049999968,
+      "deployable": false
+    },
+    {
+      "symbol": "IMX",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7229166666666667,
+        "annualizedFundingPct": -3.4635770408331426,
+        "annualizedNetPct": -4.3152437091648315
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9763888888888889,
+        "annualizedFundingPct": 10.253850343333475,
+        "annualizedNetPct": 8.55051681207137
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.1088987538890263,
+        "annualizedNetPct": 0.5411209741626302,
+        "breakevenDays": 46.081754371881885
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011041813690476165,
+        "annualizedFundingPct": 9.67262879285712,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 148495.52778,
+      "liquid": false,
+      "binanceSpotMarket": "IMXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.222524235714241,
+      "deployable": false
+    },
+    {
+      "symbol": "DASH",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7583333333333333,
+        "annualizedFundingPct": -1.7025487658332936,
+        "annualizedNetPct": -2.554215433485423
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8708333333333333,
+        "annualizedFundingPct": 6.04962059500001,
+        "annualizedNetPct": 4.346287161058168
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.8815076877777936,
+        "annualizedNetPct": 0.3137299088703141,
+        "breakevenDays": 57.968864830684325
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001113011666666664,
+        "annualizedFundingPct": 9.749982199999977,
+        "vetoed": false
+      },
+      "passGate": true,
+      "dayNtlVlmUsd": 701380.0523000002,
+      "liquid": false,
+      "binanceSpotMarket": "DASHUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.253183942857111,
+      "deployable": false
+    },
+    {
+      "symbol": "CHIP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1145,
+        "windowDays": 47.70833358796296,
+        "posFrac": 0.3266375545851528,
+        "annualizedFundingPct": 98.09418529676873,
+        "annualizedNetPct": -99.16527647055892
+      },
+      "oos": {
+        "periods": 573,
+        "windowDays": 23.87500041666667,
+        "posFrac": 0.4799301919720768,
+        "annualizedFundingPct": 34.11465245863902,
+        "annualizedNetPct": -36.254965962042476
+      },
+      "full": {
+        "periods": 1718,
+        "windowDays": 71.5833340625,
+        "annualizedFundingPct": 76.75526078207233,
+        "annualizedNetPct": -77.46911331076282,
+        "breakevenDays": 0.6657524120084208
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000002901222023809517,
+        "annualizedFundingPct": -2.5414704928571368,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 628921.0714100001,
+      "liquid": false,
+      "binanceSpotMarket": "CHIPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 40.86823839642909,
+      "deployable": false
+    },
+    {
+      "symbol": "ALT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.35208333333333336,
+        "annualizedFundingPct": 80.16476372833363,
+        "annualizedNetPct": -81.01643042625635
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.42777777777777776,
+        "annualizedFundingPct": 11.02977926666659,
+        "annualizedNetPct": -12.733112305252028
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 57.11976890777798,
+        "annualizedNetPct": -57.687546477832896,
+        "breakevenDays": 0.8946114624956356
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000046710125000000016,
+        "annualizedFundingPct": 4.091806950000001,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 196864.377513,
+      "liquid": false,
+      "binanceSpotMarket": "ALTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.101233367857162,
+      "deployable": false
+    },
+    {
+      "symbol": "LAYER",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7659722222222223,
+        "annualizedFundingPct": 27.939870715000282,
+        "annualizedNetPct": -28.79153739277452
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.36944444444444446,
+        "annualizedFundingPct": 110.15064291666694,
+        "annualizedNetPct": -111.85397366078764
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 55.343461448889144,
+        "annualizedNetPct": -55.91123902534019,
+        "breakevenDays": 0.9233249721322894
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00004996667797619042,
+        "annualizedFundingPct": 43.77080990714281,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 284029.394469,
+      "liquid": false,
+      "binanceSpotMarket": "LAYERUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 164.01862858571442,
+      "deployable": false
+    },
+    {
+      "symbol": "SUPER",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7451388888888889,
+        "annualizedFundingPct": 84.0614965500009,
+        "annualizedNetPct": -84.91316324942638
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9069444444444444,
+        "annualizedFundingPct": -7.37755069833345,
+        "annualizedNetPct": 5.67421723365238
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 53.58181413388979,
+        "annualizedNetPct": -54.14959171668357,
+        "breakevenDays": 0.9536817822612678
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010426230357142832,
+        "annualizedFundingPct": -9.133377792857122,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 100635.04406,
+      "liquid": false,
+      "binanceSpotMarket": "SUPERUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 3.590389503571423,
+      "deployable": false
+    },
+    {
+      "symbol": "POLYX",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6520833333333333,
+        "annualizedFundingPct": 77.33838799250057,
+        "annualizedNetPct": -78.19005468933258
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6916666666666667,
+        "annualizedFundingPct": 4.688811899999974,
+        "annualizedNetPct": -6.392145085367012
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 53.12186262833391,
+        "annualizedNetPct": -53.68964021278422,
+        "breakevenDays": 0.9619391616126146
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000027042566666666542,
+        "annualizedFundingPct": 23.689288399999892,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 93567.081657,
+      "liquid": false,
+      "binanceSpotMarket": "POLYXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.52116332499994,
+      "deployable": false
+    },
+    {
+      "symbol": "BLUR",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.4527777777777778,
+        "annualizedFundingPct": 68.84046669166707,
+        "annualizedNetPct": -69.69213338522074
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6638888888888889,
+        "annualizedFundingPct": 4.47683401333336,
+        "annualizedNetPct": -6.18016720360724
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 47.38592246555605,
+        "annualizedNetPct": -47.95370007066054,
+        "breakevenDays": 1.0783793443536662
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000003263268452380954,
+        "annualizedFundingPct": 2.858623164285716,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 207296.663052,
+      "liquid": false,
+      "binanceSpotMarket": "BLURUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 13.12914411785702,
+      "deployable": false
+    },
+    {
+      "symbol": "TNSR",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9,
+        "annualizedFundingPct": 9.70506530000094,
+        "annualizedNetPct": -10.55673197073948
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7597222222222222,
+        "annualizedFundingPct": 109.8100389083335,
+        "annualizedNetPct": -111.51336966033864
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 43.073389836111765,
+        "annualizedNetPct": -43.64116745674476,
+        "breakevenDays": 1.1863473061773957
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0001435592494047623,
+        "annualizedFundingPct": 125.75790247857176,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 203034.144722,
+      "liquid": false,
+      "binanceSpotMarket": "TNSRUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 247.82151194642904,
+      "deployable": false
+    },
+    {
+      "symbol": "BABY",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6118055555555556,
+        "annualizedFundingPct": 7.252862379166588,
+        "annualizedNetPct": -8.104529048960082
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5319444444444444,
+        "annualizedFundingPct": 111.37533350000062,
+        "annualizedNetPct": -113.07866421577167
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 41.96035275277792,
+        "annualizedNetPct": -42.52813037741928,
+        "breakevenDays": 1.2178162633920422
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000006696591071428572,
+        "annualizedFundingPct": -5.86621377857143,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 220546.606041,
+      "liquid": false,
+      "binanceSpotMarket": "BABYUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.387016960714144,
+      "deployable": false
+    },
+    {
+      "symbol": "0G",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5243055555555556,
+        "annualizedFundingPct": 39.40373219333382,
+        "annualizedNetPct": -40.25539887553064
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.3958333333333333,
+        "annualizedFundingPct": 45.45409811833344,
+        "annualizedNetPct": -47.15743036005948
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 41.42052083500046,
+        "annualizedNetPct": -41.98829846158534,
+        "breakevenDays": 1.2336880118808249
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00006491078869047611,
+        "annualizedFundingPct": 56.86185089285708,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 218630.43521,
+      "liquid": false,
+      "binanceSpotMarket": "0GUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 82.74964926785725,
+      "deployable": false
+    },
+    {
+      "symbol": "MOVE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.53125,
+        "annualizedFundingPct": 28.9385187450004,
+        "annualizedNetPct": -29.790185423159798
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6722222222222223,
+        "annualizedFundingPct": 64.59634220000058,
+        "annualizedNetPct": -66.29967399861864
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 40.82445989666718,
+        "annualizedNetPct": -41.39223752539832,
+        "breakevenDays": 1.251700576794935
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011195285714285685,
+        "annualizedFundingPct": -9.80707028571426,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 154594.447007,
+      "liquid": false,
+      "binanceSpotMarket": "MOVEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.820264221428536,
+      "deployable": false
+    },
+    {
+      "symbol": "REZ",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6902777777777778,
+        "annualizedFundingPct": 55.05941761750079,
+        "annualizedNetPct": -55.91108430573731
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9180555555555555,
+        "annualizedFundingPct": -7.1569746283333915,
+        "annualizedNetPct": 5.453641168758306
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 34.320620202223104,
+        "annualizedNetPct": -34.88839785437305,
+        "breakevenDays": 1.4889008327620497
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000009881412499999982,
+        "annualizedFundingPct": -8.656117349999985,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 158518.8534130001,
+      "liquid": false,
+      "binanceSpotMarket": "REZUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.612177574999979,
+      "deployable": false
+    },
+    {
+      "symbol": "PROVE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5458333333333333,
+        "annualizedFundingPct": 41.44291139500004,
+        "annualizedNetPct": -42.29457807798403
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.49027777777777776,
+        "annualizedFundingPct": 18.227053423333313,
+        "annualizedNetPct": -19.930386295315135
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 33.70429207111136,
+        "annualizedNetPct": -34.27206972548123,
+        "breakevenDays": 1.5161273790348753
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000039766593452380904,
+        "annualizedFundingPct": 34.835535864285674,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 134695.52402,
+      "liquid": false,
+      "binanceSpotMarket": "PROVEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 32.28233270714284,
+      "deployable": false
+    },
+    {
+      "symbol": "ME",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.78125,
+        "annualizedFundingPct": 14.02396630749983,
+        "annualizedNetPct": -14.875632979905726
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.2625,
+        "annualizedFundingPct": 70.31384357666681,
+        "annualizedNetPct": -72.01717524293578
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 32.78725873055549,
+        "annualizedNetPct": -33.355036388227745,
+        "breakevenDays": 1.5585322463197657
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00016084916071428567,
+        "annualizedFundingPct": 140.90386478571426,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1115421.7781570002,
+      "liquid": false,
+      "binanceSpotMarket": "MEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 103.85455099642861,
+      "deployable": false
+    },
+    {
+      "symbol": "HYPER",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5909722222222222,
+        "annualizedFundingPct": 42.03609972250039,
+        "annualizedNetPct": -42.88776640571289
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.48333333333333334,
+        "annualizedFundingPct": 12.371411713333282,
+        "annualizedNetPct": -14.07474472086239
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 32.14787038611154,
+        "annualizedNetPct": -32.715648046085626,
+        "breakevenDays": 1.5895298626709693
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000008835200595238099,
+        "annualizedFundingPct": 7.7396357214285745,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 352582.3590469999,
+      "liquid": false,
+      "binanceSpotMarket": "HYPERUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 12.972047596428595,
+      "deployable": false
+    },
+    {
+      "symbol": "kLUNC",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.3486111111111111,
+        "annualizedFundingPct": 30.853155688333473,
+        "annualizedNetPct": -31.7048223672318
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.35555555555555557,
+        "annualizedFundingPct": 20.954116613333472,
+        "annualizedNetPct": -22.657449422188673
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 27.553475996666883,
+        "annualizedNetPct": -28.121253673184782,
+        "breakevenDays": 1.854575444716359
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000002889917857142856,
+        "annualizedFundingPct": -2.531568042857142,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 153865.730382,
+      "liquid": false,
+      "binanceSpotMarket": "LUNCUSDT",
+      "spotScaled": true,
+      "sieveAnnualizedPct": 16.717148867857038,
+      "deployable": false
+    },
+    {
+      "symbol": "ZETA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7034722222222223,
+        "annualizedFundingPct": 40.37834491250077,
+        "annualizedNetPct": -41.230011595073314
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7916666666666666,
+        "annualizedFundingPct": -2.1147396766667175,
+        "annualizedNetPct": 0.41140633381003855
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 26.213983382778565,
+        "annualizedNetPct": -26.78176106411917,
+        "breakevenDays": 1.9493412830028132
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000206105755952381,
+        "annualizedFundingPct": 18.054864221428574,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 43688.135722,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.348220932142857,
+      "deployable": false
+    },
+    {
+      "symbol": "COMP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.35694444444444445,
+        "annualizedFundingPct": 34.29270934166684,
+        "annualizedNetPct": -35.14437602189212
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8055555555555556,
+        "annualizedFundingPct": -4.296255616666641,
+        "annualizedNetPct": 2.5929222233119855
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 21.429721022222616,
+        "annualizedNetPct": -21.997498720790897,
+        "breakevenDays": 2.3845387416387416
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010890654166666644,
+        "annualizedFundingPct": -9.54021304999998,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 185701.2703399999,
+      "liquid": false,
+      "binanceSpotMarket": "COMPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.203068285714247,
+      "deployable": false
+    },
+    {
+      "symbol": "JTO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.4041666666666667,
+        "annualizedFundingPct": 33.016554914166974,
+        "annualizedNetPct": -33.86822159389978
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7777777777777778,
+        "annualizedFundingPct": -2.5480775316666997,
+        "annualizedNetPct": 0.8447441787790699
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 21.1616774322227,
+        "annualizedNetPct": -21.729455131756076,
+        "breakevenDays": 2.4147424117801966
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.00001458022619047618,
+        "annualizedFundingPct": -12.772278142857132,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 8113072.7162500005,
+      "liquid": true,
+      "binanceSpotMarket": "JTOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 12.242618560714261,
+      "deployable": false
+    },
+    {
+      "symbol": "kNEIRO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5354166666666667,
+        "annualizedFundingPct": 14.325039295000384,
+        "annualizedNetPct": -15.176705967521878
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.125,
+        "annualizedFundingPct": 34.33159461666667,
+        "annualizedNetPct": -36.03492711585816
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 20.99389106888916,
+        "annualizedNetPct": -21.56166876902691,
+        "breakevenDays": 2.4340413995824277
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000035831238690476174,
+        "annualizedFundingPct": 31.38816509285713,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 312857.087692,
+      "liquid": false,
+      "binanceSpotMarket": "NEIROUSDT",
+      "spotScaled": true,
+      "sieveAnnualizedPct": 37.63859012499999,
+      "deployable": false
+    },
+    {
+      "symbol": "AXS",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5569444444444445,
+        "annualizedFundingPct": 23.555965823333892,
+        "annualizedNetPct": -24.407632499416525
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6083333333333333,
+        "annualizedFundingPct": 11.885502299999967,
+        "annualizedNetPct": -13.58883531877696
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 19.665811315556134,
+        "annualizedNetPct": -20.23358902047576,
+        "breakevenDays": 2.5984180962612338
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000009954632738095261,
+        "annualizedFundingPct": 8.720258278571448,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 146194.751654,
+      "liquid": false,
+      "binanceSpotMarket": "AXSUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 31.077234367857052,
+      "deployable": false
+    },
+    {
+      "symbol": "BIO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6666666666666666,
+        "annualizedFundingPct": 25.8065941483338,
+        "annualizedNetPct": -26.65826082528483
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6972222222222222,
+        "annualizedFundingPct": 5.220128408333321,
+        "annualizedNetPct": -6.9234615814013525
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 18.94443890166719,
+        "annualizedNetPct": -19.512216609184403,
+        "breakevenDays": 2.697361493008008
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -7.245833333334394e-8,
+        "annualizedFundingPct": 0.06347350000000929,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1252690.2634649999,
+      "liquid": false,
+      "binanceSpotMarket": "BIOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.905193382142802,
+      "deployable": false
+    },
+    {
+      "symbol": "IO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6680555555555555,
+        "annualizedFundingPct": 18.08057959249989,
+        "annualizedNetPct": -18.932246266470774
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.38472222222222224,
+        "annualizedFundingPct": 20.358925105000115,
+        "annualizedNetPct": -22.06225792763292
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 18.840028096666696,
+        "annualizedNetPct": -19.40780580456037,
+        "breakevenDays": 2.7123101801021705
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000021869321428571487,
+        "annualizedFundingPct": 1.9157525571428622,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 266935.9166699999,
+      "liquid": false,
+      "binanceSpotMarket": "IOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.935804596428595,
+      "deployable": false
+    },
+    {
+      "symbol": "ZORA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8152777777777778,
+        "annualizedFundingPct": 14.345576506666566,
+        "annualizedNetPct": -15.197243179196468
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5041666666666667,
+        "annualizedFundingPct": 27.549230925000007,
+        "annualizedNetPct": -29.252563581190653
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 18.746794646111226,
+        "annualizedNetPct": -19.31457235434053,
+        "breakevenDays": 2.725799314743122
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000054074410119047464,
+        "annualizedFundingPct": 47.36918326428558,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 236448.67158,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 33.99019377857137,
+      "deployable": false
+    },
+    {
+      "symbol": "GAS",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6368055555555555,
+        "annualizedFundingPct": 15.399456945000658,
+        "annualizedNetPct": -16.251123617936393
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5805555555555556,
+        "annualizedFundingPct": 20.36178488000003,
+        "annualizedNetPct": -22.06511770256672
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 17.053566256667306,
+        "annualizedNetPct": -17.6213439709931,
+        "breakevenDays": 2.99644069931835
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00006494971309523803,
+        "annualizedFundingPct": 56.895948671428506,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 55846.78463,
+      "liquid": false,
+      "binanceSpotMarket": "GASUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 43.72528397857147,
+      "deployable": false
+    },
+    {
+      "symbol": "2Z",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.4125,
+        "annualizedFundingPct": 20.713141605833716,
+        "annualizedNetPct": -21.564808280819758
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6208333333333333,
+        "annualizedFundingPct": 7.824240983333297,
+        "annualizedNetPct": -9.52757409612097
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 16.416841398333794,
+        "annualizedNetPct": -16.9846191149525,
+        "breakevenDays": 3.112657225596778
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000006577928571428571,
+        "annualizedFundingPct": -5.762265428571429,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 309584.516889,
+      "liquid": false,
+      "binanceSpotMarket": "2ZUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.397140382142743,
+      "deployable": false
+    },
+    {
+      "symbol": "MINA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6493055555555556,
+        "annualizedFundingPct": 9.994396967499895,
+        "annualizedNetPct": -10.846063638351106
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.375,
+        "annualizedFundingPct": 19.21635927833333,
+        "annualizedNetPct": -20.91969212741453
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 13.068384404444474,
+        "annualizedNetPct": -13.636162133120813,
+        "breakevenDays": 3.9102002526510633
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000024728346428571435,
+        "annualizedFundingPct": 21.662031471428577,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 211930.0221530001,
+      "liquid": false,
+      "binanceSpotMarket": "MINAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 31.34571481071427,
+      "deployable": false
+    },
+    {
+      "symbol": "AVNT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7555555555555555,
+        "annualizedFundingPct": 5.245346319166512,
+        "annualizedNetPct": -6.097012988185576
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.43333333333333335,
+        "annualizedFundingPct": 27.43122800666662,
+        "annualizedNetPct": -29.134560665588875
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.640640215000001,
+        "annualizedNetPct": -13.208417945216599,
+        "breakevenDays": 4.042516765832971
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000039178311904761835,
+        "annualizedFundingPct": 34.32020122857137,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 412679.9846629999,
+      "liquid": false,
+      "binanceSpotMarket": "AVNTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 33.418888739285684,
+      "deployable": false
+    },
+    {
+      "symbol": "S",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5673611111111111,
+        "annualizedFundingPct": 4.675741554166538,
+        "annualizedNetPct": -5.527408222965821
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.4111111111111111,
+        "annualizedFundingPct": 26.996258236666705,
+        "annualizedNetPct": -28.69959090565762
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.115913781666594,
+        "annualizedNetPct": -12.683691513772716,
+        "breakevenDays": 4.217593565028736
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00004356321309523799,
+        "annualizedFundingPct": 38.16137467142848,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 418141.3282909998,
+      "liquid": false,
+      "binanceSpotMarket": "SUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 40.21516709999995,
+      "deployable": false
+    },
+    {
+      "symbol": "TRX",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7381944444444445,
+        "annualizedFundingPct": -0.25303807500002623,
+        "annualizedNetPct": -0.5986285918976191
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.15694444444444444,
+        "annualizedFundingPct": 36.5408640616667,
+        "annualizedNetPct": -38.24419650971767
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 12.011595970555552,
+        "annualizedNetPct": -12.579373703037234,
+        "breakevenDays": 4.254222346910704
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00003249978988095237,
+        "annualizedFundingPct": 28.469815935714276,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1522516.9804000005,
+      "liquid": false,
+      "binanceSpotMarket": "TRXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 17.34478852857143,
+      "deployable": false
+    },
+    {
+      "symbol": "BSV",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7236111111111111,
+        "annualizedFundingPct": 9.120299651666505,
+        "annualizedNetPct": -9.971966322180544
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7402777777777778,
+        "annualizedFundingPct": 16.64364534166645,
+        "annualizedNetPct": -18.34697825030143
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 11.628081548333514,
+        "annualizedNetPct": -12.195859282195979,
+        "breakevenDays": 4.394534024172151
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000057214458333333205,
+        "annualizedFundingPct": 50.11986549999988,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 407102.7907300001,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 20.45721261785711,
+      "deployable": false
+    },
+    {
+      "symbol": "ACE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8784722222222222,
+        "annualizedFundingPct": 6.098470552499795,
+        "annualizedNetPct": -6.950137221848047
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9652777777777778,
+        "annualizedFundingPct": 16.658893825000074,
+        "annualizedNetPct": -18.36222673328179
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.61861164333328,
+        "annualizedNetPct": -10.186389384431724,
+        "breakevenDays": 5.312617027782562
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012631920238095205,
+        "annualizedFundingPct": -11.065562128571399,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 114682.08832,
+      "liquid": false,
+      "binanceSpotMarket": "ACEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 48.211915339286655,
+      "deployable": false
+    },
+    {
+      "symbol": "XAI",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6319444444444444,
+        "annualizedFundingPct": 8.742057025833603,
+        "annualizedNetPct": -9.593723696201284
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5361111111111111,
+        "annualizedFundingPct": 11.367416554999958,
+        "annualizedNetPct": -13.070749585769686
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.617176868889098,
+        "annualizedNetPct": -10.184954609992447,
+        "breakevenDays": 5.313409610392522
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00001543193273809527,
+        "annualizedFundingPct": 13.518373078571456,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 66775.25216,
+      "liquid": false,
+      "binanceSpotMarket": "XAIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 20.554302878571352,
+      "deployable": false
+    },
+    {
+      "symbol": "KAITO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5284722222222222,
+        "annualizedFundingPct": 8.589743620833238,
+        "annualizedNetPct": -9.441410291142521
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5055555555555555,
+        "annualizedFundingPct": 11.36206906166661,
+        "annualizedNetPct": -13.065402092560138
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.513852101111084,
+        "annualizedNetPct": -10.081629842586723,
+        "breakevenDays": 5.371115659243036
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000011491238690476227,
+        "annualizedFundingPct": 10.066325092857173,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 983788.1831300001,
+      "liquid": false,
+      "binanceSpotMarket": "KAITOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 22.086880260714178,
+      "deployable": false
+    },
+    {
+      "symbol": "DOOD",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9625,
+        "annualizedFundingPct": 9.882505791666803,
+        "annualizedNetPct": 9.03083912848412
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7486111111111111,
+        "annualizedFundingPct": 7.560380171666743,
+        "annualizedNetPct": 5.857046702753547
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.108463918333126,
+        "annualizedNetPct": 8.540686109802056,
+        "breakevenDays": 5.610166594297871
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0,
+        "annualizedFundingPct": 0,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 0,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 3.813593260714273,
+      "deployable": false
+    },
+    {
+      "symbol": "STRK",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5534722222222223,
+        "annualizedFundingPct": 6.388919059166537,
+        "annualizedNetPct": -7.240585728626771
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.37083333333333335,
+        "annualizedFundingPct": 14.314038924999956,
+        "annualizedNetPct": -16.017371887560834
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 9.030625681111037,
+        "annualizedNetPct": -9.598403424326737,
+        "breakevenDays": 5.658522654402963
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000018575716071428594,
+        "annualizedFundingPct": 16.27232727857145,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 539286.551608,
+      "liquid": false,
+      "binanceSpotMarket": "STRKUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 18.13117398928569,
+      "deployable": false
+    },
+    {
+      "symbol": "WLD",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5875,
+        "annualizedFundingPct": 15.235910117500373,
+        "annualizedNetPct": -16.087576790373294
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8013888888888889,
+        "annualizedFundingPct": -4.682319401666638,
+        "annualizedNetPct": 2.9789859993753236
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.596500277778286,
+        "annualizedNetPct": -9.164278022556612,
+        "breakevenDays": 5.944279456617023
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000009974798809523787,
+        "annualizedFundingPct": -8.737923757142838,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 48142345.350113004,
+      "liquid": true,
+      "binanceSpotMarket": "WLDUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.278780871428536,
+      "deployable": false
+    },
+    {
+      "symbol": "APE",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6472222222222223,
+        "annualizedFundingPct": 14.792223052500436,
+        "annualizedNetPct": -15.643889725202117
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7944444444444444,
+        "annualizedFundingPct": -4.8374103349999675,
+        "annualizedNetPct": 3.13407692911859
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 8.249011923333896,
+        "annualizedNetPct": -8.816789669363411,
+        "breakevenDays": 6.1946813115221655
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000048587946428571506,
+        "annualizedFundingPct": -4.256304107142864,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 435598.8283279999,
+      "liquid": false,
+      "binanceSpotMarket": "APEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.788714517857112,
+      "deployable": false
+    },
+    {
+      "symbol": "APT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.43680555555555556,
+        "annualizedFundingPct": 9.502993695833243,
+        "annualizedNetPct": -10.354660366494855
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5111111111111111,
+        "annualizedFundingPct": 4.668596983333343,
+        "annualizedNetPct": -6.371930169168283
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.891528125000072,
+        "annualizedNetPct": -8.459305872317314,
+        "breakevenDays": 6.475298470788829
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000012160080357142876,
+        "annualizedFundingPct": 10.65223039285716,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 2686009.5862359987,
+      "liquid": false,
+      "binanceSpotMarket": "APTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.235438882142863,
+      "deployable": false
+    },
+    {
+      "symbol": "IP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8229166666666666,
+        "annualizedFundingPct": -0.553820583333401,
+        "annualizedNetPct": -0.2978460834482431
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6166666666666667,
+        "annualizedFundingPct": 24.298938531666593,
+        "annualizedNetPct": -26.002271263095565
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.73043245499994,
+        "annualizedNetPct": -8.29821020289739,
+        "breakevenDays": 6.610238210793654
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00008813200476190477,
+        "annualizedFundingPct": 77.20363617142858,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 0,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 41.438422364285756,
+      "deployable": false
+    },
+    {
+      "symbol": "TURBO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5701388888888889,
+        "annualizedFundingPct": 12.537973075833856,
+        "annualizedNetPct": -13.389639747665758
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7125,
+        "annualizedFundingPct": -2.0074672716666604,
+        "annualizedNetPct": 0.304133931293196
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.689492960000568,
+        "annualizedNetPct": -8.257270708044807,
+        "breakevenDays": 6.645431664456095
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000066026654761904715,
+        "annualizedFundingPct": -5.783934957142852,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 143463.963336,
+      "liquid": false,
+      "binanceSpotMarket": "TURBOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.7286477392857025,
+      "deployable": false
+    },
+    {
+      "symbol": "MERL",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6694444444444444,
+        "annualizedFundingPct": 6.427040571666579,
+        "annualizedNetPct": -7.278707241141477
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7,
+        "annualizedFundingPct": 9.266177741666489,
+        "annualizedNetPct": -10.969510821076138
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.37341962833343,
+        "annualizedNetPct": -7.941197377516264,
+        "breakevenDays": 6.930298636963624
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000005254373214285764,
+        "annualizedFundingPct": 4.602830935714329,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 112311.7862,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.888495725000028,
+      "deployable": false
+    },
+    {
+      "symbol": "EIGEN",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5625,
+        "annualizedFundingPct": 8.72729885916673,
+        "annualizedNetPct": -9.578965529528922
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7041666666666667,
+        "annualizedFundingPct": 4.283406886666544,
+        "annualizedNetPct": -5.986740081418054
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 7.2460015350001905,
+        "annualizedNetPct": -7.813779284641739,
+        "breakevenDays": 7.05216521873103
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010006522619047594,
+        "annualizedFundingPct": -8.765713814285691,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1072547.623295,
+      "liquid": false,
+      "binanceSpotMarket": "EIGENUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.044536532142814,
+      "deployable": false
+    },
+    {
+      "symbol": "SEI",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5138888888888888,
+        "annualizedFundingPct": 5.309021968333227,
+        "annualizedNetPct": -6.1606886373768095
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5333333333333333,
+        "annualizedFundingPct": 9.52546802333325,
+        "annualizedNetPct": -11.228801096740714
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.714503986666714,
+        "annualizedNetPct": -7.282281738222235,
+        "breakevenDays": 7.610390894319449
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000004816977380952383,
+        "annualizedFundingPct": -4.219672185714288,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 909982.6270680003,
+      "liquid": false,
+      "binanceSpotMarket": "SEIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.322382696428558,
+      "deployable": false
+    },
+    {
+      "symbol": "AIXBT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7673611111111112,
+        "annualizedFundingPct": -2.419034762500027,
+        "annualizedNetPct": 1.5673680964380279
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.33194444444444443,
+        "annualizedFundingPct": 24.183022075000046,
+        "annualizedNetPct": -25.886354809112156
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.448317516666662,
+        "annualizedNetPct": -7.016095269180727,
+        "breakevenDays": 7.9245477394567265
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000024126455952380844,
+        "annualizedFundingPct": 21.13477541428562,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 297616.117261,
+      "liquid": false,
+      "binanceSpotMarket": "AIXBTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 29.340095082142813,
+      "deployable": false
+    },
+    {
+      "symbol": "OP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5583333333333333,
+        "annualizedFundingPct": 6.310072854166549,
+        "annualizedNetPct": -7.161739523596351
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5541666666666667,
+        "annualizedFundingPct": 6.516464476666675,
+        "annualizedNetPct": -8.219797619726906
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 6.378870061666555,
+        "annualizedNetPct": -6.9466478144307935,
+        "breakevenDays": 8.010823156138962
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000014938175595238096,
+        "annualizedFundingPct": 13.085841821428573,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 696348.6736279998,
+      "liquid": false,
+      "binanceSpotMarket": "OPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.482299510714291,
+      "deployable": false
+    },
+    {
+      "symbol": "DOT",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6493055555555556,
+        "annualizedFundingPct": 7.027958078333405,
+        "annualizedNetPct": -7.879624748039979
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.45694444444444443,
+        "annualizedFundingPct": 3.728045638333332,
+        "annualizedNetPct": -5.431378845940305
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.927987265000026,
+        "annualizedNetPct": -6.495765019387678,
+        "breakevenDays": 8.620126480652921
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000031813374999999907,
+        "annualizedFundingPct": 2.786851649999992,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 1666859.1078290003,
+      "liquid": false,
+      "binanceSpotMarket": "DOTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.069953910714288,
+      "deployable": false
+    },
+    {
+      "symbol": "POL",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.5875,
+        "annualizedFundingPct": 9.764746510833355,
+        "annualizedNetPct": -10.616413181595838
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7430555555555556,
+        "annualizedFundingPct": -2.5838015416666495,
+        "annualizedNetPct": 0.8804681879521252
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.648563826666791,
+        "annualizedNetPct": -6.216341582060498,
+        "breakevenDays": 9.046547329209172
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008497519642857134,
+        "annualizedFundingPct": -7.443827207142848,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 358487.6814689999,
+      "liquid": false,
+      "binanceSpotMarket": "POLUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.189564067857104,
+      "deployable": false
+    },
+    {
+      "symbol": "MANTA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.88125,
+        "annualizedFundingPct": 8.091042174166766,
+        "annualizedNetPct": 7.2393755102929696
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8944444444444445,
+        "annualizedFundingPct": 0.022425478333432444,
+        "annualizedNetPct": -1.6809078160900968
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.401503275555398,
+        "annualizedNetPct": 4.8337254803723875,
+        "breakevenDays": 9.460329355210055
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00007823394761904764,
+        "annualizedFundingPct": -68.53293811428574,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 609397.1081380004,
+      "liquid": false,
+      "binanceSpotMarket": "MANTAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 26.471539224999987,
+      "deployable": false
+    },
+    {
+      "symbol": "POPCAT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9729166666666667,
+        "annualizedFundingPct": 10.282968157500099,
+        "annualizedNetPct": 9.431301494471954
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5555555555555556,
+        "annualizedFundingPct": -5.562716191666691,
+        "annualizedNetPct": -7.266049356804413
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 5.001073374444523,
+        "annualizedNetPct": 4.433295580703153,
+        "breakevenDays": 10.217806493526153
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00001655300714285716,
+        "annualizedFundingPct": -14.500434257142873,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 353182.9202199999,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 7.363959732142865,
+      "deployable": false
+    },
+    {
+      "symbol": "ADA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6319444444444444,
+        "annualizedFundingPct": -0.7335304016666551,
+        "annualizedNetPct": -0.11813626504557728
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.33194444444444443,
+        "annualizedFundingPct": 14.76984897833332,
+        "annualizedNetPct": -16.47318193034301
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 4.434262725000003,
+        "annualizedNetPct": -5.002040484766315,
+        "breakevenDays": 11.52389995114689
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00001147728095238097,
+        "annualizedFundingPct": 10.054098114285729,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 6891001.13125,
+      "liquid": true,
+      "binanceSpotMarket": "ADAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 19.195052785714243,
+      "deployable": false
+    },
+    {
+      "symbol": "SNX",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7729166666666667,
+        "annualizedFundingPct": -2.7266163691667478,
+        "annualizedNetPct": 1.8749497032233602
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5347222222222222,
+        "annualizedFundingPct": 17.508247243333205,
+        "annualizedNetPct": -19.211580131954165
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 4.0183381683332335,
+        "annualizedNetPct": -4.586115929597319,
+        "breakevenDays": 12.716699754813261
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00001744279166666667,
+        "annualizedFundingPct": 15.279885500000004,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 172710.596224,
+      "liquid": false,
+      "binanceSpotMarket": "SNXUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.819534546428484,
+      "deployable": false
+    },
+    {
+      "symbol": "FET",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7965277777777777,
+        "annualizedFundingPct": 10.423736673334032,
+        "annualizedNetPct": -11.27540334435008
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9583333333333334,
+        "annualizedFundingPct": -10.256837746666807,
+        "annualizedNetPct": 8.55350421533555
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.5302118666671434,
+        "annualizedNetPct": -4.097989629688309,
+        "breakevenDays": 14.475051903398441
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000011443980952380925,
+        "annualizedFundingPct": -10.02492731428569,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 2780018.32652,
+      "liquid": false,
+      "binanceSpotMarket": "FETUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.182229799999957,
+      "deployable": false
+    },
+    {
+      "symbol": "BANANA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.71875,
+        "annualizedFundingPct": 10.29405266000031,
+        "annualizedNetPct": -11.145719330966713
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 1,
+        "annualizedFundingPct": -10.950000000000157,
+        "annualizedNetPct": 9.24666645262346
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.2127017733335075,
+        "annualizedNetPct": -3.7804795374982736,
+        "breakevenDays": 15.905615773037818
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": -10.949999999999969,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 131047.85745,
+      "liquid": false,
+      "binanceSpotMarket": "BANANAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.949999999999978,
+      "deployable": false
+    },
+    {
+      "symbol": "BTC",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6416666666666667,
+        "annualizedFundingPct": 1.767469794999991,
+        "annualizedNetPct": 0.9158031286866526
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8333333333333334,
+        "annualizedFundingPct": 5.738493135000007,
+        "annualizedNetPct": 4.035159708260191
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 3.0911442416666888,
+        "annualizedNetPct": 2.523366454802693,
+        "breakevenDays": 16.531095285429906
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000004580635714285718,
+        "annualizedFundingPct": 4.012636885714289,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 3284351613.8262467,
+      "liquid": true,
+      "binanceSpotMarket": "BTCUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.321589571428565,
+      "deployable": false
+    },
+    {
+      "symbol": "INJ",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6680555555555555,
+        "annualizedFundingPct": 1.4189033116666834,
+        "annualizedNetPct": -2.270569979209325
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5222222222222223,
+        "annualizedFundingPct": 5.442670976666678,
+        "annualizedNetPct": -7.146004144583237
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.7601592000000172,
+        "annualizedNetPct": -3.3279369657944655,
+        "breakevenDays": 18.51342487781128
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000017866174404761904,
+        "annualizedFundingPct": 15.650768778571427,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 2300289.782890001,
+      "liquid": false,
+      "binanceSpotMarket": "INJUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.278215414285715,
+      "deployable": false
+    },
+    {
+      "symbol": "kSHIB",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7180555555555556,
+        "annualizedFundingPct": -1.6530325008333513,
+        "annualizedNetPct": 0.8013658344758358
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.3736111111111111,
+        "annualizedFundingPct": 11.284624821666666,
+        "annualizedNetPct": -12.987957854352828
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.659519939999991,
+        "annualizedNetPct": -3.2272977061568495,
+        "breakevenDays": 19.21399393606358
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00002003620416666667,
+        "annualizedFundingPct": 17.551714850000003,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 733557.4544679999,
+      "liquid": false,
+      "binanceSpotMarket": "SHIBUSDT",
+      "spotScaled": true,
+      "sieveAnnualizedPct": 20.342499635714272,
+      "deployable": false
+    },
+    {
+      "symbol": "MEME",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8402777777777778,
+        "annualizedFundingPct": -0.4452549833334105,
+        "annualizedNetPct": -0.40641168349012796
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6638888888888889,
+        "annualizedFundingPct": 8.063256001666495,
+        "annualizedNetPct": -9.766589108921549
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.390915344999898,
+        "annualizedNetPct": -2.958693112124047,
+        "breakevenDays": 21.37256766822172
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000007365763095238088,
+        "annualizedFundingPct": -6.452408471428566,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 126998.476582,
+      "liquid": false,
+      "binanceSpotMarket": "MEMEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.451273696428601,
+      "deployable": false
+    },
+    {
+      "symbol": "DYM",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7013888888888888,
+        "annualizedFundingPct": 8.355303512500425,
+        "annualizedNetPct": -9.20697018271874
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9944444444444445,
+        "annualizedFundingPct": -10.404060131666824,
+        "annualizedNetPct": 8.700726596927625
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.1021822977779587,
+        "annualizedNetPct": -2.6699600659415017,
+        "breakevenDays": 24.308072641470506
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012421935119047583,
+        "annualizedFundingPct": -10.881615164285684,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 55630.020508,
+      "liquid": false,
+      "binanceSpotMarket": "DYMUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 9.54665477857139,
+      "deployable": false
+    },
+    {
+      "symbol": "SUSHI",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6986111111111111,
+        "annualizedFundingPct": -1.8603790241666986,
+        "annualizedNetPct": 1.0087123578891637
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5027777777777778,
+        "annualizedFundingPct": 9.781371226666625,
+        "annualizedNetPct": -11.484704294150363
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 2.020204392777742,
+        "annualizedNetPct": -2.5879821612366896,
+        "breakevenDays": 25.294470293542172
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000003901377976190518,
+        "annualizedFundingPct": 3.417607107142894,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 168686.9935520001,
+      "liquid": false,
+      "binanceSpotMarket": "SUSHIUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 15.141547632142746,
+      "deployable": false
+    },
+    {
+      "symbol": "ATOM",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6930555555555555,
+        "annualizedFundingPct": -1.3573594450000304,
+        "annualizedNetPct": 0.5056927785284309
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5097222222222222,
+        "annualizedFundingPct": 8.576990824999967,
+        "annualizedNetPct": -10.280323920362871
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.9540906449999715,
+        "annualizedNetPct": -2.521868413696976,
+        "breakevenDays": 26.150271038220307
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000013799761904761923,
+        "annualizedFundingPct": 1.2088591428571445,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 303154.5001140001,
+      "liquid": false,
+      "binanceSpotMarket": "ATOMUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 14.753017124999898,
+      "deployable": false
+    },
+    {
+      "symbol": "CELO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9298611111111111,
+        "annualizedFundingPct": -6.456352200833447,
+        "annualizedNetPct": 5.604685536328969
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7527777777777778,
+        "annualizedFundingPct": 17.907277531666654,
+        "annualizedNetPct": -19.610610411050686
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.664857709999855,
+        "annualizedNetPct": -2.2326354797384522,
+        "breakevenDays": 30.693313724693297
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.00011357221011904756,
+        "annualizedFundingPct": 99.48925606428566,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 867836.378244,
+      "liquid": false,
+      "binanceSpotMarket": "CELOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 48.233395849999965,
+      "deployable": false
+    },
+    {
+      "symbol": "FOGO",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8625,
+        "annualizedFundingPct": -0.028637839166783884,
+        "annualizedNetPct": -0.8230288278175266
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9291666666666667,
+        "annualizedFundingPct": 4.734953374999873,
+        "annualizedNetPct": -6.4382865592989225
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.5592258988887684,
+        "annualizedNetPct": -2.1270036690077028,
+        "breakevenDays": 32.772672668160546
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.0000591441148809521,
+        "annualizedFundingPct": 51.81024463571404,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 98818.035,
+      "liquid": false,
+      "binanceSpotMarket": "FOGOUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 22.63709872857131,
+      "deployable": false
+    },
+    {
+      "symbol": "ANIME",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7277777777777777,
+        "annualizedFundingPct": -0.5171516491666902,
+        "annualizedNetPct": -0.3345150176290568
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7055555555555556,
+        "annualizedFundingPct": 5.313431046666669,
+        "annualizedNetPct": -7.016764217574903
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.4263759161110943,
+        "annualizedNetPct": -1.9941536867082938,
+        "breakevenDays": 35.8250580529432
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000010729386904761925,
+        "annualizedFundingPct": 9.398942928571447,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 183346.859619,
+      "liquid": false,
+      "binanceSpotMarket": "ANIMEUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 19.61380242499992,
+      "deployable": false
+    },
+    {
+      "symbol": "YGG",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7708333333333334,
+        "annualizedFundingPct": 4.092920686666733,
+        "annualizedNetPct": 3.2412540212504846
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5569444444444445,
+        "annualizedFundingPct": -3.9762159516666764,
+        "annualizedNetPct": -5.679549153528955
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.403208473888967,
+        "annualizedNetPct": 0.835430693102873,
+        "breakevenDays": 36.41654176900548
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000007023060119047636,
+        "annualizedFundingPct": -6.152200664285729,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 131314.16106,
+      "liquid": false,
+      "binanceSpotMarket": "YGGUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 11.217074149999977,
+      "deployable": false
+    },
+    {
+      "symbol": "PYTH",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7361111111111112,
+        "annualizedFundingPct": 3.185776940000007,
+        "annualizedNetPct": 2.334110274233839
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6402777777777777,
+        "annualizedFundingPct": -2.449379220000012,
+        "annualizedNetPct": -4.1527124572057295
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.3073915533333915,
+        "annualizedNetPct": 0.7396137728923373,
+        "breakevenDays": 39.08545979948613
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000020218457738095236,
+        "annualizedFundingPct": -17.711368978571425,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 2176197.8161419993,
+      "liquid": false,
+      "binanceSpotMarket": "PYTHUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 8.414402357142858,
+      "deployable": false
+    },
+    {
+      "symbol": "IOTA",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8868055555555555,
+        "annualizedFundingPct": 6.531713690000104,
+        "annualizedNetPct": 5.68004702552471
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.5708333333333333,
+        "annualizedFundingPct": -9.79513306500001,
+        "annualizedNetPct": -11.498466132165138
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 1.0894314383334573,
+        "annualizedNetPct": 0.521653658677173,
+        "breakevenDays": 46.90520045774475
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000036010345238095235,
+        "annualizedFundingPct": -31.545062428571423,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 207249.404842,
+      "liquid": false,
+      "binanceSpotMarket": "IOTAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 24.984970614285686,
+      "deployable": false
+    },
+    {
+      "symbol": "JUP",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6888888888888889,
+        "annualizedFundingPct": 0.897192325833353,
+        "annualizedNetPct": -1.7488589931747143
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6333333333333333,
+        "annualizedFundingPct": 1.1905276783333612,
+        "annualizedNetPct": -2.8938609446791452
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.994970776666671,
+        "annualizedNetPct": -1.5627485488172634,
+        "breakevenDays": 51.35829232210627
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.0000029844452380952346,
+        "annualizedFundingPct": -2.614374028571426,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 6768869.2350600045,
+      "liquid": true,
+      "binanceSpotMarket": "JUPUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.387927799999976,
+      "deployable": false
+    },
+    {
+      "symbol": "USUAL",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8493055555555555,
+        "annualizedFundingPct": 4.485372154166709,
+        "annualizedNetPct": 3.6337054889018927
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7194444444444444,
+        "annualizedFundingPct": -6.494607789999979,
+        "annualizedNetPct": -8.197940933566182
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.8253788394445355,
+        "annualizedNetPct": 0.2576010607390908,
+        "breakevenDays": 61.91096446619512
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000020506432738095174,
+        "annualizedFundingPct": -17.96363507857137,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 99573.168571,
+      "liquid": false,
+      "binanceSpotMarket": "USUALUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 25.591509364285642,
+      "deployable": false
+    },
+    {
+      "symbol": "SAND",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.6048611111111111,
+        "annualizedFundingPct": 2.900785061666621,
+        "annualizedNetPct": -3.752451729781039
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7666666666666667,
+        "annualizedFundingPct": -3.593306739999986,
+        "annualizedNetPct": 1.8899733629172835
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.7360877944443774,
+        "annualizedNetPct": -1.3038655675272328,
+        "breakevenDays": 69.42106686957351
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000010231186904761883,
+        "annualizedFundingPct": -8.96251972857141,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 122395.92115,
+      "liquid": false,
+      "binanceSpotMarket": "SANDUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 6.194011153571407,
+      "deployable": false
+    },
+    {
+      "symbol": "NIL",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9458333333333333,
+        "annualizedFundingPct": -0.8715681091668408,
+        "annualizedNetPct": 0.019901442507678026
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.8041666666666667,
+        "annualizedFundingPct": 3.8577771016664903,
+        "annualizedNetPct": -5.561110306270595
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.7048802944443072,
+        "annualizedNetPct": -1.2726580676396058,
+        "breakevenDays": 72.49457872883893
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000008765551190476179,
+        "annualizedFundingPct": -7.678622842857133,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 234653.2404119999,
+      "liquid": false,
+      "binanceSpotMarket": "NILUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.6060237892856914,
+      "deployable": false
+    },
+    {
+      "symbol": "SAGA",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7527777777777778,
+        "annualizedFundingPct": -0.08671828166674589,
+        "annualizedNetPct": -0.7649483852951191
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7402777777777778,
+        "annualizedFundingPct": 1.8164335716666054,
+        "annualizedNetPct": -3.5197668235239163
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.5476656694443752,
+        "annualizedNetPct": -1.1154434432057077,
+        "breakevenDays": 93.3050999012639
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": -10.949999999999969,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 297634.7640799999,
+      "liquid": false,
+      "binanceSpotMarket": "SAGAUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.906291821428555,
+      "deployable": false
+    },
+    {
+      "symbol": "NOT",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.7451388888888889,
+        "annualizedFundingPct": 1.172263747499964,
+        "annualizedNetPct": 0.3205970809570205
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.7444444444444445,
+        "annualizedFundingPct": -0.8521269316666968,
+        "annualizedNetPct": -2.5554602058458284
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.49746685444442307,
+        "annualizedNetPct": -0.07031092308015613,
+        "breakevenDays": 102.72041150775581
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": -0.000009270723809523835,
+        "annualizedFundingPct": -8.12115405714288,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 27290.458285,
+      "liquid": false,
+      "binanceSpotMarket": "NOTUSDT",
+      "spotScaled": false,
+      "sieveAnnualizedPct": 5.940527257142872,
+      "deployable": false
+    },
+    {
+      "symbol": "SKR",
+      "direction": "LONG_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.9784722222222222,
+        "annualizedFundingPct": 4.303358638333352,
+        "annualizedNetPct": -5.155025306988821
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.9847222222222223,
+        "annualizedFundingPct": -7.663584165000047,
+        "annualizedNetPct": 5.9602506936979
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.3143777038888454,
+        "annualizedNetPct": -0.8821554784901807,
+        "breakevenDays": 162.54333360125128
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000012499999999999965,
+        "annualizedFundingPct": -10.949999999999969,
+        "vetoed": true
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 442994.7380680001,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 10.90401417142855,
+      "deployable": false
+    },
+    {
+      "symbol": "MOODENG",
+      "direction": "SHORT_PERP",
+      "inSample": {
+        "periods": 1440,
+        "windowDays": 59.999999976851846,
+        "posFrac": 0.8055555555555556,
+        "annualizedFundingPct": 2.7065383275000947,
+        "annualizedNetPct": 1.8548716615489476
+      },
+      "oos": {
+        "periods": 720,
+        "windowDays": 30.000000694444445,
+        "posFrac": 0.6416666666666667,
+        "annualizedFundingPct": -4.63888075166654,
+        "annualizedNetPct": -6.342213938189492
+      },
+      "full": {
+        "periods": 2160,
+        "windowDays": 90.00000032407408,
+        "annualizedFundingPct": 0.2580653011111747,
+        "annualizedNetPct": -0.3097124755514468,
+        "breakevenDays": 198.01189768626077
+      },
+      "recent": {
+        "periods": 168,
+        "windowDays": 7.000000462962963,
+        "meanRatePerPeriod": 0.000001407998214285715,
+        "annualizedFundingPct": 1.2334064357142862,
+        "vetoed": false
+      },
+      "passGate": false,
+      "dayNtlVlmUsd": 408766.226406,
+      "liquid": false,
+      "binanceSpotMarket": null,
+      "spotScaled": false,
+      "sieveAnnualizedPct": 4.9869830071428245,
+      "deployable": false
+    }
+  ],
+  "sievedOut": [
+    {
+      "symbol": "SUI",
+      "sieveAnnualizedPct": 4.632033803571418,
+      "dayNtlVlmUsd": 14672099.679809
+    },
+    {
+      "symbol": "XLM",
+      "sieveAnnualizedPct": 3.391856617857162,
+      "dayNtlVlmUsd": 4505016.5761
+    },
+    {
+      "symbol": "UMA",
+      "sieveAnnualizedPct": 3.3306012750000216,
+      "dayNtlVlmUsd": 26015.155878
+    },
+    {
+      "symbol": "MON",
+      "sieveAnnualizedPct": 3.2063881250000135,
+      "dayNtlVlmUsd": 1929246.8024510003
+    },
+    {
+      "symbol": "ARK",
+      "sieveAnnualizedPct": 3.1752708321428664,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "FIL",
+      "sieveAnnualizedPct": 3.118400182142864,
+      "dayNtlVlmUsd": 911843.2881880003
+    },
+    {
+      "symbol": "ETC",
+      "sieveAnnualizedPct": 3.058461185714284,
+      "dayNtlVlmUsd": 292440.470928
+    },
+    {
+      "symbol": "SOPH",
+      "sieveAnnualizedPct": 2.9237667999999837,
+      "dayNtlVlmUsd": 60307.375859
+    },
+    {
+      "symbol": "ZK",
+      "sieveAnnualizedPct": 2.911712414285686,
+      "dayNtlVlmUsd": 190933.5606659999
+    },
+    {
+      "symbol": "BIGTIME",
+      "sieveAnnualizedPct": 2.78415690714289,
+      "dayNtlVlmUsd": 75494.344665
+    },
+    {
+      "symbol": "SKY",
+      "sieveAnnualizedPct": 2.4489270892857107,
+      "dayNtlVlmUsd": 976982.723009
+    },
+    {
+      "symbol": "ARB",
+      "sieveAnnualizedPct": 2.3623292750000093,
+      "dayNtlVlmUsd": 3459966.194138002
+    },
+    {
+      "symbol": "STX",
+      "sieveAnnualizedPct": 2.3607363107142922,
+      "dayNtlVlmUsd": 200138.669287
+    },
+    {
+      "symbol": "BERA",
+      "sieveAnnualizedPct": 2.1647294857143082,
+      "dayNtlVlmUsd": 1746560.5932319998
+    },
+    {
+      "symbol": "AVAX",
+      "sieveAnnualizedPct": 2.1261659321428636,
+      "dayNtlVlmUsd": 5363906.768484999
+    },
+    {
+      "symbol": "GMT",
+      "sieveAnnualizedPct": 2.0908527035714277,
+      "dayNtlVlmUsd": 134181.475641
+    },
+    {
+      "symbol": "BOME",
+      "sieveAnnualizedPct": 1.7755151249999994,
+      "dayNtlVlmUsd": 26157.407578
+    },
+    {
+      "symbol": "INIT",
+      "sieveAnnualizedPct": 1.7341913892857406,
+      "dayNtlVlmUsd": 789424.7466090001
+    },
+    {
+      "symbol": "MORPHO",
+      "sieveAnnualizedPct": 1.684053164285711,
+      "dayNtlVlmUsd": 8497030.42877
+    },
+    {
+      "symbol": "CRV",
+      "sieveAnnualizedPct": 1.6379309821428565,
+      "dayNtlVlmUsd": 5533680.7049969975
+    },
+    {
+      "symbol": "XRP",
+      "sieveAnnualizedPct": 1.4698164142857124,
+      "dayNtlVlmUsd": 30379852.447299995
+    },
+    {
+      "symbol": "BCH",
+      "sieveAnnualizedPct": 1.4619869035714292,
+      "dayNtlVlmUsd": 4169023.107220001
+    },
+    {
+      "symbol": "VIRTUAL",
+      "sieveAnnualizedPct": 1.4269385607142964,
+      "dayNtlVlmUsd": 1190652.0172350002
+    },
+    {
+      "symbol": "SOL",
+      "sieveAnnualizedPct": 1.3340119071428578,
+      "dayNtlVlmUsd": 500276702.0877504
+    },
+    {
+      "symbol": "ETH",
+      "sieveAnnualizedPct": 1.263375803571428,
+      "dayNtlVlmUsd": 1058937194.1669108
+    },
+    {
+      "symbol": "DOGE",
+      "sieveAnnualizedPct": 1.1830872749999983,
+      "dayNtlVlmUsd": 14847950.252369005
+    },
+    {
+      "symbol": "TIA",
+      "sieveAnnualizedPct": 1.1212140392857144,
+      "dayNtlVlmUsd": 701748.9484470001
+    },
+    {
+      "symbol": "RSR",
+      "sieveAnnualizedPct": 1.1153847285714593,
+      "dayNtlVlmUsd": 34805.039557
+    },
+    {
+      "symbol": "kFLOKI",
+      "sieveAnnualizedPct": 1.1151480000000014,
+      "dayNtlVlmUsd": 186596.5196720001
+    },
+    {
+      "symbol": "ALGO",
+      "sieveAnnualizedPct": 0.9638904357142717,
+      "dayNtlVlmUsd": 605596.916553
+    },
+    {
+      "symbol": "kPEPE",
+      "sieveAnnualizedPct": 0.854188903571432,
+      "dayNtlVlmUsd": 12812037.104358003
+    },
+    {
+      "symbol": "WLFI",
+      "sieveAnnualizedPct": 0.7881750035714279,
+      "dayNtlVlmUsd": 1671414.1171329995
+    },
+    {
+      "symbol": "RENDER",
+      "sieveAnnualizedPct": 0.6733311428571458,
+      "dayNtlVlmUsd": 443773.60175
+    },
+    {
+      "symbol": "ICP",
+      "sieveAnnualizedPct": 0.6291254714285575,
+      "dayNtlVlmUsd": 661245.6617499999
+    },
+    {
+      "symbol": "W",
+      "sieveAnnualizedPct": 0.36319351071428213,
+      "dayNtlVlmUsd": 380839.0471979999
+    },
+    {
+      "symbol": "KAS",
+      "sieveAnnualizedPct": 0.11727606428571524,
+      "dayNtlVlmUsd": 200418.3000709999
+    },
+    {
+      "symbol": "PENGU",
+      "sieveAnnualizedPct": 0.10201593571428885,
+      "dayNtlVlmUsd": 3389430.702320001
+    },
+    {
+      "symbol": "MATIC",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "RNDR",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "FTM",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "MKR",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "FXS",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "HPOS",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "RLB",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "UNIBOT",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "OX",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "FRIEND",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "SHIA",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "CYBER",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "BLZ",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "FTT",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "LOOM",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "OGN",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "RDNT",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "BNT",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "CANTO",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "REQ",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "ORBS",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "TON",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "STG",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "STRAX",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "BADGER",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "ILV",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "USTC",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "NFTI",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "NTRN",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "MAV",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "MAVIA",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "PANDORA",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "PIXEL",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "AI",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "MYRO",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "OMNI",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "BLAST",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "LISTA",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "MEW",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "kDOGS",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "CATI",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "SCR",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "NEIROETH",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "CHILLGUY",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "AI16Z",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "ZEREBRO",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "JELLY",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "TST",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "OM",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "PROMPT",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "LAUNCHCOIN",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    },
+    {
+      "symbol": "YZY",
+      "sieveAnnualizedPct": 0,
+      "dayNtlVlmUsd": 0
+    }
+  ]
+}
