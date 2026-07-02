@@ -1,11 +1,11 @@
 # Profit Pivot II — the critical review + the carry-desk plan
 
-> **Status:** PROPOSAL / review document (2026-07-02, Fable). No code changed by this doc. It is an
-> outside-eyes critical review of the research record (QUANT_JOURNAL #41→#89, PROFIT_PIVOT,
-> RESEARCH_FINDINGS, the Take Sides build) with one question: **where did we leave money on the
-> table, and where is the money for real?** Adoption of the plan in §4 is the operator's call
-> (trading policy). Everything cited below is pinned to a journal entry — nothing is asserted
-> from memory.
+> **Status: ADOPTED (operator, 2026-07-02) — now the ACTIVE plan.** Originally an outside-eyes
+> critical review of the research record (QUANT_JOURNAL #41→#89, PROFIT_PIVOT, RESEARCH_FINDINGS,
+> the Take Sides build) with one question: **where did we leave money on the table, and where is
+> the money for real?** Everything cited is pinned to a journal entry. Execution state lives in
+> the **§4 session ledger** below — updated at the end of every session so a fresh session can
+> pick up cold.
 
 ---
 
@@ -215,12 +215,39 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ## 4. The plan (phases, each with a pre-registered metric)
 
+### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
+
+> **Last updated: 2026-07-02 (session 1 of the plan — Journal #90).**
+>
+> **State:** **P0 steps 1–2 BUILT & COMMITTED** (2ec5d24 recency veto · e831c6f FundingCarryBook ·
+> 68ce390 persistence/migration · c919792 the runner). Repo green (tsc exit 0; carry+funding
+> 69/69). Bounded live smoke passed (real mids, honest accrual, flatten-on-exit). **P0 step 3 —
+> the 30-day launch — is the OPERATOR'S, not yet running.** Honesty note: #72's "fee-clear in
+> ~1h" was a 60× tracker accrual bug, corrected in #90; the carry rate itself stands.
+>
+> **Pick up here (in order):**
+> 1. **Operator launches P0:** `sudo docker compose up -d postgres && npm run migration:run`, then
+>    `MM_PERSIST=true npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts`
+>    (Ctrl-C safe — pairs checkpoint OPEN and resume). Score each session from
+>    `mm_nav WHERE desk='carry'` against the P0 metric below.
+> 2. **Next build session = P1:** (a) full-universe carry scan — `rankCarryUniverse` over all
+>    ~230 HL perps (symbol list via `hl-universe-discovery`), ranked-board artifact under
+>    `docs/research/`; (b) **E2 maker-execution service** — post-only entry with timeout-to-taker,
+>    wired into `FundingCarryBook.open/close` as a fill-model/executor seam (kills the 7bps taker
+>    entry, the whole breakeven story); (c) **E4 Bybit funding ingest** (mirror the two existing
+>    funding clients) + the three-venue differential board (M2 — measure ≥1 week before trading).
+> 3. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward run
+>    (#88) — now a benchmark track, not the priority.
+>
+> **Do-not-relitigate:** the #65 κ=0 verdict; the #70 spread-MM verdict; realised-first judging;
+> resume-not-flatten on the carry desk (this session's design decision, rationale in #90).
+
 **P0 — Turn the validated edge on and leave it on (days, not weeks).**
-1. Ship E3 recency veto (+spec) — the known open loss-class closes first.
-2. Assemble E1 `FundingCarryBook` v1 (mid-fill taker entries are acceptable for v1; E2 comes next)
-   on the current gate-passers (re-gate first — #72's set is stale).
+1. ~~Ship E3 recency veto (+spec)~~ **DONE #90** — default-ON, trailing-7d mean, BNB case locked.
+2. ~~Assemble E1 `FundingCarryBook` v1~~ **DONE #90** — book + margin model + persistence +
+   `scripts/carry-desk-live.ts` (gate-first, daily re-gate, DD kill-switch, resume-not-flatten).
 3. Launch under `MM_PERSIST` with alerts + tear-sheet and **leave it running 30 days**. This run is
-   the demo. Operator launches (sandbox can't, per standing constraint).
+   the demo. Operator launches (sandbox can't, per standing constraint). **← YOU ARE HERE**
 - **Pre-registered:** rolling-7d net accrual (funding − all fees) > 0; desk maxDD < 0.5%; no
   ungated leg ever opens.
 

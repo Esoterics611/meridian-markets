@@ -60,6 +60,13 @@ archived `ROADMAP`.
 
 ## 3. The path to profit — THE active priority chain
 
+> **⭐ CURRENT (2026-07-02, Journal #90): [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) is ADOPTED and
+> is the active plan** — the carry desk (P0 built: recency-vetoed gate + `FundingCarryBook` +
+> `scripts/carry-desk-live.ts`; the 30-day operator launch is next), then P1 breadth
+> (full-universe scan · maker-execution · cross-venue funding differential), then the P2 VRP
+> satellite. **Its §4 session ledger is the authoritative per-session state / pickup point.**
+> The paragraphs below record the June chain it extends.
+>
 > **STRATEGIC PIVOT (2026-06-15, Journal #70 + [PROFIT_PIVOT.md](PROFIT_PIVOT.md)).** The external
 > MM-edge report + our own ~10-run record (every one realised-negative; BNB-solo ≈$0 at size) settle
 > it: **passive spread-MM has no positive-EV edge for us** (no latency/colo, rebate tier, flow,

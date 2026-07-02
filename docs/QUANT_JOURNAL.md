@@ -3818,18 +3818,100 @@ unchanged — run it via the terminal cockpit; the web backend can serve the UI 
 
 ---
 
-## ⏭️ NEXT SESSION — the operator forward run (P16) + write #90
+## 2026-07-02 — Entry #90 (PROFIT_PIVOT_II adopted → the CARRY DESK is built: gate veto + FundingCarryBook + 30-day runner. Plus an honesty correction to #72)
 
-**Done + committed:** P5–P15 (#77–#87) — the take-sides desk is institutional-grade in paper. Repo green:
-`npx tsc --noEmit` exit 0; `npx jest src/market-making` green (31 suites / 243 tests in directional+bias).
+**Context.** The Fable review ([PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md), commit 5eadd68) was adopted
+by the operator this session. P0 ("turn the validated edge on and leave it on") is now BUILT:
+the #72 recency veto, a real `FundingCarryBook`, durable carry persistence, and the forward runner
+`scripts/carry-desk-live.ts`. Four commits on master (2ec5d24, e831c6f, 68ce390, c919792).
 
-**Next is the OPERATOR's job (P16, #88 handover above):** re-gate → stress-check → run the multi-hour forward
-test (outright + hedged) → review via `mm-run-review` (DB-sourced) → write **#89** with the honest realised
-numbers + tear-sheet. Then the open frontier returns to the MM desk (project_mm_frontier_state) + the broader
-master plan. **Real-money stays PARKED** (CLAUDE.md §1).
+**⚠ FIRST, the honesty correction (this changes a #72 headline, not the thesis):**
+`funding-carry-live.ts` accrued **one full hourly funding period per 60-second poll** — a ~60×
+overstatement. #72's "ETH cleared its $35 entry fee at poll ~56 (~56 min)" and "~$6.25/hr gross"
+were artifacts of that bug: at the true +0.125bps/h on $50k the honest accrual is **~$0.62/hr**,
+honest fee-clear ≈ **2.3 days** — which is exactly what the OOS board's breakeven column always
+said (ETH 11.6d on the 60d avg; the live rate ran hotter). **What survives #72 unchanged:** the
+rate itself (+0.125bps/h ≈ 10.95%/yr gross, stable every poll), the OOS gate verdicts, the BNB
+regime-flip lesson, and the strategic pivot. What dies is only the "breakeven in an hour" glamour.
+The tracker is fixed (time-weighted accrual) and the new book's spec locks the bug class out
+("60 one-minute accruals equal ONE one-hour accrual").
 
-**Two locked operator decisions (do not re-litigate):** (1) scope = institutional-grade, paper-only; (2) P9
-exposure is a TOGGLE, default outright. **Reuse map** is Playbook II §1; **dependencies** are §3 (risk spine
-before universe; slippage before backtest — both done; P5+P9 before the P13 web cockpit; P6 before P16).
+**What shipped (P0, all specs green, tsc clean):**
+1. **E3 recency veto** (`oosCarryGate`): trailing-7d **mean** funding must still pay the gated
+   direction, else 🚫 VETO regardless of the 90d windows — the exact fix specified in #72 the day
+   BNB bled −$93, now default-ON. Veto is on the mean, not sign-counts (magnitude matters). New
+   `recent` block on every gate result; the board prints a `recent7d%` column. 5 locking specs
+   incl. the literal BNB case (windows pass, only the veto catches the flip).
+2. **`FundingCarryBook`** (`src/market-making/carry/`): the delta-neutral pair as a real book —
+   two equal-qty `InventoryBook` legs (spot @ Binance mid, perp @ HL mid), **time-weighted**
+   funding accrual, P7-convention fees/slippage split, and the **R9a margin model**: each leg
+   posts notional/maxLeverage; either leg's unrealised loss at maintenanceFrac ⇒ `wouldLiquidate`
+   (a delta-neutral pair CAN be liquidated on one leg — "paper holds forever" was overstating our
+   capacity). Serialize/restore locks the #47 accrual-clock trap. 14 specs.
+3. **Persistence** (`carry_book_state` migration 1725000000000 + Postgres/Null stores): the P6
+   pattern; nav rows under `mm_nav desk='carry'` / `'@carry'` namespace. **One deliberate
+   difference from the regime desk:** shutdown with persistence ON checkpoints the pair **OPEN
+   and resumes on reboot** — carry is hold-past-breakeven; flatten-on-restart would pay the
+   round-trip fee every reboot and destroy the economics the run measures. `reconcileCarryResume`
+   orphans a pair that fails today's gate OR whose direction flipped. 10 pure specs + int-spec
+   (auto-skips, DB was down locally).
+4. **`scripts/carry-desk-live.ts`** — the 30-day runner: gate-first (90d + veto) → open ≤8 pairs →
+   poll loop (accrue, checkpoint, nav-append) → **daily re-gate** (closes de-validated books,
+   admits new passers — the #72 rule as a standing cadence) → **DD kill-switch** (flatten + exit
+   at the pre-registered 0.5% budget, computed on the TOTAL mark incl. basis — conservative) →
+   realised-first verdict + tear-sheet vs BTC. **On resume, the offline gap is accrued from the
+   venue's ACTUAL settled funding history** (fundingHistory replay), not an estimate.
+
+**Bounded live smoke (36s, BTC+ETH, 4d gate — plumbing proof, NOT a read):** gate board rendered
+(both pass, recent7d column live), pairs opened at real mids (fees $35/side-pair, basis −2.3bps /
++1.2bps in the measured #71 band), funding accrued **+$0.01 over 36s** at the live +0.125bps/h —
+the honest magnitude (the old bug would have printed ~$0.75) — flatten-on-exit realised all, no
+dangling positions. Realised-first read −$87/pair = the round-trip fees + micro-move, i.e. exactly
+what "breakeven ~8d, do NOT churn" means.
+
+**HOW TO LAUNCH P0 (operator — the 30-day run that IS the demo):**
+```bash
+# once (persistence): sudo docker compose up -d postgres && npm run migration:run
+MM_PERSIST=true npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
+```
+Defaults: 10-symbol universe, 90d gate + 7d veto, $50k/leg × ≤8 pairs, 60s polls, re-gate 24h,
+DD kill 0.5%. Ctrl-C any time — with persistence the pairs checkpoint OPEN and the next boot
+resumes them (replaying the gap's settled funding). Review via `mm_nav WHERE desk='carry'`
+(never the log end-to-end, §12). Optional: `CD_ALERT_WEBHOOK=<slack-url>` for dd/liquidation/
+feed alerts. **Pre-registered (P0): rolling-7d (funding + realised − fees) > 0 AND desk maxDD
+< 0.5%.** A flat/negative honest read after the breakeven window is a legitimate mission outcome
+— report it, don't churn it.
+
+**Next:** P1 (breadth) — the full-universe scan via `rankCarryUniverse` over all ~230 HL perps,
+the maker-execution service (E2: cut the 7bps taker entry toward the −0.2bps rebate), Bybit
+funding ingest + the three-venue differential board (E4/M2). The session ledger + pickup prompt
+live in [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) §4-ledger.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-02, #90)
+
+**The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
+desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
+prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making/carry
+src/market-data/funding` 69/69.
+
+1. **OPERATOR: launch P0** — the 30-day carry run (#90 runbook above). Every session while it
+   runs: score it realised-first from `mm_nav desk='carry'` (rolling-7d funding + realised −
+   fees > 0; maxDD < 0.5%).
+2. **NEXT BUILD SESSION: P1 breadth** — (a) full-universe carry scan (`rankCarryUniverse` over
+   all ~230 HL perps via `hl-universe-discovery`'s symbol list + Binance majors; write the ranked
+   board artifact under `docs/research/`); (b) **E2 maker-execution service** (rest post-only
+   entries, timeout-to-taker; cuts the 7bps taker entry toward the −0.2bps rebate — the whole
+   breakeven story); (c) **E4 Bybit funding ingest** + the HL↔Binance↔Bybit funding-differential
+   board (M2 — measure a week before trading it).
+3. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
+   `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
+4. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
+   BENCHMARK track alongside the carry desk, not the priority.
+
+**Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
+while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays
+PARKED** (CLAUDE.md §1).
 Per-poll/shutdown persistence, slippage, and the desk-risk spine are all wired into `scripts/regime-book-live.ts`
 already — P9's hedge + P13's cockpit build on that runner.
