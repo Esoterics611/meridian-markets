@@ -5,6 +5,7 @@ import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
 import { MarkoutDeskController } from './markout-desk.controller';
+import { CarryDeskController } from './carry-desk.controller';
 import { ToxicityDeskController } from './toxicity-desk.controller';
 import { RiskController } from './risk.controller';
 import { ResearchPageController } from './research.controller';
@@ -24,6 +25,7 @@ import { UiAssetController } from './ui-asset.controller';
     OpsController,
     MmDeskController,
     MarkoutDeskController,
+    CarryDeskController,
     ToxicityDeskController,
     RiskController,
     ResearchPageController,

@@ -4,14 +4,19 @@ import { CarryBookRecord, CarryNavInsert } from './carry-state-store';
 import { FundingCarryBook } from './funding-carry-book';
 import { describeIfDb, dbAvailableCached, newAppDataSource } from '../../test-helpers/postgres-available';
 
-// DB-gated round-trip against real Postgres (the meridian_markets_app role). A unique
-// symbol per run keeps the test isolated; mm_nav is append-only so no cleanup is needed.
+// DB-gated round-trip against real Postgres (the meridian_markets_app role).
 // Auto-skips when the DB is unreachable. Mirrors postgres-regime-state-store.int-spec.
+//
+// FIXTURE HYGIENE (#93): the symbol is the FIXED well-known 'ITFIXTURE', not a random
+// one — the app role has no DELETE on carry_book_state, so a random symbol per run
+// leaked one CLOSED row into the real paper DB per run (ITA5NED7 was one). A fixed
+// symbol upserts the same single row forever (bounded), and CarryReadService excludes
+// exactly this symbol from every read (CARRY_TEST_FIXTURE_SYMBOL).
 describeIfDb('INTEGRATION: PostgresCarryStateStore against real Postgres', () => {
   let ds: DataSource;
   let store: PostgresCarryStateStore;
   let dbUp = false;
-  const sym = `IT${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const sym = 'ITFIXTURE';
 
   beforeAll(async () => {
     dbUp = await dbAvailableCached();

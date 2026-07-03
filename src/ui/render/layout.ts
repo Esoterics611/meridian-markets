@@ -21,6 +21,7 @@ export const ROLE_LINKS: RoleLink[] = [
   { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/markout', label: 'desk·markout', live: true },
   { href: '/desk/toxicity', label: 'desk·toxicity', live: true },
+  { href: '/desk/carry', label: 'desk·carry', live: true },
   { href: '/desk/statarb', label: 'desk·statarb', live: true },
   { href: '/risk', label: 'risk', live: true },
   { href: '/research', label: 'research', live: true },
