@@ -1,6 +1,7 @@
-import { renderExecLive, renderExecPage } from './exec-view';
+import { renderCarryStrip, renderExecLive, renderExecPage } from './exec-view';
 import { MmPortfolioSnapshot } from '../../market-making/live/mm-portfolio-trader';
 import { MmBookSnapshot } from '../../market-making/live/mm-book';
+import { CarryDeskView } from '../../market-making/carry/carry-read.service';
 
 // The exec page is a pure projection of MmPortfolioSnapshot — so we test it the
 // way the redesign promises (UI_ARCHITECTURE.md §testability): build a snapshot,
@@ -103,6 +104,46 @@ describe('renderExecLive', () => {
     // negative net p&l renders with the minus glyph + neg class (not a raw '-')
     const h = renderExecLive(snapshot({ netPnlUnits: '-50000000' })).value;
     expect(h).toContain('−$50.00');
+  });
+});
+
+function carryView(over: Partial<CarryDeskView> = {}): CarryDeskView {
+  return {
+    dbOff: false,
+    liveness: { state: 'DOWN', ageMs: 6 * 3_600_000 },
+    books: [],
+    desk: {
+      realisedFirstUnits: '304530000', fundingUnits: '99000000', feesUnits: '62000000',
+      basisMtmUnits: '0', maxDrawdownPct: 0.328, openCount: 7, closedCount: 1,
+    },
+    asOfMs: 1_783_100_000_000,
+    ...over,
+  };
+}
+
+describe('renderCarryStrip (the U2 fund view)', () => {
+  it('shows liveness, the judged number, dd vs budget and book counts, with the drill-down link', () => {
+    const h = renderCarryStrip(carryView()).value;
+    expect(h).toContain('carry desk');
+    expect(h).toContain('badge--deny'); // DOWN must read as an alarm on the fund view too
+    expect(h).toContain('DOWN');
+    expect(h).toContain('+$304.53'); // realised-first
+    expect(h).toContain('0.328%');
+    expect(h).toContain('7 open · 1 closed');
+    expect(h).toContain('href="/desk/carry"');
+  });
+
+  it('renders the honest DB-off state instead of zeros', () => {
+    const h = renderCarryStrip(carryView({ dbOff: true })).value;
+    expect(h).toContain('DB off / unreachable');
+    expect(h).not.toContain('realised-first');
+  });
+});
+
+describe('renderExecLive with the carry strip', () => {
+  it('appends the carry strip when a carry view is provided, and omits it when not', () => {
+    expect(renderExecLive(snapshot(), carryView()).value).toContain('carry desk');
+    expect(renderExecLive(snapshot()).value).not.toContain('carry desk');
   });
 });
 

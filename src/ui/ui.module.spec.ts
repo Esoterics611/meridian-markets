@@ -7,6 +7,7 @@ import { ExecController } from './exec.controller';
 import { OpsController } from './ops.controller';
 import { MmDeskController } from './mm-desk.controller';
 import { MarkoutDeskController } from './markout-desk.controller';
+import { CarryDeskController } from './carry-desk.controller';
 import { ToxicityDeskController } from './toxicity-desk.controller';
 import { RiskController } from './risk.controller';
 import { ResearchPageController } from './research.controller';
@@ -22,6 +23,7 @@ describe('UiModule — offline DI compile', () => {
   let ops: OpsController;
   let mmDesk: MmDeskController;
   let markout: MarkoutDeskController;
+  let carryDesk: CarryDeskController;
   let toxicity: ToxicityDeskController;
   let risk: RiskController;
   let research: ResearchPageController;
@@ -36,6 +38,7 @@ describe('UiModule — offline DI compile', () => {
     ops = mod.get(OpsController);
     mmDesk = mod.get(MmDeskController);
     markout = mod.get(MarkoutDeskController);
+    carryDesk = mod.get(CarryDeskController);
     toxicity = mod.get(ToxicityDeskController);
     risk = mod.get(RiskController);
     research = mod.get(ResearchPageController);
@@ -49,12 +52,21 @@ describe('UiModule — offline DI compile', () => {
     expect(html).toContain('class="launcher-grid"');
   });
 
-  it('resolves ExecController with the live MM trader injected', () => {
+  it('resolves ExecController with the MM trader + carry read service injected (the fund view)', async () => {
     expect(exec).toBeInstanceOf(ExecController);
-    // an idle desk (no books) still renders a coherent page from real state
-    const html = exec.page();
+    // an idle desk (no books) still renders a coherent page from real state; with no
+    // DatabaseModule in this offline graph, the carry strip renders its honest DB-off state
+    const html = await exec.page();
     expect(html).toContain('id="exec-live"');
     expect(html).toContain('Executive');
+    expect(html).toContain('carry desk');
+  });
+
+  it('resolves CarryDeskController (CarryReadService with @Optional DbService — absent here) and renders honestly', async () => {
+    expect(carryDesk).toBeInstanceOf(CarryDeskController);
+    const html = await carryDesk.page();
+    expect(html).toContain('id="carry-live"');
+    expect(html).toContain('DB OFF'); // no DatabaseModule in this graph — the page says so
   });
 
   it('resolves OpsController (ConfigService + MM trader; DbService optional) and renders', async () => {

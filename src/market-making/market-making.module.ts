@@ -49,6 +49,7 @@ import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
 import { CarryReadService } from './carry/carry-read.service';
+import { CarryController } from './carry/carry.controller';
 import { blockedEvent, controlEvent } from './events/desk-event';
 import { InventoryControlState } from './quote/glft-quoter';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
@@ -798,7 +799,7 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       },
     },
   ],
-  controllers: [MmController],
+  controllers: [MmController, CarryController],
   // Exported so TelemetryModule's collector + health controller can read the live
   // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
   // DeskEventLog is exported so the UI's /desk/mm page can server-render the MM
