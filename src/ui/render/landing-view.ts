@@ -25,6 +25,7 @@ export const LAUNCHER_ENTRIES: LauncherEntry[] = [
   { href: '/desk/mm', label: 'desk · mm', blurb: 'Market-making desk — per-book quotes, 4-component PnL attribution, launch / remove books.', live: true },
   { href: '/desk/markout', label: 'desk · markout', blurb: 'Markout / TCA — per-book multi-horizon markout curves by side + the F3 reaction. Am I getting picked off?', live: true },
   { href: '/desk/toxicity', label: 'desk · toxicity', blurb: 'Flow toxicity — VPIN gauges (warmed-aware), F3 scale, signed imbalances + 15-min strips.', live: true },
+  { href: '/desk/carry', label: 'desk · carry', blurb: 'Funding-carry desk — the 30-day forward run: liveness, books, realised-first, NAV. Read-only (the runner is its own supervised process).', live: true },
   { href: '/desk/statarb', label: 'desk · statarb', blurb: 'Stat-arb desk — per-pair z / β / regime, the persisted blotter, launch / remove pairs.', live: true },
   { href: '/risk', label: 'risk', blurb: 'Risk console — drawdown, net / gross exposure, verdict feed + the cross-desk kill switch.', live: true },
   { href: '/research', label: 'research', blurb: 'Research desk — findings KEEP / CUT board + copy-the-runbook-command (no execution).', live: true },

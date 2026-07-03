@@ -1,12 +1,12 @@
 import { Controller, Get, Header, MessageEvent, Sse } from '@nestjs/common';
-import { Observable, interval, map, startWith } from 'rxjs';
+import { Observable, interval, startWith, switchMap } from 'rxjs';
 import { MmPortfolioTrader } from '../market-making/live/mm-portfolio-trader';
+import { CarryReadService } from '../market-making/carry/carry-read.service';
 import { renderExecPage, renderExecLive } from './render/exec-view';
 
-// The Executive role page (UI_REDESIGN_PROMPT.md §2) — the first vertical slice
-// of the role-scoped redesign. Read-only by construction: it injects the live MM
-// desk (the same MmPortfolioTrader the snapshot/health endpoints read — DC-3, read
-// the ledger, don't duplicate it) and renders it server-side. No control plane here.
+// The Executive role page (UI_REDESIGN_PROMPT.md §2) — the FUND view: the MM desk
+// (in-process snapshot) + the carry desk (durable checkpoints via CarryReadService
+// — UI_REWRITE_PLAN_II U2). Read-only by construction; no control plane here.
 //
 //   GET /exec         — the server-rendered page (correct on first paint)
 //   GET /exec/stream  — SSE: the live region re-rendered every tick (replaces 4s polling)
@@ -16,12 +16,15 @@ const EXEC_STREAM_MS = 2000;
 
 @Controller()
 export class ExecController {
-  constructor(private readonly mm: MmPortfolioTrader) {}
+  constructor(
+    private readonly mm: MmPortfolioTrader,
+    private readonly carry: CarryReadService,
+  ) {}
 
   @Get('exec')
   @Header('Content-Type', 'text/html; charset=utf-8')
-  page(): string {
-    return renderExecPage(this.mm.snapshot());
+  async page(): Promise<string> {
+    return renderExecPage(this.mm.snapshot(), await this.carry.deskView());
   }
 
   @Sse('exec/stream')
@@ -29,7 +32,7 @@ export class ExecController {
     // startWith(0) → push the current state immediately on connect, then every tick.
     return interval(EXEC_STREAM_MS).pipe(
       startWith(0),
-      map(() => ({ data: { html: renderExecLive(this.mm.snapshot()).value } }) as MessageEvent),
+      switchMap(async () => ({ data: { html: renderExecLive(this.mm.snapshot(), await this.carry.deskView()).value } }) as MessageEvent),
     );
   }
 }

@@ -97,12 +97,13 @@ call (see §6); read-only pages drive nothing.
 
 | URL | Role | Data source(s) | Drives (curated actions) | Status |
 |---|---|---|---|---|
-| `/exec` | Executive | `MmPortfolioTrader.snapshot()` | — (read-only) | **shipped** |
+| `/exec` | Executive | `MmPortfolioTrader.snapshot()` + `CarryReadService` (the FUND view: MM desk + carry-desk strip + both equity sparklines — #94) | — (read-only) | **shipped** |
 | `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
 | `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
+| `/desk/carry` | Carry desk | `CarryReadService` → `carry_book_state` + `mm_nav desk='carry'` (liveness from checkpoint age, books incl. CLOSED, realised-first, NAV) | — (read-only: the runner is a separate supervised process; `<copy-cmd>` runbook only) | **shipped** (#93, UI_REWRITE_PLAN_II U1) |
 | `/desk/statarb` | Stat-arb desk | `LivePortfolioTrader.snapshot()` + stat-arb `DeskEventLog` + `StatArbRepository` (per-pair z/β/regime/position, blotter, tape) | launch/stop/remove/reconfigure a pair | **shipped** |
 | `/risk` | Risk | `MmPortfolioTrader.snapshot()` + MM `DeskEventLog` (drawdown vs budget, exposure, adverse-selection toxicity, verdict transitions) | stop/flatten (per desk) + remove (per book); cross-desk kill switch | **shipped** (pause/deny + limits still an endpoint gap — §6) |
-| `/research` | Quant | curated findings (from `docs/RESEARCH_FINDINGS.md` + CLAUDE.md §8) + doc links — static | **no exec** — copy-the-runbook-command helper (`<copy-cmd>`) | **shipped** (live funding board / screener deferred — no endpoint) |
+| `/research` | Quant | curated findings + doc links + the **funding-differential measurement board** (newest daily artifact, page-load read — #94) | **no exec** — copy-the-runbook-command helper (`<copy-cmd>`) | **shipped** (MM screener still deferred — no endpoint) |
 | `/pm` | PM / house view | Thesis Register *(not built — §6)* | add/edit/close a thesis | future |
 | `/` | launcher | static (role index) | — (read-only) | **shipped** |
 
@@ -159,6 +160,7 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
 | `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards (tape is the static append component now) | 2s | **shipped** |
 | `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards (tape append-mode; blotter is page-load only) | 2s | **shipped** |
+| `GET /desk/carry/stream` | liveness banner + desk strip + books table (checkpoint-backed; the runner writes every ~60s, so 5s serves the liveness read, not data churn) | 5s | **shipped** |
 | `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed (full-replace tape) | 2s | **shipped** |
 | _(none — `/research` is static)_ | `/research` is research artifacts + terminal commands, not live state — no stream by design | — | n/a |
 | _(REST poll, not SSE)_ `<activity-tape>` → `GET …/events?since=<cursor>` | the append-mode Activity tape: prepends only new events, preserving scroll | 2s poll | **shipped** (desk/mm + desk/statarb; /risk still uses the in-stream full-replace verdict feed) |
@@ -198,7 +200,8 @@ Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 | ✅ | per-book risk lever | `POST /api/market-making/remove` `{symbol}` (flatten + drop) |
 | `/research` ✅ | copy a runbook command | **none** — `<copy-cmd>` copies the exact terminal command to the clipboard (the UI never executes; the operator runs it) |
 | `/ops` | health / readiness / metrics | `GET /health`, `/health/ready`, `/metrics` |
-| `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` |
+| `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` (the carry curve = `book=@carry`) |
+| `/exec`, `/desk/carry` (read) | carry desk state (JSON twin of the page) | `GET /api/carry/state` — liveness + books + desk aggregates |
 | all | Activity tape | `GET /api/market-making/events?since=`, `GET /api/stat-arb/live/events?since=` |
 
 **Known gaps to design (not faked in the UI):**

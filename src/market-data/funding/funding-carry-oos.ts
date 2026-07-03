@@ -26,6 +26,14 @@ export interface OosGateConfig {
   spotFeeBps: number;
   perpFeeBps: number;
   notionalUnits: bigint;
+  /**
+   * Recency veto (the #72 BNB lesson): a long-window average smooths over the CURRENT
+   * regime, so a symbol whose trailing `recencyDays` mean funding no longer PAYS the
+   * gated direction is vetoed regardless of the 60/90d windows. Default ON, 7 days —
+   * this is the fix specified in Journal #72 ("hard 7d-avg veto") the day BNB bled.
+   */
+  recencyDays?: number;
+  recencyVeto?: boolean;
 }
 
 export interface OosFundingResult {
@@ -55,7 +63,18 @@ export interface OosFundingResult {
     annualizedNetPct: number;
     breakevenDays: number;
   };
-  /** True when both windows are stable in the same direction. */
+  /** Trailing-window read (the recency veto, #72): is the carry side STILL being paid? */
+  recent: {
+    periods: number;
+    windowDays: number;
+    /** Raw mean funding rate per period in the trailing window (unsigned by direction). */
+    meanRatePerPeriod: number;
+    /** What the gated carry side currently earns, annualised % (signed: + = still paid). */
+    annualizedFundingPct: number;
+    /** True ⇒ the trailing mean no longer pays the direction; passGate is forced false. */
+    vetoed: boolean;
+  };
+  /** True when both windows are stable in the same direction AND the recency veto clears. */
   passGate: boolean;
 }
 
@@ -98,7 +117,22 @@ export function oosCarryGate(symbol: string, allFunding: FundingPoint[], cfg: Oo
   // NEGATIVE funding, so stability means the negFrac is high, i.e. posFrac is LOW.
   const trainStable = direction === 'SHORT_PERP' ? trainRes.positiveFraction >= minPosFrac : (1 - trainRes.positiveFraction) >= minPosFrac;
   const oosStable = direction === 'SHORT_PERP' ? oosRes.positiveFraction >= minPosFrac : (1 - oosRes.positiveFraction) >= minPosFrac;
-  const passGate = trainStable && oosStable;
+
+  // Recency veto (#72): the trailing-window mean must still pay the gated direction.
+  // BNB passed a 60d gate while its live funding had already flipped negative — the
+  // long average smoothed over the current regime. Veto on the trailing mean, not
+  // posFrac: magnitude matters (a few large adverse settlements outweigh many tiny
+  // favourable ones), and the mean is what the carry leg actually accrues.
+  const recencyDays = cfg.recencyDays ?? 7;
+  const vetoEnabled = cfg.recencyVeto ?? true;
+  const lastMs = sorted[sorted.length - 1].fundingTimeMs;
+  const recentCutoff = lastMs - recencyDays * 86_400_000;
+  const recentData = sorted.filter((p) => p.fundingTimeMs >= recentCutoff); // never empty (last point qualifies)
+  const recentMean = recentData.reduce((s, p) => s + p.fundingRate, 0) / recentData.length;
+  const recentSigned = direction === 'SHORT_PERP' ? recentMean : -recentMean;
+  const vetoed = vetoEnabled && recentSigned <= 0;
+
+  const passGate = trainStable && oosStable && !vetoed;
 
   // Breakeven: round-trip fee / daily funding (in rate units).
   const roundTripFee = (2 * (cfg.spotFeeBps + cfg.perpFeeBps)) / 10_000;
@@ -129,6 +163,13 @@ export function oosCarryGate(symbol: string, allFunding: FundingPoint[], cfg: Oo
       annualizedFundingPct: direction === 'SHORT_PERP' ? fullRes.annualizedFundingPct : -fullRes.annualizedFundingPct,
       annualizedNetPct: fullRes.annualizedNetPct,
       breakevenDays,
+    },
+    recent: {
+      periods: recentData.length,
+      windowDays: (lastMs - recentData[0].fundingTimeMs) / 86_400_000 + 365 / cfg.periodsPerYear,
+      meanRatePerPeriod: recentMean,
+      annualizedFundingPct: recentSigned * cfg.periodsPerYear * 100,
+      vetoed,
     },
     passGate,
   };

@@ -37,6 +37,22 @@ describe('BinancePublicClient', () => {
     await client.lastPrice('BTC');
   });
 
+  it('parses the bookTicker touch (best bid/ask — the E2 maker-entry anchor)', async () => {
+    const client = new BinancePublicClient({
+      httpGet: async (url) => {
+        expect(url).toContain('/api/v3/ticker/bookTicker?symbol=ETHUSDT');
+        return { symbol: 'ETHUSDT', bidPrice: '3456.70', bidQty: '10', askPrice: '3456.90', askQty: '5' };
+      },
+    });
+    const t = await client.bookTicker('ETH');
+    expect(t).toEqual({ symbol: 'ETH', bidPrice: 3456.7, askPrice: 3456.9 });
+  });
+
+  it('throws on a bad bookTicker payload', async () => {
+    const client = new BinancePublicClient({ httpGet: async () => ({ bidPrice: 'x', askPrice: '1' }) });
+    await expect(client.bookTicker('ETH')).rejects.toThrow(/bad touch/);
+  });
+
   it('throws on a non-array klines payload', async () => {
     const client = new BinancePublicClient({ httpGet: async () => ({ code: -1121 }) });
     await expect(client.klines('BTC')).rejects.toThrow(/expected array/);

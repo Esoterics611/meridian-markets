@@ -44,6 +44,8 @@ interface CarryPosition {
   fundingAccruedUnits: bigint;
   settlementCount: number;
   lastRatePerPeriod: number;
+  /** Last accrual timestamp — funding is TIME-weighted (rate × Δt/period), never per-poll. */
+  lastAccrualMs: number;
 }
 
 async function main(): Promise<void> {
@@ -100,6 +102,7 @@ async function main(): Promise<void> {
       fundingAccruedUnits: 0n,
       settlementCount: 0,
       lastRatePerPeriod: 0,
+      lastAccrualMs: Date.now(),
     });
   }
 
@@ -122,15 +125,17 @@ async function main(): Promise<void> {
         const snap = await fund.currentFunding(sym);
         const pos = positions.get(sym)!;
 
-        // Estimate funding accrued this poll interval: rate × notional × intervals since last.
-        // HL settles hourly; each poll we observe the CURRENT rate (not a payment).
-        // We track the rate for display; the next settlement will pay this rate.
+        // Accrue funding TIME-WEIGHTED: rate is per HOURLY settlement period, so the poll
+        // accrues rate × (elapsed / 1h) × notional — NEVER one full period per poll.
+        // (The original per-poll accrual overstated funding by hour/poll-interval — 60×
+        // at the 60s default — and inflated the #72 headline; corrected in Journal #90.)
         const signedRate = pos.direction === 'SHORT_PERP' ? snap.lastFundingRate : -snap.lastFundingRate;
         pos.lastRatePerPeriod = signedRate;
         pos.settlementCount++;
-        // Increment accrual: treat each poll as accumulating one period's funding.
-        // In production, you'd track actual settlement receipts; here we estimate.
-        const accrualThisPoll = BigInt(Math.round(signedRate * Number(NOTIONAL_UNITS)));
+        const nowMs = Date.now();
+        const elapsedPeriods = Math.max(0, nowMs - pos.lastAccrualMs) / 3_600_000;
+        pos.lastAccrualMs = nowMs;
+        const accrualThisPoll = BigInt(Math.round(signedRate * elapsedPeriods * Number(NOTIONAL_UNITS)));
         pos.fundingAccruedUnits += accrualThisPoll;
 
         const netUnits = pos.fundingAccruedUnits - pos.entryFeeUnits;

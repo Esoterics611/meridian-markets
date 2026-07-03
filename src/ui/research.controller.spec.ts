@@ -1,11 +1,12 @@
 import { ResearchPageController } from './research.controller';
 
 describe('ResearchPageController', () => {
-  it('GET /research renders the static research desk', () => {
+  it('GET /research renders the research desk incl. the differential measurement board', () => {
     const c = new ResearchPageController();
     const html = c.page();
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('findings — KEEP / CUT / RESERVE');
+    expect(html).toContain('funding differentials'); // U3.1: the newest committed board
     expect(html).toContain('runbook');
     expect(html).toContain('research docs');
   });

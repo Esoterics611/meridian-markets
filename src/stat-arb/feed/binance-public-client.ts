@@ -102,6 +102,20 @@ export class BinancePublicClient {
     return price;
   }
 
+  /** Current best bid/ask (the spot TOUCH — the maker-execution anchor, E2). */
+  async bookTicker(symbol: string): Promise<{ symbol: string; bidPrice: number; askPrice: number }> {
+    const market = toBinanceSymbol(symbol, this.quote);
+    const url = `${this.baseUrl}/api/v3/ticker/bookTicker?symbol=${market}`;
+    const raw = await this.httpGet(url);
+    const obj = raw as { bidPrice?: string; askPrice?: string };
+    const bidPrice = Number(obj?.bidPrice);
+    const askPrice = Number(obj?.askPrice);
+    if (!Number.isFinite(bidPrice) || !Number.isFinite(askPrice) || bidPrice <= 0 || askPrice <= 0) {
+      throw new Error(`Binance bookTicker: bad touch for ${market}: ${JSON.stringify(raw)}`);
+    }
+    return { symbol, bidPrice, askPrice };
+  }
+
   private toBar(symbol: string, k: RawKline): Bar {
     return {
       symbol,

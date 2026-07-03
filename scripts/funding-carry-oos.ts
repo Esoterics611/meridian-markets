@@ -49,19 +49,20 @@ function printBoard(label: string, results: OosFundingResult[], periodsPerYear: 
     `  ${pad('symbol', 8)}  ${padL('dir', 10)}  ` +
     `${padL('IS posFrac', 10)}  ${padL('OOS posFrac', 11)}  ` +
     `${padL('fullFund%', 9)}  ${padL('breakeven', 9)}  ` +
-    `${padL('IS fund%', 9)}  ${padL('OOS fund%', 9)}  GATE`,
+    `${padL('IS fund%', 9)}  ${padL('OOS fund%', 9)}  ${padL('recent7d%', 9)}  GATE`,
   );
 
   let pass = 0;
   for (const r of results) {
-    const gate = r.passGate ? '✅ PASS' : '❌ fail';
+    const gate = r.passGate ? '✅ PASS' : r.recent.vetoed ? '🚫 VETO(7d)' : '❌ fail';
     if (r.passGate) pass++;
     console.log(
       `  ${pad(r.symbol, 8)}  ${padL(r.direction, 10)}  ` +
       `${padL(r.inSample.posFrac.toFixed(3), 10)}  ${padL(r.oos.posFrac.toFixed(3), 11)}  ` +
       `${padL(pct(r.full.annualizedFundingPct), 9)}  ` +
       `${padL(isFinite(r.full.breakevenDays) ? r.full.breakevenDays.toFixed(1) + 'd' : '∞', 9)}  ` +
-      `${padL(pct(r.inSample.annualizedFundingPct), 9)}  ${padL(pct(r.oos.annualizedFundingPct), 9)}  ${gate}`,
+      `${padL(pct(r.inSample.annualizedFundingPct), 9)}  ${padL(pct(r.oos.annualizedFundingPct), 9)}  ` +
+      `${padL(pct(r.recent.annualizedFundingPct), 9)}  ${gate}`,
     );
   }
 

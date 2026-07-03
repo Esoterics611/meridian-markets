@@ -48,6 +48,8 @@ import { MmResearchRepository, MmResearchSinks, MM_RESEARCH_SINKS, fillMarkoutRo
 import { FundingRefreshCron } from './live/funding-refresh.cron';
 import { MmScreener } from './screen/mm-screener';
 import { DeskEventLog } from './events/desk-event-log';
+import { CarryReadService } from './carry/carry-read.service';
+import { CarryController } from './carry/carry.controller';
 import { blockedEvent, controlEvent } from './events/desk-event';
 import { InventoryControlState } from './quote/glft-quoter';
 import { ITelemetry, TELEMETRY } from '../telemetry/telemetry.interface';
@@ -72,6 +74,10 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
 
 @Module({
   providers: [
+    // Read-only projection of the carry desk's durable checkpoints for /desk/carry
+    // (UI_REWRITE_PLAN_II U1). DbService resolves @Optional in its constructor, so
+    // DB-free configs still boot (the page renders its honest dbOff state).
+    CarryReadService,
     {
       provide: MM_BINANCE_CLIENT,
       inject: [ConfigService],
@@ -793,11 +799,11 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       },
     },
   ],
-  controllers: [MmController],
+  controllers: [MmController, CarryController],
   // Exported so TelemetryModule's collector + health controller can read the live
   // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
   // DeskEventLog is exported so the UI's /desk/mm page can server-render the MM
   // Activity tape from the same in-memory event sink the fills emit into.
-  exports: [MmPortfolioTrader, DeskEventLog],
+  exports: [MmPortfolioTrader, DeskEventLog, CarryReadService],
 })
 export class MarketMakingModule {}

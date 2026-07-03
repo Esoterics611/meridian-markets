@@ -80,6 +80,14 @@ otherwise it says "durable NAV off").
 
 ---
 
+**The fund view (#94):** below the MM table, `/exec` carries the **carry-desk strip** —
+process liveness (LIVE/STALE/DOWN off checkpoint age), realised-first, funding, maxDD vs
+the 0.5% budget, book counts — with the drill-down link to `/desk/carry`, plus a second
+equity sparkline on the `@carry` aggregate. Two desks, two honest curves — deliberately
+not merged into one synthetic number.
+
+---
+
 ## 3. `/ops` — Operator console (health + desk controls)
 
 Where you start/stop the desk and confirm it's healthy.
@@ -165,6 +173,29 @@ is a later refinement.)
 
 ---
 
+## 5a. `/desk/carry` — Funding-carry desk (read-only; the 30-day P0 run)
+
+The flagship desk's supervisory page (#93, UI_REWRITE_PLAN_II U1). The carry runner is
+a **separate supervised process** (`scripts/launch-carry-30d.sh`), so this page reads
+its durable checkpoints (`carry_book_state` + `mm_nav desk='carry'`) and drives nothing.
+
+- **Liveness banner first**: checkpoint age → `LIVE` (<3min) / `STALE` (<15min) /
+  `DOWN` (books open, no heartbeat — kill-switch and re-gate are INERT; the banner
+  shows the relaunch command) / `IDLE` (no books). This is #92's stall made visible.
+- **Stat strip**: realised-first (the judged number), funding, fees, basis MTM
+  (reported not judged), maxDD vs the 0.5% budget, open/closed counts.
+- **Books table**: per-book structure, gate% at entry, funding/fees/realised-first,
+  basis MTM, checkpoint age. **CLOSED rows stay visible** (the LIT close is desk
+  history — honesty doctrine).
+- **NAV sparkline** on the `@carry` aggregate + a `<copy-cmd>` runbook palette
+  (launch / status / stop / out-of-band close — the page never executes).
+- DB off ⇒ an explicit `DB OFF` panel, never zeros.
+
+The full operator doctrine (what each number means, when to act):
+[CARRY_DESK_OPERATOR_MANUAL.md](CARRY_DESK_OPERATOR_MANUAL.md).
+
+---
+
 ## 6. `/risk` — Risk console (read the risk, reduce it)
 
 Where you see how much risk is on and pull it down.
@@ -213,6 +244,15 @@ show the funding *verdict* with that caveat rather than inventing rates.)
 
 ---
 
+**The funding-differential board (#94):** between the findings and the runbook, `/research`
+renders the **newest daily board artifact** (`docs/research/funding-differentials/`) —
+the M2 cadence counter (n/7 boards, pre-registered before any differential leg opens),
+pairs scored / harvestable, and the top differentials with a mechanical leg mapping.
+Headlined "A MEASUREMENT, NOT A SIGNAL" — the counter exists to prevent trading a
+one-day board. Page-load read of a committed artifact; still no execution, no SSE.
+
+---
+
 ## 8. `/pm` — PM / house view (not built)
 
 Greyed out in the nav. The thesis register it would project doesn't have an engine surface
@@ -238,7 +278,9 @@ yet; the page is honest about waiting on it rather than shipping a fake.
 These are **endpoint-blocked, not page-blocked** — the pages don't fake them:
 
 - **`/pm`** — no thesis endpoints.
-- **Live funding board / MM screener** — no serving endpoint (funding shows as a verdict).
+- **MM screener on `/research`** — still no serving endpoint (the funding-differential
+  *measurement* board ships #94, read from the daily artifact; live per-venue funding
+  rates remain unserved).
 - **Per-book pause/deny + limit-lowering** on `/risk` — needs an engine endpoint; only
   stop/flatten/remove exist today.
 - **Per-book equity sparklines** in the desk cards, a **mode-aware/live blotter**, and a
