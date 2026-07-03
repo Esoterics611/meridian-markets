@@ -217,31 +217,32 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-03 (session 3 of the plan — Journal #92, reviewing the operator's
-> first launch).**
+> **Last updated: 2026-07-03 (session 4 of the plan — Journal #93: the #92 findings remediated;
+> desk ready for supervised relaunch).**
 >
-> **State:** the operator launched the #91 command. It ran **2026-07-02 19:50 → 2026-07-03
-> 05:02 UTC (~9.6h)** — 8 of the 13 deployables opened (`GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI`,
-> the ≤8-pair cap) — then **stopped** (no supervisor on the foreground process; not a code
-> failure) and has sat with 8 books OPEN/unmonitored since. **A live bug was found in review
-> (#92): `LIT` is a ticker collision** — HL's `LIT` perp is *Lighter* (a rival perp-DEX token),
-> Binance's `LITUSDT` is *Litentry* (unrelated) — confirmed 177% apart both at entry and live.
-> LIT alone carries −$1,054 unrealised, **more than the entire desk's −$1,042** total; the other
-> 7 pairs net **+$48.54**, healthy and unremarkable this early (funding ≈$99 accrued, fees ≈$63).
-> Desk maxDD 0.328% (66% of the 0.5% kill budget), almost entirely LIT. E2 execution reads as
-> designed: maker legs ≈0.8bps, taker escalations ≈4.2bps. **P1 items 1–3 remain BUILT; item 4
-> (allocator + beta-hedge) is still the open P1 build item.**
+> **State:** the #92 incident is fully closed out. **LIT closed** via the new
+> `scripts/carry-close-book.ts` (book-ledger-honest: settled funding replayed, taker close):
+> **realised-first +$268.29** — the naked Lighter short swung −$1,054 → +$268 in ~3h; luck, not
+> carry; counted in month-end accounting, excluded from the carry report card both ways (see
+> [TICKER_COLLISION_POSTMORTEM.md](TICKER_COLLISION_POSTMORTEM.md), the teaching write-up).
+> **The collision guard now covers every path a pair becomes a position**: scan (`b0ac393`) +
+> runner fresh-open / re-gate-open / resume (`ccbc7fd`, `CD_MAX_BASIS_PCT` default 5%; a resumed
+> collision book self-heals by closing at market). Live-smoked: `CD_SYMBOLS=LIT` passes the
+> funding gate, guard-refused at 175.8%. **Supervision shipped**: `scripts/launch-carry-30d.sh`
+> (nohup + pidfile + start/status/stop), default symbols = the 13 deployables minus LIT
+> (`GRAM,NEAR,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC`). **7 genuine books remain OPEN**
+> (+$48.54 at #92, last checkpoint 05:02 UTC) and resume on relaunch with settled-funding gap
+> replay. Board **day 2/7 done** (6 harvestable vs day 1's 7). UI continuation planned:
+> [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md) — U1 = `/desk/carry` liveness + books page.
+> **P1 items 1–3 BUILT; item 4 (allocator + beta-hedge) still the open P1 build item.**
 >
 > **Pick up here (in order):**
-> 1. **Fix the scan gate first:** add an entry-basis sanity check to `spotMarketFor()` /
->    `carry-universe-scan.ts` (reject `deployable` if `|perpMid/spotMid − 1|` exceeds a few %) so
->    no ticker collision reaches `deployable` again. Ronnie's call on the open LIT position
->    (recommended: close — it's a naked cross-asset bet, not carry).
-> 2. **Operator relaunches under process supervision** (nohup/tmux/systemd — the bare foreground
->    run stopped at 9.6h and went 3h+ unmonitored, #92) with the corrected symbol list. Score
->    each session from `mm_nav WHERE desk='carry'` + the TCA log lines.
-> 3. **Daily:** `scripts/funding-differential-board.ts` (M2 needs ≥7 boards; 1 done, day 2 overdue
->    as of #92) and a `scripts/carry-universe-scan.ts` refresh for the deployable set.
+> 1. **OPERATOR: `bash scripts/launch-carry-30d.sh`** (then `status` any time). Score each
+>    session realised-first from `mm_nav WHERE desk='carry'` + the TCA log lines (≤2bps/leg).
+> 2. **Daily:** `scripts/funding-differential-board.ts` (day 3/7 due 2026-07-04 — consecutive
+>    days) and a `scripts/carry-universe-scan.ts` refresh at re-gate.
+> 3. **UI U1:** implement `/desk/carry` per UI_REWRITE_PLAN_II.md (file list + acceptance
+>    criteria in the doc; pre-item = the int-spec ITA5NED7 fixture leak).
 > 4. **Next build session = finish P1:** item 4 — E7 allocator v0 (fixed weights) + aggregate
 >    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
 >    the no-spot passers (FARTCOIN/HYPE/PURR tail).

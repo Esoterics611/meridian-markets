@@ -4015,32 +4015,88 @@ under process supervision (nohup/tmux/systemd) so a stall like this doesn't eat 
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #92)
+## 2026-07-03 — Entry #93 (LIT remediated + the collision guard on every entry path + supervised launch + board day 2/7; postmortem + UI Plan II)
+
+**The #92 pickup, executed.** Commits `ccbc7fd` (guard + close utility), `db52f9a` (launch
+wrapper + board day 2), `76ea2c6` (the two docs).
+
+**1. LIT closed — realised-first +$268.29, and the sign is luck.** New operator utility
+`scripts/carry-close-book.ts` closes one persisted book out-of-band through the book's own
+ledger (restore → replay settled funding over the offline gap → close taker-at-mid with the
+desk slippage model → persist CLOSED). LIT's close: 5.8h gap replayed from 5 settled prints
+(+$3.08), spot leg realised −$3.59, perp leg **+$307.72** (Lighter fell $2.1231 → $2.0487
+between the #92 review and the close, straight through the $2.0615 entry), funding +$5.29,
+fees −$41.14, slippage −$13.56 → **realised-first +$268.29**. That is a **$1,322 swing in
+~3h** on a "hedged" book — the naked-variance demonstration, measured. Judged per the
+resulting rule: the close decision was right at −$1,054 and equally right at +$268; the
+number goes into month-end accounting but is **excluded from the carry thesis's report card
+in both directions** (it was never carry). Full lesson: [TICKER_COLLISION_POSTMORTEM.md](TICKER_COLLISION_POSTMORTEM.md).
+
+**2. The collision guard now covers every path a pair becomes a position.** #92's fix
+(`b0ac393`) gated the scan; the residual gap was the runner. `carry-desk-live.ts` now runs
+`basisGuard()` (`checkSameUnderlyingBasis`, knob `CD_MAX_BASIS_PCT`, default 5%) at **fresh
+open, re-gate open, and resume** — a resumed book failing the guard is closed at market
+after honest gap-funding accrual (the LIT scenario, now self-healing on boot); a fresh/
+re-gate candidate is refused + alerted. `isKScaledCoin()` extracted + spec'd (kPEPE/kBONK
+true; KAVA/LIT false). **Live smoke of the exact reproduction:** `CD_SYMBOLS=LIT` boots,
+*passes the funding gate* (+12.2% ann., recent7d +29.4%, posFrac 0.91/0.98 — the same
+seduction that got it deployed), and is **guard-refused at 175.8%**, zero books opened.
+
+**3. Supervised launch (the #92 stall class, closed).** `scripts/launch-carry-30d.sh`:
+nohup + pidfile + `start`/`status`/`stop`, logs under `logs/` (git-ignored). Default
+`CD_SYMBOLS` = the 13 scan deployables **minus LIT**: `GRAM,NEAR,DYDX,LINK,AAVE,XPL,UNI,
+PUMP,TAO,BNB,ENA,ZEC`. On start the 7 held books resume (offline funding replayed from
+settled history) and PUMP contends for the 8th slot at the boot gate. Graceful stop
+checkpoints OPEN (resume-not-flatten). **Operator relaunches** — sandbox can't hold a
+30-day process.
+
+**4. Differential board day 2/7** (`board-2026-07-03T10-55-52-054Z.json`): 30 pairs scored,
+**6 harvestable** (day 1: 7) — cadence intact, M2 needs 5 more consecutive days.
+
+**5. Docs (Ronnie's mid-session directives: teaching write-up + plan-first UI).**
+[TICKER_COLLISION_POSTMORTEM.md](TICKER_COLLISION_POSTMORTEM.md) — the incident from first
+principles (hedge identity → basis as the market's identity oracle → names-vs-identities →
+naked-position physics → resulting → defense-in-depth → controls-are-processes).
+[UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md) — the UI rewrite's continuation, plan-first:
+**U1 = `/desk/carry`** (the flagship desk has no page; both #92 failures were visibility
+failures over data already sitting in `carry_book_state` + `mm_nav` `@carry`), with the
+liveness banner (LIVE/STALE/DOWN off checkpoint age), CLOSED-rows-visible books table,
+read-only `CarryReadService`, file-by-file build list + acceptance criteria for the
+implementing session. Also flagged: `postgres-carry-state-store.int-spec.ts` leaks its
+`ITA5NED7` fixture into the real paper DB — cleanup is U1's pre-item.
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/market-data/funding`
+8 suites / 70 tests green (incl. the new `isKScaledCoin` cases); `npx jest
+src/market-making/carry` 3 suites / 28 tests green. Desk DB state verified directly:
+7 books OPEN (AAVE DYDX GRAM LINK NEAR UNI XPL, last checkpoint 05:02 UTC), LIT CLOSED.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #93)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
 desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
 prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making src/market-data
 src/stat-arb/feed` 128 suites / 921 tests.
 
-1. **FIX FIRST (#92): the LIT ticker-collision bug, before any relaunch.** `spotMarketFor()` in
-   `scripts/carry-universe-scan.ts` matched HL `LIT` (Lighter) to Binance `LITUSDT` (Litentry) by
-   string equality with no underlying-identity check — a live, open book, −$1,054 unrealised and
-   >100% of the desk's loss. Add an entry-basis sanity gate (reject `deployable` when
-   `|perpMid/spotMid − 1|` exceeds a few %) and re-run the scan. Ronnie's call on the currently
-   open LIT position (recommend: close it — it's a naked cross-asset bet, not carry).
-2. **OPERATOR: relaunch the 30-day carry run under process supervision** (nohup/tmux/systemd —
-   the first attempt stopped after ~9.6h with no supervisor and sat unmonitored for 3h+, #92):
+1. **OPERATOR: relaunch the 30-day carry run** — everything is ready (#93: LIT closed, guard
+   on every entry path, supervision wrapper):
    ```bash
-   sudo docker compose up -d postgres && npm run migration:run
-   CD_SYMBOLS=<the fixed deployable list, LIT excluded until the scan gate is patched> \
-   CD_MAKER_PATIENCE_S=300 MM_PERSIST=true \
-   npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
+   sudo docker compose up -d postgres && npm run migration:run   # once, if not already up
+   bash scripts/launch-carry-30d.sh          # start (nohup+pidfile; 7 books resume + PUMP contends)
+   bash scripts/launch-carry-30d.sh status   # any time: is the desk alive?
    ```
    Every session while it runs: score realised-first from `mm_nav desk='carry'` + read the
    entry TCA lines (P1 metric: ≤2bps/leg).
-3. **Daily (operator or session):** `scripts/funding-differential-board.ts` — the M2 verdict
-   needs ≥7 daily boards (day 1/7 done #91; day 2 overdue as of #92); and re-run
-   `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set.
+2. **Daily (operator or session):** `scripts/funding-differential-board.ts` — M2 needs ≥7
+   consecutive daily boards (**day 2/7 done #93**, day 3 due 2026-07-04); re-run
+   `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set (the scan
+   now prints basis% + collision tags, #92 fix).
+3. **UI: implement U1 `/desk/carry`** per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md) —
+   liveness banner + books table + NAV + runbook palette, read-only `CarryReadService`;
+   pre-item: fix the `postgres-carry-state-store.int-spec.ts` fixture leak (ITA5NED7) and
+   delete the stray rows. The plan doc carries the file-by-file list + acceptance criteria —
+   built to be implemented mechanically (Opus-suitable per Ronnie).
 4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
    the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
    delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
