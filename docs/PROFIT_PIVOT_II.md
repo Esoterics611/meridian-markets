@@ -217,34 +217,41 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-02 (session 2 of the plan — Journal #91).**
+> **Last updated: 2026-07-03 (session 3 of the plan — Journal #92, reviewing the operator's
+> first launch).**
 >
-> **State:** **P0 steps 1–2 BUILT (#90); P1 items 1–3 BUILT & MEASURING (#91)** (7112c08 the
-> 231-perp scan · 202b45c E2 maker execution · df29fcf Bybit + differential board). Repo green
-> (tsc exit 0; touched-area jest 128 suites / 921 tests). Scan verdict: **68 gate-pass, 13
-> deployable** (`GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC`) — the "≥8 gated
-> legs" metric is fed. E2 live-smoked: 2/4 legs maker at 30s patience; BNB spot 0.9bps all-in
-> (≤2bps metric met on maker legs); escalations now MEASURE the real half-spread (DYDX spot
-> +11.65bps) instead of pretending mid. Differential board day 1/7: 7/30 harvestable, ADA
-> HL↔Bybit −18%/yr @0.86 stable; majors sub-fee (R4 confirmed). **The 30-day launch — the
-> OPERATOR'S — is still the next real event, now with breadth + honest entries.**
+> **State:** the operator launched the #91 command. It ran **2026-07-02 19:50 → 2026-07-03
+> 05:02 UTC (~9.6h)** — 8 of the 13 deployables opened (`GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI`,
+> the ≤8-pair cap) — then **stopped** (no supervisor on the foreground process; not a code
+> failure) and has sat with 8 books OPEN/unmonitored since. **A live bug was found in review
+> (#92): `LIT` is a ticker collision** — HL's `LIT` perp is *Lighter* (a rival perp-DEX token),
+> Binance's `LITUSDT` is *Litentry* (unrelated) — confirmed 177% apart both at entry and live.
+> LIT alone carries −$1,054 unrealised, **more than the entire desk's −$1,042** total; the other
+> 7 pairs net **+$48.54**, healthy and unremarkable this early (funding ≈$99 accrued, fees ≈$63).
+> Desk maxDD 0.328% (66% of the 0.5% kill budget), almost entirely LIT. E2 execution reads as
+> designed: maker legs ≈0.8bps, taker escalations ≈4.2bps. **P1 items 1–3 remain BUILT; item 4
+> (allocator + beta-hedge) is still the open P1 build item.**
 >
 > **Pick up here (in order):**
-> 1. **Operator launches the run** (P0 metric, P1 breadth): postgres + migrations, then
->    `CD_SYMBOLS=<the 13 deployables above> CD_MAKER_PATIENCE_S=300 MM_PERSIST=true
->    npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts`.
->    Score each session from `mm_nav WHERE desk='carry'` + the TCA log lines.
-> 2. **Daily:** `scripts/funding-differential-board.ts` (M2 needs ≥7 boards; 1 done) and a
->    `scripts/carry-universe-scan.ts` refresh for the deployable set.
-> 3. **Next build session = finish P1:** item 4 — E7 allocator v0 (fixed weights) + aggregate
+> 1. **Fix the scan gate first:** add an entry-basis sanity check to `spotMarketFor()` /
+>    `carry-universe-scan.ts` (reject `deployable` if `|perpMid/spotMid − 1|` exceeds a few %) so
+>    no ticker collision reaches `deployable` again. Ronnie's call on the open LIT position
+>    (recommended: close — it's a naked cross-asset bet, not carry).
+> 2. **Operator relaunches under process supervision** (nohup/tmux/systemd — the bare foreground
+>    run stopped at 9.6h and went 3h+ unmonitored, #92) with the corrected symbol list. Score
+>    each session from `mm_nav WHERE desk='carry'` + the TCA log lines.
+> 3. **Daily:** `scripts/funding-differential-board.ts` (M2 needs ≥7 boards; 1 done, day 2 overdue
+>    as of #92) and a `scripts/carry-universe-scan.ts` refresh for the deployable set.
+> 4. **Next build session = finish P1:** item 4 — E7 allocator v0 (fixed weights) + aggregate
 >    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
 >    the no-spot passers (FARTCOIN/HYPE/PURR tail).
-> 4. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward
+> 5. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward
 >    run (#88) — now a benchmark track, not the priority.
 >
 > **Do-not-relitigate:** the #65 κ=0 verdict; the #70 spread-MM verdict; realised-first judging;
-> resume-not-flatten on the carry desk (#90); measurement-before-trading on M2 (#91 — 7 boards
-> before any differential leg opens).
+> resume-not-flatten on the carry desk (#90 — working as designed, #92 confirmed it keeps books
+> open across a stall); measurement-before-trading on M2 (#91 — 7 boards before any differential
+> leg opens).
 
 **P0 — Turn the validated edge on and leave it on (days, not weeks).**
 1. ~~Ship E3 recency veto (+spec)~~ **DONE #90** — default-ON, trailing-7d mean, BNB case locked.

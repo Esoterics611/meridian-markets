@@ -3969,33 +3969,85 @@ session exists to make that run's numbers both bigger (breadth) and truer (execu
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-02, #91)
+## 2026-07-03 — Entry #92 (review of the P0/P1 operator launch — a ticker-collision bug found live: HL "LIT" ≠ Binance "LITUSDT")
+
+**The operator launched the 30-day run (#91's recommended command).** DB record: 8 of the 13
+deployables opened — `GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI` (the ≤8-pair cap took the first 8 of
+the `CD_SYMBOLS` list, exactly as launched) — from **2026-07-02 19:50:04 to 2026-07-03
+05:02:01 UTC (~9.6h)**, then the process stopped (no crash signature found; nothing in the code
+failed — it was a foreground process with no supervisor, per the standing no-background-tasks
+rule). All 8 books remain `OPEN` in `carry_book_state` (resume-not-flatten, #90, working as
+designed) but **unmonitored for ~3h10m at review time** — the DD kill-switch and daily re-gate
+are inert while the process is down. No re-gate has fired yet (9.6h < 24h cadence) and
+`realised_pnl_units` is $0 on every book — nothing has closed, everything below is mark-to-market.
+
+**Headline finding — LIT is not a valid carry pair; it's a ticker collision.** Hyperliquid's
+`LIT` perp is **Lighter** (a rival perp-DEX's token, newly launched); Binance's `LITUSDT` is
+**Litentry**, an unrelated, older project. Confirmed live against both public APIs at review
+time: HL mid **$2.1231** vs Binance mid **$0.7430** — 177% apart. The book's own entry marks show
+the identical gap from minute one: entry perp mid $2.0618 vs entry spot mid $0.7430 (**+177.5%**),
+against every other open pair's entry gap of **0.0–0.5%** (AAVE 0.0, DYDX −0.1, GRAM +0.5, LINK
+0.0, NEAR 0.0, UNI 0.0, XPL 0.0 — the sane band a real spot/perp basis sits in and a one-line,
+mechanically-detectable tell). **Root cause:** `spotMarketFor()` in
+`scripts/carry-universe-scan.ts` (~L111) maps an HL coin to a Binance market by **string
+equality alone** (`${coin}USDT`, with the k-prefix unwrap for kPEPE-style wrappers) — there is no
+check that the two venues list the *same underlying token*. The scan's `deployable` boolean
+(`r.passGate && market !== null && liquid`) and the live desk both trusted that string match.
+
+**Impact:** over the 9.6h window, LIT alone carries **unrealised −$1,054** against a desk total
+unrealised of **−$1,042** — LIT is *more than 100%* of the desk's loss. **Ex-LIT the other 7
+pairs net +$48.54** (funding ≈$99 accrued, fees ≈$63, small basis noise) — modest and in line
+with the #91 breakeven expectation, not concerning at 9.6h. Desk `maxDD` reads **0.328%** (66% of
+the 0.5% kill budget) and is almost entirely attributable to the mismatched LIT leg, not to
+genuine strategy risk. Execution (E2) read on the real pairs: maker-filled legs cost **≈$4/leg
+(~0.8bps all-in)**, consistent with #91; legs that escalated to taker (AAVE, GRAM, LIT) cost
+**≈$20–21 (~4.2bps)** — still well under the pre-E2 7bps taker baseline, the expected mix.
+
+**Verdict:** the 7 genuine carry pairs look healthy and unremarkable this early — judge them
+again after the 24h re-gate and multiple days, not now. LIT is a **bug, not a trading-risk
+event**, and must not be graded against the carry thesis. **Not yet acted on (Ronnie's call):**
+(1) close LIT now — it is a naked cross-asset bet the strategy never intended, not carry;
+(2) add an entry-basis sanity gate to the scan (reject `deployable` if `|perpMid/spotMid − 1|`
+exceeds a few % at scan time) so no future ticker collision reaches the live desk; (3) relaunch
+under process supervision (nohup/tmux/systemd) so a stall like this doesn't eat days out of the
+"30-day" window unnoticed. **Also overdue:** the differential board's daily cadence — only day
+1/7 exists (`board-2026-07-02T19-08-53`); day 2 was not run today.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #92)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
 desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
 prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making src/market-data
 src/stat-arb/feed` 128 suites / 921 tests.
 
-1. **OPERATOR: launch the 30-day carry run — now with P1 breadth + honest execution (#91):**
+1. **FIX FIRST (#92): the LIT ticker-collision bug, before any relaunch.** `spotMarketFor()` in
+   `scripts/carry-universe-scan.ts` matched HL `LIT` (Lighter) to Binance `LITUSDT` (Litentry) by
+   string equality with no underlying-identity check — a live, open book, −$1,054 unrealised and
+   >100% of the desk's loss. Add an entry-basis sanity gate (reject `deployable` when
+   `|perpMid/spotMid − 1|` exceeds a few %) and re-run the scan. Ronnie's call on the currently
+   open LIT position (recommend: close it — it's a naked cross-asset bet, not carry).
+2. **OPERATOR: relaunch the 30-day carry run under process supervision** (nohup/tmux/systemd —
+   the first attempt stopped after ~9.6h with no supervisor and sat unmonitored for 3h+, #92):
    ```bash
    sudo docker compose up -d postgres && npm run migration:run
-   CD_SYMBOLS=GRAM,NEAR,LIT,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC \
+   CD_SYMBOLS=<the fixed deployable list, LIT excluded until the scan gate is patched> \
    CD_MAKER_PATIENCE_S=300 MM_PERSIST=true \
    npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
    ```
-   (13 deployables from the #91 scan; 5-min maker patience — a carry book has no urgency.)
    Every session while it runs: score realised-first from `mm_nav desk='carry'` + read the
    entry TCA lines (P1 metric: ≤2bps/leg).
-2. **Daily (operator or session):** `scripts/funding-differential-board.ts` — the M2 verdict
-   needs ≥7 daily boards (day 1/7 done, #91); and re-run `scripts/carry-universe-scan.ts`
-   before/at re-gate to refresh the deployable set.
-3. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
+3. **Daily (operator or session):** `scripts/funding-differential-board.ts` — the M2 verdict
+   needs ≥7 daily boards (day 1/7 done #91; day 2 overdue as of #92); and re-run
+   `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set.
+4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
    the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
    delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
    no-spot gate-passers (FARTCOIN/HYPE/PURR tail, #91).
-4. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
+5. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
    `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
-5. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
+6. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
    BENCHMARK track alongside the carry desk, not the priority.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
