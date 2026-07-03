@@ -1,6 +1,6 @@
 # Meridian Markets
 
-A **paper-trading demonstration of an AI-agent-run quant desk** — several strategies running concurrently, each manned by a quant agent, aiming to **minimize drawdown and show steady, conserved returns over hours and days** of live paper trading on real market data. Underneath is a self-contained **stat-arb engine** plus an automated **market-making desk** (market-data spine, signal/risk library, execution path, live event loop); the `/demo` dashboard is a thin read-only view over it.
+A **paper-trading demonstration of an AI-agent-run quant desk** — several strategies running concurrently, each manned by a quant agent, aiming to **minimize drawdown and show steady, conserved returns over hours and days** of live paper trading on real market data. Underneath is a self-contained **stat-arb engine**, an automated **market-making desk**, and a **funding-carry desk** (market-data spine, signal/risk library, execution path, live event loop). The UI is a **role-scoped, server-rendered console** — open `/` for the launcher: `/exec` (fund overview), `/ops`, `/desk/mm`, `/desk/carry`, `/desk/statarb`, `/risk`, `/research` — every page a thin read-only view over the engine (the legacy `/demo` cockpit still runs alongside).
 
 > **Scope: paper-only, for the foreseeable future.** This is a *demonstration*, not a path to managing real capital — there is **no production / real-money deployment on the roadmap**. Two engines drive it: **crypto market-making** (the steady, low-drawdown earner) and **equities stat-arb** (a thin, uncorrelated diversifier). The frontier where the edge grows is **discovering new markets — especially DEX / decentralized / anonymous markets** to make markets in. Because it's a demo, **truthful numbers are the whole point**: the OOS / survivorship / cost gates exist to keep the paper P&L honest, not to clear a deploy.
 
@@ -22,6 +22,27 @@ The point of the desk is truthful numbers, so the findings — including the unf
 See [`docs/WEEKLY_WRAP_2026-06-05.md`](docs/WEEKLY_WRAP_2026-06-05.md) for the latest summary.
 
 > **Legacy:** this repo began as a treasury/yield service that fed an external payments service over an HTTP contract. **That integration is retired** and the repo is now standalone. The `src/treasury/` + `src/yield/` code and the `treasury_*` tables remain as dormant legacy (CLAUDE.md §5); the historical spec is archived at [`docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md`](docs/archive/INTEGRATION_WITH_LIRA_BRIDGE.md).
+
+## Documentation — the key files
+
+Start with [`CLAUDE.md`](CLAUDE.md) (binding architecture + mission + session log). Then, by need:
+
+| you want | read |
+|---|---|
+| **The active plan + current state** (updated every session) | [`docs/PROFIT_PIVOT_II.md`](docs/PROFIT_PIVOT_II.md) — §4 is the session ledger / pickup point |
+| The master plan / priorities behind it | [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md) |
+| **Run the carry desk as a human operator** (doctrine + workflow + playbook) | [`docs/CARRY_DESK_OPERATOR_MANUAL.md`](docs/CARRY_DESK_OPERATOR_MANUAL.md) |
+| The hardest lesson, taught from first principles (ticker collision, #92) | [`docs/TICKER_COLLISION_POSTMORTEM.md`](docs/TICKER_COLLISION_POSTMORTEM.md) |
+| Chronological research log (per-run numbers + artifacts) | [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) |
+| Consolidated, citable findings (KEEP / CUT / RESERVE) | [`docs/RESEARCH_FINDINGS.md`](docs/RESEARCH_FINDINGS.md) |
+| The UI: design + doctrine · role-by-role guide · what's next | [`docs/UI_ARCHITECTURE.md`](docs/UI_ARCHITECTURE.md) · [`docs/UI_ROLE_GUIDE.md`](docs/UI_ROLE_GUIDE.md) · [`docs/UI_REWRITE_PLAN_II.md`](docs/UI_REWRITE_PLAN_II.md) |
+| How paper trading works (real data, simulated fills) | [`docs/PAPER_TRADING.md`](docs/PAPER_TRADING.md) |
+| The MM desk (quoters, risk gates, attribution) + how to run it | [`docs/MARKET_MAKING.md`](docs/MARKET_MAKING.md) · [`docs/RUN_THE_DESK.md`](docs/RUN_THE_DESK.md) |
+| MM fair-value / adverse-selection findings | [`docs/FAIR_VALUE_AND_THESIS_DESIGN.md`](docs/FAIR_VALUE_AND_THESIS_DESIGN.md) |
+| The regime / "take-sides" directional desk | [`docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md`](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md) |
+| Equities stat-arb (Alpaca/Yahoo) | [`docs/EQUITIES_STATARB_PLAN.md`](docs/EQUITIES_STATARB_PLAN.md) |
+| Venue / data-source ledger | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) |
+| Per-session engineering history | [`docs/SESSION_HISTORY.md`](docs/SESSION_HISTORY.md) |
 
 ## Run it locally
 
@@ -70,6 +91,7 @@ their own terminals. They are decoupled on purpose:
 | **The backend** (`npm run start:dev`) | Serves `/demo` + every `/api/*` control plane, **and runs the MM desk in-process**. The only process that binds `:3100`. | `mm_nav` desk=`''`/symbol |
 | **MM book launcher** (`scripts/launch-mm-10h.sh`) | **Drives the running backend** (`POST /api/market-making/launch`). Not a second trading process. | the backend |
 | **Regime Desk** (`scripts/regime-book-live.ts`) | A **self-contained** directional desk in its own process — gates, seats, polls Hyperliquid, trades on paper. Needs no backend. | `mm_nav` desk=`regime` |
+| **Carry Desk** (`scripts/launch-carry-30d.sh`) | The **flagship P0 30-day run** — funding carry on HL perps hedged with Binance spot, in its own supervised process (nohup + pidfile). Needs no backend; the backend's `/desk/carry` page reads its checkpoints. | `carry_book_state` + `mm_nav` desk=`carry` |
 
 **Why no interference:** only the backend binds the port (and `start-desk.sh` refuses to start a
 second one); the MM launcher *drives* that one backend rather than spawning a rival; the Regime script
@@ -259,6 +281,25 @@ curl -sX POST localhost:3100/api/regime/halt | jq        # halt the desk (driven
 
 Review a finished run with the `mm-run-review` skill (realised P&L from `mm_nav` desk=`regime`).
 
+### F. The carry desk — the 30-day P0 forward run (the current flagship)
+
+Funding carry on Hyperliquid perps hedged with Binance spot — gate-first (90d OOS persistence +
+recency veto + the #92 ticker-collision guard), maker-routed entries, judged **realised-first**
+(funding + realised − fees; the basis mark is reported, not judged). Runs as its **own supervised
+process**; the backend's `/desk/carry` page (and `GET /api/carry/state`) read its durable
+checkpoints — including a liveness banner that screams if the runner dies:
+
+```bash
+bash scripts/launch-carry-30d.sh           # start supervised (nohup + pidfile)
+bash scripts/launch-carry-30d.sh status    # is the desk alive? + last log lines
+bash scripts/launch-carry-30d.sh stop      # graceful: books checkpoint OPEN and resume next start
+# daily measurement (M2 needs 7 consecutive boards before any differential leg opens):
+npx ts-node -r tsconfig-paths/register scripts/funding-differential-board.ts
+```
+
+The full operator doctrine — what each number means and when to act — is
+[`docs/CARRY_DESK_OPERATOR_MANUAL.md`](docs/CARRY_DESK_OPERATOR_MANUAL.md).
+
 ### Execution modes
 `EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +
 simulated fills) · `live` (real venue, requires `LIVE_TRADING_ARMED=true`).
@@ -284,7 +325,7 @@ The binding rules and the maintained file map live in [`CLAUDE.md`](CLAUDE.md): 
 
 ## Research Journey
 
-Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (88 entries). The short version:
+Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (93 entries). The short version:
 
 **Stat-arb (entries #1–#40):** We built a rigorous crypto stat-arb engine — cointegration, walk-forward OOS, deflated Sharpe, purged k-fold, half-spread + impact cost gates. The honest finding: *crypto taker stat-arb is dead.* Cointegration that looks real on 30d windows collapses to near-zero by 90–180d. It's a short-window artefact, not an edge. Equities sector stat-arb is real but ~0.06 Sharpe and survivorship-bound — worth running on paper for months before sizing up.
 
@@ -294,4 +335,6 @@ Full detail in [`docs/QUANT_JOURNAL.md`](docs/QUANT_JOURNAL.md) (88 entries). Th
 
 **Take Sides / Regime Desk (#73–#88 — the standalone directional book):** A separate, institutional-grade "take-sides" desk that goes directional **only on OOS-validated symbols**, conviction-sized and directional-stopped, with a desk-risk spine (caps + kill-switch + flatten-on-exit), durable restart recovery, honest slippage/impact fills, a walk-forward backtest, an outright⇄beta-hedged exposure toggle, desk-risk aggregation + factor split + TCA, a stress harness, a 16-symbol universe with cross-sectional allocation, a `/demo` cockpit, a tear-sheet vs BTC, and a feed watchdog. It runs as a self-contained terminal cockpit (`scripts/regime-book-live.ts`); the web backend only *serves* its cockpit (§E) — the two are decoupled so a desk run never interferes with the UI backend. The pre-registered verdict is realised-first (realised + funding − fees − slippage > 0, maxDD inside 2%), measured on a multi-hour forward run.
 
-**Where we're going:** carry trade + long-horizon stat-arb across many markets. More perp CLOBs (dYdX, Drift, Bybit, OKX), more symbols, longer track records. The OOS / cost / queue-aware gates are the discipline that keeps the paper P&L honest.
+**The carry desk (#89–#93 — the current flagship):** [`docs/PROFIT_PIVOT_II.md`](docs/PROFIT_PIVOT_II.md) reviewed the whole record and concluded the desk's hours should follow its *realised* winners — so the validated funding carry became the P0 book. Built in days: the `FundingCarryBook` (time-weighted accrual, per-leg margin, resume-not-flatten persistence), a 231-perp universe scan (13 deployable), the maker-execution service (≈0.8bps maker legs vs the old 7bps taker), the three-venue funding-differential board (measurement pre-registered: 7 daily boards before any leg trades), and the 30-day supervised forward run. Its first launch also produced the desk's best lesson: HL's `LIT` perp (Lighter) string-matched to Binance's `LITUSDT` (Litentry) — a naked cross-asset bet wearing a carry trade's clothes, caught in review, closed honestly, and turned into a ±5% cross-venue basis guard on every entry path. Read [`docs/TICKER_COLLISION_POSTMORTEM.md`](docs/TICKER_COLLISION_POSTMORTEM.md).
+
+**Where we're going:** the 30-day carry track record *is* the demo — plus the allocator + beta-hedge (P1), the VRP satellite (P2), more perp CLOBs (dYdX, Drift, Bybit, OKX), and longer track records. The OOS / cost / queue-aware gates are the discipline that keeps the paper P&L honest.

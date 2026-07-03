@@ -40,7 +40,12 @@ Priority also follows the plan's own operating rule R-A (*winners get the hours*
 running, accruing desk gets the page before any refinement of desks that aren't the
 demo.
 
-## 2. U1 — `/desk/carry` (build first)
+> **Status (2026-07-03):** **U1 SHIPPED** (#93, `962c990` — verified against the live DB) ·
+> **U2 SHIPPED** (#94, `ec6f013` — the /exec fund view + `@carry` spark) · **U3.1 SHIPPED**
+> (#94 — the differential measurement board on /research, read from the newest committed
+> artifact) · plus `GET /api/carry/state` (the JSON twin). U3.2–U3.6 remain as ordered below.
+
+## 2. U1 — `/desk/carry` (build first) — ✅ SHIPPED #93
 
 **Read-only.** The carry runner is a separate OS process; the Nest app must not pretend
 to control it. The page's "actions" are `<copy-cmd>` helpers for the real controls:
@@ -124,7 +129,7 @@ Filter nothing in the read service — with the leak fixed there is nothing to h
   labelled closed.
 - `npx tsc --noEmit` clean; new specs green; no existing spec touched.
 
-## 3. U2 — the fund view knows both desks
+## 3. U2 — the fund view knows both desks — ✅ SHIPPED #94
 
 `/exec` today reads only `MmPortfolioTrader.snapshot()`. The executive page should show
 the **fund** = MM desk + carry desk: add a carry summary strip (from `CarryReadService`)
@@ -134,9 +139,10 @@ curve — different capital bases and cadences; two honest curves beat one synth
 
 ## 4. U3 — ordered backlog (unchanged items from the role guide's §10 caveats)
 
-1. **`/research` live funding board** — serve the newest
-   `docs/research/funding-differentials/board-*.json` + carry-universe scan (now with
-   basis%/collision tags) as a read-only board. Cheap, high-signal, measurement-first.
+1. ~~**`/research` live funding board**~~ ✅ **SHIPPED #94** — the newest
+   `board-*.json` served read-only with the M2 n/7 cadence counter ("A MEASUREMENT,
+   NOT A SIGNAL"). The carry-universe scan board (basis%/collision tags) is a natural
+   follow-on in the same panel style.
 2. **`/risk` soft pause/deny + limit-lowering** — needs the engine endpoint
    (`POST /api/market-making/risk/{pause,limit}`) first; UI follows.
 3. **Per-book `<nav-spark>` sparklines** in desk cards (endpoint already filters by book).

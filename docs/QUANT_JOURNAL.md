@@ -4088,7 +4088,44 @@ checkpoint 05:02 UTC), LIT CLOSED, no fixture rows.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #93)
+## 2026-07-03 — Entry #94 (UI completion: /exec fund view + /research measurement board + /api/carry/state; README documentation index)
+
+**Ronnie's directive: finish the UI + documentation before next week's operator tests.**
+Commit `ec6f013` + the docs pass.
+
+**1. `/exec` is now the FUND view (U2).** `renderCarryStrip` puts the carry desk next to the
+MM desk on the executive page: process liveness (the DOWN alarm reaches the fund view),
+realised-first, funding, maxDD vs the 0.5% budget, book counts, drill-down to `/desk/carry`,
+plus a second `<nav-spark>` on the `@carry` aggregate. Deliberately two curves, not one
+merged number — different capital bases/cadences; two honest curves beat one synthetic one.
+
+**2. `/research` serves the funding-differential MEASUREMENT board (U3.1).**
+`research-board-loader` reads the newest committed `board-*.json` at page load (null ⇒ honest
+empty state + the command to fix it); the panel headlines the **M2 cadence counter (2/7)** and
+"A MEASUREMENT, NOT A SIGNAL" so a one-day board can never be mistaken for a verdict. Runbook
+gains the carry-desk group; the docs list gains the manual/postmortem/plan; the funding KEEP
+card now points at the running desk (its old "no live endpoint" caveat-spec updated to guard
+the new truth). The loader spec reads the real artifacts — a schema-drift guard.
+
+**3. `GET /api/carry/state`** (CarryController in MarketMakingModule): the JSON twin of
+`/desk/carry` — the standing rule that every live surface is machine-readable.
+
+**4. Docs completed:** README rewritten where stale — the role-scoped console is now the
+front door (was: "/demo is the dashboard"), a **Documentation index table** of the key files,
+the carry desk added to the process table + a §F runbook section, and the Research Journey
+gains the carry-desk chapter (#89–#93, incl. the LIT lesson). UI_REWRITE_PLAN_II statuses
+(U1/U2/U3.1 SHIPPED), UI_ARCHITECTURE route/action maps, UI_ROLE_GUIDE /exec + /research
+sections all updated.
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/ui src/market-making/carry`
+**26 suites / 183 tests green** (ui.module DI spec extended to the new controllers; the two
+research specs that asserted the *old* reality were updated to guard the new one). Smoked
+against the live DB: exec fund view shows the DOWN alarm + realised-first + `@carry` spark;
+research shows board 2/7 with real pairs — 9/9 checks.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #94)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
 desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
@@ -4108,10 +4145,12 @@ src/stat-arb/feed` 128 suites / 921 tests.
    consecutive daily boards (**day 2/7 done #93**, day 3 due 2026-07-04); re-run
    `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set (the scan
    now prints basis% + collision tags, #92 fix).
-3. **UI: U1 `/desk/carry` SHIPPED #93** (incl. the fixture-leak pre-item). Next per
-   [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md): **U2** (carry summary strip on `/exec` +
-   fund = both desks) then **U3.1** (serve the funding-differential board on `/research`).
-   Smoke `/desk/carry` in the browser once the operator starts the server (sandbox can't).
+3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry`, the `/exec` fund view, the
+   `/research` measurement board, `GET /api/carry/state`. Remaining per
+   [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md): U3.2 risk pause/deny (engine endpoint
+   first), U3.3 per-book sparklines, U3.4 blotter/dd refinements, U3.5 `/pm`, U3.6 retire
+   `/demo`. **Operator: smoke the new pages in the browser when the server is up** (sandbox
+   can't) — `/`, `/exec`, `/desk/carry`, `/research`.
 4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
    the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
    delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the

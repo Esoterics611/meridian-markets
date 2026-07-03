@@ -80,6 +80,14 @@ otherwise it says "durable NAV off").
 
 ---
 
+**The fund view (#94):** below the MM table, `/exec` carries the **carry-desk strip** —
+process liveness (LIVE/STALE/DOWN off checkpoint age), realised-first, funding, maxDD vs
+the 0.5% budget, book counts — with the drill-down link to `/desk/carry`, plus a second
+equity sparkline on the `@carry` aggregate. Two desks, two honest curves — deliberately
+not merged into one synthetic number.
+
+---
+
 ## 3. `/ops` — Operator console (health + desk controls)
 
 Where you start/stop the desk and confirm it's healthy.
@@ -236,6 +244,15 @@ show the funding *verdict* with that caveat rather than inventing rates.)
 
 ---
 
+**The funding-differential board (#94):** between the findings and the runbook, `/research`
+renders the **newest daily board artifact** (`docs/research/funding-differentials/`) —
+the M2 cadence counter (n/7 boards, pre-registered before any differential leg opens),
+pairs scored / harvestable, and the top differentials with a mechanical leg mapping.
+Headlined "A MEASUREMENT, NOT A SIGNAL" — the counter exists to prevent trading a
+one-day board. Page-load read of a committed artifact; still no execution, no SSE.
+
+---
+
 ## 8. `/pm` — PM / house view (not built)
 
 Greyed out in the nav. The thesis register it would project doesn't have an engine surface
@@ -261,7 +278,9 @@ yet; the page is honest about waiting on it rather than shipping a fake.
 These are **endpoint-blocked, not page-blocked** — the pages don't fake them:
 
 - **`/pm`** — no thesis endpoints.
-- **Live funding board / MM screener** — no serving endpoint (funding shows as a verdict).
+- **MM screener on `/research`** — still no serving endpoint (the funding-differential
+  *measurement* board ships #94, read from the daily artifact; live per-venue funding
+  rates remain unserved).
 - **Per-book pause/deny + limit-lowering** on `/risk` — needs an engine endpoint; only
   stop/flatten/remove exist today.
 - **Per-book equity sparklines** in the desk cards, a **mode-aware/live blotter**, and a
