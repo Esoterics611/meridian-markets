@@ -18,13 +18,16 @@
  * Deployability is more than the gate: the cross-venue pair needs a Binance SPOT
  * leg (long spot / short perp), so each coin is annotated with spot availability
  * (one /api/v3/ticker/price sweep — a k-prefixed HL coin like kPEPE maps to the
- * unprefixed Binance market) and a liquidity floor. DEPLOYABLE = gate ∧ spot ∧ liquid.
+ * unprefixed Binance market) and a liquidity floor. DEPLOYABLE = gate ∧ spot ∧ liquid
+ * ∧ BASIS SANITY — the ticker match must be the same underlying (Journal #92: HL's
+ * perp "LIT" is Lighter, Binance's "LITUSDT" is the unrelated Litentry, 177% apart;
+ * a real same-asset pair trades within a few percent). See cross-venue-symbol-match.ts.
  *
  * Run (DB-free, real public APIs; ~6–10 min wall time at the polite pace):
  *   npx ts-node -r tsconfig-paths/register scripts/carry-universe-scan.ts
  * Knobs: CUS_DAYS(90) CUS_SIEVE_DAYS(14) CUS_SIEVE_MIN_PCT(3.5) CUS_MIN_POS_FRAC(0.65)
  *        CUS_RECENCY_DAYS(7) CUS_MIN_VOL_USD(5e6) CUS_SPOT_FEE_BPS(4.5)
- *        CUS_PERP_FEE_BPS(2.5) CUS_PACE_MS(1100) CUS_TOP(40)
+ *        CUS_PERP_FEE_BPS(2.5) CUS_PACE_MS(1100) CUS_TOP(40) CUS_MAX_BASIS_PCT(5)
  *
  * Writes the ranked board to docs/research/carry-universe/scan-<ts>.json and prints
  * the recommended CD_SYMBOLS line for the live desk.
@@ -35,6 +38,7 @@ import { HyperliquidFundingClient, HYPERLIQUID_PERIODS_PER_YEAR } from '../src/m
 import { parseHlUniverse, HlPerpCtx } from '../src/market-making/screen/hl-universe-discovery';
 import { rankCarryUniverse, OosFundingResult, OosGateConfig } from '../src/market-data/funding/funding-carry-oos';
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
+import { checkSameUnderlyingBasis, spotMarketFor } from '../src/market-data/funding/cross-venue-symbol-match';
 
 const HL_BASE = (process.env.CUS_HL_BASE_URL ?? 'https://api.hyperliquid.xyz').replace(/\/+$/, '');
 const BINANCE_BASE = (process.env.CUS_BINANCE_BASE_URL ?? 'https://api.binance.com').replace(/\/+$/, '');
@@ -48,6 +52,7 @@ const SPOT_FEE_BPS = Number(process.env.CUS_SPOT_FEE_BPS ?? 4.5);
 const PERP_FEE_BPS = Number(process.env.CUS_PERP_FEE_BPS ?? 2.5);
 const PACE_MS = Number(process.env.CUS_PACE_MS ?? 1100); // ~55 heavyweight info calls/min
 const TOP = Number(process.env.CUS_TOP ?? 40);
+const MAX_BASIS_PCT = Number(process.env.CUS_MAX_BASIS_PCT ?? 5); // #92: HL LIT vs Binance LITUSDT was 177% apart
 
 const gateCfg: OosGateConfig = {
   periodsPerYear: HYPERLIQUID_PERIODS_PER_YEAR,
@@ -66,9 +71,13 @@ export interface CarryUniverseRow extends OosFundingResult {
   binanceSpotMarket: string | null;
   /** k-prefixed HL coin ⇒ the spot leg trades the unprefixed asset at 1000× quantity. */
   spotScaled: boolean;
+  /** (HL markPx / Binance spotPx − 1) × 100 at scan time, null if no spot market. A
+   *  same-asset pair sits within a few %; a large gap means the tickers are two
+   *  different underlyings (Journal #92). */
+  spotBasisPct: number | null;
   /** Stage-A read: |annualised funding| over the sieve window (all coins have this). */
   sieveAnnualizedPct: number;
-  /** passGate ∧ spot leg exists ∧ liquid — what CD_SYMBOLS should be fed from. */
+  /** passGate ∧ spot leg exists ∧ liquid ∧ basis-sane — what CD_SYMBOLS should be fed from. */
   deployable: boolean;
 }
 
@@ -100,22 +109,17 @@ function pacedHlPost(url: string, body: unknown): Promise<unknown> {
   return next;
 }
 
-async function binanceSpotMarkets(): Promise<Set<string>> {
+/** symbol -> last price, from the same sweep that used to discard it (#92 fix: the
+ *  price is what makes the basis-sanity check possible with zero extra requests). */
+async function binanceSpotPrices(): Promise<Map<string, number>> {
   const res = await fetch(`${BINANCE_BASE}/api/v3/ticker/price`, { headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`Binance ticker/price -> HTTP ${res.status}`);
-  const raw = (await res.json()) as { symbol?: string }[];
-  return new Set(raw.map((r) => r.symbol ?? '').filter(Boolean));
-}
-
-/** Map an HL coin to its Binance USDT spot market (k-prefix = 1000× wrapper). */
-function spotMarketFor(coin: string, markets: Set<string>): { market: string | null; scaled: boolean } {
-  const direct = `${coin.toUpperCase()}USDT`;
-  if (markets.has(direct)) return { market: direct, scaled: false };
-  if (/^k[A-Z]/.test(coin)) {
-    const unwrapped = `${coin.slice(1).toUpperCase()}USDT`;
-    if (markets.has(unwrapped)) return { market: unwrapped, scaled: true };
+  const raw = (await res.json()) as { symbol?: string; price?: string }[];
+  const out = new Map<string, number>();
+  for (const r of raw) {
+    if (r.symbol && r.price) out.set(r.symbol, Number(r.price));
   }
-  return { market: null, scaled: false };
+  return out;
 }
 
 const pad = (s: string | number, n: number): string => String(s).padEnd(n);
@@ -129,15 +133,17 @@ async function main(): Promise<void> {
   console.log(`\n=== FULL-UNIVERSE CARRY SCAN — the desk gate over every HL perp (P1a) ===`);
   console.log(`  gate: ${DAYS}d OOS split · posFrac≥${MIN_POS_FRAC} both windows · ${RECENCY_DAYS}d recency veto (#72)`);
   console.log(`  sieve: ${SIEVE_DAYS}d stage-A pass, |ann funding| ≥ ${SIEVE_MIN_PCT}% → full ${DAYS}d gate | pace ${PACE_MS}ms/req`);
-  console.log(`  fees: spot ${SPOT_FEE_BPS} + perp ${PERP_FEE_BPS} bps/side | deployable = gate ∧ Binance spot ∧ vol ≥ $${(MIN_VOL_USD / 1e6).toFixed(0)}M\n`);
+  console.log(
+    `  fees: spot ${SPOT_FEE_BPS} + perp ${PERP_FEE_BPS} bps/side | deployable = gate ∧ Binance spot ∧ vol ≥ $${(MIN_VOL_USD / 1e6).toFixed(0)}M ∧ |basis| ≤ ${MAX_BASIS_PCT}%\n`,
+  );
 
   // 1. The whole main-dex universe (HIP-3 dex perps have no spot hedge — out of scope here).
-  const [universeRaw, spotMarkets] = await Promise.all([
+  const [universeRaw, spotPrices] = await Promise.all([
     pacedHlPost(`${HL_BASE}/info`, { type: 'metaAndAssetCtxs' }),
-    binanceSpotMarkets(),
+    binanceSpotPrices(),
   ]);
   const universe = parseHlUniverse(universeRaw).filter((u) => u.markPx > 0);
-  console.log(`  universe: ${universe.length} HL perps · ${spotMarkets.size} Binance spot markets`);
+  console.log(`  universe: ${universe.length} HL perps · ${spotPrices.size} Binance spot markets`);
 
   // 2. Stage A — one ${SIEVE_DAYS}d page per coin, whole universe. Everything below the
   //    sieve floor is recorded (sieveAnnualizedPct) but not gated: a stream that thin
@@ -181,16 +187,22 @@ async function main(): Promise<void> {
   const rows: CarryUniverseRow[] = gated.map((r) => {
     const ctx = universe.find((u) => u.name === r.symbol);
     const vol = ctx?.dayNtlVlmUsd ?? 0;
-    const { market, scaled } = spotMarketFor(r.symbol, spotMarkets);
+    const { market, scaled } = spotMarketFor(r.symbol, spotPrices);
     const liquid = vol >= MIN_VOL_USD;
+    const spotPx = market ? spotPrices.get(market) ?? 0 : 0;
+    // #92: a real same-asset pair trades within a few % — a large gap means the HL
+    // perp and the Binance spot market are two different underlyings (e.g. HL "LIT"
+    // = Lighter vs Binance "LITUSDT" = Litentry, 177% apart), not a valid hedge.
+    const basis = market ? checkSameUnderlyingBasis(ctx?.markPx ?? 0, spotPx, scaled, MAX_BASIS_PCT) : { ok: false, basisPct: null };
     return {
       ...r,
       dayNtlVlmUsd: vol,
       liquid,
       binanceSpotMarket: market,
       spotScaled: scaled,
+      spotBasisPct: basis.basisPct,
       sieveAnnualizedPct: sieveReads.get(r.symbol)?.annPct ?? 0,
-      deployable: r.passGate && market !== null && liquid,
+      deployable: r.passGate && market !== null && liquid && basis.ok,
     };
   });
 
@@ -199,14 +211,26 @@ async function main(): Promise<void> {
   const passers = rows.filter((r) => r.passGate);
   const deployable = rows.filter((r) => r.deployable);
 
-  console.log(`\n  symbol    dir         fullFund%  recent7d%  IS/OOS posFrac  breakeven  vol$M  spot      GATE`);
+  console.log(`\n  symbol    dir         fullFund%  recent7d%  IS/OOS posFrac  breakeven  vol$M  spot      basis%  GATE`);
   for (const r of rows.slice(0, TOP)) {
     const spotTag = r.binanceSpotMarket ? (r.spotScaled ? 'scaled' : 'yes') : 'NO';
-    const gateTag = r.deployable ? '✅ DEPLOY' : r.passGate ? (r.binanceSpotMarket ? '· illiq' : '· no-spot') : r.recent.vetoed ? '🚫 veto' : '❌';
+    // passGate ∧ spot market found ∧ not deployable ⇒ liquidity or basis is what failed.
+    const gateTag = r.deployable
+      ? '✅ DEPLOY'
+      : r.passGate
+        ? !r.binanceSpotMarket
+          ? '· no-spot'
+          : !r.liquid
+            ? '· illiq'
+            : '⚠ basis MISMATCH (ticker collision?)'
+        : r.recent.vetoed
+          ? '🚫 veto'
+          : '❌';
     console.log(
       `  ${pad(r.symbol, 8)}  ${pad(r.direction, 10)}  ${padL(pct(r.full.annualizedFundingPct), 8)}  ${padL(pct(r.recent.annualizedFundingPct), 9)}  ` +
       `${padL(`${r.inSample.posFrac.toFixed(2)}/${r.oos.posFrac.toFixed(2)}`, 13)}  ` +
-      `${padL(isFinite(r.full.breakevenDays) ? r.full.breakevenDays.toFixed(1) + 'd' : '∞', 9)}  ${padL((r.dayNtlVlmUsd / 1e6).toFixed(0), 5)}  ${pad(spotTag, 8)}  ${gateTag}`,
+      `${padL(isFinite(r.full.breakevenDays) ? r.full.breakevenDays.toFixed(1) + 'd' : '∞', 9)}  ${padL((r.dayNtlVlmUsd / 1e6).toFixed(0), 5)}  ${pad(spotTag, 8)}  ` +
+      `${padL(r.spotBasisPct === null ? '—' : pct(r.spotBasisPct, 1), 6)}  ${gateTag}`,
     );
   }
 
