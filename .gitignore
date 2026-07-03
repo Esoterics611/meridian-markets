@@ -25,3 +25,4 @@ node_modules
 
 # MM research captures (per-run, large; query with jq, never commit)
 docs/research/flow-shadow-*.jsonl
+logs/
