@@ -1,4 +1,17 @@
-import { checkSameUnderlyingBasis, DEFAULT_MAX_BASIS_PCT, spotMarketFor } from './cross-venue-symbol-match';
+import { checkSameUnderlyingBasis, DEFAULT_MAX_BASIS_PCT, isKScaledCoin, spotMarketFor } from './cross-venue-symbol-match';
+
+describe('isKScaledCoin', () => {
+  it('recognises the k-prefix 1000x wrapper form', () => {
+    expect(isKScaledCoin('kPEPE')).toBe(true);
+    expect(isKScaledCoin('kBONK')).toBe(true);
+  });
+
+  it('does not confuse uppercase-K tickers or plain coins with the wrapper', () => {
+    expect(isKScaledCoin('KAVA')).toBe(false); // uppercase K = a real ticker, not the wrapper
+    expect(isKScaledCoin('LIT')).toBe(false);
+    expect(isKScaledCoin('k')).toBe(false);
+  });
+});
 
 describe('spotMarketFor', () => {
   it('maps a plain HL coin to its direct Binance USDT market', () => {

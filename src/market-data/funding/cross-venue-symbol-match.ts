@@ -17,11 +17,16 @@ export interface SpotMarketMatch {
   scaled: boolean;
 }
 
+/** True for HL's k-prefixed 1000× wrapper coins (kPEPE, kBONK — lowercase 'k' + uppercase). */
+export function isKScaledCoin(coin: string): boolean {
+  return /^k[A-Z]/.test(coin);
+}
+
 /** Map an HL coin to its Binance USDT spot market (k-prefix = 1000× wrapper). */
 export function spotMarketFor(coin: string, spotPrices: ReadonlyMap<string, number>): SpotMarketMatch {
   const direct = `${coin.toUpperCase()}USDT`;
   if (spotPrices.has(direct)) return { market: direct, scaled: false };
-  if (/^k[A-Z]/.test(coin)) {
+  if (isKScaledCoin(coin)) {
     const unwrapped = `${coin.slice(1).toUpperCase()}USDT`;
     if (spotPrices.has(unwrapped)) return { market: unwrapped, scaled: true };
   }

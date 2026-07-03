@@ -27,6 +27,7 @@
  *        CD_MAX_LEGS CD_POLL_MS CD_HOURS(0=indefinite) CD_SPOT_FEE_BPS CD_PERP_FEE_BPS
  *        CD_SLIPPAGE_BPS CD_IMPACT_BPS_PER_MM CD_MAX_LEVERAGE CD_MAINT_FRAC
  *        CD_REGATE_HOURS CD_DD_BUDGET_FRAC CD_ALERT_WEBHOOK MM_PERSIST DATABASE_URL_APP
+ *        CD_MAX_BASIS_PCT(5 — the #92 ticker-collision guard on every entry/resume)
  *        CD_MAKER_ENTRY(true) CD_MAKER_PATIENCE_S(45) CD_MAKER_TICK_MS(2000)
  *        CD_SPOT_MAKER_FEE_BPS(1 = Binance spot maker) CD_PERP_MAKER_FEE_BPS(−0.2 = HL rebate)
  */
@@ -36,6 +37,7 @@ import { HyperliquidClient } from '../src/market-data/reference/hyperliquid-clie
 import { CrossVenueFairValue } from '../src/market-data/cross-venue/cross-venue-fair-value';
 import { HyperliquidFundingClient, HYPERLIQUID_PERIODS_PER_YEAR } from '../src/market-data/funding/hyperliquid-funding-client';
 import { rankCarryUniverse, OosFundingResult, OosGateConfig } from '../src/market-data/funding/funding-carry-oos';
+import { checkSameUnderlyingBasis, DEFAULT_MAX_BASIS_PCT, isKScaledCoin } from '../src/market-data/funding/cross-venue-symbol-match';
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
 import { FundingCarryBook, LegExecution } from '../src/market-making/carry/funding-carry-book';
 import { acquireFill, ExecutedFill, TouchSource } from '../src/market-making/execution/maker-execution';
@@ -74,6 +76,7 @@ const MAKER_PATIENCE_S = Number(process.env.CD_MAKER_PATIENCE_S ?? 45);
 const MAKER_TICK_MS = Number(process.env.CD_MAKER_TICK_MS ?? 2_000);
 const SPOT_MAKER_FEE_BPS = Number(process.env.CD_SPOT_MAKER_FEE_BPS ?? venueFeeFor('binance').makerBps);
 const PERP_MAKER_FEE_BPS = Number(process.env.CD_PERP_MAKER_FEE_BPS ?? venueFeeFor('hyperliquid').makerBps);
+const MAX_BASIS_PCT = Number(process.env.CD_MAX_BASIS_PCT ?? DEFAULT_MAX_BASIS_PCT);
 const PERSIST = (process.env.MM_PERSIST ?? 'false').toLowerCase() === 'true';
 const DATABASE_URL_APP =
   process.env.DATABASE_URL_APP ?? 'postgresql://meridian_markets_app:meridian_markets_app@localhost:5433/meridian_markets';
@@ -174,6 +177,28 @@ async function executePair(book: FundingCarryBook, symbol: string, direction: 'S
     console.log(`  ${symbol}: maker-execution ${action} unavailable (${(e as Error).message}) — falling back to taker at mid`);
     return false;
   }
+}
+
+/**
+ * #92 ticker-collision guard, runner side: two venues listing the same ticker is NOT
+ * evidence they list the same asset (HL "LIT" = Lighter vs Binance "LITUSDT" =
+ * Litentry, 177% apart at entry). A genuine perp/spot pair trades within a few % —
+ * that gap IS the basis funding exists to bound — so beyond CD_MAX_BASIS_PCT the
+ * "pair" is two different tokens and the book would be a naked cross-asset bet.
+ * This guards ALL entry paths (manual CD_SYMBOLS included), independent of the scan.
+ */
+function basisGuard(symbol: string, spotMidMicros: bigint, perpMidMicros: bigint): boolean {
+  const check = checkSameUnderlyingBasis(
+    Number(perpMidMicros) / 1e6, Number(spotMidMicros) / 1e6, isKScaledCoin(symbol), MAX_BASIS_PCT,
+  );
+  if (!check.ok) {
+    console.log(
+      `  ⛔ ${symbol}: TICKER-COLLISION GUARD — cross-venue basis ${isFinite(check.basisPct) ? check.basisPct.toFixed(1) : 'NaN'}% ` +
+      `exceeds ±${MAX_BASIS_PCT}% (the venues likely list DIFFERENT assets under this ticker — the #92 LIT case).`,
+    );
+    alerts.lossStop(symbol, `ticker-collision guard: cross-venue basis ${check.basisPct.toFixed(1)}% > ±${MAX_BASIS_PCT}%`);
+  }
+  return check.ok;
 }
 
 // ── Gate ─────────────────────────────────────────────────────────────────────────
@@ -311,7 +336,22 @@ async function main(): Promise<void> {
         lb.book.restoreState(resumed.state);
         lb.entryMs = resumed.entryMs;
         await accrueOfflineGap(lb, perpMid);
-      } else {
+        if (!basisGuard(r.symbol, spotMid, perpMid)) {
+          // The exact #92 LIT scenario: a held book whose two legs aren't the same
+          // asset. Close it at market (honest funding already accrued above), never
+          // carry it forward.
+          if (lb.book.isOpen() && !(await executePair(lb.book, r.symbol, r.direction, 'close'))) {
+            lb.book.close(Date.now(), spotMid, perpMid);
+          }
+          const s = lb.book.snapshot(spotMid, perpMid);
+          console.log(`  ${r.symbol}: resumed book CLOSED by the collision guard — realised-first ${usd(s.realisedFirstUnits)}`);
+          await checkpoint(store, lb);
+          await store.closeBook(r.symbol);
+        } else {
+          books.set(r.symbol, lb);
+          await checkpoint(store, lb);
+        }
+      } else if (basisGuard(r.symbol, spotMid, perpMid)) {
         if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), spotMid, perpMid);
         lb.entryMs = Date.now();
         console.log(
@@ -319,16 +359,16 @@ async function main(): Promise<void> {
           `$${NOTIONAL_USD / 1000}k/leg — gross ${pct(r.full.annualizedFundingPct)} · recent7d ${pct(r.recent.annualizedFundingPct)} · ` +
           `breakeven ~${r.full.breakevenDays.toFixed(1)}d · basis ${snap.basisBps.toFixed(1)}bps`,
         );
+        books.set(r.symbol, lb);
+        await checkpoint(store, lb);
       }
-      books.set(r.symbol, lb);
-      await checkpoint(store, lb);
     } catch (e) {
       console.log(`  ${r.symbol}: open failed — ${(e as Error).message} (skipped)`);
     }
     await sleep(150);
   }
   if (books.size === 0) {
-    console.log('\n  No books opened (all fetches failed?) — exiting.');
+    console.log('\n  No books opened (fetches failed, or every candidate was guard-refused) — exiting.');
     if (ds) await ds.destroy();
     process.exit(1);
   }
@@ -463,6 +503,7 @@ async function main(): Promise<void> {
               symbol: r.symbol, gate: r, book: newBook(r.symbol, r.direction),
               entryMs: Date.now(), lastRatePerHour: 0, lastSpotMid: micros(snap.binanceMid), lastPerpMid: micros(snap.hlMid), stale: false,
             };
+            if (!basisGuard(r.symbol, lb.lastSpotMid, lb.lastPerpMid)) continue;
             if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
             books.set(r.symbol, lb);
             await checkpoint(store, lb);
