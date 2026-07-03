@@ -241,8 +241,10 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 >    session realised-first from `mm_nav WHERE desk='carry'` + the TCA log lines (≤2bps/leg).
 > 2. **Daily:** `scripts/funding-differential-board.ts` (day 3/7 due 2026-07-04 — consecutive
 >    days) and a `scripts/carry-universe-scan.ts` refresh at re-gate.
-> 3. **UI U1:** implement `/desk/carry` per UI_REWRITE_PLAN_II.md (file list + acceptance
->    criteria in the doc; pre-item = the int-spec ITA5NED7 fixture leak).
+> 3. **UI: U1 `/desk/carry` SHIPPED (#93)** — liveness banner + books + NAV + runbook,
+>    verified against the live DB; operator manual at CARRY_DESK_OPERATOR_MANUAL.md.
+>    Next UI: U2 (`/exec` fund view = MM + carry) then U3.1 (differential board on
+>    `/research`) per UI_REWRITE_PLAN_II.md.
 > 4. **Next build session = finish P1:** item 4 — E7 allocator v0 (fixed weights) + aggregate
 >    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
 >    the no-spot passers (FARTCOIN/HYPE/PURR tail).

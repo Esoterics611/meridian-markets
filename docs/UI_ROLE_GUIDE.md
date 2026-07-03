@@ -165,6 +165,29 @@ is a later refinement.)
 
 ---
 
+## 5a. `/desk/carry` — Funding-carry desk (read-only; the 30-day P0 run)
+
+The flagship desk's supervisory page (#93, UI_REWRITE_PLAN_II U1). The carry runner is
+a **separate supervised process** (`scripts/launch-carry-30d.sh`), so this page reads
+its durable checkpoints (`carry_book_state` + `mm_nav desk='carry'`) and drives nothing.
+
+- **Liveness banner first**: checkpoint age → `LIVE` (<3min) / `STALE` (<15min) /
+  `DOWN` (books open, no heartbeat — kill-switch and re-gate are INERT; the banner
+  shows the relaunch command) / `IDLE` (no books). This is #92's stall made visible.
+- **Stat strip**: realised-first (the judged number), funding, fees, basis MTM
+  (reported not judged), maxDD vs the 0.5% budget, open/closed counts.
+- **Books table**: per-book structure, gate% at entry, funding/fees/realised-first,
+  basis MTM, checkpoint age. **CLOSED rows stay visible** (the LIT close is desk
+  history — honesty doctrine).
+- **NAV sparkline** on the `@carry` aggregate + a `<copy-cmd>` runbook palette
+  (launch / status / stop / out-of-band close — the page never executes).
+- DB off ⇒ an explicit `DB OFF` panel, never zeros.
+
+The full operator doctrine (what each number means, when to act):
+[CARRY_DESK_OPERATOR_MANUAL.md](CARRY_DESK_OPERATOR_MANUAL.md).
+
+---
+
 ## 6. `/risk` — Risk console (read the risk, reduce it)
 
 Where you see how much risk is on and pull it down.

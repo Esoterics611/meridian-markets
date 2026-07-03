@@ -100,6 +100,7 @@ call (see §6); read-only pages drive nothing.
 | `/exec` | Executive | `MmPortfolioTrader.snapshot()` | — (read-only) | **shipped** |
 | `/ops` | Operator | readiness probe + `MmPortfolioTrader.snapshot()` (process/feed/DB health, tick freshness, persistence, MM desk) | start/stop/flatten the MM desk | **shipped** (MM scope; stat-arb desk panel + cross-desk kill switch deferred — §8) |
 | `/desk/mm` | MM desk | `MmPortfolioTrader.snapshot()` + the MM `DeskEventLog` (per-book quotes/inventory/attribution + Activity tape) | launch/stop/remove/reconfigure a book | **shipped** |
+| `/desk/carry` | Carry desk | `CarryReadService` → `carry_book_state` + `mm_nav desk='carry'` (liveness from checkpoint age, books incl. CLOSED, realised-first, NAV) | — (read-only: the runner is a separate supervised process; `<copy-cmd>` runbook only) | **shipped** (#93, UI_REWRITE_PLAN_II U1) |
 | `/desk/statarb` | Stat-arb desk | `LivePortfolioTrader.snapshot()` + stat-arb `DeskEventLog` + `StatArbRepository` (per-pair z/β/regime/position, blotter, tape) | launch/stop/remove/reconfigure a pair | **shipped** |
 | `/risk` | Risk | `MmPortfolioTrader.snapshot()` + MM `DeskEventLog` (drawdown vs budget, exposure, adverse-selection toxicity, verdict transitions) | stop/flatten (per desk) + remove (per book); cross-desk kill switch | **shipped** (pause/deny + limits still an endpoint gap — §6) |
 | `/research` | Quant | curated findings (from `docs/RESEARCH_FINDINGS.md` + CLAUDE.md §8) + doc links — static | **no exec** — copy-the-runbook-command helper (`<copy-cmd>`) | **shipped** (live funding board / screener deferred — no endpoint) |
@@ -159,6 +160,7 @@ re-renders, and the book vanishing from the cards is the real confirmation).
 | `GET /ops/stream` | health/readiness/tick-freshness + MM desk + persistence panels | 2s | **shipped** |
 | `GET /desk/mm/stream` | desk summary + per-book quotes/inventory/attribution cards (tape is the static append component now) | 2s | **shipped** |
 | `GET /desk/statarb/stream` | desk summary + per-pair z/β/regime/position cards (tape append-mode; blotter is page-load only) | 2s | **shipped** |
+| `GET /desk/carry/stream` | liveness banner + desk strip + books table (checkpoint-backed; the runner writes every ~60s, so 5s serves the liveness read, not data churn) | 5s | **shipped** |
 | `GET /risk/stream` | drawdown/exposure headline + per-book risk table + verdict-transition feed (full-replace tape) | 2s | **shipped** |
 | _(none — `/research` is static)_ | `/research` is research artifacts + terminal commands, not live state — no stream by design | — | n/a |
 | _(REST poll, not SSE)_ `<activity-tape>` → `GET …/events?since=<cursor>` | the append-mode Activity tape: prepends only new events, preserving scroll | 2s poll | **shipped** (desk/mm + desk/statarb; /risk still uses the in-stream full-replace verdict feed) |

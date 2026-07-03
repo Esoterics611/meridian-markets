@@ -4065,10 +4065,26 @@ read-only `CarryReadService`, file-by-file build list + acceptance criteria for 
 implementing session. Also flagged: `postgres-carry-state-store.int-spec.ts` leaks its
 `ITA5NED7` fixture into the real paper DB — cleanup is U1's pre-item.
 
-**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/market-data/funding`
-8 suites / 70 tests green (incl. the new `isKScaledCoin` cases); `npx jest
-src/market-making/carry` 3 suites / 28 tests green. Desk DB state verified directly:
-7 books OPEN (AAVE DYDX GRAM LINK NEAR UNI XPL, last checkpoint 05:02 UTC), LIT CLOSED.
+**6. U1 SHIPPED same session (`962c990`) + the operator's manual.** `/desk/carry` is live:
+`CarryReadService` (read-only projection of `carry_book_state` + `mm_nav @carry`, exported
+from `MarketMakingModule`, `@Optional` DbService so DB-free configs boot) +
+`classifyCarryLiveness` (checkpoint age → LIVE/STALE/DOWN/IDLE — the #92 stall as a
+classifier), SSE page with the liveness banner, realised-first desk strip, books table
+(CLOSED rows visible — the LIT close on screen by design), `@carry` NAV spark, `<copy-cmd>`
+runbook palette. **Verified end-to-end against the live paper DB**: DESK DOWN @6.3h age,
+7 OPEN books, LIT CLOSED +$268.28 rendered, maxDD 0.328% — 8/8 smoke checks. Fixture
+hygiene done: int-spec now uses the fixed `ITFIXTURE` symbol (bounded single row, excluded
+from reads); the leaked `ITA5NED7`/`ITRHW9S0` rows deleted via the privileged role.
+Companion doc (Ronnie's ask — the manual for the human quant, carrying the *why*):
+[CARRY_DESK_OPERATOR_MANUAL.md](CARRY_DESK_OPERATOR_MANUAL.md) — where the money comes
+from, the graveyard that taught the gates, realised-first doctrine, the daily 10-minute
+workflow, and the intervention playbook (DOWN / unintended-position / DD / never-do).
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/market-making/carry
+src/ui src/market-data/funding` **32 suites / 243 tests green** (incl. the new
+`isKScaledCoin`, `carry-read.service`, `carry-desk-view`, `carry-desk.controller` specs).
+Desk DB state verified directly: 7 books OPEN (AAVE DYDX GRAM LINK NEAR UNI XPL, last
+checkpoint 05:02 UTC), LIT CLOSED, no fixture rows.
 
 ---
 
@@ -4092,11 +4108,10 @@ src/stat-arb/feed` 128 suites / 921 tests.
    consecutive daily boards (**day 2/7 done #93**, day 3 due 2026-07-04); re-run
    `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set (the scan
    now prints basis% + collision tags, #92 fix).
-3. **UI: implement U1 `/desk/carry`** per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md) —
-   liveness banner + books table + NAV + runbook palette, read-only `CarryReadService`;
-   pre-item: fix the `postgres-carry-state-store.int-spec.ts` fixture leak (ITA5NED7) and
-   delete the stray rows. The plan doc carries the file-by-file list + acceptance criteria —
-   built to be implemented mechanically (Opus-suitable per Ronnie).
+3. **UI: U1 `/desk/carry` SHIPPED #93** (incl. the fixture-leak pre-item). Next per
+   [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md): **U2** (carry summary strip on `/exec` +
+   fund = both desks) then **U3.1** (serve the funding-differential board on `/research`).
+   Smoke `/desk/carry` in the browser once the operator starts the server (sandbox can't).
 4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
    the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
    delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
