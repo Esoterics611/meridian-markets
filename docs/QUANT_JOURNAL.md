@@ -4125,7 +4125,46 @@ research shows board 2/7 with real pairs — 9/9 checks.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #94)
+## 2026-07-05 — Entry #95 (Directional bot review → supervised launcher: the built-but-never-run "take sides" desk becomes a one-command benchmark track)
+
+**The ask: "review and add a directional trading bot based on what we have."** The review's
+finding is that we already **have** one, complete: the Regime Directional desk (P1–P15,
+#73–#87) — `RegimeDirectionalBook` + 7 OOS-gated bias sources + walk-forward book backtest +
+stress harness + exposure toggle + persistence + TCA + watchdog + the 907-line
+`scripts/regime-book-live.ts` runner + the `/demo` cockpit. What it has **never had is a
+supervised launch path** — the P16 forward run (#88 handover, 2026-06-17) has sat
+"parked-but-pending" for 18 days, and the carry desk's #92 incident showed exactly why
+bare-foreground launches don't happen: they die with the terminal.
+
+**The honest scope call (rule R-C):** building a *new* directional strategy on top of the
+negative #80 book-level read (desk −$1,484 over 60d, 0/2 books cleared the bar) would be the
+precise mistake PROFIT_PIVOT_II §1-R10 documents. The correct "add" is assembly: give the
+existing bot the same supervision the carry desk got in #93, so the pre-registered P16 run can
+actually happen as the benchmark track the ledger already sanctions.
+
+**What shipped — `scripts/launch-regime-track.sh`** (mirrors `launch-carry-30d.sh`):
+- **Stress pre-flight:** `regime-stress.ts` must print STRESS OK (exit 0) or the launch is
+  REFUSED — verified live this session (4 scenarios, budget respected, exit 0).
+- **Gate-first stays in the runner** (one code path): `regime-book-live.ts` re-runs the 90d
+  OOS gate at boot; 0 validated symbols ⇒ trades nothing.
+- **Defaults = the #88 pre-registered command, unchanged:** `MM_PERSIST=true RBL_HOURS=8
+  RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8` (override via env, e.g.
+  `RBL_EXPOSURE=hedged` for the comparison track). No new knobs invented for a pre-registered
+  run.
+- **stop = SIGINT ⇒ flatten-on-exit** (books the realised close + final checkpoint) — NOT
+  carry's resume-not-flatten; a directional position never sits unsupervised.
+- nohup + pidfile + `status`/`stop` verbs; logs to `logs/regime-track-*.log`; score from
+  `mm_nav WHERE desk='regime'` + the runner's Ctrl-C scorecard.
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional`
+**22 suites / 190 tests green**. Launcher smoked: `bash -n` clean, `status`/`stop` sane with
+no process, stress pre-flight fires for real. Pre-registered metric unchanged (#88):
+realised + funding − fees − slippage > 0 with maxDD inside 2% on the day's validated symbols;
+a flat "sat aside" is a correct outcome.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-05, #95)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
 desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
@@ -4157,8 +4196,10 @@ src/stat-arb/feed` 128 suites / 921 tests.
    no-spot gate-passers (FARTCOIN/HYPE/PURR tail, #91).
 5. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
    `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
-6. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
-   BENCHMARK track alongside the carry desk, not the priority.
+6. **Regime desk benchmark track (P16, #88 handover) — now ONE COMMAND (#95):**
+   `bash scripts/launch-regime-track.sh` (stress pre-flight + gate-first at boot + nohup/pidfile;
+   `status`/`stop` verbs; stop ⇒ flatten-on-exit). Still the operator's run, still not the
+   priority — but no longer blocked on a hand-rolled launch chain.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
 while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays

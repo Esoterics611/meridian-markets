@@ -217,8 +217,9 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-03 (session 4 of the plan — Journal #93: the #92 findings remediated;
-> desk ready for supervised relaunch).**
+> **Last updated: 2026-07-05 (session 5 of the plan — Journal #95: the regime directional
+> benchmark track got its supervised launcher; carry desk unchanged, still awaiting operator
+> relaunch).**
 >
 > **State:** the #92 incident is fully closed out. **LIT closed** via the new
 > `scripts/carry-close-book.ts` (book-ledger-honest: settled funding replayed, taker close):
@@ -250,7 +251,10 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 >    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
 >    the no-spot passers (FARTCOIN/HYPE/PURR tail).
 > 5. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward
->    run (#88) — now a benchmark track, not the priority.
+>    run (#88) — now a benchmark track, not the priority, and since #95 a one-command launch:
+>    `bash scripts/launch-regime-track.sh` (stress pre-flight, gate-first at boot, #88
+>    pre-registered defaults, stop ⇒ flatten-on-exit). R-C respected: no new directional
+>    strategy is built until the pre-registered forward run has an honest read.
 >
 > **Do-not-relitigate:** the #65 κ=0 verdict; the #70 spread-MM verdict; realised-first judging;
 > resume-not-flatten on the carry desk (#90 — working as designed, #92 confirmed it keeps books
