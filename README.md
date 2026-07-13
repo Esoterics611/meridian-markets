@@ -40,6 +40,7 @@ Start with [`CLAUDE.md`](CLAUDE.md) (binding architecture + mission + session lo
 | The MM desk (quoters, risk gates, attribution) + how to run it | [`docs/MARKET_MAKING.md`](docs/MARKET_MAKING.md) · [`docs/RUN_THE_DESK.md`](docs/RUN_THE_DESK.md) |
 | MM fair-value / adverse-selection findings | [`docs/FAIR_VALUE_AND_THESIS_DESIGN.md`](docs/FAIR_VALUE_AND_THESIS_DESIGN.md) |
 | The regime / "take-sides" directional desk | [`docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md`](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md) |
+| **The probability desk** (HIP-4 binaries vs the Deribit RND) — thesis + how to run | [`docs/PROBABILITY_DESK.md`](docs/PROBABILITY_DESK.md) |
 | Equities stat-arb (Alpaca/Yahoo) | [`docs/EQUITIES_STATARB_PLAN.md`](docs/EQUITIES_STATARB_PLAN.md) |
 | Venue / data-source ledger | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) |
 | Per-session engineering history | [`docs/SESSION_HISTORY.md`](docs/SESSION_HISTORY.md) |
@@ -299,6 +300,75 @@ npx ts-node -r tsconfig-paths/register scripts/funding-differential-board.ts
 
 The full operator doctrine — what each number means and when to act — is
 [`docs/CARRY_DESK_OPERATOR_MANUAL.md`](docs/CARRY_DESK_OPERATOR_MANUAL.md).
+
+> **DB-free note:** without `MM_PERSIST=true` (and Postgres up) the carry desk runs fine but
+> keeps **no durable checkpoints** — a restart re-gates and re-opens from scratch instead of
+> resuming held books. Fine for a watch session; the real 30-day run wants persistence.
+
+### G. The probability desk — HIP-4 binaries vs the Deribit RND (paper, live)
+
+*(Built 2026-07-13; full thesis, pre-registered metrics, and honest gaps:
+[`docs/PROBABILITY_DESK.md`](docs/PROBABILITY_DESK.md).)* Hyperliquid's HIP-4 event markets
+(live on mainnet since 2026-05-02) quote daily **BTC/ETH price binaries** as normal L2 books in
+probability units. The crowd prices them by feel; this desk prices them off its own
+**smile-adjusted Deribit digital** (−dC/dK, the validated Greeks layer) and paper-trades only a
+signed, fee-adjusted fair-value edge past a pre-registered gate. Defined-risk (max loss =
+collateral, known at entry), self-settling within hours — realised P&L arrives daily.
+
+```bash
+# DB-free, no keys; journals every EVAL/ENTER/TP/SETTLE + 10-min SUMMARY lines:
+npx ts-node -r tsconfig-paths/register scripts/outcome-rv-live.ts
+
+# Knobs (defaults in parentheses — the defaults ARE the pre-registered run):
+#   ORV_EDGE_MIN(0.03)      min fee-adjusted edge, prob units — DON'T lower mid-run; a looser
+#                           run is an experiment, not the track record
+#   ORV_FEE_PROB(0.005)     fee per $1 contract on close/settle — PLACEHOLDER until HIP-4's
+#                           real schedule is confirmed against a settled market
+#   ORV_CONTRACTS(500)      base size, $1-payout contracts
+#   ORV_MAX_MKT_USD(500) ORV_MAX_TOTAL_USD(2000)   collateral caps (= max loss caps)
+#   ORV_MIN_EXP_MIN(45)     no new entry this close to expiry
+#   ORV_TP_FRAC(0.7)        take-profit: close early once ≥70% of entry edge is lockable
+#   ORV_TOUCH_FRAC(0.5)     never take more than half the displayed touch size
+#   ORV_HOURS(0)            0 = run until Ctrl-C (FINAL line = the honest scorecard)
+#   ORV_JOURNAL(docs/research/outcome-rv)   JSONL journal dir — every gap seen, traded or not
+```
+
+Reading the log: `scan … yes 0.129/0.147 fair 0.1179 — no trade (edge 0.0067 < min 0.03)` is the
+desk *working correctly* — doctrine #5, no edge past the gate → no position. Only
+`class:priceBinary` markets on Deribit-priceable underlyings are ever touched; sports/politics
+markets are refused by construction, and the #92 same-underlying guard (venue spot vs Deribit
+index ±5%) sits on every pricing call.
+
+### H. The VRP satellite — gated short vol, stopped and hedged (paper, live)
+
+*(PROFIT_PIVOT_II E6 — the desk's largest validated, previously never-run edge: #12 = implied −
+realized of +5.9 BTC / +3.7 ETH vol pts; #42 = short-vol won 86.3% of 117 rolling 24h windows.)*
+Sells the ATM **daily** straddle off the live Deribit chain **only when** trailing realized vol
+(HL 1h candles) sits ≥ `VRP_MIN_PTS` under mark IV — gate closed ⇒ it sits out and says so.
+Band delta-hedges with a paper HL perp (avg-cost hedge P&L, taker fee), and a **hard dollar
+stop** bounds the fat left tail that is this trade's whole risk.
+
+```bash
+npx ts-node -r tsconfig-paths/register scripts/vrp-live.ts
+
+# Knobs (defaults in parentheses):
+#   VRP_UNDERLYINGS(BTC,ETH)  one independent book per underlying
+#   VRP_MIN_PTS(0.03)         entry gate: iv − rv ≥ 3 vol pts (the measured premium, #12)
+#   VRP_CONTRACTS(0.1)        straddle size, coin units
+#   VRP_BAND(0.25)            re-hedge when |net delta| > 25% of contracts
+#   VRP_HEDGE_FEE_BPS(3.5)    taker fee on each hedge trade
+#   VRP_STOP_USD(400)         HARD loss stop per position — the tail control; size around this
+#   VRP_MIN_H(6)              don't sell a straddle with <6h of life
+#   VRP_RV_HOURS(24)          realized-vol lookback (1h bars)
+#   VRP_HAIRCUT_FRAC(0.02)    entry premium = Deribit mark − 2% (spreads are wide; honest default)
+#   VRP_HOURS(0)              0 = run until Ctrl-C
+#   VRP_JOURNAL(docs/research/vrp)   JSONL journal dir (GATE/OPEN/REHEDGE/STOP/SETTLE/FINAL)
+```
+
+Honest caveats (v0, also in the script header): marks use entry IV for the position's life (no
+vega mark — settle is exact), hedges fill at HL mid + fee with no queue model, and the premium
+haircut is an assumption until executable option quotes are measured. Judged **realised-first**
+at daily settle, like everything on this desk.
 
 ### Execution modes
 `EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +
