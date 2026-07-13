@@ -217,9 +217,29 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-05 (session 5 of the plan — Journal #95: the regime directional
-> benchmark track got its supervised launcher; carry desk unchanged, still awaiting operator
-> relaunch).**
+> **Last updated: 2026-07-13 (session 6 — the alpha-mandate build session).** Three books built,
+> none launched (operator's call, per his explicit instruction this session):
+> **(1) THE PROBABILITY DESK (new)** — HIP-4 event markets confirmed live on HL mainnet
+> (2026-05-02; probed live: `outcomeMeta` + l2Book coin `#<outcomeId><side>`, BTC dailies with
+> machine-readable specs). `src/prediction/` + `src/derivatives/rnd/` trade HIP-4 price binaries
+> against the desk's smile-adjusted Deribit digital (−dC/dK) — defined-risk, self-settling,
+> realised-first; founding live read K=62,814: YES 0.153/0.180 vs fair 0.1334, correctly below
+> the pre-registered 3c gate. Runner: `scripts/outcome-rv-live.ts`. Doc + pre-registered
+> metrics: [PROBABILITY_DESK.md](PROBABILITY_DESK.md). Fee schedule + oracle = placeholder,
+> confirm in run 1.
+> **(2) E6 VRP BOOK (P2, was never-run edge)** — `src/derivatives/vrp/vrp-book.ts`: iv−rv gated
+> short ATM daily straddle, band delta-hedge (avg-cost P&L), hard loss stop bounds the #42 fat
+> tail. Runner: `scripts/vrp-live.ts` (RV from HL 1h candles, ATM off the Deribit chain, 2%
+> premium haircut).
+> **(3) E7 ALLOCATOR v0 (the open P1 item) — BUILT as a pure module** (`carry-allocator.ts`):
+> fixed weights, per-leg cap, cash remainder, residual-delta `BookBeta[]` feeds the existing
+> `RegimeBetaHedge`. **Not yet wired into `carry-desk-live.ts`** — that wiring is the next carry
+> build step.
+> All green: tsc clean, 48 new tests across 6 suites (commits 12c5a44, e32bbbd, 750a0dd).
+> Carry desk itself unchanged, still awaiting operator relaunch.
+>
+> *(Previous ledger, 2026-07-05 — Journal #95: regime benchmark track got its supervised
+> launcher; carry desk awaiting operator relaunch.)*
 >
 > **State:** the #92 incident is fully closed out. **LIT closed** via the new
 > `scripts/carry-close-book.ts` (book-ledger-honest: settled funding replayed, taker close):
