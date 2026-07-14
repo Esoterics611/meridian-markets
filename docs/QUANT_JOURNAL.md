@@ -4164,42 +4164,99 @@ a flat "sat aside" is a correct outcome.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-05, #95)
+## 2026-07-14 — Entry #96 (first live overnight for the alpha-mandate books: ORV −$78.65 teaches the skew lesson, VRP gate honest but its one trade was an estimator artifact, carry mechanics + a TCA miss — 13h paper trial)
 
-**The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
-desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
-prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making src/market-data
-src/stat-arb/feed` 128 suites / 921 tests.
+**The run.** All three session-6 books ran live-paper overnight, ad-hoc (foreground scripts,
+no DB persist — a mechanics trial, deliberately not the supervised track):
+`outcome-rv-live.ts` 18:26→07:43 UTC (13.3h), `vrp-live.ts` 18:44→~08:05 (13.4h),
+`carry-desk-live.ts` on the 12 deployables 19:10→07:43 (12.5h, fresh opens, `persist false`).
+One transient `fetch failed` (04:22) absorbed by the ORV loop; zero crashes. Artifacts:
+`docs/research/outcome-rv/orv-2026-07-13T18-26-06-450Z.jsonl` (5.3k evals),
+`docs/research/vrp/vrp-2026-07-13T18-44-05-924Z.jsonl` (1.3k gates),
+`docs/research/carry/carry-live-2026-07-13.log`.
 
-1. **OPERATOR: relaunch the 30-day carry run** — everything is ready (#93: LIT closed, guard
-   on every entry path, supervision wrapper):
-   ```bash
-   sudo docker compose up -d postgres && npm run migration:run   # once, if not already up
-   bash scripts/launch-carry-30d.sh          # start (nohup+pidfile; 7 books resume + PUMP contends)
-   bash scripts/launch-carry-30d.sh status   # any time: is the desk alive?
-   ```
-   Every session while it runs: score realised-first from `mm_nav desk='carry'` + read the
-   entry TCA lines (P1 metric: ≤2bps/leg).
-2. **Daily (operator or session):** `scripts/funding-differential-board.ts` — M2 needs ≥7
-   consecutive daily boards (**day 2/7 done #93**, day 3 due 2026-07-04); re-run
-   `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set (the scan
-   now prints basis% + collision tags, #92 fix).
-3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry`, the `/exec` fund view, the
-   `/research` measurement board, `GET /api/carry/state`. Remaining per
-   [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md): U3.2 risk pause/deny (engine endpoint
-   first), U3.3 per-book sparklines, U3.4 blotter/dd refinements, U3.5 `/pm`, U3.6 retire
-   `/demo`. **Operator: smoke the new pages in the browser when the server is up** (sandbox
-   can't) — `/`, `/exec`, `/desk/carry`, `/research`.
-4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
-   the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
-   delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
-   no-spot gate-passers (FARTCOIN/HYPE/PURR tail, #91).
-5. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
-   `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
-6. **Regime desk benchmark track (P16, #88 handover) — now ONE COMMAND (#95):**
-   `bash scripts/launch-regime-track.sh` (stress pre-flight + gate-first at boot + nohup/pidfile;
-   `status`/`stop` verbs; stop ⇒ flatten-on-exit). Still the operator's run, still not the
-   priority — but no longer blocked on a hand-rolled launch chain.
+**(1) Probability desk — net −$78.65, and the shape, not the number, is the finding.**
+6 entries (all NO-side, entry probs 0.77–0.90, every logged entry edge ≥3.0pts vs the RND
+fair), 5 take-profit wins totalling +$20.20, then the ETH K=1,781.3 daily settled YES at spot
+1,786.85 → **−$98.84, full collateral.** Fees $4.59 (0.5c/contract model).
+- The negative skew is structural: buying NO at 0.79–0.90 means one settle loss eats 4–8 TP
+  wins. 5W/1L was *not enough win rate* — and n=6 proves nothing in either direction. The
+  verdict variable is **calibration**, not small-n P&L.
+- **Every edge the gate found all night was NO-side** (HIP-4 YES persistently rich vs the RND).
+  Two live hypotheses: lottery-buyers overpay YES on HIP-4 (our edge), or the smile-adjusted
+  Deribit digital underprices tails (our trap). The ETH loss is one datum for the trap.
+- Liquidity honesty: the ETH market's book was **23pts wide** near settle (yes 0.568/0.801);
+  paper touch-fills flatter us, and there is **no spread gate at entry**.
+- Config clarity: `maxTouchFrac` is a *sizing* cap (≤50% of touch size,
+  `outcome-rv-book.ts:137`), **not** a stop — the book has no downside exit by design
+  (defined-risk, hold-to-settle). Legitimate, but now stated out loud.
+- Mechanics all verified live: TP fires, settle books at oracle spot, the $500 per-market
+  collateral cap bound once (the 500-lot), re-entry after TP works.
+
+**Decision (pre-registered): calibration before capital.** Every HIP-4 daily that settles gives
+a free (RND fair, market mid, outcome) triple — no position required, ~10–50× the data per day
+that trading produces. Next build: `scripts/orv-calibration.ts` — snapshot fair + market mid for
+every listed daily at fixed times, score at settle; after **≥100 settles**, compare Brier(RND)
+vs Brier(market mid) with a bootstrap CI. RND wins clear of zero ⇒ size the book with
+conviction; RND loses ⇒ kill the book before it bleeds. Trading stays parked meanwhile.
+
+**(2) VRP satellite — the gate sat out a negative-VRP night correctly (doctrine #5); the one
+trade it took was opened by an estimator artifact.** 1,270 gate checks, iv−rv −2…−15pts nearly
+all night (ETH realizing 51–54% against 39–48% implied) ⇒ correctly closed the entire time.
+At 04:00:22 the ETH RV printed **0.429 vs 0.511 one minute earlier** — one hot 1h bar rolling
+out of the plain close-to-close window (`vrp-live.ts realizedVol()`) — so the gate "opened" at
++4.8pts and sold the 0.1-ETH K=1775 straddle for $3.79 premium. The machinery chain verified
+live (open → band re-hedge +0.0252 ETH @ 1789.65 → settle at the 08:00 expiry: see the SETTLE
+record in the journal file). But the entry signal was a window-boundary discontinuity, not a
+regime read. **Fix before any long run: EWMA RV (or require k=3 consecutive open reads) + a
+spec that locks it (§10.1-2).**
+
+**(3) Carry desk — accrual mechanics confirmed at the predicted rate; 12h cannot clear fees;
+and a real TCA finding.** 8/12 gated symbols opened fresh ($50k/leg, ≤8-leg cap;
+TAO/ENA/BNB/ZEC queued behind the cap). Funding accrued **+$61.2 in 12.4h — a steady $4.92/h ≈
+10.8%/yr on the $400k deployed**, exactly the gate's predicted baseline (all legs pinned at
+0.125bp/h; no negative-funding flips). Entry fees −$138.51 ⇒ one-way breakeven ≈ t+28h; the
+trial was killed at t+12.5h, so realised-first −$77.3 is **pre-breakeven by construction, not
+an edge failure**. maxDD 0.056% of desk capital, flat since hour 1; basis MTM stationary noise
+(±8bps of deployed). **TCA finding: per-leg entry cost ranged 0.8–7.0bps.** The maker-first
+path (rest ≤45s, then escalate) got maker fills on NEAR/XPL/UNI (0.8bps ✅) but escalated to
+full taker on GRAM/DYDX (7.0bps), AAVE (4.3bps), LINK/PUMP (3.5bps) — **4–5 of 8 legs failed
+the pre-registered ≤2bps/leg P1 metric.** Fix before the 30d relaunch: longer maker rest on
+illiquid legs and/or a fee-aware breakeven recheck at entry (a 7bps entry doubles GRAM's
+breakeven). Re-confirmed: carry pays on multi-day supervised holds — the operator relaunch
+(`launch-carry-30d.sh`, resume + persist) remains the track that produces the demo curve.
+
+**Session hygiene:** all three processes stopped this morning (ORV/carry 07:43, VRP after its
+08:00 settle); journals + carry log committed to `docs/research/`; ledger + pickup updated.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #96)
+
+**The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
+§4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
+fixes first, then the supervised long runs:
+
+1. **Carry (the P1 chain, in order):** (a) fix the entry TCA miss (#96: 4–5/8 legs escalated to
+   taker, 3.5–7bps vs the ≤2bps bar — longer maker rest on illiquid legs and/or fee-aware
+   breakeven recheck at entry); (b) wire the **E7 allocator** (built as a pure module, 750d0bd)
+   into `carry-desk-live.ts` + the aggregate beta-hedge; (c) **OPERATOR: relaunch the 30d run**
+   (`bash scripts/launch-carry-30d.sh`, resume + persist) — that run, not ad-hoc trials, is the
+   demo curve. Score each session realised-first from `mm_nav desk='carry'`.
+2. **Probability desk: calibration before capital (#96 pre-registered).** Build
+   `scripts/orv-calibration.ts` (settle-scorer over all HIP-4 dailies, no positions): after
+   ≥100 settles, Brier(RND) vs Brier(market mid) with bootstrap CI decides whether the book
+   sizes up or dies. Trading parked meanwhile. Also confirm the HIP-4 fee schedule + settle
+   oracle (still placeholder assumptions).
+3. **VRP: fix the RV estimator before any long run** — EWMA (or k=3 consecutive open reads)
+   + a spec (§10.1-2); the 04:00 open was a window artifact (#96). Then it joins the
+   supervised run as the ≤20%-capital satellite it was designed as.
+4. **Daily (operator or session):** `scripts/funding-differential-board.ts` — M2 needs ≥7
+   consecutive daily boards (stalled at day 2/7 since #93); `carry-universe-scan.ts` refresh
+   at re-gate.
+5. **UI remaining:** U3.2–U3.6 per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md).
+6. **Regime desk benchmark track (P16):** one command since #95 —
+   `bash scripts/launch-regime-track.sh`. Operator's run, not the priority.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
 while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays

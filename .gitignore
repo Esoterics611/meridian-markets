@@ -26,3 +26,6 @@ node_modules
 # MM research captures (per-run, large; query with jq, never commit)
 docs/research/flow-shadow-*.jsonl
 logs/
+
+# FIX-middleware hand-off summary (external session; not part of the repo's doc set)
+docs/EXCHANGE_CONNECTIVITY.md

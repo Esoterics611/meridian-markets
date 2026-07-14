@@ -217,8 +217,22 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-13 (session 6 — the alpha-mandate build session).** Three books built,
-> none launched (operator's call, per his explicit instruction this session):
+> **Last updated: 2026-07-14 (session 7 — first live overnight for the three books; Journal
+> #96).** 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:
+> net −$78.65** — 5 TP wins (+$20.20) then one ETH settle loss (−$98.84, full collateral): the
+> negative-skew lesson, all 6 edges NO-side, n=6 decides nothing ⇒ **verdict variable is
+> calibration. Pre-registered next step: `orv-calibration.ts` settle-scorer (no positions),
+> Brier(RND) vs Brier(market) over ≥100 settles gates any size-up; trading parked.**
+> **(2) VRP: gate correctly OUT all night** (iv−rv −2…−15pts) — but its one trade was opened by
+> an RV window artifact (0.511→0.429 in 1 min). **Fix (EWMA / k-consecutive + spec) before any
+> long run.** **(3) Carry (fresh-open mechanics trial, persist=false):** funding +$61.2 at
+> $4.92/h ≈ the gate's predicted baseline, maxDD 0.056%, killed pre-breakeven at 12.5h as
+> planned. **TCA finding: 4–5/8 legs escalated to taker (3.5–7bps vs the ≤2bps bar) — fix the
+> maker-rest/fee-aware-entry before the 30d relaunch.** Pickup order: carry TCA fix → E7
+> wiring → operator 30d relaunch; ORV calibration scorer; VRP RV fix.
+>
+> *(Previous ledger, 2026-07-13 — session 6, the alpha-mandate build session.)* Three books
+> built, none launched (operator's call, per his explicit instruction this session):
 > **(1) THE PROBABILITY DESK (new)** — HIP-4 event markets confirmed live on HL mainnet
 > (2026-05-02; probed live: `outcomeMeta` + l2Book coin `#<outcomeId><side>`, BTC dailies with
 > machine-readable specs). `src/prediction/` + `src/derivatives/rnd/` trade HIP-4 price binaries
@@ -258,8 +272,9 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > **P1 items 1–3 BUILT; item 4 (allocator + beta-hedge) still the open P1 build item.**
 >
 > **Pick up here (in order):**
-> 1. **OPERATOR: `bash scripts/launch-carry-30d.sh`** (then `status` any time). Score each
->    session realised-first from `mm_nav WHERE desk='carry'` + the TCA log lines (≤2bps/leg).
+> 1. **Carry TCA fix first (#96), then OPERATOR: `bash scripts/launch-carry-30d.sh`** (then
+>    `status` any time). Score each session realised-first from `mm_nav WHERE desk='carry'` +
+>    the TCA log lines (≤2bps/leg — failed on 4–5/8 fresh legs in #96's trial).
 > 2. **Daily:** `scripts/funding-differential-board.ts` (day 3/7 due 2026-07-04 — consecutive
 >    days) and a `scripts/carry-universe-scan.ts` refresh at re-gate.
 > 3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry` (liveness + books + NAV + runbook),
