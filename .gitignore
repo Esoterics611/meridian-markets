@@ -34,3 +34,6 @@ docs/EXCHANGE_CONNECTIVITY.md
 !docs/research/carry/*.log
 !docs/research/outcome-rv/*.log
 !docs/research/vrp/*.log
+
+# Phase-0 maker tapes (orv-calibration.ts, ~50-100MB/day/market — query with jq/replay, never commit)
+docs/research/orv-maker/tapes/

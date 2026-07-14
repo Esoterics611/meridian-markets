@@ -134,7 +134,7 @@ What the taker trial bought us (not wasted): the full HIP-4 pipeline live-verifi
 fills, settle, caps), the NO-side skew lesson, and the founding fair-value read. It was the
 wrong strategic frame, honestly run.
 
-## 5. Proposed build (pre-registered, awaiting principal direction)
+## 5. Proposed build (pre-registered; Phase 0 approved by the principal and SHIPPED same day — Journal #97)
 
 **Phase 0 — measure before quoting (extends the already-planned calibration scorer):**
 `orv-calibration.ts` grows a **maker-fill simulator**: snapshot HIP-4 L2 + RND fair at ~1s

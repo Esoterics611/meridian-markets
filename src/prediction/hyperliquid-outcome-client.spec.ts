@@ -77,4 +77,50 @@ describe('HyperliquidOutcomeClient', () => {
     expect(await c.underlyingMid('btc')).toBe(61943.5);
     await expect(c.underlyingMid('ETH')).rejects.toThrow(/no mid/);
   });
+
+  it('listPriceBinarySpecs discovers from meta alone (no book fetches, Yes-first only)', async () => {
+    const c = client({ outcomeMeta }); // any l2Book call would throw 'unexpected'
+    const specs = await c.listPriceBinarySpecs();
+    expect(specs).toHaveLength(1);
+    expect(specs[0]).toMatchObject({ marketId: '823', underlying: 'BTC', targetPrice: 62814 });
+  });
+
+  it('bookDepth returns depth-limited [px, sz] pairs and the venue timestamp', async () => {
+    const deep = {
+      time: 1784020855602,
+      levels: [
+        [
+          { px: '0.48', sz: '3049.0', n: 1 },
+          { px: '0.477', sz: '1000.0', n: 1 },
+          { px: '0.47', sz: '10.0', n: 1 },
+        ],
+        [{ px: '0.486', sz: '37.0', n: 1 }],
+      ],
+    };
+    const c = client({ 'l2:#8230': deep });
+    const b = await c.bookDepth('823', 0, 2);
+    expect(b.bids).toEqual([
+      [0.48, 3049],
+      [0.477, 1000],
+    ]);
+    expect(b.asks).toEqual([[0.486, 37]]);
+    expect(b.serverTimeMs).toBe(1784020855602);
+  });
+
+  it('bookDepth tolerates a null/empty book (empty sides, null time)', async () => {
+    const c = client({ 'l2:#8231': null });
+    const b = await c.bookDepth('823', 1, 5);
+    expect(b.bids).toEqual([]);
+    expect(b.asks).toEqual([]);
+    expect(b.serverTimeMs).toBeNull();
+  });
+
+  it('mids parses every finite entry including outcome-side keys', async () => {
+    const c = client({ allMids: { BTC: '61943.5', '#8230': '0.48419', '#8231': '0.51581', BAD: 'x' } });
+    const m = await c.mids();
+    expect(m.BTC).toBe(61943.5);
+    expect(m['#8230']).toBeCloseTo(0.48419, 10);
+    expect(m['#8230'] + m['#8231']).toBeCloseTo(1, 10);
+    expect('BAD' in m).toBe(false);
+  });
 });

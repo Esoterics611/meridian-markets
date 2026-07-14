@@ -67,3 +67,22 @@ npx ts-node -r tsconfig-paths/register scripts/vrp-live.ts
 
 Both journal every EVAL/ENTER/SETTLE to `docs/research/{outcome-rv,vrp}/*.jsonl` and print a
 10-minute SUMMARY line; kill with Ctrl-C, the FINAL line is the honest scorecard.
+
+## 2026-07-14 addendum — the MAKER reframing (supersedes the strategic frame above)
+
+Two corrections after #96 and the operator's redirect
+([PREDICTION_MARKET_MM_RESEARCH.md](PREDICTION_MARKET_MM_RESEARCH.md) is the full memo):
+
+1. **The "killed spread-MM (#70)" argument above is scoped to perp-class books** (~1bp
+   spreads, latency race we lose, informed flow). It does NOT transfer to prediction-market
+   binaries (100–2,700bps spreads, 30–60s crowd re-quote cadence we beat, retail flow,
+   hedgeable defined-risk inventory). The desk's primary frame here is now **maker/spread
+   capture** anchored on the same RND fair; this taker book is the satellite, not the core,
+   and stays parked behind the #96 calibration gate.
+2. **The fee placeholder above is >10× too pessimistic.** Confirmed 2026-07-14: HIP-4 charges
+   zero to open, ~4bps maker / 7bps taker on close-or-settle only, no maker rebates on outcome
+   orders (rebate-tier users pay zero). Fix `ORV_FEE_PROB` before any resumed trading.
+
+Phase 0 (running): `scripts/orv-calibration.ts` collects the maker tape (live-spot fair every
+~1s + depth-5 books) AND the #96 Brier settles — no positions; `scripts/orv-maker-replay.ts`
+renders the pre-registered maker verdict (net>0, ≥50 fills, ≥2 markets, ≥3 days of tape).

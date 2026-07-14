@@ -16,6 +16,7 @@ import {
   BinaryQuote,
   IBinaryMarketSource,
   parsePriceBinaryDescription,
+  PriceBinarySpec,
 } from './binary-market.types';
 
 export type HlHttpPost = (body: Record<string, unknown>) => Promise<unknown>;
@@ -93,5 +94,51 @@ export class HyperliquidOutcomeClient implements IBinaryMarketSource {
     const px = Number(mids?.[underlying.toUpperCase()]);
     if (!Number.isFinite(px) || px <= 0) throw new Error(`HL allMids: no mid for ${underlying}`);
     return px;
+  }
+
+  /** Meta-only discovery (no per-market book fetches) — for high-cadence pollers. */
+  async listPriceBinarySpecs(): Promise<PriceBinarySpec[]> {
+    const meta = (await this.httpPost({ type: 'outcomeMeta' })) as { outcomes?: RawOutcome[] };
+    if (!Array.isArray(meta?.outcomes)) throw new Error('HL outcomeMeta: bad response');
+    const out: PriceBinarySpec[] = [];
+    for (const o of meta.outcomes) {
+      const spec = o.description ? parsePriceBinaryDescription(o.description) : null;
+      if (!spec) continue;
+      if (o.sideSpecs?.[0]?.name?.toLowerCase() !== 'yes') continue;
+      out.push({ marketId: String(o.outcome), ...spec });
+    }
+    return out;
+  }
+
+  /**
+   * Depth-N L2 for one outcome side (0 = Yes). Returns [px, sz] best-first per side,
+   * plus the venue's own book timestamp when present.
+   */
+  async bookDepth(
+    marketId: string,
+    sideIdx: 0 | 1,
+    depth: number,
+  ): Promise<{ bids: [number, number][]; asks: [number, number][]; serverTimeMs: number | null }> {
+    const raw = (await this.httpPost({ type: 'l2Book', coin: `#${marketId}${sideIdx}` })) as
+      | (RawL2 & { time?: number })
+      | null;
+    const side = (levels?: { px: string; sz: string }[]): [number, number][] =>
+      (levels ?? []).slice(0, depth).map((l) => [Number(l.px), Number(l.sz)]);
+    return {
+      bids: side(raw?.levels?.[0]),
+      asks: side(raw?.levels?.[1]),
+      serverTimeMs: typeof raw?.time === 'number' ? raw.time : null,
+    };
+  }
+
+  /** One allMids call, parsed — underlying perp mids AND every outcome side ('#<id><side>'). */
+  async mids(): Promise<Record<string, number>> {
+    const raw = (await this.httpPost({ type: 'allMids' })) as Record<string, string>;
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw ?? {})) {
+      const n = Number(v);
+      if (Number.isFinite(n)) out[k] = n;
+    }
+    return out;
   }
 }

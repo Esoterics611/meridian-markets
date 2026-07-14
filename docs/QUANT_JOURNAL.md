@@ -4236,7 +4236,67 @@ progress report: [DESK_PROGRESS_2026-07-14.md](DESK_PROGRESS_2026-07-14.md).
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #96)
+## 2026-07-14 — Entry #97 (the MAKER reframing: prediction markets are a spread business, not a position business — research memo + Phase 0 built and live-smoked)
+
+**The redirect (operator).** The ORV book (#96) was built taker-only because we transferred
+the #70 "spread-MM is dead" verdict onto prediction markets. Ronnie's call — *make markets
+with the ms fair-value stack, don't take positions* — is correct, and the research supports
+it. Full memo: [PREDICTION_MARKET_MM_RESEARCH.md](PREDICTION_MARKET_MM_RESEARCH.md).
+
+**Why #70 does not transfer (the three conditions invert):** (1) HIP-4/Polymarket binary
+spreads are 100–2,700bps vs the ~1bp perp books #70 was about (live smoke today: ETH daily
+2.26c wide; #96 saw 23pts near settle — though BTC printed 1-tick tight mid-day, so width is
+regime-dependent); (2) the "informed flow" on a crypto binary is reaction to the underlying —
+which we see sub-second and reprice through Φ(d2) in microseconds while the prediction-market
+crowd re-quotes every 30–60s: for once WE are the fast quoter (Polymarket introducing dynamic
+taker fees *specifically to kill latency arbs*, routing 20–25% to maker rebates, is direct
+evidence of how large this edge was); (3) the flow is retail, and inventory is defined-risk,
+self-settling, and perp-hedgeable in the same HL margin system. **Venue economics confirmed:
+HIP-4 = zero fee to open, ~4bps maker / 7bps taker on close-or-settle only** — the ORV 0.5c
+placeholder was >10× high (#96's "1.5c fee-adjusted" founding edge was really ~2.4c). Key
+reframe: the #96 Brier gate governs the *position* book; a *maker* book needs only a fair
+value good + fast enough that resting quotes aren't systematically picked off, plus a hedge.
+
+**Built (Phase 0 — measure before quoting; pre-registered in the memo §5 before any tape
+existed):**
+- `scripts/orv-calibration.ts` — collector, NO positions/quotes: every ~1s, one `allMids` +
+  depth-5 YES `l2Book` per priceable daily; fair recomputed EVERY tick off the live HL perp
+  mid against a 60s-cached Deribit smile (iv + dσ/dK at strike; #92 spot-guard at refresh AND
+  per tick); dedup + 30s heartbeat; daily-rotating git-ignored tapes
+  (`docs/research/orv-maker/tapes/`); settles scored live into the #96 Brier accumulator.
+- `src/prediction/maker-sim.ts` (pure) + `calibration-score.ts` (pure) — queue-conservative
+  maker replay: STRICT trade-through fills only (touch ≠ fill, integer-tick comparisons),
+  post-only, inventory cap, no-quote window <30min to expiry, width floor φ(d2)·√(δt/T) (the
+  digital's own 1σ over the reprice horizon), HIP-4 fee taxonomy (open free / close 4bps /
+  settle 4bps placeholder), hedge-cost line φ(d2)/(σ√T)·bps per fill+unwind; Brier + paired
+  bootstrap CI over settles (deterministic seed).
+- `scripts/orv-maker-replay.ts` — width×cadence grid (default 0.2–2c × 1–60s) → revenue
+  density ($/$ collateral/day). **Pre-registered gate: proceed to Phase 1 (OutcomeMakerBook)
+  iff some grid point nets >0 with ≥50 fills, ≥2 markets, ≥3 days of tape; else the maker
+  thesis dies here.**
+- Client additions: `listPriceBinarySpecs` (meta-only), `bookDepth` (depth-N + venue ts),
+  `mids` (one call = perp mids + every outcome side; YES+NO≈1 verified live).
+
+**Live smoke (90s, 10:29 UTC):** discovered BTC K=62,713 + ETH K=1,786.7 (2026-07-15 06:00
+dailies), 168 tape records, 0 errors; replay runs end-to-end and correctly reports
+INSUFFICIENT TAPE. Venue detail caught: BTC daily book prints 5-dp prices (0.48504/0.48505)
+— tick is 0.00001, finer than the documented 0.0001; sim default fixed accordingly. One real
+fill simulated in 90s on the ETH book (quotes resting inside a 2.26c spread) — flow exists;
+n=1 decides nothing. **Honest pacing note: only ~2 Deribit-priceable HIP-4 dailies exist ⇒
+~2 settles/day ⇒ the ≥100-settle Brier gate needs weeks; the maker gate (≥3 days) does not
+wait for it.** Polymarket's 5min/15min/hourly BTC/ETH markets are the future data firehose
+(Phase 2; rewards score computable offline from their published quadratic formula).
+
+**Tests:** 48 prediction specs green (14 new maker-sim + 8 calibration + 5 client), tsc
+clean. Ran `src/prediction` suite only (touched area, §10.1-1).
+
+**Next:** OPERATOR starts the collector (days, foreground); replay when the tape qualifies;
+confirm HIP-4 settle-fee + mint/close taxonomy against a real settled market from the tape;
+carry TCA fix + 30d relaunch remains the foundation track (#96 order unchanged).
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #97)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
@@ -4248,11 +4308,15 @@ fixes first, then the supervised long runs:
    into `carry-desk-live.ts` + the aggregate beta-hedge; (c) **OPERATOR: relaunch the 30d run**
    (`bash scripts/launch-carry-30d.sh`, resume + persist) — that run, not ad-hoc trials, is the
    demo curve. Score each session realised-first from `mm_nav desk='carry'`.
-2. **Probability desk: calibration before capital (#96 pre-registered).** Build
-   `scripts/orv-calibration.ts` (settle-scorer over all HIP-4 dailies, no positions): after
-   ≥100 settles, Brier(RND) vs Brier(market mid) with bootstrap CI decides whether the book
-   sizes up or dies. Trading parked meanwhile. Also confirm the HIP-4 fee schedule + settle
-   oracle (still placeholder assumptions).
+2. **Probability desk → MAKER track (#97 — the reframing).** `orv-calibration.ts` is BUILT
+   (collector: maker tape + Brier settles, no positions) — **OPERATOR: run it for days**
+   (`npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts`, foreground). When
+   the tape hits ≥3 days / ≥2 markets: `scripts/orv-maker-replay.ts` renders the
+   pre-registered maker gate (net>0 at some width×cadence point with ≥50 fills → build
+   Phase 1 `OutcomeMakerBook`; else the maker thesis dies). Confirm HIP-4 settle-fee +
+   mint/close taxonomy against the first settled market on tape. ORV taker trading stays
+   parked behind the ≥100-settle Brier gate (weeks — ~2 priceable settles/day). Memo:
+   PREDICTION_MARKET_MM_RESEARCH.md.
 3. **VRP: fix the RV estimator before any long run** — EWMA (or k=3 consecutive open reads)
    + a spec (§10.1-2); the 04:00 open was a window artifact (#96). Then it joins the
    supervised run as the ≤20%-capital satellite it was designed as.

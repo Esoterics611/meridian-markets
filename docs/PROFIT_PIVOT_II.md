@@ -217,8 +217,27 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-14 (session 7 — first live overnight for the three books; Journal
-> #96).** 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:
+> **Last updated: 2026-07-14 pm (session 8 — the MAKER reframing + Phase 0 built; Journal
+> #97).** Operator redirect: prediction markets were always meant to be **market-making with
+> the desk's ms fair-value stack — spreads, not positions**; the ORV taker frame mis-applied
+> #70 (which killed spread-MM on ~1bp perp books, not on 100–2,700bps binary books where WE
+> are the fast quoter against retail flow). Research memo:
+> [PREDICTION_MARKET_MM_RESEARCH.md](PREDICTION_MARKET_MM_RESEARCH.md) (venue economics:
+> HIP-4 fees 0-open/~4bps-maker-close — the ORV 0.5c placeholder was >10× high; Polymarket
+> rewards+rebates; Kalshi DMM; the pro playbook + risk map). **Built + live-smoked: Phase 0**
+> — `scripts/orv-calibration.ts` (1s-cadence collector: live-spot RND fair recomputed every
+> tick off a 60s-cached smile + depth-5 YES books + settle detection + the #96 Brier scorer;
+> NO positions), `src/prediction/maker-sim.ts` (pure queue-conservative maker replay, strict
+> trade-through fills, HIP-4 fee taxonomy, φ(d2)√(δt/T) width floor, hedge-cost line),
+> `scripts/orv-maker-replay.ts` (width×cadence grid + pre-registered gate: net>0, ≥50 fills,
+> ≥2 markets, ≥3 days — else the maker thesis dies). 48 prediction specs green, tsc clean.
+> **OPERATOR: start the collection** — `npx ts-node -r tsconfig-paths/register
+> scripts/orv-calibration.ts` (foreground, days; tapes git-ignored). Verdict when the tape
+> qualifies. ORV trading stays parked; carry TCA fix + 30d relaunch unchanged as the
+> foundation track.
+>
+> *(Previous ledger, 2026-07-14 am — session 7: first live overnight for the three books; Journal
+> #96.)* 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:
 > net −$78.65** — 5 TP wins (+$20.20) then one ETH settle loss (−$98.84, full collateral): the
 > negative-skew lesson, all 6 edges NO-side, n=6 decides nothing ⇒ **verdict variable is
 > calibration. Pre-registered next step: `orv-calibration.ts` settle-scorer (no positions),
