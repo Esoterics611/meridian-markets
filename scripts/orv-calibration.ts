@@ -26,10 +26,16 @@
  * Knobs:
  *   OCAL_SNAP_MS(1000) OCAL_DEPTH(5) OCAL_SMILE_MS(60000) OCAL_DISCOVERY_MS(60000)
  *   OCAL_HEARTBEAT_MS(30000) OCAL_HOURS(0=indefinite) OCAL_DIR(docs/research/orv-maker/tapes)
+ *   OCAL_SOURCE(direct|bus) — 'bus' consumes the md-plant streams over NATS instead of
+ *     hitting venue APIs (Phase A, TECHNOLOGY_OVERVIEW §4; requires scripts/md-plant.ts
+ *     running). Identical journals either way is the Phase-A acceptance test.
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import { DeribitClient } from '../src/derivatives/deribit/deribit-client';
+import { DeribitClient, IOptionChainSource } from '../src/derivatives/deribit/deribit-client';
+import { NatsBus } from '../src/bus/nats-bus';
+import { OutcomeFeed } from '../src/market-data/plant/md-plant';
+import { PlantClient } from '../src/market-data/plant/plant-client';
 import { impliedDigital } from '../src/derivatives/rnd/implied-digital';
 import {
   DeribitDigitalSource,
@@ -84,8 +90,21 @@ interface ActiveMarket {
 }
 
 async function main(): Promise<void> {
-  const hl = new HyperliquidOutcomeClient();
-  const drb = new DeribitDigitalSource(new DeribitClient(), SMILE_MS);
+  const source = process.env.OCAL_SOURCE ?? 'direct';
+  let hl: OutcomeFeed;
+  let chainSource: IOptionChainSource;
+  let bus: NatsBus | null = null;
+  if (source === 'bus') {
+    bus = await NatsBus.connect();
+    const plant = new PlantClient(bus);
+    hl = plant;
+    chainSource = plant;
+    log(`source=bus — consuming md-plant streams (${process.env.NATS_URL ?? 'nats://127.0.0.1:4222'})`);
+  } else {
+    hl = new HyperliquidOutcomeClient();
+    chainSource = new DeribitClient();
+  }
+  const drb = new DeribitDigitalSource(chainSource, SMILE_MS);
   const calibration = new CalibrationBook();
   const active = new Map<string, ActiveMarket>();
   const t0 = Date.now();
@@ -108,8 +127,8 @@ async function main(): Promise<void> {
     try {
       // Discovery: meta-only, priceable underlyings, not yet expired.
       if (nowMs - lastDiscovery > DISCOVERY_MS) {
-        lastDiscovery = nowMs;
         const specs = await hl.listPriceBinarySpecs();
+        lastDiscovery = nowMs; // only after success — failed discovery retries next cycle
         for (const s of specs) {
           if (!PRICEABLE.has(s.underlying.toUpperCase())) continue;
           if (s.expiryMs <= nowMs || active.has(s.marketId)) continue;
@@ -272,6 +291,7 @@ async function main(): Promise<void> {
     `FINAL settles=${settles} brier fair=${b.brierFair?.toFixed(4)} mid=${b.brierMid?.toFixed(4)} n=${b.n} errors=${errors} | replay: npx ts-node -r tsconfig-paths/register scripts/orv-maker-replay.ts ${DIR}/tape-*.jsonl`,
   );
   jline({ ev: 'FINAL', ms: Date.now(), settles, brierN: b.n, errors });
+  if (bus) await bus.close();
 }
 
 main().catch((e) => {

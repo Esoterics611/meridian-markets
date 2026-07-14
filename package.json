@@ -24,6 +24,7 @@
     "@nestjs/typeorm": "^10.0.2",
     "axios": "^1.16.1",
     "dotenv": "^16.4.0",
+    "nats": "^2.29.3",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -47,7 +48,11 @@
     "node": ">=20"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.(int-)?spec\\.ts$",
     "transform": {

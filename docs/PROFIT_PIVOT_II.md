@@ -238,7 +238,11 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > — the engineering plan to turn the script fleet into a shared trading plant (md-plant /
 > pricing / risk / oms-paper services + desk engines on an `IBus` seam; §6-compliant
 > multi-process modular monolith; phases A–D each with a pre-registered acceptance drill).
-> **Awaiting the principal's adopt/sequence/broker decisions (doc §6).**
+> **ADOPTED same day (Phase A started, NATS broker — #98):** `src/bus/` (IBus: InProc+NATS)
+> + `md-plant` v0 (HIP-4/Deribit vertical + snapshot repub for late joiners + topic tapes)
+> + `PlantClient`; `orv-calibration OCAL_SOURCE=bus` runs with ZERO venue calls. Broker is
+> now part of bring-up: `sudo docker compose up -d nats`. Phase A remaining: Binance/funding
+> feeds + carry-desk adapters + the session-length A/B acceptance.
 >
 > *(Previous ledger, 2026-07-14 am — session 7: first live overnight for the three books; Journal
 > #96.)* 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:

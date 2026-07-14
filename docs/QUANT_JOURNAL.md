@@ -4296,7 +4296,55 @@ carry TCA fix + 30d relaunch remains the foundation track (#96 order unchanged).
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #97)
+## 2026-07-14 — Entry #98 (TECHNOLOGY_OVERVIEW ADOPTED → Phase A slice 1 live: the IBus seam + md-plant v0 on NATS; orv-calibration consumes the bus with zero venue calls)
+
+**Decision (operator): the shared-plant architecture is adopted; Phase A starts now with
+NATS as the broker.** ([TECHNOLOGY_OVERVIEW.md](TECHNOLOGY_OVERVIEW.md) status updated;
+MASTER_PLAN §8 carries the pointer.)
+
+**Built (slice 1 — the HIP-4/Deribit vertical, end to end):**
+- **`src/bus/`** — the `IBus` seam: envelope `{topic, seq, tsPlant, tsVenue, schemaVersion,
+  payload}`, NATS-compatible topic grammar (`*`/`>`), bus laws in the header (single writer
+  per topic, fail-closed on gap/staleness, no broker durability). `InProcBus` (default;
+  tests + single-process mode, doubles as the spec mock via `keepHistory`) and `NatsBus`
+  (core pub/sub only, fast-fail connect, per-topic seq stamped publisher-side). NATS added
+  to docker-compose next to Postgres; `nats` npm dep.
+- **`md-plant`** (`src/market-data/plant/` + `scripts/md-plant.ts`) — the market-data
+  service: owns HL outcome + Deribit connectivity, publishes `md.mids.hyperliquid`,
+  `md.outcome.meta.hyperliquid`, `md.book.hip4.<id>` (tsVenue = venue book ts),
+  `md.chain.deribit.<ccy>`; per-feed error isolation (partial data beats no data); topic
+  tape = a bus *subscriber* in the runner (plant stays a pure publisher), daily-rotating
+  git-ignored JSONL under `docs/research/plant-tapes/`.
+- **`PlantClient`** — bus consumer serving the venue-client method surface from cached
+  streams; fail-closed staleness (mids/books 10s, meta/chains 5min). With the new
+  `IOptionChainSource` seam on `DeribitDigitalSource`, it drops in wherever
+  `HyperliquidOutcomeClient`/`DeribitClient` shapes are consumed — zero strategy-code
+  changes (the Phase-A contract).
+- **`orv-calibration OCAL_SOURCE=bus`** — the collector consumes the plant instead of
+  venues. Identical journal schema either way.
+
+**The live smoke found a real distributed-systems bug and fixed it with a spec:** NATS core
+has no replay, so a late-joining consumer waited up to 60s for the next meta/chain publish
+(first A/B: DISCOVER at +60s). Fix = the tickerplant snapshot pattern: slow topics
+**re-publish from cache every 5s** (`snapshotRepubMs`, zero extra venue calls) + collector
+discovery retries until first success. Second A/B: **DISCOVER at +3s**, steady snap flow,
+collector venue calls = **0** (all data over the bus), plant `published=474 errors=0` over
+2.4min, NatsBus int-spec green against the real broker (soft-skips when absent, house
+`describeIfDb` convention).
+
+**Tests:** 61 green across bus/plant/prediction (5 bus + 9 plant/client new incl. the
+late-joiner repub lock), tsc clean. **Broker note:** `sudo docker compose up -d nats` is now
+part of desk bring-up (multi-process mode only — tests and single-process sessions stay on
+`InProcBus`, offline).
+
+**Phase A remaining (next sessions):** migrate Binance/funding/candle feeds into the plant;
+`carry-desk-live` consumes via adapters; then the FULL pre-registered acceptance — a
+session-length A/B (journal-equivalence + venue-call collapse measured) before Phase A is
+declared done. Phase B (pricing + risk services) queues behind it.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #98)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —

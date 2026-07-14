@@ -11,7 +11,7 @@
  *     struck on Deribit's index. Same-underlying guard (±5%, the #92 lesson) refuses to
  *     price if the two spots disagree materially.
  */
-import { DeribitClient, DeribitOption } from '../derivatives/deribit/deribit-client';
+import { DeribitOption, IOptionChainSource } from '../derivatives/deribit/deribit-client';
 import { impliedDigital, ivAtStrike, VolPoint } from '../derivatives/rnd/implied-digital';
 
 const YEAR_MS = 365.25 * 24 * 3600 * 1000;
@@ -35,7 +35,7 @@ export class DeribitDigitalSource {
   private cache = new Map<string, { atMs: number; chain: DeribitOption[] }>();
 
   constructor(
-    private readonly client: DeribitClient,
+    private readonly client: IOptionChainSource,
     private readonly chainTtlMs = 60_000,
   ) {}
 

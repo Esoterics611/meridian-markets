@@ -37,3 +37,6 @@ docs/EXCHANGE_CONNECTIVITY.md
 
 # Phase-0 maker tapes (orv-calibration.ts, ~50-100MB/day/market — query with jq/replay, never commit)
 docs/research/orv-maker/tapes/
+
+# md-plant topic tapes (the tickerplant log — replayable, large, never commit)
+docs/research/plant-tapes/

@@ -1,8 +1,12 @@
 # Meridian Technology Overview — from a script fleet to a shared trading plant
 
-> 2026-07-14, written at the principal's direction. Status: **engineering plan, awaiting
-> prioritization** — nothing here is built yet, and adopting it is a sequencing decision
-> against the running tracks (carry 30d, the Phase-0 maker tape).
+> 2026-07-14, written at the principal's direction. Status: **ADOPTED same day — Phase A
+> started immediately, NATS chosen as the broker.** Phase A slice 1 is live (Journal #98):
+> the `IBus` seam (`src/bus/` — InProc + NATS), `md-plant` v0 (the HIP-4/Deribit vertical:
+> mids/meta/books/chains + snapshot re-publish for late joiners + topic tapes), the
+> `PlantClient` adapter, and `orv-calibration` running in `OCAL_SOURCE=bus` mode with zero
+> venue calls. Remaining for Phase A: migrate the Binance/funding/candle feeds +
+> `carry-desk-live`, and run the full session-length A/B acceptance (§4).
 >
 > The ask: our quant tools — market data, fair-value models, statistical gates, risk — should
 > run as **real-time services shared by multiple trading desks**, the way quant shops run
