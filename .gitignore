@@ -26,3 +26,17 @@ node_modules
 # MM research captures (per-run, large; query with jq, never commit)
 docs/research/flow-shadow-*.jsonl
 logs/
+
+# FIX-middleware hand-off summary (external session; not part of the repo's doc set)
+docs/EXCHANGE_CONNECTIVITY.md
+
+# per-book research run logs are evidence — re-include (top-level run-*.log stay ignored: per-run, large)
+!docs/research/carry/*.log
+!docs/research/outcome-rv/*.log
+!docs/research/vrp/*.log
+
+# Phase-0 maker tapes (orv-calibration.ts, ~50-100MB/day/market — query with jq/replay, never commit)
+docs/research/orv-maker/tapes/
+
+# md-plant topic tapes (the tickerplant log — replayable, large, never commit)
+docs/research/plant-tapes/

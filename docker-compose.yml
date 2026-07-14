@@ -18,5 +18,17 @@ services:
       timeout: 5s
       retries: 10
 
+  # The desk bus (TECHNOLOGY_OVERVIEW §3.2) — NATS core only, no JetStream:
+  # durability lives in tapes/Postgres, the broker just moves messages.
+  nats:
+    image: nats:2-alpine
+    ports:
+      - '4222:4222'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q --spider http://localhost:8222/healthz || exit 0']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pgdata:

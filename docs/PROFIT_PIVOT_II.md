@@ -217,8 +217,70 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-03 (session 4 of the plan — Journal #93: the #92 findings remediated;
-> desk ready for supervised relaunch).**
+> **Last updated: 2026-07-14 pm (session 8 — the MAKER reframing + Phase 0 built; Journal
+> #97).** Operator redirect: prediction markets were always meant to be **market-making with
+> the desk's ms fair-value stack — spreads, not positions**; the ORV taker frame mis-applied
+> #70 (which killed spread-MM on ~1bp perp books, not on 100–2,700bps binary books where WE
+> are the fast quoter against retail flow). Research memo:
+> [PREDICTION_MARKET_MM_RESEARCH.md](PREDICTION_MARKET_MM_RESEARCH.md) (venue economics:
+> HIP-4 fees 0-open/~4bps-maker-close — the ORV 0.5c placeholder was >10× high; Polymarket
+> rewards+rebates; Kalshi DMM; the pro playbook + risk map). **Built + live-smoked: Phase 0**
+> — `scripts/orv-calibration.ts` (1s-cadence collector: live-spot RND fair recomputed every
+> tick off a 60s-cached smile + depth-5 YES books + settle detection + the #96 Brier scorer;
+> NO positions), `src/prediction/maker-sim.ts` (pure queue-conservative maker replay, strict
+> trade-through fills, HIP-4 fee taxonomy, φ(d2)√(δt/T) width floor, hedge-cost line),
+> `scripts/orv-maker-replay.ts` (width×cadence grid + pre-registered gate: net>0, ≥50 fills,
+> ≥2 markets, ≥3 days — else the maker thesis dies). 48 prediction specs green, tsc clean.
+> **OPERATOR: start the collection** — `npx ts-node -r tsconfig-paths/register
+> scripts/orv-calibration.ts` (foreground, days; tapes git-ignored). Verdict when the tape
+> qualifies. ORV trading stays parked; carry TCA fix + 30d relaunch unchanged as the
+> foundation track. **Also this session: [TECHNOLOGY_OVERVIEW.md](TECHNOLOGY_OVERVIEW.md)**
+> — the engineering plan to turn the script fleet into a shared trading plant (md-plant /
+> pricing / risk / oms-paper services + desk engines on an `IBus` seam; §6-compliant
+> multi-process modular monolith; phases A–D each with a pre-registered acceptance drill).
+> **ADOPTED same day (Phase A started, NATS broker — #98):** `src/bus/` (IBus: InProc+NATS)
+> + `md-plant` v0 (HIP-4/Deribit vertical + snapshot repub for late joiners + topic tapes)
+> + `PlantClient`; `orv-calibration OCAL_SOURCE=bus` runs with ZERO venue calls. Broker is
+> now part of bring-up: `sudo docker compose up -d nats`. Phase A remaining: Binance/funding
+> feeds + carry-desk adapters + the session-length A/B acceptance.
+>
+> *(Previous ledger, 2026-07-14 am — session 7: first live overnight for the three books; Journal
+> #96.)* 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:
+> net −$78.65** — 5 TP wins (+$20.20) then one ETH settle loss (−$98.84, full collateral): the
+> negative-skew lesson, all 6 edges NO-side, n=6 decides nothing ⇒ **verdict variable is
+> calibration. Pre-registered next step: `orv-calibration.ts` settle-scorer (no positions),
+> Brier(RND) vs Brier(market) over ≥100 settles gates any size-up; trading parked.**
+> **(2) VRP: gate correctly OUT all night** (iv−rv −2…−15pts) — but its one trade was opened by
+> an RV window artifact (0.511→0.429 in 1 min). **Fix (EWMA / k-consecutive + spec) before any
+> long run.** **(3) Carry (fresh-open mechanics trial, persist=false):** funding +$61.2 at
+> $4.92/h ≈ the gate's predicted baseline, maxDD 0.056%, killed pre-breakeven at 12.5h as
+> planned. **TCA finding: 4–5/8 legs escalated to taker (3.5–7bps vs the ≤2bps bar) — fix the
+> maker-rest/fee-aware-entry before the 30d relaunch.** Pickup order: carry TCA fix → E7
+> wiring → operator 30d relaunch; ORV calibration scorer; VRP RV fix.
+>
+> *(Previous ledger, 2026-07-13 — session 6, the alpha-mandate build session.)* Three books
+> built, none launched (operator's call, per his explicit instruction this session):
+> **(1) THE PROBABILITY DESK (new)** — HIP-4 event markets confirmed live on HL mainnet
+> (2026-05-02; probed live: `outcomeMeta` + l2Book coin `#<outcomeId><side>`, BTC dailies with
+> machine-readable specs). `src/prediction/` + `src/derivatives/rnd/` trade HIP-4 price binaries
+> against the desk's smile-adjusted Deribit digital (−dC/dK) — defined-risk, self-settling,
+> realised-first; founding live read K=62,814: YES 0.153/0.180 vs fair 0.1334, correctly below
+> the pre-registered 3c gate. Runner: `scripts/outcome-rv-live.ts`. Doc + pre-registered
+> metrics: [PROBABILITY_DESK.md](PROBABILITY_DESK.md). Fee schedule + oracle = placeholder,
+> confirm in run 1.
+> **(2) E6 VRP BOOK (P2, was never-run edge)** — `src/derivatives/vrp/vrp-book.ts`: iv−rv gated
+> short ATM daily straddle, band delta-hedge (avg-cost P&L), hard loss stop bounds the #42 fat
+> tail. Runner: `scripts/vrp-live.ts` (RV from HL 1h candles, ATM off the Deribit chain, 2%
+> premium haircut).
+> **(3) E7 ALLOCATOR v0 (the open P1 item) — BUILT as a pure module** (`carry-allocator.ts`):
+> fixed weights, per-leg cap, cash remainder, residual-delta `BookBeta[]` feeds the existing
+> `RegimeBetaHedge`. **Not yet wired into `carry-desk-live.ts`** — that wiring is the next carry
+> build step.
+> All green: tsc clean, 48 new tests across 6 suites (commits 12c5a44, e32bbbd, 750a0dd).
+> Carry desk itself unchanged, still awaiting operator relaunch.
+>
+> *(Previous ledger, 2026-07-05 — Journal #95: regime benchmark track got its supervised
+> launcher; carry desk awaiting operator relaunch.)*
 >
 > **State:** the #92 incident is fully closed out. **LIT closed** via the new
 > `scripts/carry-close-book.ts` (book-ledger-honest: settled funding replayed, taker close):
@@ -237,8 +299,9 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > **P1 items 1–3 BUILT; item 4 (allocator + beta-hedge) still the open P1 build item.**
 >
 > **Pick up here (in order):**
-> 1. **OPERATOR: `bash scripts/launch-carry-30d.sh`** (then `status` any time). Score each
->    session realised-first from `mm_nav WHERE desk='carry'` + the TCA log lines (≤2bps/leg).
+> 1. **Carry TCA fix first (#96), then OPERATOR: `bash scripts/launch-carry-30d.sh`** (then
+>    `status` any time). Score each session realised-first from `mm_nav WHERE desk='carry'` +
+>    the TCA log lines (≤2bps/leg — failed on 4–5/8 fresh legs in #96's trial).
 > 2. **Daily:** `scripts/funding-differential-board.ts` (day 3/7 due 2026-07-04 — consecutive
 >    days) and a `scripts/carry-universe-scan.ts` refresh at re-gate.
 > 3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry` (liveness + books + NAV + runbook),
@@ -250,7 +313,10 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 >    beta-hedge (`RegimeBetaHedge`, one BTC/ETH leg). Optional scouting: HL-only variants for
 >    the no-spot passers (FARTCOIN/HYPE/PURR tail).
 > 5. **Then P2:** E6 VRP book (see below). **Parked-but-pending:** the regime desk P16 forward
->    run (#88) — now a benchmark track, not the priority.
+>    run (#88) — now a benchmark track, not the priority, and since #95 a one-command launch:
+>    `bash scripts/launch-regime-track.sh` (stress pre-flight, gate-first at boot, #88
+>    pre-registered defaults, stop ⇒ flatten-on-exit). R-C respected: no new directional
+>    strategy is built until the pre-registered forward run has an honest read.
 >
 > **Do-not-relitigate:** the #65 κ=0 verdict; the #70 spread-MM verdict; realised-first judging;
 > resume-not-flatten on the carry desk (#90 — working as designed, #92 confirmed it keeps books

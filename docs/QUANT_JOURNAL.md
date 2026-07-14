@@ -4125,40 +4125,255 @@ research shows board 2/7 with real pairs — 9/9 checks.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-03, #94)
+## 2026-07-05 — Entry #95 (Directional bot review → supervised launcher: the built-but-never-run "take sides" desk becomes a one-command benchmark track)
 
-**The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02) — the carry
-desk is the priority chain; its §4-ledger carries the authoritative per-phase state + pickup
-prompt.** Repo green: `npx tsc --noEmit` exit 0; `npx jest src/market-making src/market-data
-src/stat-arb/feed` 128 suites / 921 tests.
+**The ask: "review and add a directional trading bot based on what we have."** The review's
+finding is that we already **have** one, complete: the Regime Directional desk (P1–P15,
+#73–#87) — `RegimeDirectionalBook` + 7 OOS-gated bias sources + walk-forward book backtest +
+stress harness + exposure toggle + persistence + TCA + watchdog + the 907-line
+`scripts/regime-book-live.ts` runner + the `/demo` cockpit. What it has **never had is a
+supervised launch path** — the P16 forward run (#88 handover, 2026-06-17) has sat
+"parked-but-pending" for 18 days, and the carry desk's #92 incident showed exactly why
+bare-foreground launches don't happen: they die with the terminal.
 
-1. **OPERATOR: relaunch the 30-day carry run** — everything is ready (#93: LIT closed, guard
-   on every entry path, supervision wrapper):
-   ```bash
-   sudo docker compose up -d postgres && npm run migration:run   # once, if not already up
-   bash scripts/launch-carry-30d.sh          # start (nohup+pidfile; 7 books resume + PUMP contends)
-   bash scripts/launch-carry-30d.sh status   # any time: is the desk alive?
-   ```
-   Every session while it runs: score realised-first from `mm_nav desk='carry'` + read the
-   entry TCA lines (P1 metric: ≤2bps/leg).
-2. **Daily (operator or session):** `scripts/funding-differential-board.ts` — M2 needs ≥7
-   consecutive daily boards (**day 2/7 done #93**, day 3 due 2026-07-04); re-run
-   `scripts/carry-universe-scan.ts` before/at re-gate to refresh the deployable set (the scan
-   now prints basis% + collision tags, #92 fix).
-3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry`, the `/exec` fund view, the
-   `/research` measurement board, `GET /api/carry/state`. Remaining per
-   [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md): U3.2 risk pause/deny (engine endpoint
-   first), U3.3 per-book sparklines, U3.4 blotter/dd refinements, U3.5 `/pm`, U3.6 retire
-   `/demo`. **Operator: smoke the new pages in the browser when the server is up** (sandbox
-   can't) — `/`, `/exec`, `/desk/carry`, `/research`.
-4. **NEXT BUILD SESSION — finish P1:** item 4 = **E7 allocator v0** (fixed 70/20/10 weights) +
-   the **aggregate beta-hedge** (one BTC/ETH leg flattens the cross-sectional book's residual
-   delta via the existing `RegimeBetaHedge`). Also worth a look: HL-only variants for the
-   no-spot gate-passers (FARTCOIN/HYPE/PURR tail, #91).
-5. **Then P2:** the VRP short-vol satellite (E6 — Deribit paper short-strangle on the existing
-   `src/derivatives/` Greeks, stress-gated by the P11 harness, ≤20% of desk capital).
-6. **Still pending from the regime desk:** the P16 operator forward run (#88 handover) — now a
-   BENCHMARK track alongside the carry desk, not the priority.
+**The honest scope call (rule R-C):** building a *new* directional strategy on top of the
+negative #80 book-level read (desk −$1,484 over 60d, 0/2 books cleared the bar) would be the
+precise mistake PROFIT_PIVOT_II §1-R10 documents. The correct "add" is assembly: give the
+existing bot the same supervision the carry desk got in #93, so the pre-registered P16 run can
+actually happen as the benchmark track the ledger already sanctions.
+
+**What shipped — `scripts/launch-regime-track.sh`** (mirrors `launch-carry-30d.sh`):
+- **Stress pre-flight:** `regime-stress.ts` must print STRESS OK (exit 0) or the launch is
+  REFUSED — verified live this session (4 scenarios, budget respected, exit 0).
+- **Gate-first stays in the runner** (one code path): `regime-book-live.ts` re-runs the 90d
+  OOS gate at boot; 0 validated symbols ⇒ trades nothing.
+- **Defaults = the #88 pre-registered command, unchanged:** `MM_PERSIST=true RBL_HOURS=8
+  RBL_SLIPPAGE_BPS=1 RBL_EXPOSURE=outright RBL_TOP_N=8` (override via env, e.g.
+  `RBL_EXPOSURE=hedged` for the comparison track). No new knobs invented for a pre-registered
+  run.
+- **stop = SIGINT ⇒ flatten-on-exit** (books the realised close + final checkpoint) — NOT
+  carry's resume-not-flatten; a directional position never sits unsupervised.
+- nohup + pidfile + `status`/`stop` verbs; logs to `logs/regime-track-*.log`; score from
+  `mm_nav WHERE desk='regime'` + the runner's Ctrl-C scorecard.
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/market-making/directional`
+**22 suites / 190 tests green**. Launcher smoked: `bash -n` clean, `status`/`stop` sane with
+no process, stress pre-flight fires for real. Pre-registered metric unchanged (#88):
+realised + funding − fees − slippage > 0 with maxDD inside 2% on the day's validated symbols;
+a flat "sat aside" is a correct outcome.
+
+---
+
+## 2026-07-14 — Entry #96 (first live overnight for the alpha-mandate books: ORV −$78.65 teaches the skew lesson, VRP gate honest but its one trade was an estimator artifact, carry mechanics + a TCA miss — 13h paper trial)
+
+**The run.** All three session-6 books ran live-paper overnight, ad-hoc (foreground scripts,
+no DB persist — a mechanics trial, deliberately not the supervised track):
+`outcome-rv-live.ts` 18:26→07:43 UTC (13.3h), `vrp-live.ts` 18:44→08:15 (13.5h),
+`carry-desk-live.ts` on the 12 deployables 19:10→07:43 (12.5h, fresh opens, `persist false`).
+One transient `fetch failed` (04:22) absorbed by the ORV loop; zero crashes. Artifacts:
+`docs/research/outcome-rv/orv-2026-07-13T18-26-06-450Z.jsonl` (5.3k evals),
+`docs/research/vrp/vrp-2026-07-13T18-44-05-924Z.jsonl` (1.3k gates),
+`docs/research/carry/carry-live-2026-07-13.log`.
+
+**(1) Probability desk — net −$78.65, and the shape, not the number, is the finding.**
+6 entries (all NO-side, entry probs 0.77–0.90, every logged entry edge ≥3.0pts vs the RND
+fair), 5 take-profit wins totalling +$20.20, then the ETH K=1,781.3 daily settled YES at spot
+1,786.85 → **−$98.84, full collateral.** Fees $4.59 (0.5c/contract model).
+- The negative skew is structural: buying NO at 0.79–0.90 means one settle loss eats 4–8 TP
+  wins. 5W/1L was *not enough win rate* — and n=6 proves nothing in either direction. The
+  verdict variable is **calibration**, not small-n P&L.
+- **Every edge the gate found all night was NO-side** (HIP-4 YES persistently rich vs the RND).
+  Two live hypotheses: lottery-buyers overpay YES on HIP-4 (our edge), or the smile-adjusted
+  Deribit digital underprices tails (our trap). The ETH loss is one datum for the trap.
+- Liquidity honesty: the ETH market's book was **23pts wide** near settle (yes 0.568/0.801);
+  paper touch-fills flatter us, and there is **no spread gate at entry**.
+- Config clarity: `maxTouchFrac` is a *sizing* cap (≤50% of touch size,
+  `outcome-rv-book.ts:137`), **not** a stop — the book has no downside exit by design
+  (defined-risk, hold-to-settle). Legitimate, but now stated out loud.
+- Mechanics all verified live: TP fires, settle books at oracle spot, the $500 per-market
+  collateral cap bound once (the 500-lot), re-entry after TP works.
+
+**Decision (pre-registered): calibration before capital.** Every HIP-4 daily that settles gives
+a free (RND fair, market mid, outcome) triple — no position required, ~10–50× the data per day
+that trading produces. Next build: `scripts/orv-calibration.ts` — snapshot fair + market mid for
+every listed daily at fixed times, score at settle; after **≥100 settles**, compare Brier(RND)
+vs Brier(market mid) with a bootstrap CI. RND wins clear of zero ⇒ size the book with
+conviction; RND loses ⇒ kill the book before it bleeds. Trading stays parked meanwhile.
+
+**(2) VRP satellite — the gate sat out a negative-VRP night correctly (doctrine #5); the one
+trade it took was opened by an estimator artifact.** 1,270 gate checks, iv−rv −2…−15pts nearly
+all night (ETH realizing 51–54% against 39–48% implied) ⇒ correctly closed the entire time.
+At 04:00:22 the ETH RV printed **0.429 vs 0.511 one minute earlier** — one hot 1h bar rolling
+out of the plain close-to-close window (`vrp-live.ts realizedVol()`) — so the gate "opened" at
++4.8pts and sold the 0.1-ETH K=1775 straddle for $3.79 premium — on the **2026-07-15 08:00 UTC
+expiry** (the `minHoursToExpiry=6` gate correctly skipped the same-morning expiry, 4h away).
+Open → band re-hedge (+0.0252 ETH @ 1789.65, mark −$0.18) verified live; the settle path was
+NOT exercised — the trial stopped 2026-07-14 08:15 with the straddle open and ~24h to expiry,
+and the un-persisted paper position is abandoned with the run (excluded from scoring; the
+entry was an artifact anyway). But the entry signal was a window-boundary discontinuity, not a
+regime read. **Fix before any long run: EWMA RV (or require k=3 consecutive open reads) + a
+spec that locks it (§10.1-2).**
+
+**(3) Carry desk — accrual mechanics confirmed at the predicted rate; 12h cannot clear fees;
+and a real TCA finding.** 8/12 gated symbols opened fresh ($50k/leg, ≤8-leg cap;
+TAO/ENA/BNB/ZEC queued behind the cap). Funding accrued **+$61.2 in 12.4h — a steady $4.92/h ≈
+10.8%/yr on the $400k deployed**, exactly the gate's predicted baseline (all legs pinned at
+0.125bp/h; no negative-funding flips). Entry fees −$138.51 ⇒ one-way breakeven ≈ t+28h; the
+trial was killed at t+12.5h, so realised-first −$77.3 is **pre-breakeven by construction, not
+an edge failure**. maxDD 0.056% of desk capital, flat since hour 1; basis MTM stationary noise
+(±8bps of deployed). **TCA finding: per-leg entry cost ranged 0.8–7.0bps.** The maker-first
+path (rest ≤45s, then escalate) got maker fills on NEAR/XPL/UNI (0.8bps ✅) but escalated to
+full taker on GRAM/DYDX (7.0bps), AAVE (4.3bps), LINK/PUMP (3.5bps) — **4–5 of 8 legs failed
+the pre-registered ≤2bps/leg P1 metric.** Fix before the 30d relaunch: longer maker rest on
+illiquid legs and/or a fee-aware breakeven recheck at entry (a 7bps entry doubles GRAM's
+breakeven). Re-confirmed: carry pays on multi-day supervised holds — the operator relaunch
+(`launch-carry-30d.sh`, resume + persist) remains the track that produces the demo curve.
+
+**Session hygiene:** all three processes stopped this morning (ORV/carry 07:43, VRP 08:15 —
+with the artifact straddle still open against the 07-15 expiry, abandoned un-persisted);
+journals + both console logs committed to `docs/research/`; ledger + pickup updated. Shareable
+progress report: [DESK_PROGRESS_2026-07-14.md](DESK_PROGRESS_2026-07-14.md).
+
+---
+
+## 2026-07-14 — Entry #97 (the MAKER reframing: prediction markets are a spread business, not a position business — research memo + Phase 0 built and live-smoked)
+
+**The redirect (operator).** The ORV book (#96) was built taker-only because we transferred
+the #70 "spread-MM is dead" verdict onto prediction markets. Ronnie's call — *make markets
+with the ms fair-value stack, don't take positions* — is correct, and the research supports
+it. Full memo: [PREDICTION_MARKET_MM_RESEARCH.md](PREDICTION_MARKET_MM_RESEARCH.md).
+
+**Why #70 does not transfer (the three conditions invert):** (1) HIP-4/Polymarket binary
+spreads are 100–2,700bps vs the ~1bp perp books #70 was about (live smoke today: ETH daily
+2.26c wide; #96 saw 23pts near settle — though BTC printed 1-tick tight mid-day, so width is
+regime-dependent); (2) the "informed flow" on a crypto binary is reaction to the underlying —
+which we see sub-second and reprice through Φ(d2) in microseconds while the prediction-market
+crowd re-quotes every 30–60s: for once WE are the fast quoter (Polymarket introducing dynamic
+taker fees *specifically to kill latency arbs*, routing 20–25% to maker rebates, is direct
+evidence of how large this edge was); (3) the flow is retail, and inventory is defined-risk,
+self-settling, and perp-hedgeable in the same HL margin system. **Venue economics confirmed:
+HIP-4 = zero fee to open, ~4bps maker / 7bps taker on close-or-settle only** — the ORV 0.5c
+placeholder was >10× high (#96's "1.5c fee-adjusted" founding edge was really ~2.4c). Key
+reframe: the #96 Brier gate governs the *position* book; a *maker* book needs only a fair
+value good + fast enough that resting quotes aren't systematically picked off, plus a hedge.
+
+**Built (Phase 0 — measure before quoting; pre-registered in the memo §5 before any tape
+existed):**
+- `scripts/orv-calibration.ts` — collector, NO positions/quotes: every ~1s, one `allMids` +
+  depth-5 YES `l2Book` per priceable daily; fair recomputed EVERY tick off the live HL perp
+  mid against a 60s-cached Deribit smile (iv + dσ/dK at strike; #92 spot-guard at refresh AND
+  per tick); dedup + 30s heartbeat; daily-rotating git-ignored tapes
+  (`docs/research/orv-maker/tapes/`); settles scored live into the #96 Brier accumulator.
+- `src/prediction/maker-sim.ts` (pure) + `calibration-score.ts` (pure) — queue-conservative
+  maker replay: STRICT trade-through fills only (touch ≠ fill, integer-tick comparisons),
+  post-only, inventory cap, no-quote window <30min to expiry, width floor φ(d2)·√(δt/T) (the
+  digital's own 1σ over the reprice horizon), HIP-4 fee taxonomy (open free / close 4bps /
+  settle 4bps placeholder), hedge-cost line φ(d2)/(σ√T)·bps per fill+unwind; Brier + paired
+  bootstrap CI over settles (deterministic seed).
+- `scripts/orv-maker-replay.ts` — width×cadence grid (default 0.2–2c × 1–60s) → revenue
+  density ($/$ collateral/day). **Pre-registered gate: proceed to Phase 1 (OutcomeMakerBook)
+  iff some grid point nets >0 with ≥50 fills, ≥2 markets, ≥3 days of tape; else the maker
+  thesis dies here.**
+- Client additions: `listPriceBinarySpecs` (meta-only), `bookDepth` (depth-N + venue ts),
+  `mids` (one call = perp mids + every outcome side; YES+NO≈1 verified live).
+
+**Live smoke (90s, 10:29 UTC):** discovered BTC K=62,713 + ETH K=1,786.7 (2026-07-15 06:00
+dailies), 168 tape records, 0 errors; replay runs end-to-end and correctly reports
+INSUFFICIENT TAPE. Venue detail caught: BTC daily book prints 5-dp prices (0.48504/0.48505)
+— tick is 0.00001, finer than the documented 0.0001; sim default fixed accordingly. One real
+fill simulated in 90s on the ETH book (quotes resting inside a 2.26c spread) — flow exists;
+n=1 decides nothing. **Honest pacing note: only ~2 Deribit-priceable HIP-4 dailies exist ⇒
+~2 settles/day ⇒ the ≥100-settle Brier gate needs weeks; the maker gate (≥3 days) does not
+wait for it.** Polymarket's 5min/15min/hourly BTC/ETH markets are the future data firehose
+(Phase 2; rewards score computable offline from their published quadratic formula).
+
+**Tests:** 48 prediction specs green (14 new maker-sim + 8 calibration + 5 client), tsc
+clean. Ran `src/prediction` suite only (touched area, §10.1-1).
+
+**Next:** OPERATOR starts the collector (days, foreground); replay when the tape qualifies;
+confirm HIP-4 settle-fee + mint/close taxonomy against a real settled market from the tape;
+carry TCA fix + 30d relaunch remains the foundation track (#96 order unchanged).
+
+---
+
+## 2026-07-14 — Entry #98 (TECHNOLOGY_OVERVIEW ADOPTED → Phase A slice 1 live: the IBus seam + md-plant v0 on NATS; orv-calibration consumes the bus with zero venue calls)
+
+**Decision (operator): the shared-plant architecture is adopted; Phase A starts now with
+NATS as the broker.** ([TECHNOLOGY_OVERVIEW.md](TECHNOLOGY_OVERVIEW.md) status updated;
+MASTER_PLAN §8 carries the pointer.)
+
+**Built (slice 1 — the HIP-4/Deribit vertical, end to end):**
+- **`src/bus/`** — the `IBus` seam: envelope `{topic, seq, tsPlant, tsVenue, schemaVersion,
+  payload}`, NATS-compatible topic grammar (`*`/`>`), bus laws in the header (single writer
+  per topic, fail-closed on gap/staleness, no broker durability). `InProcBus` (default;
+  tests + single-process mode, doubles as the spec mock via `keepHistory`) and `NatsBus`
+  (core pub/sub only, fast-fail connect, per-topic seq stamped publisher-side). NATS added
+  to docker-compose next to Postgres; `nats` npm dep.
+- **`md-plant`** (`src/market-data/plant/` + `scripts/md-plant.ts`) — the market-data
+  service: owns HL outcome + Deribit connectivity, publishes `md.mids.hyperliquid`,
+  `md.outcome.meta.hyperliquid`, `md.book.hip4.<id>` (tsVenue = venue book ts),
+  `md.chain.deribit.<ccy>`; per-feed error isolation (partial data beats no data); topic
+  tape = a bus *subscriber* in the runner (plant stays a pure publisher), daily-rotating
+  git-ignored JSONL under `docs/research/plant-tapes/`.
+- **`PlantClient`** — bus consumer serving the venue-client method surface from cached
+  streams; fail-closed staleness (mids/books 10s, meta/chains 5min). With the new
+  `IOptionChainSource` seam on `DeribitDigitalSource`, it drops in wherever
+  `HyperliquidOutcomeClient`/`DeribitClient` shapes are consumed — zero strategy-code
+  changes (the Phase-A contract).
+- **`orv-calibration OCAL_SOURCE=bus`** — the collector consumes the plant instead of
+  venues. Identical journal schema either way.
+
+**The live smoke found a real distributed-systems bug and fixed it with a spec:** NATS core
+has no replay, so a late-joining consumer waited up to 60s for the next meta/chain publish
+(first A/B: DISCOVER at +60s). Fix = the tickerplant snapshot pattern: slow topics
+**re-publish from cache every 5s** (`snapshotRepubMs`, zero extra venue calls) + collector
+discovery retries until first success. Second A/B: **DISCOVER at +3s**, steady snap flow,
+collector venue calls = **0** (all data over the bus), plant `published=474 errors=0` over
+2.4min, NatsBus int-spec green against the real broker (soft-skips when absent, house
+`describeIfDb` convention).
+
+**Tests:** 61 green across bus/plant/prediction (5 bus + 9 plant/client new incl. the
+late-joiner repub lock), tsc clean. **Broker note:** `sudo docker compose up -d nats` is now
+part of desk bring-up (multi-process mode only — tests and single-process sessions stay on
+`InProcBus`, offline).
+
+**Phase A remaining (next sessions):** migrate Binance/funding/candle feeds into the plant;
+`carry-desk-live` consumes via adapters; then the FULL pre-registered acceptance — a
+session-length A/B (journal-equivalence + venue-call collapse measured) before Phase A is
+declared done. Phase B (pricing + risk services) queues behind it.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #98)
+
+**The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
+§4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
+fixes first, then the supervised long runs:
+
+1. **Carry (the P1 chain, in order):** (a) fix the entry TCA miss (#96: 4–5/8 legs escalated to
+   taker, 3.5–7bps vs the ≤2bps bar — longer maker rest on illiquid legs and/or fee-aware
+   breakeven recheck at entry); (b) wire the **E7 allocator** (built as a pure module, 750d0bd)
+   into `carry-desk-live.ts` + the aggregate beta-hedge; (c) **OPERATOR: relaunch the 30d run**
+   (`bash scripts/launch-carry-30d.sh`, resume + persist) — that run, not ad-hoc trials, is the
+   demo curve. Score each session realised-first from `mm_nav desk='carry'`.
+2. **Probability desk → MAKER track (#97 — the reframing).** `orv-calibration.ts` is BUILT
+   (collector: maker tape + Brier settles, no positions) — **OPERATOR: run it for days**
+   (`npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts`, foreground). When
+   the tape hits ≥3 days / ≥2 markets: `scripts/orv-maker-replay.ts` renders the
+   pre-registered maker gate (net>0 at some width×cadence point with ≥50 fills → build
+   Phase 1 `OutcomeMakerBook`; else the maker thesis dies). Confirm HIP-4 settle-fee +
+   mint/close taxonomy against the first settled market on tape. ORV taker trading stays
+   parked behind the ≥100-settle Brier gate (weeks — ~2 priceable settles/day). Memo:
+   PREDICTION_MARKET_MM_RESEARCH.md.
+3. **VRP: fix the RV estimator before any long run** — EWMA (or k=3 consecutive open reads)
+   + a spec (§10.1-2); the 04:00 open was a window artifact (#96). Then it joins the
+   supervised run as the ≤20%-capital satellite it was designed as.
+4. **Daily (operator or session):** `scripts/funding-differential-board.ts` — M2 needs ≥7
+   consecutive daily boards (stalled at day 2/7 since #93); `carry-universe-scan.ts` refresh
+   at re-gate.
+5. **UI remaining:** U3.2–U3.6 per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md).
+6. **Regime desk benchmark track (P16):** one command since #95 —
+   `bash scripts/launch-regime-track.sh`. Operator's run, not the priority.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
 while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays

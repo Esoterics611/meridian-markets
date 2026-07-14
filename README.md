@@ -40,6 +40,9 @@ Start with [`CLAUDE.md`](CLAUDE.md) (binding architecture + mission + session lo
 | The MM desk (quoters, risk gates, attribution) + how to run it | [`docs/MARKET_MAKING.md`](docs/MARKET_MAKING.md) · [`docs/RUN_THE_DESK.md`](docs/RUN_THE_DESK.md) |
 | MM fair-value / adverse-selection findings | [`docs/FAIR_VALUE_AND_THESIS_DESIGN.md`](docs/FAIR_VALUE_AND_THESIS_DESIGN.md) |
 | The regime / "take-sides" directional desk | [`docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md`](docs/REGIME_DIRECTIONAL_PLAYBOOK_II.md) |
+| **The probability desk** (HIP-4 binaries vs the Deribit RND) — thesis + how to run | [`docs/PROBABILITY_DESK.md`](docs/PROBABILITY_DESK.md) |
+| **Prediction markets as a MAKER (spread capture), not a position book** — the reframing + Phase 0 | [`docs/PREDICTION_MARKET_MM_RESEARCH.md`](docs/PREDICTION_MARKET_MM_RESEARCH.md) |
+| **The shared trading plant** (services on a bus, replacing the script fleet) — architecture + migration plan | [`docs/TECHNOLOGY_OVERVIEW.md`](docs/TECHNOLOGY_OVERVIEW.md) |
 | Equities stat-arb (Alpaca/Yahoo) | [`docs/EQUITIES_STATARB_PLAN.md`](docs/EQUITIES_STATARB_PLAN.md) |
 | Venue / data-source ledger | [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) |
 | Per-session engineering history | [`docs/SESSION_HISTORY.md`](docs/SESSION_HISTORY.md) |
@@ -299,6 +302,151 @@ npx ts-node -r tsconfig-paths/register scripts/funding-differential-board.ts
 
 The full operator doctrine — what each number means and when to act — is
 [`docs/CARRY_DESK_OPERATOR_MANUAL.md`](docs/CARRY_DESK_OPERATOR_MANUAL.md).
+
+> **DB-free note:** without `MM_PERSIST=true` (and Postgres up) the carry desk runs fine but
+> keeps **no durable checkpoints** — a restart re-gates and re-opens from scratch instead of
+> resuming held books. Fine for a watch session; the real 30-day run wants persistence.
+
+### G. The probability desk — HIP-4 binaries vs the Deribit RND (paper, live)
+
+*(Built 2026-07-13; full thesis, pre-registered metrics, and honest gaps:
+[`docs/PROBABILITY_DESK.md`](docs/PROBABILITY_DESK.md).)* Hyperliquid's HIP-4 event markets
+(live on mainnet since 2026-05-02) quote daily **BTC/ETH price binaries** as normal L2 books in
+probability units. The crowd prices them by feel; this desk prices them off its own
+**smile-adjusted Deribit digital** (−dC/dK, the validated Greeks layer) and paper-trades only a
+signed, fee-adjusted fair-value edge past a pre-registered gate. Defined-risk (max loss =
+collateral, known at entry), self-settling within hours — realised P&L arrives daily.
+
+```bash
+# DB-free, no keys; journals every EVAL/ENTER/TP/SETTLE + 10-min SUMMARY lines:
+npx ts-node -r tsconfig-paths/register scripts/outcome-rv-live.ts
+
+# Knobs (defaults in parentheses — the defaults ARE the pre-registered run):
+#   ORV_EDGE_MIN(0.03)      min fee-adjusted edge, prob units — DON'T lower mid-run; a looser
+#                           run is an experiment, not the track record
+#   ORV_FEE_PROB(0.005)     fee per $1 contract on close/settle — PLACEHOLDER until HIP-4's
+#                           real schedule is confirmed against a settled market
+#   ORV_CONTRACTS(500)      base size, $1-payout contracts
+#   ORV_MAX_MKT_USD(500) ORV_MAX_TOTAL_USD(2000)   collateral caps (= max loss caps)
+#   ORV_MIN_EXP_MIN(45)     no new entry this close to expiry
+#   ORV_TP_FRAC(0.7)        take-profit: close early once ≥70% of entry edge is lockable
+#   ORV_TOUCH_FRAC(0.5)     never take more than half the displayed touch size
+#   ORV_HOURS(0)            0 = run until Ctrl-C (FINAL line = the honest scorecard)
+#   ORV_JOURNAL(docs/research/outcome-rv)   JSONL journal dir — every gap seen, traded or not
+```
+
+Reading the log: `scan … yes 0.129/0.147 fair 0.1179 — no trade (edge 0.0067 < min 0.03)` is the
+desk *working correctly* — doctrine #5, no edge past the gate → no position. Only
+`class:priceBinary` markets on Deribit-priceable underlyings are ever touched; sports/politics
+markets are refused by construction, and the #92 same-underlying guard (venue spot vs Deribit
+index ±5%) sits on every pricing call.
+
+### H. The VRP satellite — gated short vol, stopped and hedged (paper, live)
+
+*(PROFIT_PIVOT_II E6 — the desk's largest validated, previously never-run edge: #12 = implied −
+realized of +5.9 BTC / +3.7 ETH vol pts; #42 = short-vol won 86.3% of 117 rolling 24h windows.)*
+Sells the ATM **daily** straddle off the live Deribit chain **only when** trailing realized vol
+(HL 1h candles) sits ≥ `VRP_MIN_PTS` under mark IV — gate closed ⇒ it sits out and says so.
+Band delta-hedges with a paper HL perp (avg-cost hedge P&L, taker fee), and a **hard dollar
+stop** bounds the fat left tail that is this trade's whole risk.
+
+```bash
+npx ts-node -r tsconfig-paths/register scripts/vrp-live.ts
+
+# Knobs (defaults in parentheses):
+#   VRP_UNDERLYINGS(BTC,ETH)  one independent book per underlying
+#   VRP_MIN_PTS(0.03)         entry gate: iv − rv ≥ 3 vol pts (the measured premium, #12)
+#   VRP_CONTRACTS(0.1)        straddle size, coin units
+#   VRP_BAND(0.25)            re-hedge when |net delta| > 25% of contracts
+#   VRP_HEDGE_FEE_BPS(3.5)    taker fee on each hedge trade
+#   VRP_STOP_USD(400)         HARD loss stop per position — the tail control; size around this
+#   VRP_MIN_H(6)              don't sell a straddle with <6h of life
+#   VRP_RV_HOURS(24)          realized-vol lookback (1h bars)
+#   VRP_HAIRCUT_FRAC(0.02)    entry premium = Deribit mark − 2% (spreads are wide; honest default)
+#   VRP_HOURS(0)              0 = run until Ctrl-C
+#   VRP_JOURNAL(docs/research/vrp)   JSONL journal dir (GATE/OPEN/REHEDGE/STOP/SETTLE/FINAL)
+```
+
+Honest caveats (v0, also in the script header): marks use entry IV for the position's life (no
+vega mark — settle is exact), hedges fill at HL mid + fee with no queue model, and the premium
+haircut is an assumption until executable option quotes are measured. Judged **realised-first**
+at daily settle, like everything on this desk.
+
+### I. Prediction-market maker research — Phase 0 (paper, no positions)
+
+*(Built 2026-07-14; full thesis + the reframing away from taking positions:
+[`docs/PREDICTION_MARKET_MM_RESEARCH.md`](docs/PREDICTION_MARKET_MM_RESEARCH.md), Journal
+#97.)* Section G above trades HIP-4 binaries as a **taker/position** book. That mis-applied
+the #70 "spread-MM is dead" verdict, which is about ~1bp perp books — HIP-4/Polymarket binary
+spreads run 100–2,700bps and the crowd re-quotes every 30–60s, so **we're the fast quoter for
+once**. This section is the correct frame: **market-making** (spread capture, hedged
+inventory), not position-taking. Phase 0 takes **zero positions and posts zero quotes** — it
+only records what a maker would have seen, so the go/no-go verdict comes from data.
+
+```bash
+# The collector (run for DAYS — leave it in a terminal):
+npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts
+
+# Knobs (defaults in parentheses):
+#   OCAL_SNAP_MS(1000)       tape cadence — live-spot fair recomputed EVERY tick
+#   OCAL_DEPTH(5)            YES-book levels captured per snapshot
+#   OCAL_SMILE_MS(60000)     Deribit smile refresh (iv/skew cache)
+#   OCAL_DISCOVERY_MS(60000) how often new HIP-4 dailies are discovered
+#   OCAL_HOURS(0)            0 = run until Ctrl-C
+#   OCAL_DIR(docs/research/orv-maker/tapes)   daily-rotating JSONL tape, git-ignored
+#   OCAL_SOURCE(direct)      'bus' consumes the md-plant instead of hitting venues — see §J
+
+# The verdict, any time (tape-so-far or complete):
+npx ts-node -r tsconfig-paths/register scripts/orv-maker-replay.ts
+
+# Grid knobs (defaults in parentheses):
+#   RPL_WIDTHS(0.002,0.005,0.01,0.02)   half-widths to grid, probability units
+#   RPL_CADENCES_S(1,5,15,60)           re-quote cadences to grid, seconds
+```
+
+**Pre-registered gate:** the maker thesis proceeds to a live paper book iff some grid point
+nets **> $0** with **≥50 fills**, across **≥2 markets**, on **≥3 days** of tape — otherwise it
+dies here, for the cost of some disk space. Fewer than 2 Deribit-priceable HIP-4 dailies exist
+today (BTC/ETH only) — collect for several days before reading the verdict.
+
+### J. The shared trading plant — `md-plant` on NATS (infra, Phase A)
+
+*(Adopted 2026-07-14; the engineering plan is
+[`docs/TECHNOLOGY_OVERVIEW.md`](docs/TECHNOLOGY_OVERVIEW.md), Journal #98.)* Every desk above
+used to embed its own venue connectivity, its own fair-value cache, its own rate-limit budget
+— duplicated N times, shared by nobody, and invisible to any desk-wide risk view. The fix is a
+**shared plant**: one process owns each venue's connectivity and publishes normalized,
+sequenced streams on a bus; desks (and research collectors) subscribe instead of calling
+venues directly. This is a **multi-process modular monolith**, not microservices — one repo,
+one build, one Postgres, no cross-repo coupling (CLAUDE.md §6 is unchanged and complied with;
+see the doc's §3.2 for the full reasoning). `md-plant` v0 covers the HIP-4/Deribit vertical
+that Section I above trades.
+
+```bash
+# 0) one-time / whenever you want multi-process mode — the desk bus:
+sudo docker compose up -d nats
+# (postgres is unaffected; NATS is core pub/sub only, no persistence —
+#  durability lives in our tape files and Postgres, never in the broker)
+
+# 1) TERMINAL 1 — the market-data service:
+npx ts-node -r tsconfig-paths/register scripts/md-plant.ts
+
+# Knobs (defaults in parentheses):
+#   NATS_URL(nats://127.0.0.1:4222)
+#   MDP_UNDERLYINGS(BTC,ETH)  MDP_MIDS_MS(1000)  MDP_BOOK_MS(1000)
+#   MDP_META_MS(60000)  MDP_CHAIN_MS(60000)  MDP_DEPTH(5)  MDP_HOURS(0)
+#   MDP_TAPE_DIR(docs/research/plant-tapes)   every published topic, replayable, git-ignored
+
+# 2) TERMINAL 2 — any consumer, pointed at the plant instead of venues directly:
+OCAL_SOURCE=bus npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts
+```
+
+Without the broker up, everything still runs exactly as before — `InProcBus` (the in-process,
+offline default) backs the whole plant for tests and single-process sessions; `BUS=nats` /
+`OCAL_SOURCE=bus` opt into the multi-process path. **Phase A is in progress**: `md-plant`
+covers HIP-4/Deribit today; Binance/funding/candle feeds and the carry desk migrate next, then
+a pricing service (shared fair-value/vol estimators) and a risk service (aggregate exposure,
+kill switch) follow in Phases B–C. See the doc for the full service catalog and migration plan.
 
 ### Execution modes
 `EXECUTION_MODE`: `mock` (synthetic) · `paper`/`canary` (`PaperVenue`: real prices +

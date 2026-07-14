@@ -63,6 +63,11 @@ interface RawTicker {
   greeks?: { delta?: number; gamma?: number; vega?: number; theta?: number; rho?: number };
 }
 
+/** The chain-source seam: DeribitClient live, PlantClient over the bus, mocks in specs. */
+export interface IOptionChainSource {
+  optionChain(currency: string): Promise<DeribitOption[]>;
+}
+
 export interface DeribitClientOptions {
   baseUrl?: string;
   httpGet?: DrbHttpGet;
