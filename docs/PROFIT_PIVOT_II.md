@@ -234,7 +234,11 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > **OPERATOR: start the collection** — `npx ts-node -r tsconfig-paths/register
 > scripts/orv-calibration.ts` (foreground, days; tapes git-ignored). Verdict when the tape
 > qualifies. ORV trading stays parked; carry TCA fix + 30d relaunch unchanged as the
-> foundation track.
+> foundation track. **Also this session: [TECHNOLOGY_OVERVIEW.md](TECHNOLOGY_OVERVIEW.md)**
+> — the engineering plan to turn the script fleet into a shared trading plant (md-plant /
+> pricing / risk / oms-paper services + desk engines on an `IBus` seam; §6-compliant
+> multi-process modular monolith; phases A–D each with a pre-registered acceptance drill).
+> **Awaiting the principal's adopt/sequence/broker decisions (doc §6).**
 >
 > *(Previous ledger, 2026-07-14 am — session 7: first live overnight for the three books; Journal
 > #96.)* 13h unattended paper trial, zero crashes, stopped 07:43–08:05 UTC. **(1) ORV desk:
