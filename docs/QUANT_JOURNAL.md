@@ -4168,7 +4168,7 @@ a flat "sat aside" is a correct outcome.
 
 **The run.** All three session-6 books ran live-paper overnight, ad-hoc (foreground scripts,
 no DB persist — a mechanics trial, deliberately not the supervised track):
-`outcome-rv-live.ts` 18:26→07:43 UTC (13.3h), `vrp-live.ts` 18:44→~08:05 (13.4h),
+`outcome-rv-live.ts` 18:26→07:43 UTC (13.3h), `vrp-live.ts` 18:44→08:15 (13.5h),
 `carry-desk-live.ts` on the 12 deployables 19:10→07:43 (12.5h, fresh opens, `persist false`).
 One transient `fetch failed` (04:22) absorbed by the ORV loop; zero crashes. Artifacts:
 `docs/research/outcome-rv/orv-2026-07-13T18-26-06-450Z.jsonl` (5.3k evals),
@@ -4205,9 +4205,12 @@ trade it took was opened by an estimator artifact.** 1,270 gate checks, iv−rv 
 all night (ETH realizing 51–54% against 39–48% implied) ⇒ correctly closed the entire time.
 At 04:00:22 the ETH RV printed **0.429 vs 0.511 one minute earlier** — one hot 1h bar rolling
 out of the plain close-to-close window (`vrp-live.ts realizedVol()`) — so the gate "opened" at
-+4.8pts and sold the 0.1-ETH K=1775 straddle for $3.79 premium. The machinery chain verified
-live (open → band re-hedge +0.0252 ETH @ 1789.65 → settle at the 08:00 expiry: see the SETTLE
-record in the journal file). But the entry signal was a window-boundary discontinuity, not a
++4.8pts and sold the 0.1-ETH K=1775 straddle for $3.79 premium — on the **2026-07-15 08:00 UTC
+expiry** (the `minHoursToExpiry=6` gate correctly skipped the same-morning expiry, 4h away).
+Open → band re-hedge (+0.0252 ETH @ 1789.65, mark −$0.18) verified live; the settle path was
+NOT exercised — the trial stopped 2026-07-14 08:15 with the straddle open and ~24h to expiry,
+and the un-persisted paper position is abandoned with the run (excluded from scoring; the
+entry was an artifact anyway). But the entry signal was a window-boundary discontinuity, not a
 regime read. **Fix before any long run: EWMA RV (or require k=3 consecutive open reads) + a
 spec that locks it (§10.1-2).**
 
@@ -4226,8 +4229,10 @@ illiquid legs and/or a fee-aware breakeven recheck at entry (a 7bps entry double
 breakeven). Re-confirmed: carry pays on multi-day supervised holds — the operator relaunch
 (`launch-carry-30d.sh`, resume + persist) remains the track that produces the demo curve.
 
-**Session hygiene:** all three processes stopped this morning (ORV/carry 07:43, VRP after its
-08:00 settle); journals + carry log committed to `docs/research/`; ledger + pickup updated.
+**Session hygiene:** all three processes stopped this morning (ORV/carry 07:43, VRP 08:15 —
+with the artifact straddle still open against the 07-15 expiry, abandoned un-persisted);
+journals + both console logs committed to `docs/research/`; ledger + pickup updated. Shareable
+progress report: [DESK_PROGRESS_2026-07-14.md](DESK_PROGRESS_2026-07-14.md).
 
 ---
 

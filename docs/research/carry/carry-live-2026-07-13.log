@@ -1,0 +1,976 @@
+
+=== CARRY DESK — live forward paper run (PROFIT_PIVOT_II P0) ===
+  universe: GRAM,NEAR,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC | gate 90d posFrac≥0.65 + 7d recency veto | $50k/leg × ≤8 legs | desk capital $800k
+  costs: spot 4.5bps + perp 2.5bps taker, slippage 1bps | margin 3×/maint 0.8 | DD kill 0.50% | re-gate every 24h | persist false
+  execution: MAKER-FIRST (E2) — rest ≤45s at the touch (maker spot 1 / perp -0.2bps), escalate to taker on timeout; urgent closes never wait
+  PRE-REGISTERED (P0): rolling-7d (funding − fees + realised) > 0 AND desk maxDD < 0.5%.
+
+Gate (90d + recency veto)...
+
+  symbol   dir         fullFund%  recent7d%  breakeven  IS/OOS posFrac  GATE
+  GRAM     SHORT_PERP     +26.2%     +13.5%       2.0d       1.00/1.00  ✅ PASS
+  NEAR     SHORT_PERP     +11.4%     +12.2%       4.5d       0.92/0.98  ✅ PASS
+  DYDX     SHORT_PERP     +11.0%     +10.9%       4.6d       0.99/0.91  ✅ PASS
+  LINK     SHORT_PERP      +9.6%     +10.9%       5.3d       0.95/0.94  ✅ PASS
+  AAVE     SHORT_PERP      +9.6%     +11.8%       5.3d       0.93/0.96  ✅ PASS
+  XPL      SHORT_PERP      +9.1%     +11.3%       5.6d       0.88/0.99  ✅ PASS
+  UNI      SHORT_PERP      +9.0%     +13.9%       5.7d       0.90/0.96  ✅ PASS
+  PUMP     SHORT_PERP      +8.1%      +9.7%       6.3d       0.89/0.94  ✅ PASS
+  TAO      SHORT_PERP      +7.3%     +11.0%       7.0d       0.82/0.94  ✅ PASS
+  ENA      SHORT_PERP      +7.1%     +10.4%       7.2d       0.82/0.91  ✅ PASS
+  BNB      SHORT_PERP      +7.0%      +8.5%       7.3d       0.88/0.79  ✅ PASS
+  ZEC      SHORT_PERP      +4.3%     +13.2%      11.9d       0.80/0.92  ✅ PASS
+
+  12/12 pass; funding 8 legs (max 8).
+  19:10:47 GRAM·spot ▸ BUY 31431.7146 @ 1.59 — opened long → inv 31431.7146 (fee −$22.51)
+  19:10:47 GRAM·perp ▸ SELL 31431.7146 @ 1.59 — opened short → inv -31431.7146 (fee −$12.50)
+  GRAM: open TCA — spot taker@1.5920 (+3.14bps vs mid, fee 4.5bps, waited 46s) | perp taker@1.5910 (-1.57bps vs mid, fee 2.5bps, waited 46s)
+  GRAM: OPEN long spot / SHORT perp $50k/leg — gross +26.2% · recent7d +13.5% · breakeven ~2.0d · basis -1.6bps
+  19:11:27 NEAR·spot ▸ BUY 26416.5896 @ 1.89 — opened long → inv 26416.5896 (fee −$5.00)
+  19:11:27 NEAR·perp ▸ SELL 26416.5896 @ 1.89 — opened short → inv -26416.5896 (fee +$1.00)
+  NEAR: open TCA — spot maker@1.8920 (-2.64bps vs mid, fee 1bps, waited 7s) | perp maker@1.8929 (-0.79bps vs mid, fee -0.2bps, waited 39s)
+  NEAR: OPEN long spot / SHORT perp $50k/leg — gross +11.4% · recent7d +12.2% · breakeven ~4.5d · basis 4.0bps
+  19:12:13 DYDX·spot ▸ BUY 403225.8065 @ 0.12 — opened long → inv 403225.8065 (fee −$22.50)
+  19:12:13 DYDX·perp ▸ SELL 403225.8065 @ 0.12 — opened short → inv -403225.8065 (fee −$12.50)
+  DYDX: open TCA — spot taker@0.1240 (-0.40bps vs mid, fee 4.5bps, waited 46s) | perp taker@0.1239 (+4.84bps vs mid, fee 2.5bps, waited 46s)
+  DYDX: OPEN long spot / SHORT perp $50k/leg — gross +11.0% · recent7d +10.9% · breakeven ~4.6d · basis -15.3bps
+  19:12:59 LINK·spot ▸ BUY 6362.0516 @ 7.86 — opened long → inv 6362.0516 (fee −$5.00)
+  19:12:59 LINK·perp ▸ SELL 6362.0516 @ 7.85 — opened short → inv -6362.0516 (fee −$12.50)
+  LINK: open TCA — spot maker@7.8580 (-0.64bps vs mid, fee 1bps, waited 23s) | perp taker@7.8542 (+6.23bps vs mid, fee 2.5bps, waited 46s)
+  LINK: OPEN long spot / SHORT perp $50k/leg — gross +9.6% · recent7d +10.9% · breakeven ~5.3d · basis 0.1bps
+  19:13:45 AAVE·spot ▸ BUY 529.6274 @ 94.48 — opened long → inv 529.6274 (fee −$22.50)
+  19:13:45 AAVE·perp ▸ SELL 529.6274 @ 94.41 — opened short → inv -529.6274 (fee +$1.00)
+  AAVE: open TCA — spot taker@94.4800 (+9.00bps vs mid, fee 4.5bps, waited 46s) | perp maker@94.4080 (-0.21bps vs mid, fee -0.2bps, waited 9s)
+  AAVE: OPEN long spot / SHORT perp $50k/leg — gross +9.6% · recent7d +11.8% · breakeven ~5.3d · basis 1.7bps
+  19:14:09 XPL·spot ▸ BUY 559315.398 @ 0.09 — opened long → inv 559315.398 (fee −$5.00)
+  19:14:09 XPL·perp ▸ SELL 559315.398 @ 0.09 — opened short → inv -559315.398 (fee +$1.00)
+  XPL: open TCA — spot maker@0.0894 (-0.56bps vs mid, fee 1bps, waited 12s) | perp maker@0.0894 (-1.01bps vs mid, fee -0.2bps, waited 23s)
+  XPL: OPEN long spot / SHORT perp $50k/leg — gross +9.1% · recent7d +11.3% · breakeven ~5.6d · basis -0.5bps
+  19:14:51 UNI·spot ▸ BUY 14253.542 @ 3.51 — opened long → inv 14253.542 (fee −$5.00)
+  19:14:51 UNI·perp ▸ SELL 14253.542 @ 3.51 — opened short → inv -14253.542 (fee +$1.00)
+  UNI: open TCA — spot maker@3.5100 (-1.42bps vs mid, fee 1bps, waited 28s) | perp maker@3.5082 (-0.86bps vs mid, fee -0.2bps, waited 41s)
+  UNI: OPEN long spot / SHORT perp $50k/leg — gross +9.0% · recent7d +13.9% · breakeven ~5.7d · basis -8.8bps
+  19:15:37 PUMP·spot ▸ BUY 34317089.9108 @ 0.00 — opened long → inv 34317089.9108 (fee −$5.00)
+  19:15:37 PUMP·perp ▸ SELL 34317089.9108 @ 0.00 — opened short → inv -34317089.9108 (fee −$12.50)
+  PUMP: open TCA — spot maker@0.0015 (+0.00bps vs mid, fee 1bps, waited 12s) | perp taker@0.0015 (+13.73bps vs mid, fee 2.5bps, waited 46s)
+  PUMP: OPEN long spot / SHORT perp $50k/leg — gross +8.1% · recent7d +9.7% · breakeven ~6.3d · basis 3.4bps
+t+  0:00 | legs 8 | funding +0.20 | fees -138.51 | REALISED-FIRST -138.31 | basisMTM -162.67 | net -300.98 | maxDD 0.038%
+t+  0:01 | legs 8 | funding +0.29 | fees -138.51 | REALISED-FIRST -138.22 | basisMTM -135.16 | net -273.37 | maxDD 0.038%
+t+  0:02 | legs 8 | funding +0.38 | fees -138.51 | REALISED-FIRST -138.13 | basisMTM -69.14 | net -207.27 | maxDD 0.038%
+t+  0:03 | legs 8 | funding +0.47 | fees -138.51 | REALISED-FIRST -138.04 | basisMTM -91.60 | net -229.64 | maxDD 0.038%
+t+  0:04 | legs 8 | funding +0.56 | fees -138.51 | REALISED-FIRST -137.95 | basisMTM -128.31 | net -266.26 | maxDD 0.038%
+t+  0:05 | legs 8 | funding +0.65 | fees -138.51 | REALISED-FIRST -137.86 | basisMTM -120.77 | net -258.63 | maxDD 0.038%
+t+  0:06 | legs 8 | funding +0.74 | fees -138.51 | REALISED-FIRST -137.77 | basisMTM -90.13 | net -227.90 | maxDD 0.038%
+t+  0:07 | legs 8 | funding +0.83 | fees -138.51 | REALISED-FIRST -137.68 | basisMTM -33.94 | net -171.61 | maxDD 0.038%
+t+  0:08 | legs 8 | funding +0.92 | fees -138.51 | REALISED-FIRST -137.59 | basisMTM -87.89 | net -225.47 | maxDD 0.038%
+t+  0:09 | legs 8 | funding +1.01 | fees -138.51 | REALISED-FIRST -137.50 | basisMTM -8.82 | net -146.32 | maxDD 0.038%
+t+  0:10 | legs 8 | funding +1.10 | fees -138.51 | REALISED-FIRST -137.41 | basisMTM -15.34 | net -152.75 | maxDD 0.038%
+t+  0:11 | legs 8 | funding +1.19 | fees -138.51 | REALISED-FIRST -137.32 | basisMTM -53.49 | net -190.81 | maxDD 0.038%
+t+  0:13 | legs 8 | funding +1.28 | fees -138.51 | REALISED-FIRST -137.23 | basisMTM -158.39 | net -295.62 | maxDD 0.038%
+t+  0:14 | legs 8 | funding +1.37 | fees -138.51 | REALISED-FIRST -137.14 | basisMTM -32.05 | net -169.20 | maxDD 0.038%
+t+  0:15 | legs 8 | funding +1.46 | fees -138.51 | REALISED-FIRST -137.05 | basisMTM -122.87 | net -259.92 | maxDD 0.038%
+t+  0:16 | legs 8 | funding +1.54 | fees -138.51 | REALISED-FIRST -136.97 | basisMTM -79.01 | net -215.97 | maxDD 0.038%
+t+  0:17 | legs 8 | funding +1.63 | fees -138.51 | REALISED-FIRST -136.88 | basisMTM -79.69 | net -216.57 | maxDD 0.038%
+t+  0:18 | legs 8 | funding +1.72 | fees -138.51 | REALISED-FIRST -136.79 | basisMTM -114.89 | net -251.67 | maxDD 0.038%
+t+  0:19 | legs 8 | funding +1.81 | fees -138.51 | REALISED-FIRST -136.70 | basisMTM -158.72 | net -295.42 | maxDD 0.038%
+t+  0:20 | legs 8 | funding +1.90 | fees -138.51 | REALISED-FIRST -136.61 | basisMTM -58.84 | net -195.46 | maxDD 0.038%
+t+  0:21 | legs 8 | funding +1.98 | fees -138.51 | REALISED-FIRST -136.53 | basisMTM -58.69 | net -195.21 | maxDD 0.038%
+t+  0:22 | legs 8 | funding +2.07 | fees -138.51 | REALISED-FIRST -136.44 | basisMTM -164.45 | net -300.89 | maxDD 0.038%
+t+  0:24 | legs 8 | funding +2.16 | fees -138.51 | REALISED-FIRST -136.35 | basisMTM -99.07 | net -235.42 | maxDD 0.038%
+t+  0:25 | legs 8 | funding +2.24 | fees -138.51 | REALISED-FIRST -136.27 | basisMTM -141.72 | net -277.99 | maxDD 0.038%
+t+  0:26 | legs 8 | funding +2.33 | fees -138.51 | REALISED-FIRST -136.18 | basisMTM -115.70 | net -251.87 | maxDD 0.038%
+t+  0:27 | legs 8 | funding +2.42 | fees -138.51 | REALISED-FIRST -136.09 | basisMTM -82.84 | net -218.93 | maxDD 0.038%
+t+  0:28 | legs 8 | funding +2.51 | fees -138.51 | REALISED-FIRST -136.00 | basisMTM -5.75 | net -141.75 | maxDD 0.038%
+t+  0:29 | legs 8 | funding +2.60 | fees -138.51 | REALISED-FIRST -135.91 | basisMTM -56.48 | net -192.40 | maxDD 0.038%
+t+  0:30 | legs 8 | funding +2.68 | fees -138.51 | REALISED-FIRST -135.83 | basisMTM -55.03 | net -190.85 | maxDD 0.038%
+t+  0:31 | legs 8 | funding +2.77 | fees -138.51 | REALISED-FIRST -135.74 | basisMTM -11.57 | net -147.31 | maxDD 0.038%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +0.38   -35.01      -34.63     +11.00       1%  0.6h
+  NEAR     SHORT_PERP        0.125     +0.37    -4.00       -3.62     +40.95       2%  0.6h
+  DYDX     SHORT_PERP        0.125     +0.36   -35.00      -34.64     +38.31       2%  0.6h
+  LINK     SHORT_PERP        0.125     +0.36   -17.50      -17.14     -27.04       1%  0.6h
+  AAVE     SHORT_PERP        0.125     +0.35   -21.50      -21.15     -38.66       1%  0.6h
+  XPL      SHORT_PERP        0.125     +0.34    -4.00       -3.66     +13.98       2%  0.6h
+  UNI      SHORT_PERP        0.076     +0.26    -4.00       -3.74     +18.53       1%  0.5h
+  PUMP     SHORT_PERP        0.125     +0.33   -17.50      -17.16     -68.63       5%  0.5h
+
+t+  0:32 | legs 8 | funding +2.86 | fees -138.51 | REALISED-FIRST -135.65 | basisMTM -52.19 | net -187.85 | maxDD 0.038%
+t+  0:33 | legs 8 | funding +2.94 | fees -138.51 | REALISED-FIRST -135.57 | basisMTM -205.06 | net -340.63 | maxDD 0.043%
+t+  0:34 | legs 8 | funding +3.03 | fees -138.51 | REALISED-FIRST -135.48 | basisMTM -113.00 | net -248.48 | maxDD 0.043%
+t+  0:36 | legs 8 | funding +3.12 | fees -138.51 | REALISED-FIRST -135.39 | basisMTM -50.67 | net -186.07 | maxDD 0.043%
+t+  0:37 | legs 8 | funding +3.20 | fees -138.51 | REALISED-FIRST -135.31 | basisMTM -201.18 | net -336.49 | maxDD 0.043%
+t+  0:38 | legs 8 | funding +3.29 | fees -138.51 | REALISED-FIRST -135.22 | basisMTM -129.17 | net -264.38 | maxDD 0.043%
+t+  0:39 | legs 8 | funding +3.38 | fees -138.51 | REALISED-FIRST -135.13 | basisMTM -79.21 | net -214.34 | maxDD 0.043%
+t+  0:40 | legs 8 | funding +3.46 | fees -138.51 | REALISED-FIRST -135.05 | basisMTM -150.49 | net -285.54 | maxDD 0.043%
+t+  0:41 | legs 8 | funding +3.55 | fees -138.51 | REALISED-FIRST -134.96 | basisMTM -81.09 | net -216.05 | maxDD 0.043%
+t+  0:42 | legs 8 | funding +3.64 | fees -138.51 | REALISED-FIRST -134.87 | basisMTM -125.16 | net -260.03 | maxDD 0.043%
+t+  0:43 | legs 8 | funding +3.73 | fees -138.51 | REALISED-FIRST -134.78 | basisMTM -133.67 | net -268.45 | maxDD 0.043%
+t+  0:44 | legs 8 | funding +3.82 | fees -138.51 | REALISED-FIRST -134.69 | basisMTM -159.10 | net -293.79 | maxDD 0.043%
+t+  0:45 | legs 8 | funding +3.91 | fees -138.51 | REALISED-FIRST -134.60 | basisMTM -120.01 | net -254.61 | maxDD 0.043%
+t+  0:47 | legs 8 | funding +4.00 | fees -138.51 | REALISED-FIRST -134.51 | basisMTM -100.70 | net -235.21 | maxDD 0.043%
+t+  0:48 | legs 8 | funding +4.09 | fees -138.51 | REALISED-FIRST -134.42 | basisMTM -158.47 | net -292.90 | maxDD 0.043%
+t+  0:49 | legs 8 | funding +4.18 | fees -138.51 | REALISED-FIRST -134.33 | basisMTM -79.90 | net -214.24 | maxDD 0.043%
+t+  0:50 | legs 8 | funding +4.27 | fees -138.51 | REALISED-FIRST -134.24 | basisMTM -4.34 | net -138.58 | maxDD 0.043%
+t+  0:51 | legs 8 | funding +4.36 | fees -138.51 | REALISED-FIRST -134.15 | basisMTM -159.40 | net -293.55 | maxDD 0.043%
+t+  0:52 | legs 8 | funding +4.45 | fees -138.51 | REALISED-FIRST -134.06 | basisMTM -55.65 | net -189.71 | maxDD 0.043%
+t+  0:53 | legs 8 | funding +4.54 | fees -138.51 | REALISED-FIRST -133.97 | basisMTM -127.61 | net -261.58 | maxDD 0.043%
+t+  0:54 | legs 8 | funding +4.62 | fees -138.51 | REALISED-FIRST -133.89 | basisMTM -114.58 | net -248.47 | maxDD 0.043%
+t+  0:55 | legs 8 | funding +4.71 | fees -138.51 | REALISED-FIRST -133.80 | basisMTM -110.32 | net -244.12 | maxDD 0.043%
+t+  0:56 | legs 8 | funding +4.80 | fees -138.51 | REALISED-FIRST -133.71 | basisMTM -114.36 | net -248.07 | maxDD 0.043%
+t+  0:58 | legs 8 | funding +4.88 | fees -138.51 | REALISED-FIRST -133.63 | basisMTM -41.28 | net -174.91 | maxDD 0.043%
+t+  0:59 | legs 8 | funding +4.97 | fees -138.51 | REALISED-FIRST -133.54 | basisMTM -37.22 | net -170.76 | maxDD 0.043%
+t+  1:00 | legs 8 | funding +5.05 | fees -138.51 | REALISED-FIRST -133.46 | basisMTM -104.82 | net -238.28 | maxDD 0.043%
+t+  1:01 | legs 8 | funding +5.14 | fees -138.51 | REALISED-FIRST -133.37 | basisMTM -311.63 | net -445.00 | maxDD 0.056%
+t+  1:02 | legs 8 | funding +5.23 | fees -138.51 | REALISED-FIRST -133.28 | basisMTM -56.19 | net -189.48 | maxDD 0.056%
+t+  1:03 | legs 8 | funding +5.31 | fees -138.51 | REALISED-FIRST -133.20 | basisMTM -39.38 | net -172.58 | maxDD 0.056%
+t+  1:04 | legs 8 | funding +5.40 | fees -138.51 | REALISED-FIRST -133.11 | basisMTM -99.44 | net -232.55 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +0.72   -35.01      -34.29      +3.14       2%  1.2h
+  NEAR     SHORT_PERP        0.125     +0.72    -4.00       -3.28     +10.57       1%  1.1h
+  DYDX     SHORT_PERP        0.125     +0.70   -35.00      -34.30      +0.00       5%  1.1h
+  LINK     SHORT_PERP        0.125     +0.70   -17.50      -16.80     -29.90       1%  1.1h
+  AAVE     SHORT_PERP        0.125     +0.69   -21.50      -20.80     -37.87       0%  1.1h
+  XPL      SHORT_PERP        0.125     +0.68    -4.00       -3.32      +6.15       2%  1.1h
+  UNI      SHORT_PERP        0.069     +0.49    -4.00       -3.51     +17.10       1%  1.1h
+  PUMP     SHORT_PERP        0.125     +0.68   -17.50      -16.81     -68.63       5%  1.1h
+
+t+  1:05 | legs 8 | funding +5.49 | fees -138.51 | REALISED-FIRST -133.02 | basisMTM -57.08 | net -190.11 | maxDD 0.056%
+t+  1:06 | legs 8 | funding +5.57 | fees -138.51 | REALISED-FIRST -132.94 | basisMTM -48.37 | net -181.31 | maxDD 0.056%
+t+  1:07 | legs 8 | funding +5.66 | fees -138.51 | REALISED-FIRST -132.85 | basisMTM -35.16 | net -168.01 | maxDD 0.056%
+t+  1:08 | legs 8 | funding +5.74 | fees -138.51 | REALISED-FIRST -132.77 | basisMTM -45.16 | net -177.93 | maxDD 0.056%
+t+  1:10 | legs 8 | funding +5.83 | fees -138.51 | REALISED-FIRST -132.68 | basisMTM -71.58 | net -204.27 | maxDD 0.056%
+t+  1:11 | legs 8 | funding +5.91 | fees -138.51 | REALISED-FIRST -132.60 | basisMTM -39.75 | net -172.34 | maxDD 0.056%
+t+  1:12 | legs 8 | funding +6.00 | fees -138.51 | REALISED-FIRST -132.51 | basisMTM -73.07 | net -205.58 | maxDD 0.056%
+t+  1:13 | legs 8 | funding +6.09 | fees -138.51 | REALISED-FIRST -132.42 | basisMTM -77.64 | net -210.06 | maxDD 0.056%
+t+  1:14 | legs 8 | funding +6.18 | fees -138.51 | REALISED-FIRST -132.33 | basisMTM -82.10 | net -214.43 | maxDD 0.056%
+t+  1:15 | legs 8 | funding +6.26 | fees -138.51 | REALISED-FIRST -132.25 | basisMTM -40.73 | net -172.97 | maxDD 0.056%
+t+  1:16 | legs 8 | funding +6.35 | fees -138.51 | REALISED-FIRST -132.16 | basisMTM -30.10 | net -162.25 | maxDD 0.056%
+t+  1:17 | legs 8 | funding +6.44 | fees -138.51 | REALISED-FIRST -132.07 | basisMTM -102.10 | net -234.17 | maxDD 0.056%
+t+  1:18 | legs 8 | funding +6.53 | fees -138.51 | REALISED-FIRST -131.98 | basisMTM -111.34 | net -243.32 | maxDD 0.056%
+t+  1:19 | legs 8 | funding +6.61 | fees -138.51 | REALISED-FIRST -131.90 | basisMTM -57.00 | net -188.90 | maxDD 0.056%
+t+  1:21 | legs 8 | funding +6.70 | fees -138.51 | REALISED-FIRST -131.81 | basisMTM +19.08 | net -112.73 | maxDD 0.056%
+t+  1:22 | legs 8 | funding +6.79 | fees -138.51 | REALISED-FIRST -131.72 | basisMTM -121.54 | net -253.26 | maxDD 0.056%
+t+  1:23 | legs 8 | funding +6.87 | fees -138.51 | REALISED-FIRST -131.64 | basisMTM -110.05 | net -241.68 | maxDD 0.056%
+t+  1:24 | legs 8 | funding +6.96 | fees -138.51 | REALISED-FIRST -131.55 | basisMTM -104.11 | net -235.65 | maxDD 0.056%
+t+  1:25 | legs 8 | funding +7.05 | fees -138.51 | REALISED-FIRST -131.46 | basisMTM -83.87 | net -215.33 | maxDD 0.056%
+t+  1:26 | legs 8 | funding +7.13 | fees -138.51 | REALISED-FIRST -131.38 | basisMTM -80.11 | net -211.49 | maxDD 0.056%
+t+  1:27 | legs 8 | funding +7.22 | fees -138.51 | REALISED-FIRST -131.29 | basisMTM -95.40 | net -226.68 | maxDD 0.056%
+t+  1:28 | legs 8 | funding +7.31 | fees -138.51 | REALISED-FIRST -131.20 | basisMTM -70.59 | net -201.79 | maxDD 0.056%
+t+  1:29 | legs 8 | funding +7.40 | fees -138.51 | REALISED-FIRST -131.11 | basisMTM -78.55 | net -209.67 | maxDD 0.056%
+t+  1:30 | legs 8 | funding +7.48 | fees -138.51 | REALISED-FIRST -131.03 | basisMTM -71.91 | net -202.93 | maxDD 0.056%
+t+  1:32 | legs 8 | funding +7.57 | fees -138.51 | REALISED-FIRST -130.94 | basisMTM -128.48 | net -259.42 | maxDD 0.056%
+t+  1:33 | legs 8 | funding +7.66 | fees -138.51 | REALISED-FIRST -130.85 | basisMTM -79.55 | net -210.41 | maxDD 0.056%
+t+  1:34 | legs 8 | funding +7.74 | fees -138.51 | REALISED-FIRST -130.76 | basisMTM -51.49 | net -182.25 | maxDD 0.056%
+t+  1:35 | legs 8 | funding +7.83 | fees -138.51 | REALISED-FIRST -130.68 | basisMTM -161.20 | net -291.88 | maxDD 0.056%
+t+  1:36 | legs 8 | funding +7.92 | fees -138.51 | REALISED-FIRST -130.59 | basisMTM -61.69 | net -192.28 | maxDD 0.056%
+t+  1:37 | legs 8 | funding +8.01 | fees -138.51 | REALISED-FIRST -130.50 | basisMTM -52.61 | net -183.11 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +1.06   -35.01      -33.95     -15.72       2%  1.7h
+  NEAR     SHORT_PERP        0.125     +1.07    -4.00       -2.93      +0.00       1%  1.7h
+  DYDX     SHORT_PERP        0.125     +1.04   -35.00      -33.96     +24.19       5%  1.7h
+  LINK     SHORT_PERP        0.125     +1.05   -17.50      -16.45     -20.68       0%  1.7h
+  AAVE     SHORT_PERP        0.125     +1.04   -21.50      -20.46     -34.69       1%  1.7h
+  XPL      SHORT_PERP        0.125     +1.03    -4.00       -2.97     +10.07       3%  1.7h
+  UNI      SHORT_PERP        0.073     +0.69    -4.00       -3.31     +18.53       1%  1.6h
+  PUMP     SHORT_PERP        0.125     +1.03   -17.50      -16.47     -34.32       4%  1.6h
+
+t+  1:38 | legs 8 | funding +8.09 | fees -138.51 | REALISED-FIRST -130.42 | basisMTM -100.37 | net -230.79 | maxDD 0.056%
+t+  1:39 | legs 8 | funding +8.18 | fees -138.51 | REALISED-FIRST -130.33 | basisMTM -115.01 | net -245.34 | maxDD 0.056%
+t+  1:40 | legs 8 | funding +8.26 | fees -138.51 | REALISED-FIRST -130.25 | basisMTM -78.37 | net -208.62 | maxDD 0.056%
+t+  1:41 | legs 8 | funding +8.35 | fees -138.51 | REALISED-FIRST -130.16 | basisMTM -110.93 | net -241.10 | maxDD 0.056%
+t+  1:42 | legs 8 | funding +8.43 | fees -138.51 | REALISED-FIRST -130.08 | basisMTM -160.96 | net -291.04 | maxDD 0.056%
+t+  1:44 | legs 8 | funding +8.52 | fees -138.51 | REALISED-FIRST -129.99 | basisMTM -116.75 | net -246.74 | maxDD 0.056%
+t+  1:45 | legs 8 | funding +8.59 | fees -138.51 | REALISED-FIRST -129.92 | basisMTM -48.25 | net -178.16 | maxDD 0.056%
+t+  1:46 | legs 8 | funding +8.67 | fees -138.51 | REALISED-FIRST -129.84 | basisMTM -69.30 | net -199.14 | maxDD 0.056%
+t+  1:47 | legs 8 | funding +8.75 | fees -138.51 | REALISED-FIRST -129.76 | basisMTM -100.60 | net -230.36 | maxDD 0.056%
+t+  1:48 | legs 8 | funding +8.83 | fees -138.51 | REALISED-FIRST -129.68 | basisMTM -119.83 | net -249.51 | maxDD 0.056%
+t+  1:49 | legs 8 | funding +8.92 | fees -138.51 | REALISED-FIRST -129.59 | basisMTM -67.24 | net -196.84 | maxDD 0.056%
+t+  1:50 | legs 8 | funding +9.00 | fees -138.51 | REALISED-FIRST -129.51 | basisMTM -81.89 | net -211.40 | maxDD 0.056%
+t+  1:51 | legs 8 | funding +9.08 | fees -138.51 | REALISED-FIRST -129.43 | basisMTM -113.67 | net -243.10 | maxDD 0.056%
+t+  1:52 | legs 8 | funding +9.16 | fees -138.51 | REALISED-FIRST -129.35 | basisMTM -84.93 | net -214.28 | maxDD 0.056%
+t+  1:53 | legs 8 | funding +9.24 | fees -138.51 | REALISED-FIRST -129.27 | basisMTM -6.26 | net -135.53 | maxDD 0.056%
+t+  1:54 | legs 8 | funding +9.32 | fees -138.51 | REALISED-FIRST -129.19 | basisMTM -75.10 | net -204.29 | maxDD 0.056%
+t+  1:56 | legs 8 | funding +9.40 | fees -138.51 | REALISED-FIRST -129.11 | basisMTM -62.13 | net -191.24 | maxDD 0.056%
+t+  1:57 | legs 8 | funding +9.48 | fees -138.51 | REALISED-FIRST -129.03 | basisMTM -61.84 | net -190.87 | maxDD 0.056%
+t+  1:58 | legs 8 | funding +9.56 | fees -138.51 | REALISED-FIRST -128.95 | basisMTM -63.10 | net -192.05 | maxDD 0.056%
+t+  1:59 | legs 8 | funding +9.64 | fees -138.51 | REALISED-FIRST -128.87 | basisMTM -4.27 | net -133.14 | maxDD 0.056%
+t+  2:00 | legs 8 | funding +9.72 | fees -138.51 | REALISED-FIRST -128.79 | basisMTM -51.47 | net -180.26 | maxDD 0.056%
+t+  2:01 | legs 8 | funding +9.80 | fees -138.51 | REALISED-FIRST -128.71 | basisMTM +19.70 | net -109.01 | maxDD 0.056%
+t+  2:02 | legs 8 | funding +9.87 | fees -138.51 | REALISED-FIRST -128.64 | basisMTM -101.87 | net -230.51 | maxDD 0.056%
+t+  2:03 | legs 8 | funding +9.95 | fees -138.51 | REALISED-FIRST -128.56 | basisMTM -37.63 | net -166.19 | maxDD 0.056%
+t+  2:04 | legs 8 | funding +10.03 | fees -138.51 | REALISED-FIRST -128.48 | basisMTM -17.32 | net -145.80 | maxDD 0.056%
+t+  2:05 | legs 8 | funding +10.11 | fees -138.51 | REALISED-FIRST -128.40 | basisMTM +7.46 | net -120.95 | maxDD 0.056%
+t+  2:06 | legs 8 | funding +10.18 | fees -138.51 | REALISED-FIRST -128.33 | basisMTM -48.85 | net -177.18 | maxDD 0.056%
+t+  2:08 | legs 8 | funding +10.26 | fees -138.51 | REALISED-FIRST -128.25 | basisMTM -21.44 | net -149.68 | maxDD 0.056%
+t+  2:09 | legs 8 | funding +10.34 | fees -138.51 | REALISED-FIRST -128.17 | basisMTM -36.82 | net -164.99 | maxDD 0.056%
+t+  2:10 | legs 8 | funding +10.42 | fees -138.51 | REALISED-FIRST -128.09 | basisMTM -92.95 | net -221.04 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +1.40   -35.01      -33.61      -3.14       1%  2.3h
+  NEAR     SHORT_PERP        0.125     +1.41    -4.00       -2.59      +7.92       1%  2.2h
+  DYDX     SHORT_PERP        0.125     +1.37   -35.00      -33.63     -52.42       7%  2.2h
+  LINK     SHORT_PERP        0.125     +1.39   -17.50      -16.11     -12.09       1%  2.2h
+  AAVE     SHORT_PERP        0.125     +1.38   -21.50      -20.12     -30.45       2%  2.2h
+  XPL      SHORT_PERP        0.125     +1.36    -4.00       -2.64     +12.30       4%  2.2h
+  UNI      SHORT_PERP       -0.007     +0.74    -4.00       -3.27     +19.24       2%  2.2h
+  PUMP     SHORT_PERP        0.125     +1.38   -17.50      -16.12     -34.32       5%  2.2h
+
+t+  2:11 | legs 8 | funding +10.50 | fees -138.51 | REALISED-FIRST -128.01 | basisMTM -32.52 | net -160.53 | maxDD 0.056%
+t+  2:12 | legs 8 | funding +10.58 | fees -138.51 | REALISED-FIRST -127.93 | basisMTM -59.35 | net -187.28 | maxDD 0.056%
+t+  2:13 | legs 8 | funding +10.65 | fees -138.51 | REALISED-FIRST -127.86 | basisMTM -13.68 | net -141.54 | maxDD 0.056%
+t+  2:14 | legs 8 | funding +10.73 | fees -138.51 | REALISED-FIRST -127.78 | basisMTM -103.35 | net -231.13 | maxDD 0.056%
+t+  2:15 | legs 8 | funding +10.81 | fees -138.51 | REALISED-FIRST -127.70 | basisMTM -80.97 | net -208.66 | maxDD 0.056%
+t+  2:16 | legs 8 | funding +10.90 | fees -138.51 | REALISED-FIRST -127.61 | basisMTM +39.06 | net -88.55 | maxDD 0.056%
+t+  2:17 | legs 8 | funding +10.98 | fees -138.51 | REALISED-FIRST -127.53 | basisMTM -30.61 | net -158.14 | maxDD 0.056%
+t+  2:18 | legs 8 | funding +11.06 | fees -138.51 | REALISED-FIRST -127.45 | basisMTM -39.78 | net -167.23 | maxDD 0.056%
+t+  2:19 | legs 8 | funding +11.14 | fees -138.51 | REALISED-FIRST -127.37 | basisMTM +25.19 | net -102.18 | maxDD 0.056%
+t+  2:21 | legs 8 | funding +11.22 | fees -138.51 | REALISED-FIRST -127.29 | basisMTM -58.22 | net -185.51 | maxDD 0.056%
+t+  2:22 | legs 8 | funding +11.30 | fees -138.51 | REALISED-FIRST -127.21 | basisMTM -66.96 | net -194.16 | maxDD 0.056%
+t+  2:23 | legs 8 | funding +11.38 | fees -138.51 | REALISED-FIRST -127.13 | basisMTM +56.41 | net -70.72 | maxDD 0.056%
+t+  2:24 | legs 8 | funding +11.47 | fees -138.51 | REALISED-FIRST -127.04 | basisMTM -34.58 | net -161.62 | maxDD 0.056%
+t+  2:25 | legs 8 | funding +11.55 | fees -138.51 | REALISED-FIRST -126.96 | basisMTM -5.27 | net -132.24 | maxDD 0.056%
+t+  2:26 | legs 8 | funding +11.63 | fees -138.51 | REALISED-FIRST -126.88 | basisMTM +22.17 | net -104.71 | maxDD 0.056%
+t+  2:27 | legs 8 | funding +11.71 | fees -138.51 | REALISED-FIRST -126.80 | basisMTM +57.78 | net -69.02 | maxDD 0.056%
+t+  2:28 | legs 8 | funding +11.79 | fees -138.51 | REALISED-FIRST -126.72 | basisMTM +18.51 | net -108.21 | maxDD 0.056%
+t+  2:29 | legs 8 | funding +11.87 | fees -138.51 | REALISED-FIRST -126.64 | basisMTM +157.33 | net +30.69 | maxDD 0.056%
+t+  2:30 | legs 8 | funding +11.96 | fees -138.51 | REALISED-FIRST -126.55 | basisMTM +26.51 | net -100.05 | maxDD 0.056%
+t+  2:32 | legs 8 | funding +12.04 | fees -138.51 | REALISED-FIRST -126.47 | basisMTM -41.79 | net -168.26 | maxDD 0.056%
+t+  2:33 | legs 8 | funding +12.13 | fees -138.51 | REALISED-FIRST -126.38 | basisMTM +8.29 | net -118.09 | maxDD 0.056%
+t+  2:34 | legs 8 | funding +12.21 | fees -138.51 | REALISED-FIRST -126.30 | basisMTM +17.08 | net -109.22 | maxDD 0.056%
+t+  2:35 | legs 8 | funding +12.29 | fees -138.51 | REALISED-FIRST -126.22 | basisMTM -2.68 | net -128.90 | maxDD 0.056%
+t+  2:36 | legs 8 | funding +12.38 | fees -138.51 | REALISED-FIRST -126.13 | basisMTM +57.74 | net -68.39 | maxDD 0.056%
+t+  2:37 | legs 8 | funding +12.46 | fees -138.51 | REALISED-FIRST -126.05 | basisMTM -50.90 | net -176.95 | maxDD 0.056%
+t+  2:38 | legs 8 | funding +12.55 | fees -138.51 | REALISED-FIRST -125.96 | basisMTM -14.82 | net -140.78 | maxDD 0.056%
+t+  2:39 | legs 8 | funding +12.63 | fees -138.51 | REALISED-FIRST -125.88 | basisMTM -83.29 | net -209.17 | maxDD 0.056%
+t+  2:40 | legs 8 | funding +12.71 | fees -138.51 | REALISED-FIRST -125.80 | basisMTM -28.71 | net -154.50 | maxDD 0.056%
+t+  2:41 | legs 8 | funding +12.80 | fees -138.51 | REALISED-FIRST -125.71 | basisMTM -70.28 | net -195.99 | maxDD 0.056%
+t+  2:42 | legs 8 | funding +12.89 | fees -138.51 | REALISED-FIRST -125.62 | basisMTM -19.15 | net -144.77 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +1.74   -35.01      -33.27     +28.29       2%  2.8h
+  NEAR     SHORT_PERP        0.125     +1.75    -4.00       -2.25     +38.30       1%  2.8h
+  DYDX     SHORT_PERP        0.125     +1.71   -35.00      -33.30     -40.32       7%  2.8h
+  LINK     SHORT_PERP        0.125     +1.73   -17.50      -15.77     -11.13       1%  2.8h
+  AAVE     SHORT_PERP        0.125     +1.71   -21.50      -19.78     -21.71       2%  2.7h
+  XPL      SHORT_PERP        0.125     +1.70    -4.00       -2.30     +32.44       5%  2.7h
+  UNI      SHORT_PERP        0.081     +0.83    -4.00       -3.17     -10.69       1%  2.7h
+  PUMP     SHORT_PERP        0.125     +1.72   -17.50      -15.78     -34.32       4%  2.7h
+
+t+  2:43 | legs 8 | funding +12.97 | fees -138.51 | REALISED-FIRST -125.54 | basisMTM +21.21 | net -104.32 | maxDD 0.056%
+t+  2:45 | legs 8 | funding +13.06 | fees -138.51 | REALISED-FIRST -125.45 | basisMTM -84.10 | net -209.55 | maxDD 0.056%
+t+  2:46 | legs 8 | funding +13.15 | fees -138.51 | REALISED-FIRST -125.36 | basisMTM -28.33 | net -153.70 | maxDD 0.056%
+t+  2:47 | legs 8 | funding +13.24 | fees -138.51 | REALISED-FIRST -125.27 | basisMTM -21.08 | net -146.35 | maxDD 0.056%
+t+  2:48 | legs 8 | funding +13.33 | fees -138.51 | REALISED-FIRST -125.18 | basisMTM -84.58 | net -209.76 | maxDD 0.056%
+t+  2:49 | legs 8 | funding +13.42 | fees -138.51 | REALISED-FIRST -125.09 | basisMTM +35.77 | net -89.32 | maxDD 0.056%
+t+  2:50 | legs 8 | funding +13.51 | fees -138.51 | REALISED-FIRST -125.00 | basisMTM -36.54 | net -161.54 | maxDD 0.056%
+t+  2:51 | legs 8 | funding +13.60 | fees -138.51 | REALISED-FIRST -124.91 | basisMTM +27.24 | net -97.67 | maxDD 0.056%
+t+  2:52 | legs 8 | funding +13.69 | fees -138.51 | REALISED-FIRST -124.82 | basisMTM +127.69 | net +2.87 | maxDD 0.056%
+t+  2:53 | legs 8 | funding +13.78 | fees -138.51 | REALISED-FIRST -124.73 | basisMTM -37.52 | net -162.25 | maxDD 0.056%
+t+  2:54 | legs 8 | funding +13.87 | fees -138.51 | REALISED-FIRST -124.64 | basisMTM -46.21 | net -170.85 | maxDD 0.056%
+t+  2:55 | legs 8 | funding +13.96 | fees -138.51 | REALISED-FIRST -124.55 | basisMTM -34.41 | net -158.96 | maxDD 0.056%
+t+  2:57 | legs 8 | funding +14.05 | fees -138.51 | REALISED-FIRST -124.46 | basisMTM -104.83 | net -229.29 | maxDD 0.056%
+t+  2:58 | legs 8 | funding +14.15 | fees -138.51 | REALISED-FIRST -124.36 | basisMTM -85.47 | net -209.84 | maxDD 0.056%
+t+  2:59 | legs 8 | funding +14.24 | fees -138.51 | REALISED-FIRST -124.27 | basisMTM -116.79 | net -241.06 | maxDD 0.056%
+t+  3:00 | legs 8 | funding +14.33 | fees -138.51 | REALISED-FIRST -124.18 | basisMTM -43.07 | net -167.25 | maxDD 0.056%
+t+  3:01 | legs 8 | funding +14.42 | fees -138.51 | REALISED-FIRST -124.09 | basisMTM -69.33 | net -193.42 | maxDD 0.056%
+t+  3:02 | legs 8 | funding +14.51 | fees -138.51 | REALISED-FIRST -124.00 | basisMTM -104.39 | net -228.39 | maxDD 0.056%
+t+  3:03 | legs 8 | funding +14.60 | fees -138.51 | REALISED-FIRST -123.91 | basisMTM -103.41 | net -227.32 | maxDD 0.056%
+t+  3:04 | legs 8 | funding +14.69 | fees -138.51 | REALISED-FIRST -123.82 | basisMTM -81.14 | net -204.96 | maxDD 0.056%
+t+  3:05 | legs 8 | funding +14.78 | fees -138.51 | REALISED-FIRST -123.73 | basisMTM -85.12 | net -208.84 | maxDD 0.056%
+t+  3:06 | legs 8 | funding +14.87 | fees -138.51 | REALISED-FIRST -123.64 | basisMTM -97.16 | net -220.80 | maxDD 0.056%
+t+  3:07 | legs 8 | funding +14.96 | fees -138.51 | REALISED-FIRST -123.55 | basisMTM -81.55 | net -205.10 | maxDD 0.056%
+t+  3:09 | legs 8 | funding +15.05 | fees -138.51 | REALISED-FIRST -123.46 | basisMTM -65.38 | net -188.84 | maxDD 0.056%
+t+  3:10 | legs 8 | funding +15.14 | fees -138.51 | REALISED-FIRST -123.37 | basisMTM -19.66 | net -143.03 | maxDD 0.056%
+t+  3:11 | legs 8 | funding +15.24 | fees -138.51 | REALISED-FIRST -123.27 | basisMTM -32.27 | net -155.55 | maxDD 0.056%
+t+  3:12 | legs 8 | funding +15.33 | fees -138.51 | REALISED-FIRST -123.18 | basisMTM -75.88 | net -199.06 | maxDD 0.056%
+t+  3:13 | legs 8 | funding +15.42 | fees -138.51 | REALISED-FIRST -123.09 | basisMTM +68.84 | net -54.25 | maxDD 0.056%
+t+  3:14 | legs 8 | funding +15.51 | fees -138.51 | REALISED-FIRST -123.00 | basisMTM -26.79 | net -149.79 | maxDD 0.056%
+t+  3:15 | legs 8 | funding +15.60 | fees -138.51 | REALISED-FIRST -122.91 | basisMTM -97.39 | net -220.30 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +2.08   -35.01      -32.93      +1.57       1%  3.3h
+  NEAR     SHORT_PERP        0.125     +2.09    -4.00       -1.91     +17.17       0%  3.3h
+  DYDX     SHORT_PERP        0.125     +2.04   -35.00      -32.96     -16.13       7%  3.3h
+  LINK     SHORT_PERP        0.125     +2.07   -17.50      -15.43     -19.40       0%  3.3h
+  AAVE     SHORT_PERP        0.125     +2.05   -21.50      -19.44     -36.28       1%  3.3h
+  XPL      SHORT_PERP        0.125     +2.03    -4.00       -1.97     +17.90       3%  3.3h
+  UNI      SHORT_PERP        0.125     +1.17    -4.00       -2.83      +6.41       1%  3.3h
+  PUMP     SHORT_PERP        0.125     +2.07   -17.50      -15.43     -68.63       5%  3.3h
+
+t+  3:16 | legs 8 | funding +15.69 | fees -138.51 | REALISED-FIRST -122.82 | basisMTM -119.18 | net -241.99 | maxDD 0.056%
+t+  3:17 | legs 8 | funding +15.79 | fees -138.51 | REALISED-FIRST -122.72 | basisMTM -136.27 | net -258.99 | maxDD 0.056%
+t+  3:19 | legs 8 | funding +15.88 | fees -138.51 | REALISED-FIRST -122.63 | basisMTM -161.29 | net -283.92 | maxDD 0.056%
+t+  3:20 | legs 8 | funding +15.97 | fees -138.51 | REALISED-FIRST -122.54 | basisMTM -122.61 | net -245.15 | maxDD 0.056%
+t+  3:21 | legs 8 | funding +16.06 | fees -138.51 | REALISED-FIRST -122.45 | basisMTM -87.43 | net -209.88 | maxDD 0.056%
+t+  3:22 | legs 8 | funding +16.15 | fees -138.51 | REALISED-FIRST -122.36 | basisMTM -73.46 | net -195.82 | maxDD 0.056%
+t+  3:23 | legs 8 | funding +16.24 | fees -138.51 | REALISED-FIRST -122.27 | basisMTM -180.60 | net -302.87 | maxDD 0.056%
+t+  3:24 | legs 8 | funding +16.33 | fees -138.51 | REALISED-FIRST -122.18 | basisMTM -135.07 | net -257.24 | maxDD 0.056%
+t+  3:25 | legs 8 | funding +16.43 | fees -138.51 | REALISED-FIRST -122.08 | basisMTM -193.10 | net -315.19 | maxDD 0.056%
+t+  3:26 | legs 8 | funding +16.52 | fees -138.51 | REALISED-FIRST -121.99 | basisMTM -134.69 | net -256.68 | maxDD 0.056%
+t+  3:27 | legs 8 | funding +16.61 | fees -138.51 | REALISED-FIRST -121.90 | basisMTM -121.64 | net -243.54 | maxDD 0.056%
+t+  3:28 | legs 8 | funding +16.70 | fees -138.51 | REALISED-FIRST -121.81 | basisMTM -93.16 | net -214.97 | maxDD 0.056%
+t+  3:30 | legs 8 | funding +16.79 | fees -138.51 | REALISED-FIRST -121.72 | basisMTM -166.51 | net -288.22 | maxDD 0.056%
+t+  3:31 | legs 8 | funding +16.88 | fees -138.51 | REALISED-FIRST -121.63 | basisMTM -77.83 | net -199.45 | maxDD 0.056%
+t+  3:32 | legs 8 | funding +16.97 | fees -138.51 | REALISED-FIRST -121.54 | basisMTM -46.01 | net -167.54 | maxDD 0.056%
+t+  3:33 | legs 8 | funding +17.06 | fees -138.51 | REALISED-FIRST -121.45 | basisMTM -50.03 | net -171.47 | maxDD 0.056%
+t+  3:34 | legs 8 | funding +17.15 | fees -138.51 | REALISED-FIRST -121.36 | basisMTM -62.13 | net -183.48 | maxDD 0.056%
+t+  3:35 | legs 8 | funding +17.25 | fees -138.51 | REALISED-FIRST -121.26 | basisMTM -84.34 | net -205.60 | maxDD 0.056%
+t+  3:36 | legs 8 | funding +17.34 | fees -138.51 | REALISED-FIRST -121.17 | basisMTM -95.26 | net -216.43 | maxDD 0.056%
+t+  3:37 | legs 8 | funding +17.43 | fees -138.51 | REALISED-FIRST -121.08 | basisMTM -99.79 | net -220.87 | maxDD 0.056%
+t+  3:38 | legs 8 | funding +17.52 | fees -138.51 | REALISED-FIRST -120.99 | basisMTM -116.65 | net -237.64 | maxDD 0.056%
+t+  3:39 | legs 8 | funding +17.61 | fees -138.51 | REALISED-FIRST -120.90 | basisMTM -138.85 | net -259.75 | maxDD 0.056%
+t+  3:40 | legs 8 | funding +17.70 | fees -138.51 | REALISED-FIRST -120.81 | basisMTM -108.82 | net -229.62 | maxDD 0.056%
+t+  3:42 | legs 8 | funding +17.79 | fees -138.51 | REALISED-FIRST -120.72 | basisMTM -135.44 | net -256.15 | maxDD 0.056%
+t+  3:43 | legs 8 | funding +17.88 | fees -138.51 | REALISED-FIRST -120.63 | basisMTM -76.64 | net -197.27 | maxDD 0.056%
+t+  3:44 | legs 8 | funding +17.97 | fees -138.51 | REALISED-FIRST -120.54 | basisMTM -119.61 | net -240.15 | maxDD 0.056%
+t+  3:45 | legs 8 | funding +18.07 | fees -138.51 | REALISED-FIRST -120.44 | basisMTM -176.24 | net -296.68 | maxDD 0.056%
+t+  3:46 | legs 8 | funding +18.16 | fees -138.51 | REALISED-FIRST -120.35 | basisMTM -123.34 | net -243.69 | maxDD 0.056%
+t+  3:47 | legs 8 | funding +18.25 | fees -138.51 | REALISED-FIRST -120.26 | basisMTM -112.48 | net -232.74 | maxDD 0.056%
+t+  3:48 | legs 8 | funding +18.34 | fees -138.51 | REALISED-FIRST -120.17 | basisMTM -11.34 | net -131.51 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +2.42   -35.01      -32.59     +40.86       0%  3.9h
+  NEAR     SHORT_PERP        0.125     +2.43    -4.00       -1.57     +29.06       1%  3.9h
+  DYDX     SHORT_PERP        0.125     +2.38   -35.00      -32.63     +14.11       8%  3.9h
+  LINK     SHORT_PERP        0.125     +2.41   -17.50      -15.09     -34.04       1%  3.9h
+  AAVE     SHORT_PERP        0.125     +2.40   -21.50      -19.10     -39.99       2%  3.8h
+  XPL      SHORT_PERP        0.125     +2.37    -4.00       -1.63      +7.27       4%  3.8h
+  UNI      SHORT_PERP        0.125     +1.52    -4.00       -2.49      +5.70       0%  3.8h
+  PUMP     SHORT_PERP        0.125     +2.41   -17.50      -15.08     -34.32       3%  3.8h
+
+t+  3:49 | legs 8 | funding +18.43 | fees -138.51 | REALISED-FIRST -120.08 | basisMTM -44.58 | net -164.67 | maxDD 0.056%
+t+  3:50 | legs 8 | funding +18.52 | fees -138.51 | REALISED-FIRST -119.99 | basisMTM -88.44 | net -208.43 | maxDD 0.056%
+t+  3:51 | legs 8 | funding +18.61 | fees -138.51 | REALISED-FIRST -119.90 | basisMTM -2.87 | net -122.77 | maxDD 0.056%
+t+  3:53 | legs 8 | funding +18.70 | fees -138.51 | REALISED-FIRST -119.81 | basisMTM -79.82 | net -199.63 | maxDD 0.056%
+t+  3:54 | legs 8 | funding +18.79 | fees -138.51 | REALISED-FIRST -119.72 | basisMTM -56.15 | net -175.87 | maxDD 0.056%
+t+  3:55 | legs 8 | funding +18.88 | fees -138.51 | REALISED-FIRST -119.63 | basisMTM -69.54 | net -189.17 | maxDD 0.056%
+t+  3:56 | legs 8 | funding +18.97 | fees -138.51 | REALISED-FIRST -119.54 | basisMTM -38.86 | net -158.40 | maxDD 0.056%
+t+  3:57 | legs 8 | funding +19.07 | fees -138.51 | REALISED-FIRST -119.44 | basisMTM -61.89 | net -181.34 | maxDD 0.056%
+t+  3:58 | legs 8 | funding +19.16 | fees -138.51 | REALISED-FIRST -119.35 | basisMTM -83.97 | net -203.32 | maxDD 0.056%
+t+  3:59 | legs 8 | funding +19.25 | fees -138.51 | REALISED-FIRST -119.26 | basisMTM +12.91 | net -106.35 | maxDD 0.056%
+t+  4:00 | legs 8 | funding +19.34 | fees -138.51 | REALISED-FIRST -119.17 | basisMTM -58.27 | net -177.44 | maxDD 0.056%
+t+  4:01 | legs 8 | funding +19.43 | fees -138.51 | REALISED-FIRST -119.08 | basisMTM -28.38 | net -147.46 | maxDD 0.056%
+t+  4:02 | legs 8 | funding +19.52 | fees -138.51 | REALISED-FIRST -118.99 | basisMTM +6.69 | net -112.30 | maxDD 0.056%
+t+  4:03 | legs 8 | funding +19.61 | fees -138.51 | REALISED-FIRST -118.90 | basisMTM -55.51 | net -174.41 | maxDD 0.056%
+t+  4:05 | legs 8 | funding +19.70 | fees -138.51 | REALISED-FIRST -118.81 | basisMTM -133.38 | net -252.18 | maxDD 0.056%
+t+  4:06 | legs 8 | funding +19.79 | fees -138.51 | REALISED-FIRST -118.72 | basisMTM -74.21 | net -192.93 | maxDD 0.056%
+t+  4:07 | legs 8 | funding +19.88 | fees -138.51 | REALISED-FIRST -118.63 | basisMTM -8.10 | net -126.73 | maxDD 0.056%
+t+  4:08 | legs 8 | funding +19.97 | fees -138.51 | REALISED-FIRST -118.54 | basisMTM -85.06 | net -203.60 | maxDD 0.056%
+t+  4:09 | legs 8 | funding +20.07 | fees -138.51 | REALISED-FIRST -118.44 | basisMTM -69.41 | net -187.85 | maxDD 0.056%
+t+  4:10 | legs 8 | funding +20.16 | fees -138.51 | REALISED-FIRST -118.35 | basisMTM -14.99 | net -133.34 | maxDD 0.056%
+t+  4:11 | legs 8 | funding +20.25 | fees -138.51 | REALISED-FIRST -118.26 | basisMTM +34.90 | net -83.36 | maxDD 0.056%
+t+  4:12 | legs 8 | funding +20.34 | fees -138.51 | REALISED-FIRST -118.17 | basisMTM -15.62 | net -133.79 | maxDD 0.056%
+t+  4:13 | legs 8 | funding +20.43 | fees -138.51 | REALISED-FIRST -118.08 | basisMTM -40.22 | net -158.30 | maxDD 0.056%
+t+  4:14 | legs 8 | funding +20.52 | fees -138.51 | REALISED-FIRST -117.99 | basisMTM -32.82 | net -150.81 | maxDD 0.056%
+t+  4:15 | legs 8 | funding +20.61 | fees -138.51 | REALISED-FIRST -117.90 | basisMTM -89.46 | net -207.36 | maxDD 0.056%
+t+  4:17 | legs 8 | funding +20.70 | fees -138.51 | REALISED-FIRST -117.81 | basisMTM -83.38 | net -201.18 | maxDD 0.056%
+t+  4:18 | legs 8 | funding +20.79 | fees -138.51 | REALISED-FIRST -117.72 | basisMTM -27.80 | net -145.52 | maxDD 0.056%
+t+  4:19 | legs 8 | funding +20.88 | fees -138.51 | REALISED-FIRST -117.63 | basisMTM -15.99 | net -133.62 | maxDD 0.056%
+t+  4:20 | legs 8 | funding +20.97 | fees -138.51 | REALISED-FIRST -117.54 | basisMTM -28.73 | net -146.26 | maxDD 0.056%
+t+  4:21 | legs 8 | funding +21.07 | fees -138.51 | REALISED-FIRST -117.44 | basisMTM +16.56 | net -100.88 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +2.76   -35.01      -32.25     +17.29       0%  4.4h
+  NEAR     SHORT_PERP        0.125     +2.77    -4.00       -1.22     +40.95       3%  4.4h
+  DYDX     SHORT_PERP        0.125     +2.71   -35.00      -32.29      -8.06       7%  4.4h
+  LINK     SHORT_PERP        0.125     +2.75   -17.50      -14.75     -31.17       0%  4.4h
+  AAVE     SHORT_PERP        0.125     +2.74   -21.50      -18.76     -30.45       1%  4.4h
+  XPL      SHORT_PERP        0.125     +2.71    -4.00       -1.29     +25.17       1%  4.4h
+  UNI      SHORT_PERP        0.125     +1.86    -4.00       -2.14      +2.85       3%  4.4h
+  PUMP     SHORT_PERP        0.125     +2.76   -17.50      -14.74      +0.00       3%  4.4h
+
+t+  4:22 | legs 8 | funding +21.16 | fees -138.51 | REALISED-FIRST -117.35 | basisMTM -37.39 | net -154.75 | maxDD 0.056%
+t+  4:23 | legs 8 | funding +21.25 | fees -138.51 | REALISED-FIRST -117.26 | basisMTM -50.18 | net -167.44 | maxDD 0.056%
+t+  4:24 | legs 8 | funding +21.34 | fees -138.51 | REALISED-FIRST -117.17 | basisMTM +16.13 | net -101.04 | maxDD 0.056%
+t+  4:25 | legs 8 | funding +21.43 | fees -138.51 | REALISED-FIRST -117.08 | basisMTM -42.26 | net -159.34 | maxDD 0.056%
+t+  4:26 | legs 8 | funding +21.52 | fees -138.51 | REALISED-FIRST -116.99 | basisMTM -79.71 | net -196.70 | maxDD 0.056%
+t+  4:28 | legs 8 | funding +21.61 | fees -138.51 | REALISED-FIRST -116.90 | basisMTM -23.85 | net -140.75 | maxDD 0.056%
+t+  4:29 | legs 8 | funding +21.70 | fees -138.51 | REALISED-FIRST -116.81 | basisMTM -51.29 | net -168.10 | maxDD 0.056%
+t+  4:30 | legs 8 | funding +21.79 | fees -138.51 | REALISED-FIRST -116.72 | basisMTM -4.52 | net -121.23 | maxDD 0.056%
+t+  4:31 | legs 8 | funding +21.89 | fees -138.51 | REALISED-FIRST -116.62 | basisMTM -13.31 | net -129.94 | maxDD 0.056%
+t+  4:32 | legs 8 | funding +21.98 | fees -138.51 | REALISED-FIRST -116.53 | basisMTM -19.22 | net -135.76 | maxDD 0.056%
+t+  4:33 | legs 8 | funding +22.07 | fees -138.51 | REALISED-FIRST -116.44 | basisMTM -38.51 | net -154.95 | maxDD 0.056%
+t+  4:34 | legs 8 | funding +22.16 | fees -138.51 | REALISED-FIRST -116.35 | basisMTM -40.81 | net -157.16 | maxDD 0.056%
+t+  4:35 | legs 8 | funding +22.25 | fees -138.51 | REALISED-FIRST -116.26 | basisMTM +50.50 | net -65.76 | maxDD 0.056%
+t+  4:36 | legs 8 | funding +22.35 | fees -138.51 | REALISED-FIRST -116.16 | basisMTM -7.20 | net -123.37 | maxDD 0.056%
+t+  4:37 | legs 8 | funding +22.44 | fees -138.51 | REALISED-FIRST -116.07 | basisMTM -0.88 | net -116.95 | maxDD 0.056%
+t+  4:38 | legs 8 | funding +22.53 | fees -138.51 | REALISED-FIRST -115.98 | basisMTM -32.72 | net -148.70 | maxDD 0.056%
+t+  4:40 | legs 8 | funding +22.62 | fees -138.51 | REALISED-FIRST -115.89 | basisMTM -76.61 | net -192.50 | maxDD 0.056%
+t+  4:41 | legs 8 | funding +22.71 | fees -138.51 | REALISED-FIRST -115.80 | basisMTM +61.20 | net -54.60 | maxDD 0.056%
+t+  4:42 | legs 8 | funding +22.80 | fees -138.51 | REALISED-FIRST -115.71 | basisMTM -40.10 | net -155.81 | maxDD 0.056%
+t+  4:43 | legs 8 | funding +22.89 | fees -138.51 | REALISED-FIRST -115.62 | basisMTM -47.19 | net -162.80 | maxDD 0.056%
+t+  4:44 | legs 8 | funding +22.98 | fees -138.51 | REALISED-FIRST -115.53 | basisMTM -62.47 | net -177.99 | maxDD 0.056%
+t+  4:45 | legs 8 | funding +23.08 | fees -138.51 | REALISED-FIRST -115.43 | basisMTM -34.23 | net -149.66 | maxDD 0.056%
+t+  4:46 | legs 8 | funding +23.17 | fees -138.51 | REALISED-FIRST -115.34 | basisMTM -78.28 | net -193.63 | maxDD 0.056%
+t+  4:47 | legs 8 | funding +23.26 | fees -138.51 | REALISED-FIRST -115.25 | basisMTM -77.11 | net -192.36 | maxDD 0.056%
+t+  4:48 | legs 8 | funding +23.35 | fees -138.51 | REALISED-FIRST -115.16 | basisMTM -155.82 | net -270.98 | maxDD 0.056%
+t+  4:49 | legs 8 | funding +23.44 | fees -138.51 | REALISED-FIRST -115.07 | basisMTM -50.75 | net -165.82 | maxDD 0.056%
+t+  4:51 | legs 8 | funding +23.54 | fees -138.51 | REALISED-FIRST -114.97 | basisMTM -137.96 | net -252.94 | maxDD 0.056%
+t+  4:52 | legs 8 | funding +23.63 | fees -138.51 | REALISED-FIRST -114.88 | basisMTM -159.42 | net -274.30 | maxDD 0.056%
+t+  4:53 | legs 8 | funding +23.72 | fees -138.51 | REALISED-FIRST -114.79 | basisMTM -147.09 | net -261.88 | maxDD 0.056%
+t+  4:54 | legs 8 | funding +23.81 | fees -138.51 | REALISED-FIRST -114.70 | basisMTM -75.42 | net -190.12 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +3.11   -35.01      -31.90      +4.71       0%  5.0h
+  NEAR     SHORT_PERP        0.125     +3.12    -4.00       -0.88      +9.25       5%  5.0h
+  DYDX     SHORT_PERP        0.125     +3.04   -35.00      -31.96     -22.18       7%  5.0h
+  LINK     SHORT_PERP        0.125     +3.09   -17.50      -14.41     -28.31       1%  5.0h
+  AAVE     SHORT_PERP        0.125     +3.08   -21.50      -18.42     -33.37       1%  4.9h
+  XPL      SHORT_PERP        0.125     +3.05    -4.00       -0.95     +22.37       1%  4.9h
+  UNI      SHORT_PERP        0.125     +2.21    -4.00       -1.80      +6.41       3%  4.9h
+  PUMP     SHORT_PERP        0.125     +3.11   -17.50      -14.39     -34.32       6%  4.9h
+
+t+  4:55 | legs 8 | funding +23.90 | fees -138.51 | REALISED-FIRST -114.61 | basisMTM -6.78 | net -121.39 | maxDD 0.056%
+t+  4:56 | legs 8 | funding +23.99 | fees -138.51 | REALISED-FIRST -114.52 | basisMTM -169.81 | net -284.33 | maxDD 0.056%
+t+  4:57 | legs 8 | funding +24.09 | fees -138.51 | REALISED-FIRST -114.42 | basisMTM -68.27 | net -182.69 | maxDD 0.056%
+t+  4:58 | legs 8 | funding +24.18 | fees -138.51 | REALISED-FIRST -114.33 | basisMTM -149.24 | net -263.57 | maxDD 0.056%
+t+  4:59 | legs 8 | funding +24.27 | fees -138.51 | REALISED-FIRST -114.24 | basisMTM -30.87 | net -145.11 | maxDD 0.056%
+t+  5:00 | legs 8 | funding +24.36 | fees -138.51 | REALISED-FIRST -114.15 | basisMTM -110.90 | net -225.05 | maxDD 0.056%
+t+  5:01 | legs 8 | funding +24.45 | fees -138.51 | REALISED-FIRST -114.06 | basisMTM -157.26 | net -271.32 | maxDD 0.056%
+t+  5:03 | legs 8 | funding +24.55 | fees -138.51 | REALISED-FIRST -113.96 | basisMTM -80.10 | net -194.07 | maxDD 0.056%
+t+  5:04 | legs 8 | funding +24.64 | fees -138.51 | REALISED-FIRST -113.87 | basisMTM -36.36 | net -150.23 | maxDD 0.056%
+t+  5:05 | legs 8 | funding +24.73 | fees -138.51 | REALISED-FIRST -113.78 | basisMTM -126.70 | net -240.48 | maxDD 0.056%
+t+  5:06 | legs 8 | funding +24.82 | fees -138.51 | REALISED-FIRST -113.69 | basisMTM -134.92 | net -248.61 | maxDD 0.056%
+t+  5:07 | legs 8 | funding +24.91 | fees -138.51 | REALISED-FIRST -113.60 | basisMTM -16.20 | net -129.79 | maxDD 0.056%
+t+  5:08 | legs 8 | funding +25.00 | fees -138.51 | REALISED-FIRST -113.51 | basisMTM -107.56 | net -221.07 | maxDD 0.056%
+t+  5:09 | legs 8 | funding +25.10 | fees -138.51 | REALISED-FIRST -113.41 | basisMTM -72.62 | net -186.04 | maxDD 0.056%
+t+  5:10 | legs 8 | funding +25.19 | fees -138.51 | REALISED-FIRST -113.32 | basisMTM -178.90 | net -292.22 | maxDD 0.056%
+t+  5:11 | legs 8 | funding +25.28 | fees -138.51 | REALISED-FIRST -113.23 | basisMTM -109.85 | net -223.07 | maxDD 0.056%
+t+  5:12 | legs 8 | funding +25.37 | fees -138.51 | REALISED-FIRST -113.14 | basisMTM -165.57 | net -278.70 | maxDD 0.056%
+t+  5:14 | legs 8 | funding +25.47 | fees -138.51 | REALISED-FIRST -113.04 | basisMTM -110.94 | net -223.98 | maxDD 0.056%
+t+  5:15 | legs 8 | funding +25.56 | fees -138.51 | REALISED-FIRST -112.95 | basisMTM -98.57 | net -211.52 | maxDD 0.056%
+t+  5:16 | legs 8 | funding +25.65 | fees -138.51 | REALISED-FIRST -112.86 | basisMTM -115.87 | net -228.73 | maxDD 0.056%
+t+  5:17 | legs 8 | funding +25.74 | fees -138.51 | REALISED-FIRST -112.77 | basisMTM -74.99 | net -187.76 | maxDD 0.056%
+t+  5:18 | legs 8 | funding +25.83 | fees -138.51 | REALISED-FIRST -112.68 | basisMTM -37.90 | net -150.57 | maxDD 0.056%
+t+  5:19 | legs 8 | funding +25.93 | fees -138.51 | REALISED-FIRST -112.58 | basisMTM -100.37 | net -212.95 | maxDD 0.056%
+t+  5:20 | legs 8 | funding +26.02 | fees -138.51 | REALISED-FIRST -112.49 | basisMTM -85.84 | net -198.33 | maxDD 0.056%
+t+  5:21 | legs 8 | funding +26.11 | fees -138.51 | REALISED-FIRST -112.40 | basisMTM -57.97 | net -170.37 | maxDD 0.056%
+t+  5:22 | legs 8 | funding +26.20 | fees -138.51 | REALISED-FIRST -112.31 | basisMTM +51.17 | net -61.13 | maxDD 0.056%
+t+  5:23 | legs 8 | funding +26.30 | fees -138.51 | REALISED-FIRST -112.21 | basisMTM +1.61 | net -110.60 | maxDD 0.056%
+t+  5:25 | legs 8 | funding +26.39 | fees -138.51 | REALISED-FIRST -112.12 | basisMTM -13.51 | net -125.63 | maxDD 0.056%
+t+  5:26 | legs 8 | funding +26.48 | fees -138.51 | REALISED-FIRST -112.03 | basisMTM +21.62 | net -90.41 | maxDD 0.056%
+t+  5:27 | legs 8 | funding +26.57 | fees -138.51 | REALISED-FIRST -111.94 | basisMTM -101.86 | net -213.79 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +3.45   -35.01      -31.56     +23.57       0%  5.5h
+  NEAR     SHORT_PERP        0.125     +3.47    -4.00       -0.53      -2.64       7%  5.5h
+  DYDX     SHORT_PERP        0.125     +3.38   -35.00      -31.62     -22.18       3%  5.5h
+  LINK     SHORT_PERP        0.125     +3.44   -17.50      -14.06     -28.95       2%  5.5h
+  AAVE     SHORT_PERP        0.125     +3.42   -21.50      -18.07     -47.93       2%  5.5h
+  XPL      SHORT_PERP        0.125     +3.40    -4.00       -0.60      +5.59       1%  5.5h
+  UNI      SHORT_PERP        0.125     +2.56    -4.00       -1.45      +4.99       5%  5.5h
+  PUMP     SHORT_PERP        0.125     +3.46   -17.50      -14.04     -34.32       5%  5.5h
+
+t+  5:28 | legs 8 | funding +26.67 | fees -138.51 | REALISED-FIRST -111.84 | basisMTM -36.47 | net -148.31 | maxDD 0.056%
+t+  5:29 | legs 8 | funding +26.76 | fees -138.51 | REALISED-FIRST -111.75 | basisMTM -46.69 | net -158.45 | maxDD 0.056%
+t+  5:30 | legs 8 | funding +26.85 | fees -138.51 | REALISED-FIRST -111.66 | basisMTM -79.02 | net -190.68 | maxDD 0.056%
+t+  5:31 | legs 8 | funding +26.94 | fees -138.51 | REALISED-FIRST -111.57 | basisMTM -67.52 | net -179.09 | maxDD 0.056%
+t+  5:32 | legs 8 | funding +27.03 | fees -138.51 | REALISED-FIRST -111.48 | basisMTM -29.26 | net -140.74 | maxDD 0.056%
+t+  5:33 | legs 8 | funding +27.12 | fees -138.51 | REALISED-FIRST -111.39 | basisMTM -147.27 | net -258.66 | maxDD 0.056%
+t+  5:34 | legs 8 | funding +27.22 | fees -138.51 | REALISED-FIRST -111.29 | basisMTM -13.63 | net -124.92 | maxDD 0.056%
+t+  5:36 | legs 8 | funding +27.31 | fees -138.51 | REALISED-FIRST -111.20 | basisMTM -21.08 | net -132.28 | maxDD 0.056%
+t+  5:37 | legs 8 | funding +27.40 | fees -138.51 | REALISED-FIRST -111.11 | basisMTM -55.15 | net -166.26 | maxDD 0.056%
+t+  5:38 | legs 8 | funding +27.50 | fees -138.51 | REALISED-FIRST -111.01 | basisMTM -117.48 | net -228.49 | maxDD 0.056%
+t+  5:39 | legs 8 | funding +27.59 | fees -138.51 | REALISED-FIRST -110.92 | basisMTM -136.14 | net -247.06 | maxDD 0.056%
+t+  5:40 | legs 8 | funding +27.68 | fees -138.51 | REALISED-FIRST -110.83 | basisMTM -43.99 | net -154.82 | maxDD 0.056%
+t+  5:41 | legs 8 | funding +27.77 | fees -138.51 | REALISED-FIRST -110.74 | basisMTM -78.00 | net -188.74 | maxDD 0.056%
+t+  5:42 | legs 8 | funding +27.87 | fees -138.51 | REALISED-FIRST -110.64 | basisMTM -57.34 | net -167.98 | maxDD 0.056%
+t+  5:43 | legs 8 | funding +27.96 | fees -138.51 | REALISED-FIRST -110.55 | basisMTM -65.60 | net -176.15 | maxDD 0.056%
+t+  5:44 | legs 8 | funding +28.02 | fees -138.51 | REALISED-FIRST -110.49 | basisMTM -108.28 | net -218.77 | maxDD 0.056%
+t+  5:45 | legs 8 | funding +28.10 | fees -138.51 | REALISED-FIRST -110.41 | basisMTM -102.54 | net -212.95 | maxDD 0.056%
+t+  5:46 | legs 8 | funding +28.19 | fees -138.51 | REALISED-FIRST -110.32 | basisMTM -105.48 | net -215.80 | maxDD 0.056%
+t+  5:48 | legs 8 | funding +28.28 | fees -138.51 | REALISED-FIRST -110.23 | basisMTM -65.45 | net -175.68 | maxDD 0.056%
+t+  5:49 | legs 8 | funding +28.37 | fees -138.51 | REALISED-FIRST -110.14 | basisMTM -50.76 | net -160.90 | maxDD 0.056%
+t+  5:50 | legs 8 | funding +28.46 | fees -138.51 | REALISED-FIRST -110.05 | basisMTM -135.47 | net -245.52 | maxDD 0.056%
+t+  5:51 | legs 8 | funding +28.55 | fees -138.51 | REALISED-FIRST -109.96 | basisMTM -177.84 | net -287.80 | maxDD 0.056%
+t+  5:52 | legs 8 | funding +28.64 | fees -138.51 | REALISED-FIRST -109.87 | basisMTM -68.33 | net -178.19 | maxDD 0.056%
+t+  5:53 | legs 8 | funding +28.73 | fees -138.51 | REALISED-FIRST -109.78 | basisMTM -48.62 | net -158.40 | maxDD 0.056%
+t+  5:54 | legs 8 | funding +28.82 | fees -138.51 | REALISED-FIRST -109.69 | basisMTM -147.71 | net -257.41 | maxDD 0.056%
+t+  5:55 | legs 8 | funding +28.90 | fees -138.51 | REALISED-FIRST -109.61 | basisMTM -157.78 | net -267.38 | maxDD 0.056%
+t+  5:56 | legs 8 | funding +28.99 | fees -138.51 | REALISED-FIRST -109.52 | basisMTM -128.66 | net -238.18 | maxDD 0.056%
+t+  5:57 | legs 8 | funding +29.09 | fees -138.51 | REALISED-FIRST -109.42 | basisMTM -46.00 | net -155.42 | maxDD 0.056%
+t+  5:58 | legs 8 | funding +29.18 | fees -138.51 | REALISED-FIRST -109.33 | basisMTM -158.44 | net -267.78 | maxDD 0.056%
+t+  6:00 | legs 8 | funding +29.27 | fees -138.51 | REALISED-FIRST -109.24 | basisMTM -147.96 | net -257.20 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.115     +3.73   -35.01      -31.28     +25.15       1%  6.1h
+  NEAR     SHORT_PERP        0.125     +3.82    -4.00       -0.18      +1.32       7%  6.1h
+  DYDX     SHORT_PERP        0.125     +3.72   -35.00      -31.28     -54.44       1%  6.1h
+  LINK     SHORT_PERP        0.125     +3.78   -17.50      -13.72     -22.90       3%  6.0h
+  AAVE     SHORT_PERP        0.125     +3.77   -21.50      -17.73     -42.90       4%  6.0h
+  XPL      SHORT_PERP        0.125     +3.74    -4.00       -0.26     +12.30       0%  6.0h
+  UNI      SHORT_PERP        0.125     +2.90    -4.00       -1.11      +2.14       8%  6.0h
+  PUMP     SHORT_PERP        0.125     +3.80   -17.50      -13.69     -68.63       7%  6.0h
+
+t+  6:01 | legs 8 | funding +29.36 | fees -138.51 | REALISED-FIRST -109.15 | basisMTM -45.05 | net -154.19 | maxDD 0.056%
+t+  6:02 | legs 8 | funding +29.46 | fees -138.51 | REALISED-FIRST -109.05 | basisMTM -40.95 | net -150.00 | maxDD 0.056%
+t+  6:03 | legs 8 | funding +29.55 | fees -138.51 | REALISED-FIRST -108.96 | basisMTM -86.51 | net -195.47 | maxDD 0.056%
+t+  6:04 | legs 8 | funding +29.64 | fees -138.51 | REALISED-FIRST -108.87 | basisMTM -38.45 | net -147.32 | maxDD 0.056%
+t+  6:05 | legs 8 | funding +29.73 | fees -138.51 | REALISED-FIRST -108.78 | basisMTM -83.73 | net -192.50 | maxDD 0.056%
+t+  6:06 | legs 8 | funding +29.83 | fees -138.51 | REALISED-FIRST -108.68 | basisMTM -88.39 | net -197.07 | maxDD 0.056%
+t+  6:07 | legs 8 | funding +29.92 | fees -138.51 | REALISED-FIRST -108.59 | basisMTM -100.47 | net -209.06 | maxDD 0.056%
+t+  6:08 | legs 8 | funding +30.01 | fees -138.51 | REALISED-FIRST -108.50 | basisMTM -135.21 | net -243.70 | maxDD 0.056%
+t+  6:09 | legs 8 | funding +30.10 | fees -138.51 | REALISED-FIRST -108.41 | basisMTM -88.23 | net -196.64 | maxDD 0.056%
+t+  6:10 | legs 8 | funding +30.19 | fees -138.51 | REALISED-FIRST -108.32 | basisMTM -149.20 | net -257.52 | maxDD 0.056%
+t+  6:12 | legs 8 | funding +30.29 | fees -138.51 | REALISED-FIRST -108.22 | basisMTM -110.84 | net -219.07 | maxDD 0.056%
+t+  6:13 | legs 8 | funding +30.38 | fees -138.51 | REALISED-FIRST -108.13 | basisMTM -32.05 | net -140.18 | maxDD 0.056%
+t+  6:14 | legs 8 | funding +30.47 | fees -138.51 | REALISED-FIRST -108.04 | basisMTM -40.07 | net -148.11 | maxDD 0.056%
+t+  6:15 | legs 8 | funding +30.57 | fees -138.51 | REALISED-FIRST -107.94 | basisMTM -118.98 | net -226.92 | maxDD 0.056%
+t+  6:16 | legs 8 | funding +30.66 | fees -138.51 | REALISED-FIRST -107.85 | basisMTM -60.31 | net -168.17 | maxDD 0.056%
+t+  6:17 | legs 8 | funding +30.75 | fees -138.51 | REALISED-FIRST -107.76 | basisMTM -126.71 | net -234.47 | maxDD 0.056%
+t+  6:18 | legs 8 | funding +30.84 | fees -138.51 | REALISED-FIRST -107.67 | basisMTM -125.73 | net -233.40 | maxDD 0.056%
+t+  6:19 | legs 8 | funding +30.93 | fees -138.51 | REALISED-FIRST -107.58 | basisMTM -56.53 | net -164.10 | maxDD 0.056%
+t+  6:20 | legs 8 | funding +31.03 | fees -138.51 | REALISED-FIRST -107.48 | basisMTM +26.04 | net -81.44 | maxDD 0.056%
+t+  6:21 | legs 8 | funding +31.12 | fees -138.51 | REALISED-FIRST -107.39 | basisMTM -128.54 | net -235.94 | maxDD 0.056%
+t+  6:23 | legs 8 | funding +31.21 | fees -138.51 | REALISED-FIRST -107.30 | basisMTM -55.62 | net -162.92 | maxDD 0.056%
+t+  6:24 | legs 8 | funding +31.30 | fees -138.51 | REALISED-FIRST -107.21 | basisMTM -47.50 | net -154.71 | maxDD 0.056%
+t+  6:25 | legs 8 | funding +31.40 | fees -138.51 | REALISED-FIRST -107.11 | basisMTM -13.36 | net -120.47 | maxDD 0.056%
+t+  6:26 | legs 8 | funding +31.49 | fees -138.51 | REALISED-FIRST -107.02 | basisMTM -106.33 | net -213.35 | maxDD 0.056%
+t+  6:27 | legs 8 | funding +31.58 | fees -138.51 | REALISED-FIRST -106.93 | basisMTM -73.21 | net -180.14 | maxDD 0.056%
+t+  6:28 | legs 8 | funding +31.68 | fees -138.51 | REALISED-FIRST -106.83 | basisMTM -28.90 | net -135.73 | maxDD 0.056%
+t+  6:29 | legs 8 | funding +31.77 | fees -138.51 | REALISED-FIRST -106.74 | basisMTM -16.54 | net -123.28 | maxDD 0.056%
+t+  6:30 | legs 8 | funding +31.86 | fees -138.51 | REALISED-FIRST -106.65 | basisMTM -98.28 | net -204.93 | maxDD 0.056%
+t+  6:31 | legs 8 | funding +31.96 | fees -138.51 | REALISED-FIRST -106.55 | basisMTM -83.14 | net -189.70 | maxDD 0.056%
+t+  6:32 | legs 8 | funding +32.05 | fees -138.51 | REALISED-FIRST -106.46 | basisMTM -117.69 | net -224.15 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +4.08   -35.01      -30.93      +9.43       1%  6.6h
+  NEAR     SHORT_PERP        0.125     +4.18    -4.00       +0.18     +29.06      11%  6.6h
+  DYDX     SHORT_PERP        0.125     +4.06   -35.00      -30.94     -34.27       1%  6.6h
+  LINK     SHORT_PERP        0.125     +4.13   -17.50      -13.37     -27.36       3%  6.6h
+  AAVE     SHORT_PERP        0.125     +4.12   -21.50      -17.38     -56.14       6%  6.6h
+  XPL      SHORT_PERP        0.125     +4.08    -4.00       +0.08      +6.71       1%  6.6h
+  UNI      SHORT_PERP        0.125     +3.25    -4.00       -0.75     +23.52       9%  6.6h
+  PUMP     SHORT_PERP        0.125     +4.15   -17.50      -13.34     -68.63      10%  6.6h
+
+t+  6:34 | legs 8 | funding +32.14 | fees -138.51 | REALISED-FIRST -106.37 | basisMTM -85.35 | net -191.72 | maxDD 0.056%
+t+  6:35 | legs 8 | funding +32.24 | fees -138.51 | REALISED-FIRST -106.27 | basisMTM -107.02 | net -213.29 | maxDD 0.056%
+t+  6:36 | legs 8 | funding +32.33 | fees -138.51 | REALISED-FIRST -106.18 | basisMTM -128.76 | net -234.94 | maxDD 0.056%
+t+  6:37 | legs 8 | funding +32.42 | fees -138.51 | REALISED-FIRST -106.09 | basisMTM -118.85 | net -224.93 | maxDD 0.056%
+t+  6:38 | legs 8 | funding +32.52 | fees -138.51 | REALISED-FIRST -105.99 | basisMTM -147.06 | net -253.05 | maxDD 0.056%
+t+  6:39 | legs 8 | funding +32.61 | fees -138.51 | REALISED-FIRST -105.90 | basisMTM -112.70 | net -218.60 | maxDD 0.056%
+t+  6:40 | legs 8 | funding +32.70 | fees -138.51 | REALISED-FIRST -105.81 | basisMTM -119.07 | net -224.87 | maxDD 0.056%
+t+  6:41 | legs 8 | funding +32.79 | fees -138.51 | REALISED-FIRST -105.72 | basisMTM -183.86 | net -289.57 | maxDD 0.056%
+t+  6:42 | legs 8 | funding +32.89 | fees -138.51 | REALISED-FIRST -105.62 | basisMTM -170.14 | net -275.76 | maxDD 0.056%
+t+  6:43 | legs 8 | funding +32.98 | fees -138.51 | REALISED-FIRST -105.53 | basisMTM -128.74 | net -234.27 | maxDD 0.056%
+t+  6:45 | legs 8 | funding +33.07 | fees -138.51 | REALISED-FIRST -105.44 | basisMTM -98.95 | net -204.39 | maxDD 0.056%
+t+  6:46 | legs 8 | funding +33.16 | fees -138.51 | REALISED-FIRST -105.35 | basisMTM -144.29 | net -249.64 | maxDD 0.056%
+t+  6:47 | legs 8 | funding +33.26 | fees -138.51 | REALISED-FIRST -105.25 | basisMTM -121.60 | net -226.85 | maxDD 0.056%
+t+  6:48 | legs 8 | funding +33.35 | fees -138.51 | REALISED-FIRST -105.16 | basisMTM -188.65 | net -293.81 | maxDD 0.056%
+t+  6:49 | legs 8 | funding +33.44 | fees -138.51 | REALISED-FIRST -105.07 | basisMTM -133.43 | net -238.50 | maxDD 0.056%
+t+  6:50 | legs 8 | funding +33.53 | fees -138.51 | REALISED-FIRST -104.98 | basisMTM -125.39 | net -230.37 | maxDD 0.056%
+t+  6:51 | legs 8 | funding +33.63 | fees -138.51 | REALISED-FIRST -104.88 | basisMTM -183.29 | net -288.17 | maxDD 0.056%
+t+  6:52 | legs 8 | funding +33.72 | fees -138.51 | REALISED-FIRST -104.79 | basisMTM -136.25 | net -241.03 | maxDD 0.056%
+t+  6:53 | legs 8 | funding +33.81 | fees -138.51 | REALISED-FIRST -104.70 | basisMTM -77.60 | net -182.30 | maxDD 0.056%
+t+  6:54 | legs 8 | funding +33.91 | fees -138.51 | REALISED-FIRST -104.60 | basisMTM -104.63 | net -209.23 | maxDD 0.056%
+t+  6:56 | legs 8 | funding +34.00 | fees -138.51 | REALISED-FIRST -104.51 | basisMTM -167.07 | net -271.58 | maxDD 0.056%
+t+  6:57 | legs 8 | funding +34.09 | fees -138.51 | REALISED-FIRST -104.42 | basisMTM -91.27 | net -195.69 | maxDD 0.056%
+t+  6:58 | legs 8 | funding +34.18 | fees -138.51 | REALISED-FIRST -104.33 | basisMTM -99.16 | net -203.49 | maxDD 0.056%
+t+  6:59 | legs 8 | funding +34.28 | fees -138.51 | REALISED-FIRST -104.23 | basisMTM -139.38 | net -243.61 | maxDD 0.056%
+t+  7:00 | legs 8 | funding +34.37 | fees -138.51 | REALISED-FIRST -104.14 | basisMTM -107.88 | net -212.02 | maxDD 0.056%
+t+  7:01 | legs 8 | funding +34.46 | fees -138.51 | REALISED-FIRST -104.05 | basisMTM -148.74 | net -252.79 | maxDD 0.056%
+t+  7:02 | legs 8 | funding +34.55 | fees -138.51 | REALISED-FIRST -103.96 | basisMTM -68.40 | net -172.36 | maxDD 0.056%
+t+  7:03 | legs 8 | funding +34.64 | fees -138.51 | REALISED-FIRST -103.87 | basisMTM -18.54 | net -122.40 | maxDD 0.056%
+t+  7:04 | legs 8 | funding +34.74 | fees -138.51 | REALISED-FIRST -103.77 | basisMTM -95.71 | net -199.48 | maxDD 0.056%
+t+  7:05 | legs 8 | funding +34.83 | fees -138.51 | REALISED-FIRST -103.68 | basisMTM -51.26 | net -154.94 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +4.42   -35.01      -30.59      -3.14       0%  7.2h
+  NEAR     SHORT_PERP        0.125     +4.53    -4.00       +0.53      -6.60      10%  7.2h
+  DYDX     SHORT_PERP        0.125     +4.40   -35.00      -30.60      -2.02       2%  7.2h
+  LINK     SHORT_PERP        0.125     +4.48   -17.50      -13.02     -11.13       2%  7.1h
+  AAVE     SHORT_PERP        0.125     +4.47   -21.50      -17.03     -34.43       4%  7.1h
+  XPL      SHORT_PERP        0.125     +4.42    -4.00       +0.42      -3.92       1%  7.1h
+  UNI      SHORT_PERP        0.125     +3.60    -4.00       -0.40      +9.98       6%  7.1h
+  PUMP     SHORT_PERP        0.125     +4.51   -17.50      -12.99      +0.00       5%  7.1h
+
+t+  7:06 | legs 8 | funding +34.92 | fees -138.51 | REALISED-FIRST -103.59 | basisMTM -101.43 | net -205.02 | maxDD 0.056%
+t+  7:08 | legs 8 | funding +35.02 | fees -138.51 | REALISED-FIRST -103.49 | basisMTM -158.50 | net -261.99 | maxDD 0.056%
+t+  7:09 | legs 8 | funding +35.11 | fees -138.51 | REALISED-FIRST -103.40 | basisMTM -74.68 | net -178.08 | maxDD 0.056%
+t+  7:10 | legs 8 | funding +35.20 | fees -138.51 | REALISED-FIRST -103.31 | basisMTM -129.77 | net -233.08 | maxDD 0.056%
+t+  7:11 | legs 8 | funding +35.29 | fees -138.51 | REALISED-FIRST -103.22 | basisMTM -83.12 | net -186.33 | maxDD 0.056%
+t+  7:12 | legs 8 | funding +35.39 | fees -138.51 | REALISED-FIRST -103.12 | basisMTM -155.63 | net -258.75 | maxDD 0.056%
+t+  7:13 | legs 8 | funding +35.48 | fees -138.51 | REALISED-FIRST -103.03 | basisMTM -50.36 | net -153.39 | maxDD 0.056%
+t+  7:14 | legs 8 | funding +35.57 | fees -138.51 | REALISED-FIRST -102.94 | basisMTM -79.97 | net -182.91 | maxDD 0.056%
+t+  7:15 | legs 8 | funding +35.67 | fees -138.51 | REALISED-FIRST -102.84 | basisMTM -46.08 | net -148.93 | maxDD 0.056%
+t+  7:16 | legs 8 | funding +35.76 | fees -138.51 | REALISED-FIRST -102.75 | basisMTM -111.68 | net -214.44 | maxDD 0.056%
+t+  7:18 | legs 8 | funding +35.85 | fees -138.51 | REALISED-FIRST -102.66 | basisMTM -60.89 | net -163.55 | maxDD 0.056%
+t+  7:19 | legs 8 | funding +35.94 | fees -138.51 | REALISED-FIRST -102.57 | basisMTM -157.16 | net -259.73 | maxDD 0.056%
+t+  7:20 | legs 8 | funding +36.03 | fees -138.51 | REALISED-FIRST -102.48 | basisMTM -18.07 | net -120.55 | maxDD 0.056%
+t+  7:21 | legs 8 | funding +36.12 | fees -138.51 | REALISED-FIRST -102.39 | basisMTM -115.35 | net -217.74 | maxDD 0.056%
+t+  7:22 | legs 8 | funding +36.22 | fees -138.51 | REALISED-FIRST -102.29 | basisMTM -132.99 | net -235.28 | maxDD 0.056%
+t+  7:23 | legs 8 | funding +36.31 | fees -138.51 | REALISED-FIRST -102.20 | basisMTM -81.41 | net -183.61 | maxDD 0.056%
+t+  7:24 | legs 8 | funding +36.40 | fees -138.51 | REALISED-FIRST -102.11 | basisMTM -90.59 | net -192.71 | maxDD 0.056%
+t+  7:25 | legs 8 | funding +36.49 | fees -138.51 | REALISED-FIRST -102.02 | basisMTM -57.41 | net -159.43 | maxDD 0.056%
+t+  7:26 | legs 8 | funding +36.58 | fees -138.51 | REALISED-FIRST -101.93 | basisMTM -23.44 | net -125.37 | maxDD 0.056%
+t+  7:27 | legs 8 | funding +36.68 | fees -138.51 | REALISED-FIRST -101.83 | basisMTM -17.85 | net -119.68 | maxDD 0.056%
+t+  7:28 | legs 8 | funding +36.77 | fees -138.51 | REALISED-FIRST -101.74 | basisMTM -91.75 | net -193.49 | maxDD 0.056%
+t+  7:30 | legs 8 | funding +36.86 | fees -138.51 | REALISED-FIRST -101.65 | basisMTM -75.82 | net -177.47 | maxDD 0.056%
+t+  7:31 | legs 8 | funding +36.95 | fees -138.51 | REALISED-FIRST -101.56 | basisMTM -33.12 | net -134.68 | maxDD 0.056%
+t+  7:32 | legs 8 | funding +37.04 | fees -138.51 | REALISED-FIRST -101.47 | basisMTM -111.63 | net -213.09 | maxDD 0.056%
+t+  7:33 | legs 8 | funding +37.14 | fees -138.51 | REALISED-FIRST -101.37 | basisMTM -129.39 | net -230.76 | maxDD 0.056%
+t+  7:34 | legs 8 | funding +37.23 | fees -138.51 | REALISED-FIRST -101.28 | basisMTM -166.13 | net -267.41 | maxDD 0.056%
+t+  7:35 | legs 8 | funding +37.32 | fees -138.51 | REALISED-FIRST -101.19 | basisMTM -129.43 | net -230.63 | maxDD 0.056%
+t+  7:36 | legs 8 | funding +37.41 | fees -138.51 | REALISED-FIRST -101.10 | basisMTM -66.33 | net -167.43 | maxDD 0.056%
+t+  7:37 | legs 8 | funding +37.50 | fees -138.51 | REALISED-FIRST -101.01 | basisMTM -148.16 | net -249.17 | maxDD 0.056%
+t+  7:38 | legs 8 | funding +37.60 | fees -138.51 | REALISED-FIRST -100.91 | basisMTM -173.13 | net -274.04 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +4.76   -35.01      -30.25     +15.72       0%  7.7h
+  NEAR     SHORT_PERP        0.125     +4.89    -4.00       +0.89     +27.74      10%  7.7h
+  DYDX     SHORT_PERP        0.125     +4.74   -35.00      -30.26     -44.35       2%  7.7h
+  LINK     SHORT_PERP        0.125     +4.82   -17.50      -12.68     -28.31       2%  7.7h
+  AAVE     SHORT_PERP        0.125     +4.82   -21.50      -16.68     -48.99       4%  7.7h
+  XPL      SHORT_PERP        0.125     +4.77    -4.00       +0.77     +12.30       1%  7.7h
+  UNI      SHORT_PERP        0.125     +3.95    -4.00       -0.05      -4.28       5%  7.7h
+  PUMP     SHORT_PERP        0.125     +4.85   -17.50      -12.64    -102.95       2%  7.6h
+
+t+  7:39 | legs 8 | funding +37.69 | fees -138.51 | REALISED-FIRST -100.82 | basisMTM -116.96 | net -217.78 | maxDD 0.056%
+t+  7:41 | legs 8 | funding +37.78 | fees -138.51 | REALISED-FIRST -100.73 | basisMTM -117.83 | net -218.56 | maxDD 0.056%
+t+  7:42 | legs 8 | funding +37.88 | fees -138.51 | REALISED-FIRST -100.63 | basisMTM -110.51 | net -211.15 | maxDD 0.056%
+t+  7:43 | legs 8 | funding +37.97 | fees -138.51 | REALISED-FIRST -100.54 | basisMTM -106.43 | net -206.97 | maxDD 0.056%
+t+  7:44 | legs 8 | funding +38.06 | fees -138.51 | REALISED-FIRST -100.45 | basisMTM -112.48 | net -212.93 | maxDD 0.056%
+t+  7:45 | legs 8 | funding +38.15 | fees -138.51 | REALISED-FIRST -100.36 | basisMTM -167.25 | net -267.60 | maxDD 0.056%
+t+  7:46 | legs 8 | funding +38.24 | fees -138.51 | REALISED-FIRST -100.27 | basisMTM -123.50 | net -223.76 | maxDD 0.056%
+t+  7:47 | legs 8 | funding +38.34 | fees -138.51 | REALISED-FIRST -100.17 | basisMTM -124.24 | net -224.41 | maxDD 0.056%
+t+  7:48 | legs 8 | funding +38.43 | fees -138.51 | REALISED-FIRST -100.08 | basisMTM -143.91 | net -243.99 | maxDD 0.056%
+t+  7:49 | legs 8 | funding +38.52 | fees -138.51 | REALISED-FIRST -99.99 | basisMTM -124.79 | net -224.78 | maxDD 0.056%
+t+  7:50 | legs 8 | funding +38.62 | fees -138.51 | REALISED-FIRST -99.89 | basisMTM -9.86 | net -109.75 | maxDD 0.056%
+t+  7:52 | legs 8 | funding +38.71 | fees -138.51 | REALISED-FIRST -99.80 | basisMTM -75.57 | net -175.37 | maxDD 0.056%
+t+  7:53 | legs 8 | funding +38.80 | fees -138.51 | REALISED-FIRST -99.71 | basisMTM +3.68 | net -96.03 | maxDD 0.056%
+t+  7:54 | legs 8 | funding +38.90 | fees -138.51 | REALISED-FIRST -99.61 | basisMTM -104.89 | net -204.51 | maxDD 0.056%
+t+  7:55 | legs 8 | funding +38.99 | fees -138.51 | REALISED-FIRST -99.52 | basisMTM -24.23 | net -123.75 | maxDD 0.056%
+t+  7:56 | legs 8 | funding +39.08 | fees -138.51 | REALISED-FIRST -99.43 | basisMTM -69.82 | net -169.25 | maxDD 0.056%
+t+  7:57 | legs 8 | funding +39.17 | fees -138.51 | REALISED-FIRST -99.34 | basisMTM -137.22 | net -236.55 | maxDD 0.056%
+t+  7:58 | legs 8 | funding +39.26 | fees -138.51 | REALISED-FIRST -99.25 | basisMTM -74.48 | net -173.73 | maxDD 0.056%
+t+  7:59 | legs 8 | funding +39.36 | fees -138.51 | REALISED-FIRST -99.15 | basisMTM -139.82 | net -238.97 | maxDD 0.056%
+t+  8:00 | legs 8 | funding +39.45 | fees -138.51 | REALISED-FIRST -99.06 | basisMTM -157.46 | net -256.52 | maxDD 0.056%
+t+  8:01 | legs 8 | funding +39.54 | fees -138.51 | REALISED-FIRST -98.97 | basisMTM -136.37 | net -235.34 | maxDD 0.056%
+t+  8:03 | legs 8 | funding +39.64 | fees -138.51 | REALISED-FIRST -98.87 | basisMTM -76.86 | net -175.74 | maxDD 0.056%
+t+  8:04 | legs 8 | funding +39.73 | fees -138.51 | REALISED-FIRST -98.78 | basisMTM -140.88 | net -239.66 | maxDD 0.056%
+t+  8:05 | legs 8 | funding +39.82 | fees -138.51 | REALISED-FIRST -98.69 | basisMTM -103.43 | net -202.12 | maxDD 0.056%
+t+  8:06 | legs 8 | funding +39.91 | fees -138.51 | REALISED-FIRST -98.60 | basisMTM -128.29 | net -226.89 | maxDD 0.056%
+t+  8:07 | legs 8 | funding +40.01 | fees -138.51 | REALISED-FIRST -98.50 | basisMTM -4.41 | net -102.92 | maxDD 0.056%
+t+  8:08 | legs 8 | funding +40.10 | fees -138.51 | REALISED-FIRST -98.41 | basisMTM -10.16 | net -108.57 | maxDD 0.056%
+t+  8:09 | legs 8 | funding +40.19 | fees -138.51 | REALISED-FIRST -98.32 | basisMTM -103.50 | net -201.82 | maxDD 0.056%
+t+  8:10 | legs 8 | funding +40.28 | fees -138.51 | REALISED-FIRST -98.23 | basisMTM -140.86 | net -239.09 | maxDD 0.056%
+t+  8:11 | legs 8 | funding +40.37 | fees -138.51 | REALISED-FIRST -98.14 | basisMTM -41.56 | net -139.69 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +5.11   -35.01      -29.90     -14.14       3%  8.3h
+  NEAR     SHORT_PERP        0.125     +5.24    -4.00       +1.24     +18.49       8%  8.3h
+  DYDX     SHORT_PERP        0.125     +5.09   -35.00      -29.92     -24.19       3%  8.3h
+  LINK     SHORT_PERP        0.125     +5.17   -17.50      -12.33      -5.09       1%  8.2h
+  AAVE     SHORT_PERP        0.125     +5.17   -21.50      -16.33     -45.02       4%  8.2h
+  XPL      SHORT_PERP        0.125     +5.11    -4.00       +1.11      +5.59       3%  8.2h
+  UNI      SHORT_PERP        0.125     +4.30    -4.00       +0.30     +22.81       4%  8.2h
+  PUMP     SHORT_PERP        0.125     +5.20   -17.50      -12.30      +0.00       2%  8.2h
+
+t+  8:13 | legs 8 | funding +40.47 | fees -138.51 | REALISED-FIRST -98.04 | basisMTM -133.22 | net -231.26 | maxDD 0.056%
+t+  8:14 | legs 8 | funding +40.56 | fees -138.51 | REALISED-FIRST -97.95 | basisMTM -35.70 | net -133.65 | maxDD 0.056%
+t+  8:15 | legs 8 | funding +40.65 | fees -138.51 | REALISED-FIRST -97.86 | basisMTM -9.02 | net -106.87 | maxDD 0.056%
+t+  8:16 | legs 8 | funding +40.75 | fees -138.51 | REALISED-FIRST -97.76 | basisMTM -28.96 | net -126.72 | maxDD 0.056%
+t+  8:17 | legs 8 | funding +40.84 | fees -138.51 | REALISED-FIRST -97.67 | basisMTM +16.43 | net -81.24 | maxDD 0.056%
+t+  8:18 | legs 8 | funding +40.93 | fees -138.51 | REALISED-FIRST -97.58 | basisMTM -167.31 | net -264.89 | maxDD 0.056%
+t+  8:19 | legs 8 | funding +41.02 | fees -138.51 | REALISED-FIRST -97.49 | basisMTM -72.89 | net -170.38 | maxDD 0.056%
+t+  8:20 | legs 8 | funding +41.12 | fees -138.51 | REALISED-FIRST -97.39 | basisMTM -80.45 | net -177.84 | maxDD 0.056%
+t+  8:21 | legs 8 | funding +41.21 | fees -138.51 | REALISED-FIRST -97.30 | basisMTM -135.46 | net -232.76 | maxDD 0.056%
+t+  8:22 | legs 8 | funding +41.30 | fees -138.51 | REALISED-FIRST -97.21 | basisMTM -116.91 | net -214.12 | maxDD 0.056%
+t+  8:24 | legs 8 | funding +41.40 | fees -138.51 | REALISED-FIRST -97.11 | basisMTM +25.61 | net -71.50 | maxDD 0.056%
+t+  8:25 | legs 8 | funding +41.49 | fees -138.51 | REALISED-FIRST -97.02 | basisMTM -41.64 | net -138.66 | maxDD 0.056%
+t+  8:26 | legs 8 | funding +41.58 | fees -138.51 | REALISED-FIRST -96.93 | basisMTM -35.84 | net -132.77 | maxDD 0.056%
+t+  8:27 | legs 8 | funding +41.68 | fees -138.51 | REALISED-FIRST -96.83 | basisMTM -65.45 | net -162.28 | maxDD 0.056%
+t+  8:28 | legs 8 | funding +41.77 | fees -138.51 | REALISED-FIRST -96.74 | basisMTM -47.50 | net -144.24 | maxDD 0.056%
+t+  8:29 | legs 8 | funding +41.86 | fees -138.51 | REALISED-FIRST -96.65 | basisMTM -14.83 | net -111.48 | maxDD 0.056%
+t+  8:30 | legs 8 | funding +41.96 | fees -138.51 | REALISED-FIRST -96.55 | basisMTM -111.49 | net -208.04 | maxDD 0.056%
+t+  8:31 | legs 8 | funding +42.05 | fees -138.51 | REALISED-FIRST -96.46 | basisMTM -11.28 | net -107.74 | maxDD 0.056%
+t+  8:32 | legs 8 | funding +42.14 | fees -138.51 | REALISED-FIRST -96.37 | basisMTM -76.05 | net -172.42 | maxDD 0.056%
+t+  8:34 | legs 8 | funding +42.24 | fees -138.51 | REALISED-FIRST -96.27 | basisMTM -35.17 | net -131.45 | maxDD 0.056%
+t+  8:35 | legs 8 | funding +42.33 | fees -138.51 | REALISED-FIRST -96.18 | basisMTM -68.32 | net -164.50 | maxDD 0.056%
+t+  8:36 | legs 8 | funding +42.42 | fees -138.51 | REALISED-FIRST -96.09 | basisMTM -61.96 | net -158.05 | maxDD 0.056%
+t+  8:37 | legs 8 | funding +42.52 | fees -138.51 | REALISED-FIRST -95.99 | basisMTM -75.39 | net -171.39 | maxDD 0.056%
+t+  8:38 | legs 8 | funding +42.61 | fees -138.51 | REALISED-FIRST -95.90 | basisMTM -59.18 | net -155.08 | maxDD 0.056%
+t+  8:39 | legs 8 | funding +42.70 | fees -138.51 | REALISED-FIRST -95.81 | basisMTM -82.86 | net -178.67 | maxDD 0.056%
+t+  8:40 | legs 8 | funding +42.79 | fees -138.51 | REALISED-FIRST -95.72 | basisMTM -31.80 | net -127.52 | maxDD 0.056%
+t+  8:41 | legs 8 | funding +42.89 | fees -138.51 | REALISED-FIRST -95.62 | basisMTM -102.09 | net -197.71 | maxDD 0.056%
+t+  8:42 | legs 8 | funding +42.98 | fees -138.51 | REALISED-FIRST -95.53 | basisMTM -140.33 | net -235.86 | maxDD 0.056%
+t+  8:44 | legs 8 | funding +43.07 | fees -138.51 | REALISED-FIRST -95.44 | basisMTM -119.42 | net -214.86 | maxDD 0.056%
+t+  8:45 | legs 8 | funding +43.15 | fees -138.51 | REALISED-FIRST -95.36 | basisMTM -106.96 | net -202.32 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +5.45   -35.01      -29.56      -7.86       1%  8.8h
+  NEAR     SHORT_PERP        0.125     +5.60    -4.00       +1.60      +0.00      11%  8.8h
+  DYDX     SHORT_PERP        0.125     +5.43   -35.00      -29.57     -24.19       1%  8.8h
+  LINK     SHORT_PERP        0.125     +5.52   -17.50      -11.98     -12.72       2%  8.8h
+  AAVE     SHORT_PERP        0.125     +5.52   -21.50      -15.98     -43.96       6%  8.8h
+  XPL      SHORT_PERP        0.125     +5.45    -4.00       +1.45      -6.71       0%  8.8h
+  UNI      SHORT_PERP       -0.022     +4.64    -4.00       +0.63     +22.81       7%  8.8h
+  PUMP     SHORT_PERP        0.085     +5.55   -17.50      -11.95     -34.32       4%  8.8h
+
+t+  8:46 | legs 8 | funding +43.21 | fees -138.51 | REALISED-FIRST -95.30 | basisMTM -166.36 | net -261.66 | maxDD 0.056%
+t+  8:47 | legs 8 | funding +43.27 | fees -138.51 | REALISED-FIRST -95.24 | basisMTM -96.59 | net -191.83 | maxDD 0.056%
+t+  8:48 | legs 8 | funding +43.34 | fees -138.51 | REALISED-FIRST -95.17 | basisMTM -95.71 | net -190.89 | maxDD 0.056%
+t+  8:49 | legs 8 | funding +43.40 | fees -138.51 | REALISED-FIRST -95.11 | basisMTM -113.18 | net -208.29 | maxDD 0.056%
+t+  8:50 | legs 8 | funding +43.47 | fees -138.51 | REALISED-FIRST -95.04 | basisMTM -180.31 | net -275.35 | maxDD 0.056%
+t+  8:51 | legs 8 | funding +43.55 | fees -138.51 | REALISED-FIRST -94.96 | basisMTM -165.07 | net -260.03 | maxDD 0.056%
+t+  8:52 | legs 8 | funding +43.63 | fees -138.51 | REALISED-FIRST -94.88 | basisMTM -129.06 | net -223.94 | maxDD 0.056%
+t+  8:54 | legs 8 | funding +43.71 | fees -138.51 | REALISED-FIRST -94.80 | basisMTM -55.88 | net -150.68 | maxDD 0.056%
+t+  8:55 | legs 8 | funding +43.80 | fees -138.51 | REALISED-FIRST -94.71 | basisMTM -93.45 | net -188.16 | maxDD 0.056%
+t+  8:56 | legs 8 | funding +43.88 | fees -138.51 | REALISED-FIRST -94.63 | basisMTM -113.75 | net -208.38 | maxDD 0.056%
+t+  8:57 | legs 8 | funding +43.98 | fees -138.51 | REALISED-FIRST -94.53 | basisMTM -76.05 | net -170.58 | maxDD 0.056%
+t+  8:58 | legs 8 | funding +44.07 | fees -138.51 | REALISED-FIRST -94.44 | basisMTM -84.50 | net -178.95 | maxDD 0.056%
+t+  8:59 | legs 8 | funding +44.16 | fees -138.51 | REALISED-FIRST -94.35 | basisMTM -35.67 | net -130.02 | maxDD 0.056%
+t+  9:00 | legs 8 | funding +44.26 | fees -138.51 | REALISED-FIRST -94.25 | basisMTM -80.70 | net -174.96 | maxDD 0.056%
+t+  9:01 | legs 8 | funding +44.35 | fees -138.51 | REALISED-FIRST -94.16 | basisMTM -59.99 | net -154.15 | maxDD 0.056%
+t+  9:02 | legs 8 | funding +44.44 | fees -138.51 | REALISED-FIRST -94.07 | basisMTM +5.56 | net -88.51 | maxDD 0.056%
+t+  9:04 | legs 8 | funding +44.54 | fees -138.51 | REALISED-FIRST -93.97 | basisMTM -21.74 | net -115.72 | maxDD 0.056%
+t+  9:05 | legs 8 | funding +44.63 | fees -138.51 | REALISED-FIRST -93.88 | basisMTM -100.47 | net -194.35 | maxDD 0.056%
+t+  9:06 | legs 8 | funding +44.73 | fees -138.51 | REALISED-FIRST -93.78 | basisMTM -131.30 | net -225.08 | maxDD 0.056%
+t+  9:07 | legs 8 | funding +44.82 | fees -138.51 | REALISED-FIRST -93.69 | basisMTM -119.00 | net -212.69 | maxDD 0.056%
+t+  9:08 | legs 8 | funding +44.91 | fees -138.51 | REALISED-FIRST -93.60 | basisMTM -102.58 | net -196.17 | maxDD 0.056%
+t+  9:09 | legs 8 | funding +45.01 | fees -138.51 | REALISED-FIRST -93.50 | basisMTM -116.58 | net -210.09 | maxDD 0.056%
+t+  9:10 | legs 8 | funding +45.10 | fees -138.51 | REALISED-FIRST -93.41 | basisMTM -109.98 | net -203.39 | maxDD 0.056%
+t+  9:11 | legs 8 | funding +45.19 | fees -138.51 | REALISED-FIRST -93.32 | basisMTM -98.70 | net -192.02 | maxDD 0.056%
+t+  9:12 | legs 8 | funding +45.28 | fees -138.51 | REALISED-FIRST -93.23 | basisMTM +2.17 | net -91.05 | maxDD 0.056%
+t+  9:14 | legs 8 | funding +45.38 | fees -138.51 | REALISED-FIRST -93.13 | basisMTM -94.38 | net -187.52 | maxDD 0.056%
+t+  9:15 | legs 8 | funding +45.47 | fees -138.51 | REALISED-FIRST -93.04 | basisMTM -135.97 | net -229.01 | maxDD 0.056%
+t+  9:16 | legs 8 | funding +45.56 | fees -138.51 | REALISED-FIRST -92.95 | basisMTM -99.63 | net -192.58 | maxDD 0.056%
+t+  9:17 | legs 8 | funding +45.66 | fees -138.51 | REALISED-FIRST -92.85 | basisMTM -40.40 | net -133.25 | maxDD 0.056%
+t+  9:18 | legs 8 | funding +45.75 | fees -138.51 | REALISED-FIRST -92.76 | basisMTM -88.38 | net -181.14 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +5.80   -35.01      -29.21     -23.57       0%  9.4h
+  NEAR     SHORT_PERP        0.125     +5.96    -4.00       +1.96     +33.02      12%  9.4h
+  DYDX     SHORT_PERP        0.125     +5.78   -35.00      -29.22      -6.05       2%  9.4h
+  LINK     SHORT_PERP        0.125     +5.87   -17.50      -11.63     -20.04       4%  9.4h
+  AAVE     SHORT_PERP        0.125     +5.87   -21.50      -15.63     -49.78       6%  9.3h
+  XPL      SHORT_PERP        0.125     +5.80    -4.00       +1.80      +9.51       1%  9.3h
+  UNI      SHORT_PERP        0.125     +4.79    -4.00       +0.78      +2.85       9%  9.3h
+  PUMP     SHORT_PERP        0.125     +5.89   -17.50      -11.60     -34.32       2%  9.3h
+
+t+  9:19 | legs 8 | funding +45.84 | fees -138.51 | REALISED-FIRST -92.67 | basisMTM -65.76 | net -158.42 | maxDD 0.056%
+t+  9:20 | legs 8 | funding +45.94 | fees -138.51 | REALISED-FIRST -92.57 | basisMTM -97.22 | net -189.79 | maxDD 0.056%
+t+  9:21 | legs 8 | funding +46.03 | fees -138.51 | REALISED-FIRST -92.48 | basisMTM -160.63 | net -253.11 | maxDD 0.056%
+t+  9:22 | legs 8 | funding +46.13 | fees -138.51 | REALISED-FIRST -92.38 | basisMTM -90.07 | net -182.45 | maxDD 0.056%
+t+  9:24 | legs 8 | funding +46.22 | fees -138.51 | REALISED-FIRST -92.29 | basisMTM -104.84 | net -197.13 | maxDD 0.056%
+t+  9:25 | legs 8 | funding +46.32 | fees -138.51 | REALISED-FIRST -92.19 | basisMTM -81.12 | net -173.31 | maxDD 0.056%
+t+  9:26 | legs 8 | funding +46.41 | fees -138.51 | REALISED-FIRST -92.10 | basisMTM -150.48 | net -242.58 | maxDD 0.056%
+t+  9:27 | legs 8 | funding +46.51 | fees -138.51 | REALISED-FIRST -92.00 | basisMTM -193.22 | net -285.22 | maxDD 0.056%
+t+  9:28 | legs 8 | funding +46.60 | fees -138.51 | REALISED-FIRST -91.91 | basisMTM -108.67 | net -200.57 | maxDD 0.056%
+t+  9:29 | legs 8 | funding +46.69 | fees -138.51 | REALISED-FIRST -91.82 | basisMTM -135.18 | net -227.00 | maxDD 0.056%
+t+  9:30 | legs 8 | funding +46.79 | fees -138.51 | REALISED-FIRST -91.72 | basisMTM -108.22 | net -199.95 | maxDD 0.056%
+t+  9:31 | legs 8 | funding +46.88 | fees -138.51 | REALISED-FIRST -91.63 | basisMTM -228.89 | net -320.51 | maxDD 0.056%
+t+  9:32 | legs 8 | funding +46.98 | fees -138.51 | REALISED-FIRST -91.53 | basisMTM -143.91 | net -235.44 | maxDD 0.056%
+t+  9:34 | legs 8 | funding +47.07 | fees -138.51 | REALISED-FIRST -91.44 | basisMTM -158.34 | net -249.78 | maxDD 0.056%
+t+  9:35 | legs 8 | funding +47.17 | fees -138.51 | REALISED-FIRST -91.34 | basisMTM -126.44 | net -217.78 | maxDD 0.056%
+t+  9:36 | legs 8 | funding +47.26 | fees -138.51 | REALISED-FIRST -91.25 | basisMTM -202.80 | net -294.05 | maxDD 0.056%
+t+  9:37 | legs 8 | funding +47.36 | fees -138.51 | REALISED-FIRST -91.15 | basisMTM -110.47 | net -201.62 | maxDD 0.056%
+t+  9:38 | legs 8 | funding +47.45 | fees -138.51 | REALISED-FIRST -91.06 | basisMTM -98.56 | net -189.61 | maxDD 0.056%
+t+  9:39 | legs 8 | funding +47.54 | fees -138.51 | REALISED-FIRST -90.97 | basisMTM -65.07 | net -156.03 | maxDD 0.056%
+t+  9:40 | legs 8 | funding +47.64 | fees -138.51 | REALISED-FIRST -90.87 | basisMTM -79.38 | net -170.26 | maxDD 0.056%
+t+  9:41 | legs 8 | funding +47.73 | fees -138.51 | REALISED-FIRST -90.78 | basisMTM -84.67 | net -175.45 | maxDD 0.056%
+t+  9:42 | legs 8 | funding +47.82 | fees -138.51 | REALISED-FIRST -90.69 | basisMTM -74.89 | net -165.57 | maxDD 0.056%
+t+  9:44 | legs 8 | funding +47.92 | fees -138.51 | REALISED-FIRST -90.59 | basisMTM -196.15 | net -286.74 | maxDD 0.056%
+t+  9:45 | legs 8 | funding +48.01 | fees -138.51 | REALISED-FIRST -90.50 | basisMTM -81.63 | net -172.13 | maxDD 0.056%
+t+  9:46 | legs 8 | funding +48.11 | fees -138.51 | REALISED-FIRST -90.40 | basisMTM -152.37 | net -242.77 | maxDD 0.056%
+t+  9:47 | legs 8 | funding +48.18 | fees -138.51 | REALISED-FIRST -90.33 | basisMTM -101.80 | net -192.13 | maxDD 0.056%
+t+  9:48 | legs 8 | funding +48.26 | fees -138.51 | REALISED-FIRST -90.25 | basisMTM -107.92 | net -198.17 | maxDD 0.056%
+t+  9:49 | legs 8 | funding +48.35 | fees -138.51 | REALISED-FIRST -90.16 | basisMTM -101.42 | net -191.57 | maxDD 0.056%
+t+  9:50 | legs 8 | funding +48.44 | fees -138.51 | REALISED-FIRST -90.07 | basisMTM -147.15 | net -237.22 | maxDD 0.056%
+t+  9:51 | legs 8 | funding +48.53 | fees -138.51 | REALISED-FIRST -89.98 | basisMTM -71.63 | net -161.61 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +6.15   -35.01      -28.87     -36.15       0%  9.9h
+  NEAR     SHORT_PERP        0.125     +6.32    -4.00       +2.32     +35.66      12%  9.9h
+  DYDX     SHORT_PERP        0.125     +6.13   -35.00      -28.87      -6.05       3%  9.9h
+  LINK     SHORT_PERP        0.125     +6.22   -17.50      -11.28     -14.31       4%  9.9h
+  AAVE     SHORT_PERP        0.125     +6.23   -21.50      -15.27     -42.11       6%  9.9h
+  XPL      SHORT_PERP        0.125     +6.15    -4.00       +2.15     +15.66       0%  9.9h
+  UNI      SHORT_PERP        0.101     +5.10    -4.00       +1.09      +9.98      10%  9.9h
+  PUMP     SHORT_PERP        0.125     +6.24   -17.50      -11.25     -34.32       2%  9.9h
+
+t+  9:53 | legs 8 | funding +48.63 | fees -138.51 | REALISED-FIRST -89.88 | basisMTM -27.75 | net -117.63 | maxDD 0.056%
+t+  9:54 | legs 8 | funding +48.72 | fees -138.51 | REALISED-FIRST -89.79 | basisMTM -132.55 | net -222.35 | maxDD 0.056%
+t+  9:55 | legs 8 | funding +48.81 | fees -138.51 | REALISED-FIRST -89.70 | basisMTM -128.76 | net -218.45 | maxDD 0.056%
+t+  9:56 | legs 8 | funding +48.91 | fees -138.51 | REALISED-FIRST -89.60 | basisMTM -102.20 | net -191.80 | maxDD 0.056%
+t+  9:57 | legs 8 | funding +49.00 | fees -138.51 | REALISED-FIRST -89.51 | basisMTM -58.98 | net -148.49 | maxDD 0.056%
+t+  9:58 | legs 8 | funding +49.10 | fees -138.51 | REALISED-FIRST -89.41 | basisMTM -96.67 | net -186.08 | maxDD 0.056%
+t+  9:59 | legs 8 | funding +49.19 | fees -138.51 | REALISED-FIRST -89.32 | basisMTM -115.36 | net -204.68 | maxDD 0.056%
+t+ 10:00 | legs 8 | funding +49.29 | fees -138.51 | REALISED-FIRST -89.22 | basisMTM -116.96 | net -206.18 | maxDD 0.056%
+t+ 10:02 | legs 8 | funding +49.38 | fees -138.51 | REALISED-FIRST -89.13 | basisMTM -119.97 | net -209.09 | maxDD 0.056%
+t+ 10:03 | legs 8 | funding +49.48 | fees -138.51 | REALISED-FIRST -89.03 | basisMTM -103.98 | net -193.02 | maxDD 0.056%
+t+ 10:04 | legs 8 | funding +49.57 | fees -138.51 | REALISED-FIRST -88.94 | basisMTM -145.39 | net -234.33 | maxDD 0.056%
+t+ 10:05 | legs 8 | funding +49.67 | fees -138.51 | REALISED-FIRST -88.84 | basisMTM -43.87 | net -132.71 | maxDD 0.056%
+t+ 10:06 | legs 8 | funding +49.76 | fees -138.51 | REALISED-FIRST -88.75 | basisMTM -139.73 | net -228.48 | maxDD 0.056%
+t+ 10:07 | legs 8 | funding +49.86 | fees -138.51 | REALISED-FIRST -88.65 | basisMTM -135.86 | net -224.51 | maxDD 0.056%
+t+ 10:08 | legs 8 | funding +49.95 | fees -138.51 | REALISED-FIRST -88.56 | basisMTM -133.08 | net -221.64 | maxDD 0.056%
+t+ 10:09 | legs 8 | funding +50.04 | fees -138.51 | REALISED-FIRST -88.47 | basisMTM -283.88 | net -372.34 | maxDD 0.056%
+t+ 10:10 | legs 8 | funding +50.14 | fees -138.51 | REALISED-FIRST -88.37 | basisMTM -141.79 | net -230.17 | maxDD 0.056%
+t+ 10:12 | legs 8 | funding +50.23 | fees -138.51 | REALISED-FIRST -88.28 | basisMTM -222.13 | net -310.40 | maxDD 0.056%
+t+ 10:13 | legs 8 | funding +50.33 | fees -138.51 | REALISED-FIRST -88.18 | basisMTM -91.10 | net -179.28 | maxDD 0.056%
+t+ 10:14 | legs 8 | funding +50.42 | fees -138.51 | REALISED-FIRST -88.09 | basisMTM -37.76 | net -125.85 | maxDD 0.056%
+t+ 10:15 | legs 8 | funding +50.52 | fees -138.51 | REALISED-FIRST -87.99 | basisMTM -139.09 | net -227.08 | maxDD 0.056%
+t+ 10:16 | legs 8 | funding +50.61 | fees -138.51 | REALISED-FIRST -87.90 | basisMTM -199.77 | net -287.67 | maxDD 0.056%
+t+ 10:17 | legs 8 | funding +50.71 | fees -138.51 | REALISED-FIRST -87.80 | basisMTM -74.89 | net -162.70 | maxDD 0.056%
+t+ 10:18 | legs 8 | funding +50.80 | fees -138.51 | REALISED-FIRST -87.71 | basisMTM -132.04 | net -219.75 | maxDD 0.056%
+t+ 10:19 | legs 8 | funding +50.89 | fees -138.51 | REALISED-FIRST -87.62 | basisMTM -6.19 | net -93.81 | maxDD 0.056%
+t+ 10:20 | legs 8 | funding +50.99 | fees -138.51 | REALISED-FIRST -87.52 | basisMTM -25.55 | net -113.07 | maxDD 0.056%
+t+ 10:22 | legs 8 | funding +51.08 | fees -138.51 | REALISED-FIRST -87.43 | basisMTM -204.88 | net -292.30 | maxDD 0.056%
+t+ 10:23 | legs 8 | funding +51.18 | fees -138.51 | REALISED-FIRST -87.33 | basisMTM -169.29 | net -256.62 | maxDD 0.056%
+t+ 10:24 | legs 8 | funding +51.27 | fees -138.51 | REALISED-FIRST -87.24 | basisMTM -106.41 | net -193.65 | maxDD 0.056%
+t+ 10:25 | legs 8 | funding +51.36 | fees -138.51 | REALISED-FIRST -87.15 | basisMTM -101.53 | net -188.68 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +6.49   -35.01      -28.52      -3.14       1%  10.5h
+  NEAR     SHORT_PERP        0.125     +6.69    -4.00       +2.69     +33.02      14%  10.5h
+  DYDX     SHORT_PERP        0.125     +6.48   -35.00      -28.52     -22.18       1%  10.5h
+  LINK     SHORT_PERP        0.125     +6.57   -17.50      -10.93     -36.90       4%  10.5h
+  AAVE     SHORT_PERP        0.125     +6.58   -21.50      -14.92     -50.58       5%  10.5h
+  XPL      SHORT_PERP        0.125     +6.50    -4.00       +2.50      +6.15       3%  10.4h
+  UNI      SHORT_PERP        0.125     +5.46    -4.00       +1.45      +6.41       9%  10.4h
+  PUMP     SHORT_PERP        0.125     +6.59   -17.50      -10.91     -34.32       1%  10.4h
+
+t+ 10:26 | legs 8 | funding +51.46 | fees -138.51 | REALISED-FIRST -87.05 | basisMTM -163.48 | net -250.53 | maxDD 0.056%
+t+ 10:27 | legs 8 | funding +51.55 | fees -138.51 | REALISED-FIRST -86.96 | basisMTM -138.79 | net -225.74 | maxDD 0.056%
+t+ 10:28 | legs 8 | funding +51.65 | fees -138.51 | REALISED-FIRST -86.86 | basisMTM -133.21 | net -220.07 | maxDD 0.056%
+t+ 10:29 | legs 8 | funding +51.74 | fees -138.51 | REALISED-FIRST -86.77 | basisMTM -55.62 | net -142.39 | maxDD 0.056%
+t+ 10:31 | legs 8 | funding +51.84 | fees -138.51 | REALISED-FIRST -86.67 | basisMTM -182.18 | net -268.85 | maxDD 0.056%
+t+ 10:32 | legs 8 | funding +51.93 | fees -138.51 | REALISED-FIRST -86.58 | basisMTM -153.20 | net -239.78 | maxDD 0.056%
+t+ 10:33 | legs 8 | funding +52.03 | fees -138.51 | REALISED-FIRST -86.48 | basisMTM -143.43 | net -229.91 | maxDD 0.056%
+t+ 10:34 | legs 8 | funding +52.12 | fees -138.51 | REALISED-FIRST -86.39 | basisMTM -81.08 | net -167.47 | maxDD 0.056%
+t+ 10:35 | legs 8 | funding +52.22 | fees -138.51 | REALISED-FIRST -86.29 | basisMTM -247.59 | net -333.88 | maxDD 0.056%
+t+ 10:36 | legs 8 | funding +52.31 | fees -138.51 | REALISED-FIRST -86.20 | basisMTM -172.46 | net -258.66 | maxDD 0.056%
+t+ 10:37 | legs 8 | funding +52.40 | fees -138.51 | REALISED-FIRST -86.11 | basisMTM -158.75 | net -244.85 | maxDD 0.056%
+t+ 10:38 | legs 8 | funding +52.50 | fees -138.51 | REALISED-FIRST -86.01 | basisMTM -186.27 | net -272.29 | maxDD 0.056%
+t+ 10:39 | legs 8 | funding +52.59 | fees -138.51 | REALISED-FIRST -85.92 | basisMTM -165.31 | net -251.23 | maxDD 0.056%
+t+ 10:41 | legs 8 | funding +52.69 | fees -138.51 | REALISED-FIRST -85.82 | basisMTM -114.62 | net -200.44 | maxDD 0.056%
+t+ 10:42 | legs 8 | funding +52.78 | fees -138.51 | REALISED-FIRST -85.73 | basisMTM -175.05 | net -260.77 | maxDD 0.056%
+t+ 10:43 | legs 8 | funding +52.88 | fees -138.51 | REALISED-FIRST -85.63 | basisMTM -126.51 | net -212.14 | maxDD 0.056%
+t+ 10:44 | legs 8 | funding +52.94 | fees -138.51 | REALISED-FIRST -85.57 | basisMTM -149.02 | net -234.60 | maxDD 0.056%
+t+ 10:45 | legs 8 | funding +53.03 | fees -138.51 | REALISED-FIRST -85.48 | basisMTM -197.39 | net -282.86 | maxDD 0.056%
+t+ 10:46 | legs 8 | funding +53.12 | fees -138.51 | REALISED-FIRST -85.39 | basisMTM -186.40 | net -271.79 | maxDD 0.056%
+t+ 10:47 | legs 8 | funding +53.22 | fees -138.51 | REALISED-FIRST -85.29 | basisMTM -160.45 | net -245.74 | maxDD 0.056%
+t+ 10:48 | legs 8 | funding +53.31 | fees -138.51 | REALISED-FIRST -85.20 | basisMTM -205.92 | net -291.12 | maxDD 0.056%
+t+ 10:49 | legs 8 | funding +53.40 | fees -138.51 | REALISED-FIRST -85.11 | basisMTM -210.69 | net -295.79 | maxDD 0.056%
+t+ 10:50 | legs 8 | funding +53.50 | fees -138.51 | REALISED-FIRST -85.01 | basisMTM -101.35 | net -186.37 | maxDD 0.056%
+t+ 10:52 | legs 8 | funding +53.59 | fees -138.51 | REALISED-FIRST -84.92 | basisMTM -139.71 | net -224.63 | maxDD 0.056%
+t+ 10:53 | legs 8 | funding +53.68 | fees -138.51 | REALISED-FIRST -84.83 | basisMTM -107.58 | net -192.40 | maxDD 0.056%
+t+ 10:54 | legs 8 | funding +53.78 | fees -138.51 | REALISED-FIRST -84.73 | basisMTM -109.64 | net -194.37 | maxDD 0.056%
+t+ 10:55 | legs 8 | funding +53.87 | fees -138.51 | REALISED-FIRST -84.64 | basisMTM -67.15 | net -151.79 | maxDD 0.056%
+t+ 10:56 | legs 8 | funding +53.97 | fees -138.51 | REALISED-FIRST -84.54 | basisMTM -131.17 | net -215.71 | maxDD 0.056%
+t+ 10:57 | legs 8 | funding +54.06 | fees -138.51 | REALISED-FIRST -84.45 | basisMTM -66.76 | net -151.21 | maxDD 0.056%
+t+ 10:58 | legs 8 | funding +54.16 | fees -138.51 | REALISED-FIRST -84.35 | basisMTM -65.88 | net -150.24 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +6.84   -35.01      -28.17     -31.43       1%  11.1h
+  NEAR     SHORT_PERP        0.125     +7.05    -4.00       +3.05     +29.06      17%  11.1h
+  DYDX     SHORT_PERP        0.125     +6.83   -35.00      -28.17     -30.24       1%  11.0h
+  LINK     SHORT_PERP        0.125     +6.92   -17.50      -10.57     -24.18       4%  11.0h
+  AAVE     SHORT_PERP        0.125     +6.94   -21.50      -14.56     -19.07       4%  11.0h
+  XPL      SHORT_PERP        0.125     +6.85    -4.00       +2.85     +38.59       0%  11.0h
+  UNI      SHORT_PERP        0.125     +5.81    -4.00       +1.81      +5.70       7%  11.0h
+  PUMP     SHORT_PERP        0.125     +6.91   -17.50      -10.59     -34.32       1%  11.0h
+
+t+ 10:59 | legs 8 | funding +54.25 | fees -138.51 | REALISED-FIRST -84.26 | basisMTM -46.48 | net -130.74 | maxDD 0.056%
+t+ 11:01 | legs 8 | funding +54.34 | fees -138.51 | REALISED-FIRST -84.17 | basisMTM -68.37 | net -152.53 | maxDD 0.056%
+t+ 11:02 | legs 8 | funding +54.44 | fees -138.51 | REALISED-FIRST -84.07 | basisMTM -32.06 | net -116.13 | maxDD 0.056%
+t+ 11:03 | legs 8 | funding +54.53 | fees -138.51 | REALISED-FIRST -83.98 | basisMTM -97.38 | net -181.35 | maxDD 0.056%
+t+ 11:04 | legs 8 | funding +54.63 | fees -138.51 | REALISED-FIRST -83.88 | basisMTM -149.26 | net -233.14 | maxDD 0.056%
+t+ 11:05 | legs 8 | funding +54.72 | fees -138.51 | REALISED-FIRST -83.79 | basisMTM -98.07 | net -181.86 | maxDD 0.056%
+t+ 11:06 | legs 8 | funding +54.82 | fees -138.51 | REALISED-FIRST -83.69 | basisMTM -156.71 | net -240.40 | maxDD 0.056%
+t+ 11:07 | legs 8 | funding +54.91 | fees -138.51 | REALISED-FIRST -83.60 | basisMTM -208.67 | net -292.27 | maxDD 0.056%
+t+ 11:08 | legs 8 | funding +55.01 | fees -138.51 | REALISED-FIRST -83.50 | basisMTM -135.87 | net -219.38 | maxDD 0.056%
+t+ 11:09 | legs 8 | funding +55.10 | fees -138.51 | REALISED-FIRST -83.41 | basisMTM -118.47 | net -201.88 | maxDD 0.056%
+t+ 11:11 | legs 8 | funding +55.19 | fees -138.51 | REALISED-FIRST -83.32 | basisMTM -36.43 | net -119.74 | maxDD 0.056%
+t+ 11:12 | legs 8 | funding +55.29 | fees -138.51 | REALISED-FIRST -83.22 | basisMTM -166.94 | net -250.16 | maxDD 0.056%
+t+ 11:13 | legs 8 | funding +55.39 | fees -138.51 | REALISED-FIRST -83.12 | basisMTM -131.91 | net -215.04 | maxDD 0.056%
+t+ 11:14 | legs 8 | funding +55.48 | fees -138.51 | REALISED-FIRST -83.03 | basisMTM -93.21 | net -176.23 | maxDD 0.056%
+t+ 11:15 | legs 8 | funding +55.57 | fees -138.51 | REALISED-FIRST -82.94 | basisMTM -90.85 | net -173.78 | maxDD 0.056%
+t+ 11:16 | legs 8 | funding +55.67 | fees -138.51 | REALISED-FIRST -82.84 | basisMTM -127.06 | net -209.90 | maxDD 0.056%
+t+ 11:17 | legs 8 | funding +55.76 | fees -138.51 | REALISED-FIRST -82.75 | basisMTM -102.67 | net -185.42 | maxDD 0.056%
+t+ 11:18 | legs 8 | funding +55.86 | fees -138.51 | REALISED-FIRST -82.65 | basisMTM -114.66 | net -197.32 | maxDD 0.056%
+t+ 11:20 | legs 8 | funding +55.95 | fees -138.51 | REALISED-FIRST -82.56 | basisMTM -62.83 | net -145.39 | maxDD 0.056%
+t+ 11:21 | legs 8 | funding +56.04 | fees -138.51 | REALISED-FIRST -82.47 | basisMTM -30.34 | net -112.81 | maxDD 0.056%
+t+ 11:22 | legs 8 | funding +56.14 | fees -138.51 | REALISED-FIRST -82.37 | basisMTM -71.37 | net -153.74 | maxDD 0.056%
+t+ 11:23 | legs 8 | funding +56.23 | fees -138.51 | REALISED-FIRST -82.28 | basisMTM -123.74 | net -206.01 | maxDD 0.056%
+t+ 11:24 | legs 8 | funding +56.33 | fees -138.51 | REALISED-FIRST -82.18 | basisMTM -142.55 | net -224.74 | maxDD 0.056%
+t+ 11:25 | legs 8 | funding +56.42 | fees -138.51 | REALISED-FIRST -82.09 | basisMTM -199.25 | net -281.34 | maxDD 0.056%
+t+ 11:26 | legs 8 | funding +56.52 | fees -138.51 | REALISED-FIRST -81.99 | basisMTM -119.66 | net -201.65 | maxDD 0.056%
+t+ 11:27 | legs 8 | funding +56.61 | fees -138.51 | REALISED-FIRST -81.90 | basisMTM -66.61 | net -148.51 | maxDD 0.056%
+t+ 11:28 | legs 8 | funding +56.70 | fees -138.51 | REALISED-FIRST -81.81 | basisMTM -109.92 | net -191.72 | maxDD 0.056%
+t+ 11:30 | legs 8 | funding +56.80 | fees -138.51 | REALISED-FIRST -81.71 | basisMTM -109.25 | net -190.96 | maxDD 0.056%
+t+ 11:31 | legs 8 | funding +56.89 | fees -138.51 | REALISED-FIRST -81.62 | basisMTM -125.43 | net -207.05 | maxDD 0.056%
+t+ 11:32 | legs 8 | funding +56.99 | fees -138.51 | REALISED-FIRST -81.52 | basisMTM -51.62 | net -133.14 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +7.19   -35.01      -27.82      +0.00       0%  11.6h
+  NEAR     SHORT_PERP        0.125     +7.42    -4.00       +3.42     +39.62      17%  11.6h
+  DYDX     SHORT_PERP        0.125     +7.18   -35.00      -27.82      -2.02       1%  11.6h
+  LINK     SHORT_PERP        0.125     +7.28   -17.50      -10.22     -23.54       4%  11.6h
+  AAVE     SHORT_PERP        0.125     +7.29   -21.50      -14.21     -16.68       4%  11.6h
+  XPL      SHORT_PERP        0.125     +7.20    -4.00       +3.20     +16.78       2%  11.6h
+  UNI      SHORT_PERP        0.125     +6.17    -4.00       +2.17      +2.85       7%  11.6h
+  PUMP     SHORT_PERP        0.125     +7.26   -17.50      -10.24     -68.63       2%  11.5h
+
+t+ 11:33 | legs 8 | funding +57.08 | fees -138.51 | REALISED-FIRST -81.43 | basisMTM -114.67 | net -196.10 | maxDD 0.056%
+t+ 11:34 | legs 8 | funding +57.18 | fees -138.51 | REALISED-FIRST -81.33 | basisMTM -21.63 | net -102.97 | maxDD 0.056%
+t+ 11:35 | legs 8 | funding +57.27 | fees -138.51 | REALISED-FIRST -81.24 | basisMTM -61.80 | net -143.04 | maxDD 0.056%
+t+ 11:36 | legs 8 | funding +57.37 | fees -138.51 | REALISED-FIRST -81.14 | basisMTM -122.32 | net -203.46 | maxDD 0.056%
+t+ 11:37 | legs 8 | funding +57.46 | fees -138.51 | REALISED-FIRST -81.05 | basisMTM -161.47 | net -242.52 | maxDD 0.056%
+t+ 11:39 | legs 8 | funding +57.55 | fees -138.51 | REALISED-FIRST -80.96 | basisMTM -158.38 | net -239.34 | maxDD 0.056%
+t+ 11:40 | legs 8 | funding +57.65 | fees -138.51 | REALISED-FIRST -80.86 | basisMTM -194.03 | net -274.90 | maxDD 0.056%
+t+ 11:41 | legs 8 | funding +57.74 | fees -138.51 | REALISED-FIRST -80.77 | basisMTM -136.92 | net -217.69 | maxDD 0.056%
+t+ 11:42 | legs 8 | funding +57.84 | fees -138.51 | REALISED-FIRST -80.67 | basisMTM -151.93 | net -232.61 | maxDD 0.056%
+t+ 11:43 | legs 8 | funding +57.93 | fees -138.51 | REALISED-FIRST -80.58 | basisMTM -102.95 | net -183.53 | maxDD 0.056%
+t+ 11:44 | legs 8 | funding +58.02 | fees -138.51 | REALISED-FIRST -80.49 | basisMTM -175.16 | net -255.65 | maxDD 0.056%
+t+ 11:45 | legs 8 | funding +58.11 | fees -138.51 | REALISED-FIRST -80.40 | basisMTM -97.80 | net -178.21 | maxDD 0.056%
+t+ 11:46 | legs 8 | funding +58.21 | fees -138.51 | REALISED-FIRST -80.30 | basisMTM -59.34 | net -139.64 | maxDD 0.056%
+t+ 11:47 | legs 8 | funding +58.30 | fees -138.51 | REALISED-FIRST -80.21 | basisMTM -93.39 | net -173.60 | maxDD 0.056%
+t+ 11:49 | legs 8 | funding +58.39 | fees -138.51 | REALISED-FIRST -80.12 | basisMTM -62.66 | net -142.78 | maxDD 0.056%
+t+ 11:50 | legs 8 | funding +58.49 | fees -138.51 | REALISED-FIRST -80.02 | basisMTM -102.52 | net -182.55 | maxDD 0.056%
+t+ 11:51 | legs 8 | funding +58.58 | fees -138.51 | REALISED-FIRST -79.93 | basisMTM -153.81 | net -233.74 | maxDD 0.056%
+t+ 11:52 | legs 8 | funding +58.68 | fees -138.51 | REALISED-FIRST -79.83 | basisMTM -67.05 | net -146.88 | maxDD 0.056%
+t+ 11:53 | legs 8 | funding +58.77 | fees -138.51 | REALISED-FIRST -79.74 | basisMTM -111.13 | net -190.87 | maxDD 0.056%
+t+ 11:54 | legs 8 | funding +58.86 | fees -138.51 | REALISED-FIRST -79.65 | basisMTM -120.10 | net -199.75 | maxDD 0.056%
+t+ 11:55 | legs 8 | funding +58.96 | fees -138.51 | REALISED-FIRST -79.55 | basisMTM -77.64 | net -157.19 | maxDD 0.056%
+t+ 11:56 | legs 8 | funding +59.05 | fees -138.51 | REALISED-FIRST -79.46 | basisMTM -182.99 | net -262.45 | maxDD 0.056%
+t+ 11:58 | legs 8 | funding +59.15 | fees -138.51 | REALISED-FIRST -79.36 | basisMTM -123.37 | net -202.73 | maxDD 0.056%
+t+ 11:59 | legs 8 | funding +59.24 | fees -138.51 | REALISED-FIRST -79.27 | basisMTM -134.92 | net -214.19 | maxDD 0.056%
+t+ 12:00 | legs 8 | funding +59.34 | fees -138.51 | REALISED-FIRST -79.17 | basisMTM -69.50 | net -148.67 | maxDD 0.056%
+t+ 12:01 | legs 8 | funding +59.43 | fees -138.51 | REALISED-FIRST -79.08 | basisMTM -85.96 | net -165.04 | maxDD 0.056%
+t+ 12:02 | legs 8 | funding +59.53 | fees -138.51 | REALISED-FIRST -78.98 | basisMTM -127.84 | net -206.82 | maxDD 0.056%
+t+ 12:03 | legs 8 | funding +59.62 | fees -138.51 | REALISED-FIRST -78.89 | basisMTM -56.38 | net -135.26 | maxDD 0.056%
+t+ 12:04 | legs 8 | funding +59.72 | fees -138.51 | REALISED-FIRST -78.79 | basisMTM -180.70 | net -259.49 | maxDD 0.056%
+t+ 12:05 | legs 8 | funding +59.81 | fees -138.51 | REALISED-FIRST -78.70 | basisMTM -82.94 | net -161.63 | maxDD 0.056%
+
+  symbol   dir         rate/h(bps)  funding$   fees$   realFirst$  basisMTM$   margin%  age
+  GRAM     SHORT_PERP        0.125     +7.54   -35.01      -27.47      +3.14       1%  12.2h
+  NEAR     SHORT_PERP        0.125     +7.79    -4.00       +3.79     +17.17      19%  12.2h
+  DYDX     SHORT_PERP        0.125     +7.53   -35.00      -27.47     -30.24       3%  12.2h
+  LINK     SHORT_PERP        0.125     +7.63   -17.50       -9.87     -25.77       3%  12.1h
+  AAVE     SHORT_PERP        0.125     +7.64   -21.50      -13.85     -32.04       5%  12.1h
+  XPL      SHORT_PERP        0.125     +7.55    -4.00       +3.55     +21.25       2%  12.1h
+  UNI      SHORT_PERP        0.125     +6.52    -4.00       +2.52      -2.14       7%  12.1h
+  PUMP     SHORT_PERP        0.125     +7.61   -17.50       -9.89     -34.32       1%  12.1h
+
+t+ 12:07 | legs 8 | funding +59.91 | fees -138.51 | REALISED-FIRST -78.60 | basisMTM -105.10 | net -183.70 | maxDD 0.056%
+t+ 12:08 | legs 8 | funding +60.00 | fees -138.51 | REALISED-FIRST -78.51 | basisMTM -111.09 | net -189.59 | maxDD 0.056%
+t+ 12:09 | legs 8 | funding +60.10 | fees -138.51 | REALISED-FIRST -78.41 | basisMTM -120.56 | net -198.97 | maxDD 0.056%
+t+ 12:10 | legs 8 | funding +60.19 | fees -138.51 | REALISED-FIRST -78.32 | basisMTM -121.54 | net -199.86 | maxDD 0.056%
+t+ 12:11 | legs 8 | funding +60.29 | fees -138.51 | REALISED-FIRST -78.22 | basisMTM -89.66 | net -167.89 | maxDD 0.056%
+t+ 12:12 | legs 8 | funding +60.38 | fees -138.51 | REALISED-FIRST -78.13 | basisMTM -114.06 | net -192.19 | maxDD 0.056%
+t+ 12:13 | legs 8 | funding +60.47 | fees -138.51 | REALISED-FIRST -78.04 | basisMTM -44.16 | net -122.19 | maxDD 0.056%
+t+ 12:14 | legs 8 | funding +60.57 | fees -138.51 | REALISED-FIRST -77.94 | basisMTM -90.39 | net -168.33 | maxDD 0.056%
+t+ 12:15 | legs 8 | funding +60.67 | fees -138.51 | REALISED-FIRST -77.84 | basisMTM -88.50 | net -166.34 | maxDD 0.056%
+t+ 12:17 | legs 8 | funding +60.76 | fees -138.51 | REALISED-FIRST -77.75 | basisMTM -85.27 | net -163.02 | maxDD 0.056%
+t+ 12:18 | legs 8 | funding +60.86 | fees -138.51 | REALISED-FIRST -77.65 | basisMTM -79.34 | net -156.99 | maxDD 0.056%
+t+ 12:19 | legs 8 | funding +60.95 | fees -138.51 | REALISED-FIRST -77.56 | basisMTM -191.41 | net -268.97 | maxDD 0.056%
+t+ 12:20 | legs 8 | funding +61.04 | fees -138.51 | REALISED-FIRST -77.47 | basisMTM -198.97 | net -276.44 | maxDD 0.056%
+t+ 12:21 | legs 8 | funding +61.14 | fees -138.51 | REALISED-FIRST -77.37 | basisMTM -181.45 | net -258.82 | maxDD 0.056%
+t+ 12:22 | legs 8 | funding +61.23 | fees -138.51 | REALISED-FIRST -77.28 | basisMTM -117.71 | net -194.99 | maxDD 0.056%
+t+ 12:23 | legs 8 | funding +61.33 | fees -138.51 | REALISED-FIRST -77.18 | basisMTM -74.55 | net -151.73 | maxDD 0.056%
+t+ 12:24 | legs 8 | funding +61.42 | fees -138.51 | REALISED-FIRST -77.09 | basisMTM -109.75 | net -186.84 | maxDD 0.056%
+t+ 12:26 | legs 8 | funding +61.52 | fees -138.51 | REALISED-FIRST -76.99 | basisMTM -76.83 | net -153.82 | maxDD 0.056%
