@@ -17,19 +17,30 @@
  *   npm run migration:run                # once, if MM_PERSIST
  *   MM_PERSIST=true npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts
  *
- * MAKER ENTRY (P1/E2, default ON): patient entries/exits rest post-only at the touch
- * (Binance bookTicker / HL L2 best) and escalate to a cross only after CD_MAKER_PATIENCE_S
- * — killing the 14bps taker round trip that was the whole breakeven story (#72). Every
- * leg logs its TCA (maker/taker, waited, signed shortfall vs arrival mid). Urgent paths
- * (margin liquidation, DD kill-switch) never wait.
+ * MAKER ENTRY (P1/E2, default ON — pair-coordinated since the #96 TCA fix): both legs
+ * rest post-only at the touch (Binance bookTicker / HL L2 best) and RE-PEG every tick;
+ * the moment one leg fills the sibling crosses immediately (delta safety); a voluntary
+ * double-cross is taken only within CD_MAX_ENTRY_COST_BPS — at default fees that never
+ * passes, so OPENS ARE MAKER-OR-DON'T-TRADE: an entry that can't fill passively by
+ * CD_MAKER_MAX_TOTAL_S is SKIPPED (no fill, no cost — retried at the next re-gate).
+ * Closes never abort: maker-first, forced cross at CD_MAKER_PATIENCE_S. Every leg logs
+ * its TCA + a pair line vs the pre-registered ≤2bps/leg bar. Urgent paths (margin
+ * liquidation, DD kill-switch) never wait.
  *
  * Knobs: CD_SYMBOLS CD_GATE_DAYS CD_MIN_POS_FRAC CD_RECENCY_DAYS CD_NOTIONAL_USD
  *        CD_MAX_LEGS CD_POLL_MS CD_HOURS(0=indefinite) CD_SPOT_FEE_BPS CD_PERP_FEE_BPS
  *        CD_SLIPPAGE_BPS CD_IMPACT_BPS_PER_MM CD_MAX_LEVERAGE CD_MAINT_FRAC
  *        CD_REGATE_HOURS CD_DD_BUDGET_FRAC CD_ALERT_WEBHOOK MM_PERSIST DATABASE_URL_APP
  *        CD_MAX_BASIS_PCT(5 — the #92 ticker-collision guard on every entry/resume)
- *        CD_MAKER_ENTRY(true) CD_MAKER_PATIENCE_S(45) CD_MAKER_TICK_MS(2000)
+ *        CD_MAKER_ENTRY(true) CD_MAKER_PATIENCE_S(45 — min rest / close deadline)
+ *        CD_MAKER_MAX_TOTAL_S(1200 — open skip deadline) CD_MAX_ENTRY_COST_BPS(2)
+ *        CD_MAKER_TICK_MS(2000)
  *        CD_SPOT_MAKER_FEE_BPS(1 = Binance spot maker) CD_PERP_MAKER_FEE_BPS(−0.2 = HL rebate)
+ *
+ * NOTE: k-scaled HL wrappers (kPEPE, kBONK …) are NOT yet supported here — the spot leg
+ * has no 1000× unwrap (kPEPE spot = PEPEUSDT at 1000× qty). Symbols are normalised via
+ * hlCoin (never a bare toUpperCase — 'KPEPE' is not an HL coin), so a k-coin fails loudly
+ * at the spot touch instead of silently querying a nonexistent market.
  */
 import { DataSource } from 'typeorm';
 import { BinancePublicClient } from '../src/stat-arb/feed/binance-public-client';
@@ -40,7 +51,8 @@ import { rankCarryUniverse, OosFundingResult, OosGateConfig } from '../src/marke
 import { checkSameUnderlyingBasis, DEFAULT_MAX_BASIS_PCT, isKScaledCoin } from '../src/market-data/funding/cross-venue-symbol-match';
 import { FundingPoint } from '../src/market-data/funding/funding-source.interface';
 import { FundingCarryBook, LegExecution } from '../src/market-making/carry/funding-carry-book';
-import { acquireFill, ExecutedFill, TouchSource } from '../src/market-making/execution/maker-execution';
+import { acquirePairFill, ExecutedFill, TouchSource } from '../src/market-making/execution/maker-execution';
+import { hlCoin } from '../src/market-data/reference/hyperliquid-client';
 import { venueFeeFor } from '../src/market-making/backtest/venue-fees';
 import {
   CarryNavInsert,
@@ -55,7 +67,7 @@ import { computeTearsheet, EquityPoint, BenchPoint } from '../src/market-making/
 
 // ── Knobs ────────────────────────────────────────────────────────────────────────
 const SYMBOLS = (process.env.CD_SYMBOLS ?? 'BTC,ETH,SOL,BNB,XRP,DOGE,ADA,XMR,LINK,AVAX')
-  .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+  .split(',').map((s) => s.trim()).filter(Boolean).map(hlCoin); // hlCoin, never a bare toUpperCase ('kPEPE' ≠ 'KPEPE')
 const GATE_DAYS = Number(process.env.CD_GATE_DAYS ?? 90);
 const MIN_POS_FRAC = Number(process.env.CD_MIN_POS_FRAC ?? 0.65);
 const RECENCY_DAYS = Number(process.env.CD_RECENCY_DAYS ?? 7);
@@ -73,6 +85,8 @@ const REGATE_HOURS = Number(process.env.CD_REGATE_HOURS ?? 24);
 const DD_BUDGET_FRAC = Number(process.env.CD_DD_BUDGET_FRAC ?? 0.005); // the P0 pre-registered 0.5%
 const MAKER_ENTRY = (process.env.CD_MAKER_ENTRY ?? 'true').toLowerCase() === 'true';
 const MAKER_PATIENCE_S = Number(process.env.CD_MAKER_PATIENCE_S ?? 45);
+const MAKER_MAX_TOTAL_S = Number(process.env.CD_MAKER_MAX_TOTAL_S ?? 1_200);
+const MAX_ENTRY_COST_BPS = Number(process.env.CD_MAX_ENTRY_COST_BPS ?? 2);
 const MAKER_TICK_MS = Number(process.env.CD_MAKER_TICK_MS ?? 2_000);
 const SPOT_MAKER_FEE_BPS = Number(process.env.CD_SPOT_MAKER_FEE_BPS ?? venueFeeFor('binance').makerBps);
 const PERP_MAKER_FEE_BPS = Number(process.env.CD_PERP_MAKER_FEE_BPS ?? venueFeeFor('hyperliquid').makerBps);
@@ -152,30 +166,66 @@ const tca = (leg: string, f: ExecutedFill): string =>
   `(${f.shortfallBps >= 0 ? '+' : ''}${f.shortfallBps.toFixed(2)}bps vs mid, fee ${f.feeBps}bps, waited ${(f.waitedMs / 1000).toFixed(0)}s)`;
 
 /**
- * Open/close a pair through the maker-execution service (rest post-only, escalate on
- * timeout). Returns false when disabled or the touch cannot be fetched — the caller
- * falls back to the legacy mid-based taker path, so an outage degrades, never blocks.
+ * Outcome of the pair-coordinated maker execution (#96 TCA fix):
+ *   'executed'    — both legs filled and booked (TCA logged, pair line vs the bar).
+ *   'skipped'     — OPEN only: could not be done within the cost bar; NO position
+ *                   was taken and NO fee paid. The candidate stays gated and is
+ *                   retried at the next re-gate. An open-side infra error also
+ *                   skips — a venue we can't read a touch from is not a venue to
+ *                   open a new position on.
+ *   'unavailable' — maker execution is OFF (CD_MAKER_ENTRY=false), or a CLOSE hit
+ *                   an infra error: the caller falls back to the legacy mid-based
+ *                   taker path (closes must complete; an outage degrades, never
+ *                   dangles a book).
  */
-async function executePair(book: FundingCarryBook, symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP', action: 'open' | 'close'): Promise<boolean> {
-  if (!MAKER_ENTRY) return false;
+type PairOutcome = 'executed' | 'skipped' | 'unavailable';
+
+async function executePair(book: FundingCarryBook, symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP', action: 'open' | 'close'): Promise<PairOutcome> {
+  if (!MAKER_ENTRY) return 'unavailable';
   const opening = action === 'open';
   const spotSide = (direction === 'SHORT_PERP') === opening ? 'BUY' : 'SELL';
   const perpSide = spotSide === 'BUY' ? 'SELL' : 'BUY';
   try {
-    const patienceMs = MAKER_PATIENCE_S * 1000;
-    const [spotFill, perpFill] = await Promise.all([
-      acquireFill(spotSide, spotTouchFor(symbol), { patienceMs, tickMs: MAKER_TICK_MS, makerFeeBps: SPOT_MAKER_FEE_BPS, takerFeeBps: SPOT_FEE_BPS }),
-      acquireFill(perpSide, perpTouchFor(symbol), { patienceMs, tickMs: MAKER_TICK_MS, makerFeeBps: PERP_MAKER_FEE_BPS, takerFeeBps: PERP_FEE_BPS }),
-    ]);
+    const res = await acquirePairFill(
+      { side: spotSide, touchSource: spotTouchFor(symbol), makerFeeBps: SPOT_MAKER_FEE_BPS, takerFeeBps: SPOT_FEE_BPS },
+      { side: perpSide, touchSource: perpTouchFor(symbol), makerFeeBps: PERP_MAKER_FEE_BPS, takerFeeBps: PERP_FEE_BPS },
+      {
+        patienceMs: MAKER_PATIENCE_S * 1000,
+        maxTotalMs: (opening ? MAKER_MAX_TOTAL_S : MAKER_PATIENCE_S) * 1000,
+        tickMs: MAKER_TICK_MS,
+        maxPairCostBps: MAX_ENTRY_COST_BPS,
+        mode: action,
+        // The cheap-taker leg hedges; the expensive-taker leg leads at maker (the
+        // smoke's lesson: racing both lets the fast perp fill first and crosses
+        // the 4.5bps spot taker every time). 'a' = spot, 'b' = perp.
+        hedge: SPOT_FEE_BPS >= PERP_FEE_BPS ? 'b' : 'a',
+      },
+    );
+    if (res.status === 'skipped') {
+      console.log(
+        `  ${symbol}: entry SKIPPED by the cost gate — projected ${res.projectedPairCostBps.toFixed(2)}bps/leg > ` +
+        `${MAX_ENTRY_COST_BPS}bps bar after ${(res.waitedMs / 1000).toFixed(0)}s at maker (no fill, no cost; retried at the next re-gate)`,
+      );
+      return 'skipped';
+    }
+    const spotFill = res.a;
+    const perpFill = res.b;
     const spotExec: LegExecution = { priceMicros: spotFill.priceMicros, feeBps: spotFill.feeBps, midMicros: spotFill.arrivalMidMicros };
     const perpExec: LegExecution = { priceMicros: perpFill.priceMicros, feeBps: perpFill.feeBps, midMicros: perpFill.arrivalMidMicros };
     if (opening) book.openWithExecutions(Date.now(), spotExec, perpExec);
     else book.closeWithExecutions(Date.now(), spotExec, perpExec);
-    console.log(`  ${symbol}: ${action} TCA — ${tca('spot', spotFill)} | ${tca('perp', perpFill)}`);
-    return true;
+    console.log(
+      `  ${symbol}: ${action} TCA — ${tca('spot', spotFill)} | ${tca('perp', perpFill)} | ` +
+      `PAIR ${res.pairCostBps >= 0 ? '+' : ''}${res.pairCostBps.toFixed(2)}bps/leg ${res.pairCostBps <= MAX_ENTRY_COST_BPS ? '✅' : '❌'} (bar ≤${MAX_ENTRY_COST_BPS})`,
+    );
+    return 'executed';
   } catch (e) {
-    console.log(`  ${symbol}: maker-execution ${action} unavailable (${(e as Error).message}) — falling back to taker at mid`);
-    return false;
+    if (opening) {
+      console.log(`  ${symbol}: maker-execution open unavailable (${(e as Error).message}) — entry skipped (never taker-open on a venue we can't read)`);
+      return 'skipped';
+    }
+    console.log(`  ${symbol}: maker-execution close unavailable (${(e as Error).message}) — falling back to taker at mid`);
+    return 'unavailable';
   }
 }
 
@@ -287,7 +337,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `  execution: ${MAKER_ENTRY
-      ? `MAKER-FIRST (E2) — rest ≤${MAKER_PATIENCE_S}s at the touch (maker spot ${SPOT_MAKER_FEE_BPS} / perp ${PERP_MAKER_FEE_BPS}bps), escalate to taker on timeout; urgent closes never wait`
+      ? `PAIR MAKER-FIRST (E2 + #96 TCA fix) — ${SPOT_FEE_BPS >= PERP_FEE_BPS ? 'SPOT leads at maker (re-peg every ' + MAKER_TICK_MS / 1000 + 's), PERP hedges on fill' : 'PERP leads at maker, SPOT hedges on fill'}; ` +
+        `voluntary cross only ≤${MAX_ENTRY_COST_BPS}bps/leg (fees spot ${SPOT_MAKER_FEE_BPS}/${SPOT_FEE_BPS} · perp ${PERP_MAKER_FEE_BPS}/${PERP_FEE_BPS}bps ⇒ ` +
+        `double-taker never qualifies at defaults); opens SKIP after ${MAKER_MAX_TOTAL_S}s unfilled, closes force-cross at ${MAKER_PATIENCE_S}s`
       : 'taker-at-mid (CD_MAKER_ENTRY=false)'}`,
   );
   console.log(`  PRE-REGISTERED (P0): rolling-7d (funding − fees + realised) > 0 AND desk maxDD < ${(DD_BUDGET_FRAC * 100).toFixed(1)}%.\n`);
@@ -309,7 +361,7 @@ async function main(): Promise<void> {
       const snap = await fv.getBasis(rec.symbol);
       const b = newBook(rec.symbol, rec.direction);
       b.restoreState(rec.state);
-      if (b.isOpen() && !(await executePair(b, rec.symbol, rec.direction, 'close'))) {
+      if (b.isOpen() && (await executePair(b, rec.symbol, rec.direction, 'close')) !== 'executed') {
         b.close(Date.now(), micros(snap.binanceMid), micros(snap.hlMid));
       }
       const s = b.snapshot(micros(snap.binanceMid), micros(snap.hlMid));
@@ -340,7 +392,7 @@ async function main(): Promise<void> {
           // The exact #92 LIT scenario: a held book whose two legs aren't the same
           // asset. Close it at market (honest funding already accrued above), never
           // carry it forward.
-          if (lb.book.isOpen() && !(await executePair(lb.book, r.symbol, r.direction, 'close'))) {
+          if (lb.book.isOpen() && (await executePair(lb.book, r.symbol, r.direction, 'close')) !== 'executed') {
             lb.book.close(Date.now(), spotMid, perpMid);
           }
           const s = lb.book.snapshot(spotMid, perpMid);
@@ -352,15 +404,18 @@ async function main(): Promise<void> {
           await checkpoint(store, lb);
         }
       } else if (basisGuard(r.symbol, spotMid, perpMid)) {
-        if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), spotMid, perpMid);
-        lb.entryMs = Date.now();
-        console.log(
-          `  ${r.symbol}: OPEN ${r.direction === 'SHORT_PERP' ? 'long spot / SHORT perp' : 'short spot / LONG perp'} ` +
-          `$${NOTIONAL_USD / 1000}k/leg — gross ${pct(r.full.annualizedFundingPct)} · recent7d ${pct(r.recent.annualizedFundingPct)} · ` +
-          `breakeven ~${r.full.breakevenDays.toFixed(1)}d · basis ${snap.basisBps.toFixed(1)}bps`,
-        );
-        books.set(r.symbol, lb);
-        await checkpoint(store, lb);
+        const outcome = await executePair(lb.book, r.symbol, r.direction, 'open');
+        if (outcome !== 'skipped') {
+          if (outcome === 'unavailable') lb.book.open(Date.now(), spotMid, perpMid); // CD_MAKER_ENTRY=false: the legacy taker-at-mid path
+          lb.entryMs = Date.now();
+          console.log(
+            `  ${r.symbol}: OPEN ${r.direction === 'SHORT_PERP' ? 'long spot / SHORT perp' : 'short spot / LONG perp'} ` +
+            `$${NOTIONAL_USD / 1000}k/leg — gross ${pct(r.full.annualizedFundingPct)} · recent7d ${pct(r.recent.annualizedFundingPct)} · ` +
+            `breakeven ~${r.full.breakevenDays.toFixed(1)}d · basis ${snap.basisBps.toFixed(1)}bps`,
+          );
+          books.set(r.symbol, lb);
+          await checkpoint(store, lb);
+        }
       }
     } catch (e) {
       console.log(`  ${r.symbol}: open failed — ${(e as Error).message} (skipped)`);
@@ -486,7 +541,7 @@ async function main(): Promise<void> {
           const g = stillGated.get(lb.symbol);
           if (!g || g.direction !== lb.gate.direction) {
             const s = lb.book.snapshot(lb.lastSpotMid, lb.lastPerpMid, Date.now());
-            if (lb.book.isOpen() && !(await executePair(lb.book, lb.symbol, lb.gate.direction, 'close'))) {
+            if (lb.book.isOpen() && (await executePair(lb.book, lb.symbol, lb.gate.direction, 'close')) !== 'executed') {
               lb.book.close(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
             }
             console.log(`  ${lb.symbol}: DE-VALIDATED at re-gate — closed (was realised-first ${usd(s.realisedFirstUnits)})`);
@@ -504,7 +559,9 @@ async function main(): Promise<void> {
               entryMs: Date.now(), lastRatePerHour: 0, lastSpotMid: micros(snap.binanceMid), lastPerpMid: micros(snap.hlMid), stale: false,
             };
             if (!basisGuard(r.symbol, lb.lastSpotMid, lb.lastPerpMid)) continue;
-            if (!(await executePair(lb.book, r.symbol, r.direction, 'open'))) lb.book.open(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
+            const outcome = await executePair(lb.book, r.symbol, r.direction, 'open');
+            if (outcome === 'skipped') continue; // no fill, no cost — retried at the next re-gate
+            if (outcome === 'unavailable') lb.book.open(Date.now(), lb.lastSpotMid, lb.lastPerpMid);
             books.set(r.symbol, lb);
             await checkpoint(store, lb);
             console.log(`  ${r.symbol}: NEWLY GATED — opened ${r.direction} (recent7d ${pct(r.recent.annualizedFundingPct)})`);

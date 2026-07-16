@@ -8,10 +8,14 @@
 # nohup + a pidfile means a closed terminal can't end the demo, and `status` tells
 # you in one command whether the desk is actually alive.
 #
-# Symbols: the 13 deployables from the 2026-07-02 universe scan, MINUS LIT (the #92
-# ticker collision — HL "LIT" is Lighter, Binance "LITUSDT" is Litentry). The runner
+# Symbols: the 11 deployables from the 2026-07-16 universe scan
+# (docs/research/carry-universe/scan-2026-07-16T15-46-16-674Z.json), MINUS kPEPE —
+# the runner's spot leg has no k-wrapper unwrap yet (kPEPE spot = PEPEUSDT × 1000).
+# LIT stays excluded (the #92 ticker collision, re-flagged by this scan). The runner
 # re-gates every symbol at boot (90d funding gate + recency veto) and the #92
 # collision guard re-checks every entry/resume, so a stale list degrades safely.
+# Execution is the #96 TCA fix: pair maker-first with re-peg; opens that can't fill
+# within the ≤2bps/leg bar are SKIPPED, not taker-crossed.
 #
 # Usage:
 #   bash scripts/launch-carry-30d.sh          # start (refuses if already running)
@@ -25,7 +29,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SYMBOLS="${CD_SYMBOLS:-GRAM,NEAR,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC}"
+SYMBOLS="${CD_SYMBOLS:-NEAR,AAVE,XPL,UNI,PUMP,ONDO,DOGE,ETH,BTC,ZEC}"
 LOG_DIR=logs
 PIDFILE="$LOG_DIR/carry-desk.pid"
 mkdir -p "$LOG_DIR"
@@ -56,7 +60,9 @@ case "${1:-start}" in
       exit 1
     fi
     LOG="$LOG_DIR/carry-desk-$(date -u +%Y-%m-%dT%H-%M-%S).log"
-    CD_SYMBOLS="$SYMBOLS" CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" MM_PERSIST=true \
+    CD_SYMBOLS="$SYMBOLS" CD_MAX_LEGS="${CD_MAX_LEGS:-10}" \
+      CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" CD_MAKER_MAX_TOTAL_S="${CD_MAKER_MAX_TOTAL_S:-1200}" \
+      CD_MAX_ENTRY_COST_BPS="${CD_MAX_ENTRY_COST_BPS:-2}" MM_PERSIST=true \
       nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 &
     echo $! > "$PIDFILE"
     disown

@@ -217,8 +217,19 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-14 pm (session 8 — the MAKER reframing + Phase 0 built; Journal
-> #97).** Operator redirect: prediction markets were always meant to be **market-making with
+> **Last updated: 2026-07-16 (session 9 — full-universe carry scan + the #96 TCA fix,
+> two layers deep; Journal #99).** Scan: 232 HL perps → 94 gate-pass → **11 deployable**;
+> launch set = 10 (kPEPE needs k-wrapper spot support). **TCA fix BUILT + live-smoked:**
+> `acquirePairFill` (E2) — re-peg every tick, delta safety (one-tick window), fee-aware
+> voluntary cross ⇒ opens are maker-or-don't-trade (skip past the ≤2bps bar, retried at
+> re-gate), closes never abort. The first smoke caught the **race trap** (fast perp fills
+> ⇒ expensive spot taker crossed every time) ⇒ **leader/hedge**: spot leads at maker, perp
+> hedges on fill — fee floor 3.5 → **1.75bps/leg**, spot half-spread earned. Per-entry pair
+> prints are ±basis-tick noise ⇒ the 30d verdict metric is **MEAN pair-entry cost ≤ 2bps/leg**.
+> 12 new specs; 97 suites / 704 tests green. **OPERATOR: `bash scripts/launch-carry-30d.sh`**
+> (10-name list + new knobs baked in). E7 allocator wiring = next build item.
+>
+> *(Previous ledger, 2026-07-14 pm — session 8: the MAKER reframing + Phase 0; Journal #97.)* Operator redirect: prediction markets were always meant to be **market-making with
 > the desk's ms fair-value stack — spreads, not positions**; the ORV taker frame mis-applied
 > #70 (which killed spread-MM on ~1bp perp books, not on 100–2,700bps binary books where WE
 > are the fast quoter against retail flow). Research memo:
@@ -299,9 +310,11 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > **P1 items 1–3 BUILT; item 4 (allocator + beta-hedge) still the open P1 build item.**
 >
 > **Pick up here (in order):**
-> 1. **Carry TCA fix first (#96), then OPERATOR: `bash scripts/launch-carry-30d.sh`** (then
->    `status` any time). Score each session realised-first from `mm_nav WHERE desk='carry'` +
->    the TCA log lines (≤2bps/leg — failed on 4–5/8 fresh legs in #96's trial).
+> 1. ~~Carry TCA fix~~ **DONE #99 (leader/hedge pair executor)** → **OPERATOR:
+>    `bash scripts/launch-carry-30d.sh`** (then `status` any time). Score each session
+>    realised-first from `mm_nav WHERE desk='carry'` + the PAIR TCA log lines — verdict =
+>    MEAN pair-entry cost ≤ 2bps/leg across the run's entries (per-entry prints are
+>    ±basis-tick noise, #99).
 > 2. **Daily:** `scripts/funding-differential-board.ts` (day 3/7 due 2026-07-04 — consecutive
 >    days) and a `scripts/carry-universe-scan.ts` refresh at re-gate.
 > 3. **UI: U1+U2+U3.1 SHIPPED (#93–#94)** — `/desk/carry` (liveness + books + NAV + runbook),

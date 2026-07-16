@@ -4344,18 +4344,79 @@ declared done. Phase B (pricing + risk services) queues behind it.
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-14, #98)
+## 2026-07-16 — Entry #99 (full-universe carry scan → the #96 TCA fix built two layers deep — the race trap found live — → 30d relaunch handed to the operator)
+
+**The scan (P1a refresh, operator-run).** `carry-universe-scan.ts` over all 232 HL perps:
+156 through the 14d sieve, **94 pass the 90d OOS gate, 11 DEPLOYABLE** (gate ∧ Binance spot ∧
+vol ≥ $5M ∧ |basis| ≤ 5%). Artifact: `docs/research/carry-universe/scan-2026-07-16T15-46-16-674Z.json`.
+Every deployable has a full 90d history (2,160 funding periods) and **recent-7d funding ≥ its
+90d rate on all 11 names** — a hot funding *regime*, so the basket is underwritten at the 90d
+column, not the 7d. Headline stream: **NEAR** (11.5%/yr full, 12.2% recent, posFrac 0.92/0.98,
+$17M vol, +0.12% basis). Tiers: NEAR/UNI/AAVE/XPL (9–11.5%) · PUMP/kPEPE/ONDO (7–8%) ·
+DOGE/ETH/BTC/ZEC ballast (4–6%). The sieve behaved: CASHCAT +321% = unhedgeable squeeze
+(0.2d breakeven, no spot); XMR "+181% basis" = stale match (Binance delisted XMR spot); LIT
+re-flagged (#92 collision). **kPEPE excluded from launch**: the runner's spot leg has no
+k-wrapper unwrap (kPEPE spot = PEPEUSDT × 1000× qty — a `FundingCarryBook` build item), and
+`carry-desk-live.ts` normalised symbols with a bare `toUpperCase` ('KPEPE' is not an HL coin)
+— now normalised via `hlCoin` so a k-coin fails loudly. **Launch set (10):**
+`NEAR,AAVE,XPL,UNI,PUMP,ONDO,DOGE,ETH,BTC,ZEC`. Risk framing: all 10 are SHORT_PERP — one
+funding factor wearing ten hats (effective breadth ~2–3); equal-weight $50k/leg caps any name
+at 10% of desk.
+
+**The #96 TCA fix (E2 upgrade — `acquirePairFill`).** #96's leak decomposed: 45s at a STATIC
+join (never re-pegs ⇒ goes stale on illiquid books), then an UNCONDITIONAL full-spread cross,
+with the two legs run as independent `acquireFill`s (no pair-level decision). The new
+pair-coordinated executor: **(1) re-peg every tick** (chase at maker, post-only, conservative
+trade-through fills unchanged); **(2) delta safety** — one leg fills ⇒ sibling crosses that
+tick (one-tick delta window); **(3) fee-aware voluntary cross** — a double-taker cross only
+inside the ≤2bps/leg bar, which at desk fees ((4.5+2.5)/2 = 3.5bps floor) NEVER passes ⇒
+**opens are maker-or-don't-trade**: unfilled by `CD_MAKER_MAX_TOTAL_S` (1200s) ⇒ **SKIPPED**
+(no fill, no cost, retried at re-gate — GRAM-class names self-exclude); **(4) closes never
+abort** (forced cross at `CD_MAKER_PATIENCE_S`); urgent paths (margin, DD-kill) still bypass
+entirely. Open-side infra errors now skip too (never taker-open on a venue we can't read);
+the legacy mid-taker fallback survives only for `CD_MAKER_ENTRY=false` and close-side outages.
+
+**The live smoke found a second-order trap the design missed.** Smoke #1 (NEAR+ETH, real
+venues): both HL perp legs filled maker in **3s** and delta safety then crossed the expensive
+spot taker (4.5bps + spread) — pair +2.88/+3.28bps ❌ on every entry. Racing both legs at
+maker is structurally wrong under asymmetric fill speed: **the fast leg always wins, the
+expensive leg always pays.** Fix: **leader/hedge** (`cfg.hedge`) — the expensive-taker leg
+(spot) alone leads at maker with re-peg; the cheap-taker leg (perp, 2.5bps + tight HL touch)
+is the designated hedge, never rests, crosses the instant the leader fills. Same one-tick
+delta window; fee floor drops 3.5 → **1.75bps/leg** and the spot half-spread is earned, not
+paid. Smoke #2 confirmed mechanics (spot maker fills at 18–23s, perp hedges same tick); pair
+prints +4.54/+3.31 ❌ — decomposition: ~1.75 fees + **arrival-mid drift/basis noise over the
+wait** (NEAR spot chased +7.28 while its perp gained −1.70; the residue ≈ one basis tick,
+symmetric at pair level). The skip gate uses the drift-free projected cost (clean); the
+**scoring metric for the 30d run is the MEAN pair cost across entries** (per-entry prints
+straddle the bar on ±basis-tick noise — n=2 is not a tuning signal, left alone deliberately).
+12 new specs lock all of it (both-maker same tick; delta safety; re-peg chase priced honestly;
+honest abort; cheap-fee voluntary cross post-patience; close-never-aborts; hedge-never-rests;
+hedge open-skip/close-cross). 97 suites / 704 tests green, tsc clean.
+
+**Decisions (pre-registered for the relaunch):** underwrite at 90d funding; judge realised-first
+from `mm_nav desk='carry'`; TCA verdict = mean pair-entry cost ≤ 2bps/leg across the run's
+entries; desk flip-rule stays the daily re-gate + recency veto. **Queued, not built:** HL-native
+spot hedge to capture HYPE (+9.8%/yr, $313M vol, no Binance spot — single-venue pair, no
+cross-venue basis); k-wrapper support for kPEPE; chase-cap on the leader (only if the 30d mean
+shows systematic chase cost); E7 allocator wiring (built module, still unwired — next session).
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-16, #99)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
 fixes first, then the supervised long runs:
 
-1. **Carry (the P1 chain, in order):** (a) fix the entry TCA miss (#96: 4–5/8 legs escalated to
-   taker, 3.5–7bps vs the ≤2bps bar — longer maker rest on illiquid legs and/or fee-aware
-   breakeven recheck at entry); (b) wire the **E7 allocator** (built as a pure module, 750d0bd)
-   into `carry-desk-live.ts` + the aggregate beta-hedge; (c) **OPERATOR: relaunch the 30d run**
-   (`bash scripts/launch-carry-30d.sh`, resume + persist) — that run, not ad-hoc trials, is the
-   demo curve. Score each session realised-first from `mm_nav desk='carry'`.
+1. **Carry:** (a) ~~fix the entry TCA miss~~ **DONE #99** (leader/hedge `acquirePairFill`:
+   spot leads at maker with re-peg, perp hedges on fill, opens skip past the bar — fee floor
+   1.75bps/leg); (b) **OPERATOR: relaunch the 30d run** — `bash scripts/launch-carry-30d.sh`
+   (new 10-name list from the 2026-07-16 scan baked in; resume + persist) — that run is the
+   demo curve. Score each session realised-first from `mm_nav desk='carry'` + **mean pair-entry
+   cost ≤ 2bps/leg across entries** (per-entry prints are ±basis-tick noise); (c) wire the
+   **E7 allocator** (built module, 750d0bd) + aggregate beta-hedge into `carry-desk-live.ts`;
+   (d) queued: HL-native spot hedge (captures HYPE, single-venue pair), kPEPE k-wrapper support.
 2. **Probability desk → MAKER track (#97 — the reframing).** `orv-calibration.ts` is BUILT
    (collector: maker tape + Brier settles, no positions) — **OPERATOR: run it for days**
    (`npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts`, foreground). When
