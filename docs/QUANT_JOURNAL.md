@@ -4403,7 +4403,54 @@ shows systematic chase cost); E7 allocator wiring (built module, still unwired �
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-16, #99)
+## 2026-07-16 — Entry #100 (HL-native spot hedge: HYPE joins the carry desk — single-venue pairs, verified spot fee schedule — + the M2 board goes unattended, day 1/7)
+
+**Why.** The deployable gate required a Binance spot market, which excluded the single biggest
+gate-passing stream: **HYPE** (+9.8%/yr funding, $313M/day perp volume, posFrac 0.87/0.95 —
+never listed on Binance). Hyperliquid has its own spot CLOB; a **long HL-spot / short HL-perp**
+pair is structurally *cleaner* than the cross-venue books — one venue, one asset id (the #92
+ticker-collision class cannot exist), no cross-venue basis; the residual is USDC/USDT quote
+drift.
+
+**Built.** `HyperliquidSpotClient` (`src/market-data/reference/hyperliquid-spot-client.ts`):
+`spotMeta` resolution (token name → "@N" pair id; probed live — HYPE token 150 → pair `@107`;
+canonical names like PURR/USDC pass through), cached meta, `l2Snapshot` reusing the perp L2
+parser. **Fees verified against the live HL docs page (2026-07-16): spot base tier = taker
+7bps / maker 4bps, and SPOT HAS NO MAKER REBATE at any tier** — the −0.2bps rebate the desk
+models on perps is a perp-only maker-share program; priced as `venueFeeFor('hyperliquid-spot')`,
+never borrowed from the perp row. Runner: per-symbol spot-venue routing (`CD_HL_SPOT_SYMBOLS`,
+default HYPE) — touch source, pair mids/basis, book fees, and the leader/hedge selection all
+route per symbol; `launch-carry-30d.sh` now carries 11 names (HYPE added, `CD_MAX_LEGS=11`).
+
+**Live smoke (bounded, no persist):** gate ✅ → spot leg filled **maker on the HL spot book**
+(14s, fee 4bps ✓ schedule), perp hedged same tick (2.5bps ✓), basis HL-spot↔HL-perp 2.4bps,
+flatten priced at the 7bps spot taker ✓ — the per-symbol fee wiring engages on every path.
+Pair print +8.15bps ❌ = the **structural 3.25bps/leg fee floor** of an HL-native pair + one
+sample of basis noise (the perp bid lagged the spot move at the fill instant). **Judged
+honestly:** HL-native entries can never meet the Binance-book 2bps bar — their floor is
+3.25bps — but against HYPE's ~2.7bps/day stream an entry clears in ~3 days on a multi-week
+hold. The 30d scorecard should report HL-native books' mean entry cost against their OWN floor,
+separately from the Binance-book bar. 5 new specs (meta resolution, canonical names, cache,
+L2 parse, fee row). 97+ suites green, tsc clean.
+
+**Also: the M2 differential board went unattended (P1 #3).** `launch-differential-board.sh`
+(start/status/stop, one board per UTC day, streak counter) — the 7-consecutive-day
+pre-registration had stalled twice at day 2/7 on human memory. **Day 1/7 board run + committed:**
+17/30 pairs harvestable, HL persistently rich vs BOTH Binance and Bybit on majors (BTC
+hl↔bybit +4.6%/yr net at 1.00 stability, breakeven 2.9d) — exactly the sleeve M2 was designed
+to catch. Verdict cites ≥7 boards, not one.
+
+**Operator (to pick up HYPE + the new execution on the running desk):**
+`bash scripts/launch-carry-30d.sh stop` (books checkpoint OPEN) → `bash scripts/launch-carry-30d.sh`
+(the 10 resume with settled-funding gap replay, zero round-trip fees; HYPE opens fresh via
+maker-first). And keep the board loop alive: `bash scripts/launch-differential-board.sh`.
+
+**Queued:** PURR + other HL-native tails once HYPE's forward read is in; kPEPE k-wrapper;
+scan `hlSpot` deployability column; E7 allocator wiring (next build session).
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-16, #100)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
@@ -4411,12 +4458,14 @@ fixes first, then the supervised long runs:
 
 1. **Carry:** (a) ~~fix the entry TCA miss~~ **DONE #99** (leader/hedge `acquirePairFill`:
    spot leads at maker with re-peg, perp hedges on fill, opens skip past the bar — fee floor
-   1.75bps/leg); (b) **OPERATOR: relaunch the 30d run** — `bash scripts/launch-carry-30d.sh`
-   (new 10-name list from the 2026-07-16 scan baked in; resume + persist) — that run is the
-   demo curve. Score each session realised-first from `mm_nav desk='carry'` + **mean pair-entry
-   cost ≤ 2bps/leg across entries** (per-entry prints are ±basis-tick noise); (c) wire the
-   **E7 allocator** (built module, 750d0bd) + aggregate beta-hedge into `carry-desk-live.ts`;
-   (d) queued: HL-native spot hedge (captures HYPE, single-venue pair), kPEPE k-wrapper support.
+   1.75bps/leg); (b) ~~HL-native spot hedge~~ **DONE #100** (HYPE deployable — 11-name list;
+   HL spot fees verified 7/4bps NO rebate ⇒ HL-native floor 3.25bps/leg, judged vs its own
+   floor); (c) **OPERATOR: restart the 30d run to pick both up** — `launch-carry-30d.sh stop`
+   → `start` (10 books resume, HYPE opens fresh) + keep `launch-differential-board.sh` alive
+   (M2 day 1/7 done, HL rich vs both venues on majors). Score realised-first from
+   `mm_nav desk='carry'` + **mean pair-entry cost across entries** (Binance books vs the 2bps
+   bar; HL-native vs 3.25); (d) next build: **E7 allocator wiring** (750d0bd) + beta-hedge;
+   queued: PURR/HL-native tails, kPEPE k-wrapper, scan hlSpot column.
 2. **Probability desk → MAKER track (#97 — the reframing).** `orv-calibration.ts` is BUILT
    (collector: maker tape + Brier settles, no positions) — **OPERATOR: run it for days**
    (`npx ts-node -r tsconfig-paths/register scripts/orv-calibration.ts`, foreground). When

@@ -217,8 +217,18 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-16 (session 9 — full-universe carry scan + the #96 TCA fix,
-> two layers deep; Journal #99).** Scan: 232 HL perps → 94 gate-pass → **11 deployable**;
+> **Last updated: 2026-07-16 pm (session 9 cont. — HL-native spot hedge + unattended M2
+> board; Journal #100).** **HYPE is deployable**: `HyperliquidSpotClient` (spotMeta → "@N"
+> pair, cached; l2 via the perp parser), per-symbol spot-venue routing in the runner
+> (`CD_HL_SPOT_SYMBOLS=HYPE`), **HL spot fees verified from the live docs: taker 7 / maker
+> 4bps, NO rebate on spot** ⇒ HL-native fee floor 3.25bps/leg, scored against its own floor
+> (never the Binance 2bps bar). Live-smoked: spot maker fill on the HL spot book, perp hedge
+> same tick, all fee paths per-symbol. launch-carry-30d.sh = 11 names. **M2 board now
+> unattended** (`launch-differential-board.sh`, day 1/7 done: 17/30 harvestable, HL rich vs
+> both venues on majors). **OPERATOR: `launch-carry-30d.sh stop` → `start`** (resume + HYPE)
+> and keep the board loop running.
+>
+> *(Earlier same day — session 9: full-universe carry scan + the #96 TCA fix; Journal #99.)* Scan: 232 HL perps → 94 gate-pass → **11 deployable**;
 > launch set = 10 (kPEPE needs k-wrapper spot support). **TCA fix BUILT + live-smoked:**
 > `acquirePairFill` (E2) — re-peg every tick, delta safety (one-tick window), fee-aware
 > voluntary cross ⇒ opens are maker-or-don't-trade (skip past the ≤2bps bar, retried at

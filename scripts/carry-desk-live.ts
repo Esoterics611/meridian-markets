@@ -37,6 +37,12 @@
  *        CD_MAKER_TICK_MS(2000)
  *        CD_SPOT_MAKER_FEE_BPS(1 = Binance spot maker) CD_PERP_MAKER_FEE_BPS(−0.2 = HL rebate)
  *
+ * HL-NATIVE BOOKS (#100): CD_HL_SPOT_SYMBOLS (default 'HYPE') lists symbols whose spot
+ * hedge leg trades Hyperliquid's OWN spot CLOB instead of Binance — one venue, one asset
+ * id (no #92 collisions possible), no cross-venue basis; the residual is USDC/USDT quote
+ * drift. Spot fees are the HL SPOT schedule (taker 7 / maker 4bps, NO rebate on spot —
+ * venue-fees.ts), overridable via CD_HL_SPOT_FEE_BPS / CD_HL_SPOT_MAKER_FEE_BPS.
+ *
  * NOTE: k-scaled HL wrappers (kPEPE, kBONK …) are NOT yet supported here — the spot leg
  * has no 1000× unwrap (kPEPE spot = PEPEUSDT at 1000× qty). Symbols are normalised via
  * hlCoin (never a bare toUpperCase — 'KPEPE' is not an HL coin), so a k-coin fails loudly
@@ -53,6 +59,7 @@ import { FundingPoint } from '../src/market-data/funding/funding-source.interfac
 import { FundingCarryBook, LegExecution } from '../src/market-making/carry/funding-carry-book';
 import { acquirePairFill, ExecutedFill, TouchSource } from '../src/market-making/execution/maker-execution';
 import { hlCoin } from '../src/market-data/reference/hyperliquid-client';
+import { HyperliquidSpotClient } from '../src/market-data/reference/hyperliquid-spot-client';
 import { venueFeeFor } from '../src/market-making/backtest/venue-fees';
 import {
   CarryNavInsert,
@@ -91,6 +98,17 @@ const MAKER_TICK_MS = Number(process.env.CD_MAKER_TICK_MS ?? 2_000);
 const SPOT_MAKER_FEE_BPS = Number(process.env.CD_SPOT_MAKER_FEE_BPS ?? venueFeeFor('binance').makerBps);
 const PERP_MAKER_FEE_BPS = Number(process.env.CD_PERP_MAKER_FEE_BPS ?? venueFeeFor('hyperliquid').makerBps);
 const MAX_BASIS_PCT = Number(process.env.CD_MAX_BASIS_PCT ?? DEFAULT_MAX_BASIS_PCT);
+// HL-NATIVE books (#100): symbols whose SPOT hedge leg trades Hyperliquid's own
+// spot CLOB (HYPE/USDC …) instead of Binance — single venue, no cross-venue basis,
+// the #92 collision class impossible. Fees are the HL SPOT schedule (venue-fees:
+// taker 7 / maker 4bps, NO rebate on spot) — structurally pricier than Binance
+// spot, so these books' pair-entry cost floor is ~3.25bps/leg; judge them against
+// their stream, not the Binance-book 2bps bar.
+const HL_SPOT_SYMBOLS = new Set(
+  (process.env.CD_HL_SPOT_SYMBOLS ?? 'HYPE').split(',').map((s) => hlCoin(s.trim())).filter(Boolean),
+);
+const HL_SPOT_TAKER_BPS = Number(process.env.CD_HL_SPOT_FEE_BPS ?? venueFeeFor('hyperliquid-spot').takerBps);
+const HL_SPOT_MAKER_BPS = Number(process.env.CD_HL_SPOT_MAKER_FEE_BPS ?? venueFeeFor('hyperliquid-spot').makerBps);
 const PERSIST = (process.env.MM_PERSIST ?? 'false').toLowerCase() === 'true';
 const DATABASE_URL_APP =
   process.env.DATABASE_URL_APP ?? 'postgresql://meridian_markets_app:meridian_markets_app@localhost:5433/meridian_markets';
@@ -105,7 +123,37 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 // ── Wiring ───────────────────────────────────────────────────────────────────────
 const binance = new BinancePublicClient({ quote: 'USDT' });
 const hl = new HyperliquidClient();
+const hlSpot = new HyperliquidSpotClient();
 const fv = new CrossVenueFairValue(binance, hl);
+
+const isHlNative = (symbol: string): boolean => HL_SPOT_SYMBOLS.has(symbol);
+const spotFeesFor = (symbol: string): { makerBps: number; takerBps: number } =>
+  isHlNative(symbol)
+    ? { makerBps: HL_SPOT_MAKER_BPS, takerBps: HL_SPOT_TAKER_BPS }
+    : { makerBps: SPOT_MAKER_FEE_BPS, takerBps: SPOT_FEE_BPS };
+
+/** Both legs' mids + basis, routed by the symbol's spot venue. */
+interface PairMids {
+  spotMid: number;
+  perpMid: number;
+  basisBps: number;
+}
+async function getPairMids(symbol: string): Promise<PairMids> {
+  if (isHlNative(symbol)) {
+    const [spotL2, perpL2] = await Promise.all([hlSpot.l2Snapshot(symbol), hl.l2Snapshot(symbol)]);
+    const midOf = (l2: { bids: readonly { priceMicros: bigint }[]; asks: readonly { priceMicros: bigint }[] }): number => {
+      const b = l2.bids[0];
+      const a = l2.asks[0];
+      if (!b || !a) throw new Error(`${symbol}: empty HL book side`);
+      return Number(b.priceMicros + a.priceMicros) / 2 / 1e6;
+    };
+    const spotMid = midOf(spotL2);
+    const perpMid = midOf(perpL2);
+    return { spotMid, perpMid, basisBps: ((perpMid - spotMid) / spotMid) * 10_000 };
+  }
+  const snap = await fv.getBasis(symbol);
+  return { spotMid: snap.binanceMid, perpMid: snap.hlMid, basisBps: snap.basisBps };
+}
 const fund = new HyperliquidFundingClient();
 const alerts = new AlertDispatcher(buildAlertSink(process.env.CD_ALERT_WEBHOOK));
 const fillModel = SLIPPAGE_BPS > 0 || IMPACT_BPS_PER_MM > 0
@@ -138,7 +186,7 @@ function newBook(symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP'): Funding
     symbol,
     direction,
     notionalUsd: NOTIONAL_USD,
-    spotFeeBps: SPOT_FEE_BPS,
+    spotFeeBps: spotFeesFor(symbol).takerBps,
     perpFeeBps: PERP_FEE_BPS,
     fundingPeriodMs: HOUR_MS,
     maxLeverage: MAX_LEVERAGE,
@@ -150,6 +198,13 @@ function newBook(symbol: string, direction: 'SHORT_PERP' | 'LONG_PERP'): Funding
 
 // ── E2 maker execution (P1) ──────────────────────────────────────────────────────
 const spotTouchFor = (symbol: string): TouchSource => async () => {
+  if (isHlNative(symbol)) {
+    const l2 = await hlSpot.l2Snapshot(symbol);
+    const bid = l2.bids[0];
+    const ask = l2.asks[0];
+    if (!bid || !ask) throw new Error(`${symbol}: empty HL spot book side`);
+    return { bidMicros: bid.priceMicros, askMicros: ask.priceMicros };
+  }
   const t = await binance.bookTicker(symbol);
   return { bidMicros: micros(t.bidPrice), askMicros: micros(t.askPrice) };
 };
@@ -185,9 +240,10 @@ async function executePair(book: FundingCarryBook, symbol: string, direction: 'S
   const opening = action === 'open';
   const spotSide = (direction === 'SHORT_PERP') === opening ? 'BUY' : 'SELL';
   const perpSide = spotSide === 'BUY' ? 'SELL' : 'BUY';
+  const spotFees = spotFeesFor(symbol);
   try {
     const res = await acquirePairFill(
-      { side: spotSide, touchSource: spotTouchFor(symbol), makerFeeBps: SPOT_MAKER_FEE_BPS, takerFeeBps: SPOT_FEE_BPS },
+      { side: spotSide, touchSource: spotTouchFor(symbol), makerFeeBps: spotFees.makerBps, takerFeeBps: spotFees.takerBps },
       { side: perpSide, touchSource: perpTouchFor(symbol), makerFeeBps: PERP_MAKER_FEE_BPS, takerFeeBps: PERP_FEE_BPS },
       {
         patienceMs: MAKER_PATIENCE_S * 1000,
@@ -197,8 +253,8 @@ async function executePair(book: FundingCarryBook, symbol: string, direction: 'S
         mode: action,
         // The cheap-taker leg hedges; the expensive-taker leg leads at maker (the
         // smoke's lesson: racing both lets the fast perp fill first and crosses
-        // the 4.5bps spot taker every time). 'a' = spot, 'b' = perp.
-        hedge: SPOT_FEE_BPS >= PERP_FEE_BPS ? 'b' : 'a',
+        // the expensive spot taker every time). 'a' = spot, 'b' = perp.
+        hedge: spotFees.takerBps >= PERP_FEE_BPS ? 'b' : 'a',
       },
     );
     if (res.status === 'skipped') {
@@ -342,6 +398,13 @@ async function main(): Promise<void> {
         `double-taker never qualifies at defaults); opens SKIP after ${MAKER_MAX_TOTAL_S}s unfilled, closes force-cross at ${MAKER_PATIENCE_S}s`
       : 'taker-at-mid (CD_MAKER_ENTRY=false)'}`,
   );
+  const hlNativeInPlay = SYMBOLS.filter(isHlNative);
+  if (hlNativeInPlay.length > 0) {
+    console.log(
+      `  HL-NATIVE spot hedge: ${hlNativeInPlay.join(',')} — spot leg on Hyperliquid's own book ` +
+      `(fees ${HL_SPOT_MAKER_BPS}/${HL_SPOT_TAKER_BPS}bps, NO spot rebate; single venue, no cross-venue basis)`,
+    );
+  }
   console.log(`  PRE-REGISTERED (P0): rolling-7d (funding − fees + realised) > 0 AND desk maxDD < ${(DD_BUDGET_FRAC * 100).toFixed(1)}%.\n`);
 
   console.log(`Gate (${GATE_DAYS}d + recency veto)...`);
@@ -358,13 +421,13 @@ async function main(): Promise<void> {
   const plan = reconcileCarryResume(passers.map((r) => ({ symbol: r.symbol, direction: r.direction })), openRecords);
   for (const rec of plan.orphaned) {
     try {
-      const snap = await fv.getBasis(rec.symbol);
+      const mids = await getPairMids(rec.symbol);
       const b = newBook(rec.symbol, rec.direction);
       b.restoreState(rec.state);
       if (b.isOpen() && (await executePair(b, rec.symbol, rec.direction, 'close')) !== 'executed') {
-        b.close(Date.now(), micros(snap.binanceMid), micros(snap.hlMid));
+        b.close(Date.now(), micros(mids.spotMid), micros(mids.perpMid));
       }
-      const s = b.snapshot(micros(snap.binanceMid), micros(snap.hlMid));
+      const s = b.snapshot(micros(mids.spotMid), micros(mids.perpMid));
       console.log(`  ${rec.symbol}: ORPHANED (fails today's gate) — closed at market, realised-first ${usd(s.realisedFirstUnits)}`);
       await store.saveBook({ ...rec, state: b.serializeState() });
       await store.closeBook(rec.symbol);
@@ -376,9 +439,9 @@ async function main(): Promise<void> {
   for (const r of passers) {
     const resumed = plan.resume.find((x) => x.symbol.toUpperCase() === r.symbol.toUpperCase());
     try {
-      const snap = await fv.getBasis(r.symbol);
-      const spotMid = micros(snap.binanceMid);
-      const perpMid = micros(snap.hlMid);
+      const snap = await getPairMids(r.symbol);
+      const spotMid = micros(snap.spotMid);
+      const perpMid = micros(snap.perpMid);
       if (spotMid <= 0n || perpMid <= 0n) throw new Error('bad mids');
       const lb: LiveBook = {
         symbol: r.symbol, gate: r, book: newBook(r.symbol, r.direction),
@@ -455,9 +518,9 @@ async function main(): Promise<void> {
 
     for (const lb of books.values()) {
       try {
-        const [snap, fSnap] = await Promise.all([fv.getBasis(lb.symbol), fund.currentFunding(lb.symbol)]);
-        const spotMid = micros(snap.binanceMid);
-        const perpMid = micros(snap.hlMid);
+        const [snap, fSnap] = await Promise.all([getPairMids(lb.symbol), fund.currentFunding(lb.symbol)]);
+        const spotMid = micros(snap.spotMid);
+        const perpMid = micros(snap.perpMid);
         if (spotMid <= 0n || perpMid <= 0n) throw new Error('bad mids');
         lb.lastSpotMid = spotMid;
         lb.lastPerpMid = perpMid;
@@ -553,10 +616,10 @@ async function main(): Promise<void> {
         for (const r of passers) {
           if (books.has(r.symbol) || books.size >= MAX_LEGS) continue;
           try {
-            const snap = await fv.getBasis(r.symbol);
+            const snap = await getPairMids(r.symbol);
             const lb: LiveBook = {
               symbol: r.symbol, gate: r, book: newBook(r.symbol, r.direction),
-              entryMs: Date.now(), lastRatePerHour: 0, lastSpotMid: micros(snap.binanceMid), lastPerpMid: micros(snap.hlMid), stale: false,
+              entryMs: Date.now(), lastRatePerHour: 0, lastSpotMid: micros(snap.spotMid), lastPerpMid: micros(snap.perpMid), stale: false,
             };
             if (!basisGuard(r.symbol, lb.lastSpotMid, lb.lastPerpMid)) continue;
             const outcome = await executePair(lb.book, r.symbol, r.direction, 'open');

@@ -29,7 +29,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SYMBOLS="${CD_SYMBOLS:-NEAR,AAVE,XPL,UNI,PUMP,ONDO,DOGE,ETH,BTC,ZEC}"
+# HYPE rides the HL-native spot hedge (#100): spot leg on Hyperliquid's own book —
+# the biggest gate-passing stream (+9.8%/yr, $313M/day) that Binance never listed.
+SYMBOLS="${CD_SYMBOLS:-NEAR,AAVE,XPL,UNI,PUMP,ONDO,DOGE,ETH,BTC,ZEC,HYPE}"
 LOG_DIR=logs
 PIDFILE="$LOG_DIR/carry-desk.pid"
 mkdir -p "$LOG_DIR"
@@ -60,7 +62,7 @@ case "${1:-start}" in
       exit 1
     fi
     LOG="$LOG_DIR/carry-desk-$(date -u +%Y-%m-%dT%H-%M-%S).log"
-    CD_SYMBOLS="$SYMBOLS" CD_MAX_LEGS="${CD_MAX_LEGS:-10}" \
+    CD_SYMBOLS="$SYMBOLS" CD_MAX_LEGS="${CD_MAX_LEGS:-11}" \
       CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" CD_MAKER_MAX_TOTAL_S="${CD_MAKER_MAX_TOTAL_S:-1200}" \
       CD_MAX_ENTRY_COST_BPS="${CD_MAX_ENTRY_COST_BPS:-2}" MM_PERSIST=true \
       nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 &
