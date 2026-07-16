@@ -430,3 +430,20 @@ copy-cmd[data-err] .copy-btn { color: var(--neg); border-color: #5a1f1f; }
 .doc-list { list-style: none; margin: 0; padding: 0; }
 .doc-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; flex-wrap: wrap; }
 .doc-title { flex: 0 0 auto; }
+
+/* ── charts (UI_REWRITE_PLAN_III P1): the <mkt-chart> component + drawers ─────── */
+mkt-chart { display: block; }
+.chart-drawer { border: 1px solid var(--line); border-radius: 6px; margin: 8px 0; background: var(--panel); }
+.chart-drawer > summary { cursor: pointer; padding: 8px 12px; color: var(--dim); display: flex; gap: 12px; align-items: baseline; }
+.chart-drawer > summary:hover { color: var(--fg); }
+.chart-drawer[open] > summary { border-bottom: 1px solid var(--line); color: var(--fg); }
+.chart-drawer .chart-hint { font-size: 11px; }
+.chart-drawer mkt-chart { padding: 8px 12px 12px; }
+.mkt-title { color: var(--fg); font-size: 12px; margin: 2px 0 6px; }
+.mkt-legend { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.mkt-lgrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-size: 11px; color: var(--dim); }
+.mkt-lg i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+.mkt-plot { position: relative; }
+.mkt-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-size: 11px; display: flex; gap: 10px; white-space: nowrap; }
+.mkt-tip b { font-weight: 600; color: var(--fg); }
+.mkt-note { font-size: 11px; margin-top: 4px; }

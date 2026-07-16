@@ -11,7 +11,7 @@
 import { CarryBookView, CarryDeskView } from '../../market-making/carry/carry-read.service';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
-import { navSparkPanel } from './components';
+import { navSparkPanel, chartDrawer, chartsSection } from './components';
 import { age, money, pct, signClass } from './format';
 
 /** The P0 pre-registered desk drawdown budget (carry-desk-live.ts CD_DD_BUDGET_FRAC). */
@@ -110,6 +110,31 @@ export function renderCarryLive(v: CarryDeskView): SafeHtml {
   `;
 }
 
+/** The charts panel (UI_REWRITE_PLAN_III P1): the @carry aggregate + one drawer per
+ *  checkpointed book (CLOSED included — the curve is desk history). OUTSIDE the SSE
+ *  region; rendered at page load off the same checkpoint rows as the table. */
+export function renderCarryChartsPanel(v: CarryDeskView): SafeHtml {
+  const drawers = v.dbOff
+    ? []
+    : [
+        chartDrawer({ label: 'carry desk (aggregate)', src: '/desk/carry/chart', hint: 'equity · drawdown vs 0.5% budget · funding/fees/realised' }),
+        ...v.books.map((b) =>
+          chartDrawer({
+            label: `${b.symbol}${b.status === 'CLOSED' ? ' (closed)' : ''}`,
+            src: `/desk/carry/chart?book=${encodeURIComponent(b.symbol)}`,
+            hint: 'book curve — funding accrual vs fees',
+          }),
+        ),
+      ];
+  return chartsSection({
+    title: 'charts — the runner’s durable curves (mm_nav @carry)',
+    drawers,
+    note: v.dbOff
+      ? 'needs Postgres — same store as the table above.'
+      : 'funding accrues as a staircase (each funding interval steps it up); fees step down at entry/exit. Charts load on open and refresh every 60s.',
+  });
+}
+
 const RUNBOOK = [
   { label: 'launch the 30-day run (supervised)', cmd: 'bash scripts/launch-carry-30d.sh' },
   { label: 'is the desk alive?', cmd: 'bash scripts/launch-carry-30d.sh status' },
@@ -133,6 +158,7 @@ export function renderCarryPage(v: CarryDeskView): string {
       <div id="carry-live">${renderCarryLive(v)}</div>
     </desk-feed>
     ${navSparkPanel({ book: '@carry', hours: 48, label: 'carry desk equity' })}
+    ${renderCarryChartsPanel(v)}
     <section class="panel">
       <div class="panel-h">runbook — the desk runs as its own process; this page never executes</div>
       ${raw(cmds.map((c) => c.value).join(''))}

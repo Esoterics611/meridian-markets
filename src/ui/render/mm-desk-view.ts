@@ -15,7 +15,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, appendActivityTape, navSparkPanel, DRAWDOWN_BUDGET_PCT } from './components';
+import { deskControls, appendActivityTape, navSparkPanel, chartDrawer, chartsSection, DRAWDOWN_BUDGET_PCT } from './components';
 import { MIN_SAMPLES } from './markout-desk-view';
 
 export interface StrategyOption {
@@ -283,6 +283,28 @@ export function renderLaunchForm(strategies: StrategyOption[], presets: PresetOp
   `;
 }
 
+/** The charts panel (UI_REWRITE_PLAN_III P1): one drawer per book + the desk
+ *  aggregate, each a <mkt-chart> on /desk/mm/chart. Lives OUTSIDE the SSE region
+ *  (the drawers self-refresh; a tick swap would destroy an open chart). Rendered
+ *  at page load — the note says so instead of pretending to track launches live. */
+export function renderMmChartsPanel(snap: MmPortfolioSnapshot): SafeHtml {
+  const drawers = [
+    chartDrawer({ label: 'MM desk (aggregate)', src: '/desk/mm/chart', hint: 'equity · drawdown vs 2% budget · P&L components' }),
+    ...snap.books.map((b) =>
+      chartDrawer({
+        label: b.source ? `${b.symbol}·${b.source}` : b.symbol,
+        src: `/desk/mm/chart?book=${encodeURIComponent(b.symbol)}`,
+        hint: 'book equity · drawdown · components · fill markers',
+      }),
+    ),
+  ];
+  return chartsSection({
+    title: 'charts — durable NAV, drawdown, P&L components',
+    drawers,
+    note: 'drawer list is rendered at page load (reload after launching a book); each chart loads on open and refreshes every 60s. Needs MM_PERSIST + Postgres — the drawer says so honestly otherwise.',
+  });
+}
+
 /** The full /desk/mm document: shell + desk controls + launch forms + live region. */
 export function renderMmDeskPage(state: MmDeskState): string {
   const body = html`
@@ -293,6 +315,7 @@ export function renderMmDeskPage(state: MmDeskState): string {
     <desk-feed src="/desk/mm/stream" target="mm-live">
       <div id="mm-live">${renderMmDeskLive(state.snap)}</div>
     </desk-feed>
+    ${renderMmChartsPanel(state.snap)}
     ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/market-making/events' })}
   `;
   return pageShell({ title: 'Meridian · MM desk', activeHref: '/desk/mm', body: raw(body.value) });

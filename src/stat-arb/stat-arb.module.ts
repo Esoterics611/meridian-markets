@@ -1,6 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '@config/app-config.interface';
+import { MarketDataModule } from '../market-data/market-data.module';
 import { MockTradingVenue } from './mock-trading-venue';
 import { RealBinanceVenue } from './real-binance-venue';
 import { ITradingVenue, TRADING_VENUE } from './trading-venue.interface';
@@ -111,6 +112,9 @@ async function warmupFromAlpaca(
 }
 
 @Module({
+  // MarketDataModule exports ReplayEngine (stored-bar windows) — the /desk/statarb
+  // chart endpoint replays the live pair's strategy over them (UI_REWRITE_PLAN_III P1).
+  imports: [MarketDataModule],
   providers: [
     // Shared Binance public REST client (no key, public market data only).
     {

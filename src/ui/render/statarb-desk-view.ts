@@ -13,7 +13,7 @@ import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, returnPct, signClass } from './format';
-import { statArbControls, appendActivityTape } from './components';
+import { statArbControls, appendActivityTape, chartDrawer, chartsSection } from './components';
 
 /** Minimal blotter row shape (subset of StatArbTradeRow) the view needs. */
 export interface BlotterRow {
@@ -172,6 +172,24 @@ export function renderStatArbLaunchForm(strategies: StrategyOption[]): SafeHtml 
   `;
 }
 
+/** The charts panel (UI_REWRITE_PLAN_III P1): one drawer per live pair — the legs/
+ *  z/position picture behind each card's numbers. OUTSIDE the SSE region (drawers
+ *  self-refresh); rendered at page load, honestly noted. */
+export function renderStatArbChartsPanel(snap: PortfolioSnapshot): SafeHtml {
+  const drawers = snap.books.map((b) =>
+    chartDrawer({
+      label: b.pair,
+      src: `/desk/statarb/chart?pair=${encodeURIComponent(b.pair)}`,
+      hint: `legs indexed · spread z + bands · position — ${b.strategyId}, β=${b.beta.toFixed(3)}`,
+    }),
+  );
+  return chartsSection({
+    title: 'charts — the strategy math behind each pair (stored-bar replay)',
+    drawers,
+    note: 'each chart replays the live pair’s β/strategy over the newest stored bars — the same path as /signal-series. Rendered at page load (reload after launching a pair); loads on open, refreshes every 60s; needs a backfilled window for the pair’s venue.',
+  });
+}
+
 /** The full /desk/statarb document: shell + controls + launch form + blotter + live region. */
 export function renderStatArbPage(state: StatArbDeskState): string {
   const body = html`
@@ -181,6 +199,7 @@ export function renderStatArbPage(state: StatArbDeskState): string {
     <desk-feed src="/desk/statarb/stream" target="statarb-live">
       <div id="statarb-live">${renderStatArbLive(state.snap)}</div>
     </desk-feed>
+    ${renderStatArbChartsPanel(state.snap)}
     ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/stat-arb/live/events' })}
     ${renderStatArbBlotter(state.blotter, state.blotterAvailable)}
   `;

@@ -126,8 +126,10 @@ live in each page's SSE-refreshed region. A shared **Activity tape** component
 | `<copy-cmd>` | Web Component | `src/ui/public/copy-cmd.js` | **shipped** | the runbook copy helper (research; any "copy a command" surface) |
 | desk controls + tapes + nav panel | server partials | `src/ui/render/components.ts` (`deskControls`, `statArbControls`, `activityTape`, `appendActivityTape`, `navSparkPanel`) | **shipped** | ops, desk/mm, desk/statarb, risk, exec |
 | top bar brand link + role launcher | server partial | `src/ui/render/landing-view.ts` (`renderLandingPage`, `LAUNCHER_ENTRIES`) | **shipped** | `/` (the role index) |
-| `<nav-spark>` (equity sparkline) | Web Component | `src/ui/public/nav-spark.js` | **shipped** | exec + desk/mm (desk-aggregate; self-fetches `/nav`) |
+| `<nav-spark>` (equity sparkline) | Web Component | `src/ui/public/nav-spark.js` | **shipped** | desk/mm + desk/carry (glance strip; /exec upgraded to `<mkt-chart>`) |
 | `<activity-tape>` (append-mode feed) | Web Component | `src/ui/public/activity-tape.js` | **shipped** | desk/mm + desk/statarb (cursor-poll `…/events?since=`) |
+| `<mkt-chart>` (the chart primitive) | Web Component + vendored lib | `src/ui/public/mkt-chart.js` + `public/vendor/lightweight-charts.standalone.production.js` (v5.2.0, Apache-2.0, pinned — UI_REWRITE_PLAN_III D1) | **shipped** (P1) | exec + the desk pages' chart drawers. Fetches a server-built **ChartSpec** (`render/chart-spec.ts` — pure, spec'd builders) and renders it verbatim: panes, price-line bands, fill/trade markers, crosshair tooltip. Lazy-loads the 196KB lib only when a chart is shown; `defer` waits for its drawer to open; refreshes 60s in place (zoom kept). Honest offs rendered from the endpoint's `{enabled:false,reason}`. |
+| chart drawers + section | server partials | `src/ui/render/components.ts` (`chartDrawer`, `chartsSection`) | **shipped** (P1) | desk/mm + desk/carry + desk/statarb — one drawer per book/pair + aggregate, OUTSIDE the SSE region (self-refreshing, like `<nav-spark>`) |
 
 **`<desk-feed src target>`** is the one live-update (read) primitive: it opens an SSE
 connection to `src` and swaps each pushed HTML fragment into `#target`. The server
@@ -201,6 +203,9 @@ Wired today on `/ops` + `/desk/mm` (✅) via `<desk-action>`/`<desk-form>`.
 | `/research` ✅ | copy a runbook command | **none** — `<copy-cmd>` copies the exact terminal command to the clipboard (the UI never executes; the operator runs it) |
 | `/ops` | health / readiness / metrics | `GET /health`, `/health/ready`, `/metrics` |
 | `/exec`, `/ops`, `/desk` | durable NAV curve | `GET /api/market-making/nav?hours=&book=` (the carry curve = `book=@carry`) |
+| `/desk/mm`, `/exec` (read) | ChartSpec: equity · drawdown vs 2% budget · P&L components (+ per-book tape fill markers) | `GET /desk/mm/chart?book=&hours=` (P1) |
+| `/desk/carry`, `/exec` (read) | ChartSpec: the runner's `@carry[:SYM]` curve vs the 0.5% budget | `GET /desk/carry/chart?book=&hours=` (P1) |
+| `/desk/statarb` (read) | ChartSpec: legs indexed to 100 · spread z + live bands + replay trade markers · position sign (same path as `/signal-series`) | `GET /desk/statarb/chart?pair=&hours=` (P1) |
 | `/exec`, `/desk/carry` (read) | carry desk state (JSON twin of the page) | `GET /api/carry/state` — liveness + books + desk aggregates |
 | all | Activity tape | `GET /api/market-making/events?since=`, `GET /api/stat-arb/live/events?since=` |
 

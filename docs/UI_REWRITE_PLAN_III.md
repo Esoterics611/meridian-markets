@@ -7,6 +7,21 @@ thin read-only views over the engine, server-rendered partials + SSE + vanilla W
 Components, no SPA, no fabricated numbers, honest empty states — with **one amendment**
 (§3, the chart primitive), argued in writing per the house rule.*
 
+> **Status (2026-07-16):** D1–D5 all decided per the recommendations (Ronnie, same day).
+> **P1 SHIPPED** the same session — vendored lightweight-charts v5.2.0 behind the one
+> `<mkt-chart>` component, the normalized **ChartSpec** contract (`src/ui/render/chart-spec.ts`,
+> pure spec builders + 13 unit cases, palette validated by the dataviz six-checks script),
+> chart endpoints `GET /desk/mm/chart[?book=]`, `GET /desk/carry/chart[?book=]`,
+> `GET /desk/statarb/chart?pair=` + chart-drawer sections on `/desk/mm`, `/desk/carry`,
+> `/desk/statarb`, and `/exec`'s sparklines grown into the two full desk charts. Verified
+> against the live app + the real 57k-row `mm_nav` history (SOL book: 3 panels/180 points;
+> honest offs curl-checked). **Recorded deviations from §5.2:** (a) drawers live in a
+> per-page *charts section* OUTSIDE the SSE region, not inside the live cards — a 2s tick
+> swap would destroy an open chart (same law as `<nav-spark>`); (b) `/exec` embeds reuse
+> the two desk ChartSpec endpoints rather than adding its own; (c) the MM book drawer's
+> mid-vs-quotes panel waits on E6 exactly as §7 lists — P1 ships equity/drawdown/components
+> + tape fill markers. **Next: P2** (`/markets` + E1/E5).
+
 ---
 
 ## 0. The brief, restated as a mission

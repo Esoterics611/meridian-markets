@@ -18,6 +18,10 @@ const ASSET_FILES: Record<string, string> = {
   'nav-spark.js': 'nav-spark.js',
   'activity-tape.js': 'activity-tape.js',
   'tox-strips.js': 'tox-strips.js',
+  'mkt-chart.js': 'mkt-chart.js',
+  // Vendored TradingView Lightweight Charts™ v5.2.0 (Apache-2.0) — pinned + committed,
+  // never CDN-loaded (UI_REWRITE_PLAN_III D1). Lazy-loaded by <mkt-chart> on demand.
+  'lightweight-charts.js': 'vendor/lightweight-charts.standalone.production.js',
 };
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -29,6 +33,8 @@ const CONTENT_TYPES: Record<string, string> = {
   'nav-spark.js': 'application/javascript; charset=utf-8',
   'activity-tape.js': 'application/javascript; charset=utf-8',
   'tox-strips.js': 'application/javascript; charset=utf-8',
+  'mkt-chart.js': 'application/javascript; charset=utf-8',
+  'lightweight-charts.js': 'application/javascript; charset=utf-8',
 };
 
 function locate(file: string): string {
@@ -55,7 +61,9 @@ export class UiAssetController {
     const rel = ASSET_FILES[file];
     if (!rel) throw new NotFoundException(`unknown ui asset: ${file}`);
     const body = readFileSync(locate(rel), 'utf8');
-    res.setHeader('Content-Type', CONTENT_TYPES[rel]);
+    // Keyed by the URL name, NOT `rel` — the vendored entry's rel is a subpath
+    // ('vendor/…') and a rel-keyed lookup returned undefined (a live 500).
+    res.setHeader('Content-Type', CONTENT_TYPES[file]);
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.send(body);
   }

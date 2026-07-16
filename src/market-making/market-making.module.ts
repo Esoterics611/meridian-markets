@@ -804,6 +804,8 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
   // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
   // DeskEventLog is exported so the UI's /desk/mm page can server-render the MM
   // Activity tape from the same in-memory event sink the fills emit into.
-  exports: [MmPortfolioTrader, DeskEventLog, CarryReadService],
+  // MmNavRepository is exported (may resolve null — persist off) so the UI chart
+  // endpoints (/desk/mm/chart, /desk/carry/chart) can project the durable curve.
+  exports: [MmPortfolioTrader, DeskEventLog, CarryReadService, MmNavRepository],
 })
 export class MarketMakingModule {}

@@ -875,3 +875,26 @@ warehouse −1,632→−79 (−95%) at 8 lots, maxDD halved, 0.05%+ never fire; 
 cuts BNB's trend-winner. Conc mechanism validated where it binds (BNB: all metrics up);
 ADA conc<70% is the live gate. 3 new MM_CONC_* knobs. UI QA: additive fields only.
 196 suites / 1367 tests; tsc clean; telemetry flake only. Next: F4 Stage A (+arm F2 live).
+
+## 2026-07-16 — UI Plan III adopted + P1: charts on the desk (the math on screen)
+
+Wrote and adopted [UI_REWRITE_PLAN_III.md](UI_REWRITE_PLAN_III.md) — the Teaching
+Terminal (charts/depth/live market data, /plant + /fleet infra visibility, the
+mendy-hq learn layer; D1–D5 decided per recommendation) — and shipped **P1** the same
+session: vendored TradingView lightweight-charts v5.2.0 (pinned, Apache-2.0) behind one
+`<mkt-chart>` Web Component + a normalized server-built **ChartSpec** contract
+(`src/ui/render/chart-spec.ts`, pure builders, palette validated with the dataviz
+six-checks script against the ui.css dark surface). New read-only chart endpoints
+`GET /desk/mm/chart[?book=]` (equity · drawdown vs 2% budget · P&L components + tape
+fill markers), `GET /desk/carry/chart[?book=]` (@carry curves vs the 0.5% budget),
+`GET /desk/statarb/chart?pair=` (legs indexed to 100 · z + live bands + replay trade
+markers · position sign — same path as /signal-series; StatArbModule now imports
+MarketDataModule for ReplayEngine); chart-drawer sections on /desk/mm + /desk/carry +
+/desk/statarb (OUTSIDE the SSE regions — a tick swap would destroy an open chart) and
+/exec's sparklines upgraded to the two full desk charts. Live-verified against the real
+57k-row mm_nav history (booted the app, curled every endpoint + page; SOL book chart =
+3 panes / 180 points; honest offs confirmed). One live bug found by that boot and fixed
+WITH a regression spec (§10.1): the vendored asset's content-type lookup was keyed by
+rel-path → undefined header → 500 (new `ui-asset.controller.spec.ts` locks the whole
+allow-list). tsc clean; UI suite 23 suites / 175 tests green; market-making + stat-arb +
+execution + market-data suites all green.

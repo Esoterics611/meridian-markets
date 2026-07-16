@@ -73,8 +73,10 @@ The headline state of the desk at a glance. **No buttons** — this page only re
 **Per-book table:** book · strategy · net P&L · return · max DD · inventory · **risk
 verdict** · fills.
 
-**Equity curve (sparkline):** the durable NAV curve under the table (needs `MM_PERSIST`;
-otherwise it says "durable NAV off").
+**Equity charts (P1 — the sparklines grown up):** under the table, the two full desk
+curves (MM + carry), each three synced panes — equity, running drawdown vs its budget
+(2% MM / 0.5% carry), and the cumulative P&L components. They reuse the desk pages' own
+chart endpoints (needs `MM_PERSIST`; otherwise they say "durable NAV off").
 
 **Use it to:** answer "is the desk green, and is anything breaching drawdown?" in one look.
 
@@ -143,6 +145,14 @@ The full operating surface for the MM books.
 - footer — fills (bid/ask) · blocked quotes · max DD, and a **remove** button
   (flatten + drop the book, **confirm-gated**).
 
+**Charts (below the cards — P1, UI_REWRITE_PLAN_III):** one collapsed drawer per book plus
+the desk aggregate. Open one and you get three synced panes: **equity** (durable NAV, with
+▲/▼ fill markers from the tape on a book's curve), **running drawdown vs the 2% budget**
+(amber line), and the **cumulative P&L components** (realised / inv MTM / fees-contrib /
+funding — the same four lines the card sums to net). Charts load on open, refresh every
+60s (your zoom is kept), and the drawer list is fixed at page load — reload after
+launching a book. Needs `MM_PERSIST` + Postgres; the drawer says so honestly otherwise.
+
 **Activity tape (below):** the live business-event feed — every fill (enter/exit with
 realised P&L), risk-verdict change, and launch/remove — newest on top, the engine's own
 log line shown verbatim. It's **append-mode**: new events are added without rebuilding the
@@ -163,6 +173,13 @@ Re-launching the same pair **replaces** it (= reconfigure).
 **Per-pair cards (live):** z-score · β · regime · **position** (`LONG`/`SHORT`/`FLAT`
 badge) · equity · realised · unrealised · net + return · blocked entries · bars · a
 confirm-gated **remove**.
+
+**Charts (below the cards — P1):** one drawer per live pair — the classic pairs picture:
+both **legs indexed to 100** (one honest axis, no dual-axis), the **spread z-score** with
+the live book's entry/exit bands (amber/dim dashed) and replay trade markers, and the
+**position sign** (long green / short red). It replays the live pair's β/strategy over the
+newest *stored* bars — the same path as `/api/market-data/signal-series` — so it needs a
+backfilled window for the pair's venue (the drawer says so when there isn't one).
 
 **Activity tape:** same append-mode feed, on the stat-arb event log.
 
@@ -189,6 +206,9 @@ its durable checkpoints (`carry_book_state` + `mm_nav desk='carry'`) and drives 
   history — honesty doctrine).
 - **NAV sparkline** on the `@carry` aggregate + a `<copy-cmd>` runbook palette
   (launch / status / stop / out-of-band close — the page never executes).
+- **Charts (P1):** drawers for the `@carry` aggregate + every checkpointed book (CLOSED
+  included — the curve is desk history): equity, drawdown vs the **0.5%** kill budget,
+  and the funding-staircase vs fees components.
 - DB off ⇒ an explicit `DB OFF` panel, never zeros.
 
 The full operator doctrine (what each number means, when to act):
