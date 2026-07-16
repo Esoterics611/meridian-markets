@@ -47,7 +47,12 @@ case "${1:-start}" in
     ls -t "$BOARD_DIR"/board-*.json 2>/dev/null | head -3 | sed 's/^/  latest: /' || true
     ;;
   stop)
-    if alive; then kill "$(cat "$PIDFILE")"; rm -f "$PIDFILE"; echo "stopped — the streak breaks if a UTC day passes without a board."; else echo "not running"; fi
+    # -PID signals the whole process group (the loop AND any in-flight npx/node
+    # board run) — a plain `kill` on just the bash -c wrapper's PID orphans a
+    # running board fetch instead of ending it (the same gap found live on the
+    # carry-desk launcher, 2026-07-16). setsid at start makes this PID the group
+    # leader, so this is a clean one-shot stop.
+    if alive; then kill -TERM -- -"$(cat "$PIDFILE")" 2>/dev/null; rm -f "$PIDFILE"; echo "stopped — the streak breaks if a UTC day passes without a board."; else echo "not running"; fi
     ;;
   start)
     if alive; then
@@ -55,13 +60,15 @@ case "${1:-start}" in
       exit 1
     fi
     LOG="$LOG_DIR/differential-board-$(date -u +%Y-%m-%dT%H-%M-%S).log"
-    nohup bash -c '
+    # setsid: makes the loop its own session/process-group leader so `stop` can
+    # signal the loop AND any in-flight npx/node child with one `kill -PID`.
+    setsid nohup bash -c '
       while true; do
         echo "=== board run $(date -u +%FT%TZ) ==="
         npx ts-node -r tsconfig-paths/register scripts/funding-differential-board.ts || echo "board run FAILED (kept alive; retries next cycle)"
         sleep 86400
       done
-    ' >> "$LOG" 2>&1 &
+    ' >> "$LOG" 2>&1 < /dev/null &
     echo $! > "$PIDFILE"
     disown
     echo "started (pid $(cat "$PIDFILE")) — first board runs now, then every 24h. Log: $LOG"

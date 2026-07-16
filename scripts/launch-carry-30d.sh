@@ -50,7 +50,12 @@ case "${1:-start}" in
     ;;
   stop)
     if alive; then
-      kill -INT "$(cat "$PIDFILE")"   # graceful: MM_PERSIST checkpoints books OPEN (resume-not-flatten)
+      # The pidfile PID is a `setsid` process-group leader (see start, below): `npx`
+      # wraps `sh -c "ts-node"` wraps the real node process, and a plain `kill` on
+      # the top PID does not reliably propagate SIGINT down that chain (confirmed
+      # live 2026-07-16 — the wrapper stayed up, the runner never saw the signal).
+      # `-PID` signals the whole process group in one shot.
+      kill -INT -- -"$(cat "$PIDFILE")"   # graceful: MM_PERSIST checkpoints books OPEN (resume-not-flatten)
       echo "SIGINT sent — books checkpoint OPEN and resume on the next start."
     else
       echo "not running"
@@ -62,10 +67,12 @@ case "${1:-start}" in
       exit 1
     fi
     LOG="$LOG_DIR/carry-desk-$(date -u +%Y-%m-%dT%H-%M-%S).log"
+    # setsid: makes the launched process its own session/process-group leader, so
+    # `stop` can signal the ENTIRE npx→sh→node chain with one `kill -INT -PID`.
     CD_SYMBOLS="$SYMBOLS" CD_MAX_LEGS="${CD_MAX_LEGS:-11}" \
       CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" CD_MAKER_MAX_TOTAL_S="${CD_MAKER_MAX_TOTAL_S:-1200}" \
       CD_MAX_ENTRY_COST_BPS="${CD_MAX_ENTRY_COST_BPS:-2}" MM_PERSIST=true \
-      nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 &
+      setsid nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 < /dev/null &
     echo $! > "$PIDFILE"
     disown
     echo "started (pid $(cat "$PIDFILE")) — log: $LOG"
