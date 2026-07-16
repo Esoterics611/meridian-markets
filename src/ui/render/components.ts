@@ -112,6 +112,33 @@ export function chartsSection(opts: { title: string; drawers: SafeHtml[]; note?:
   `;
 }
 
+// ── The teaching layer (UI_REWRITE_PLAN_III P3) ─────────────────────────────────
+
+/** The ⓘ explain affordance — <explain-tip> fetches /learn/explain/<id> on click.
+ *  Renders unconditionally (subtle); learn mode only adds captions, so learn-off
+ *  stays pixel-identical for everything carrying the learn-only class. */
+export function explain(eid: string): SafeHtml {
+  return html`<explain-tip eid="${eid}"></explain-tip>`;
+}
+
+/** A one-paragraph "what am I looking at" strip — hidden unless learn mode is on. */
+export function learnIntro(text: string): SafeHtml {
+  return html`<p class="learn-only learn-intro">${text}</p>`;
+}
+
+export interface TourStep {
+  /** CSS selector of the element to spotlight (missing ⇒ the step is skipped). */
+  sel: string;
+  text: string;
+}
+
+/** The server-defined guided tour: steps ride as JSON inside the component (the
+ *  '<' escape keeps a </script> in step text from breaking the document). */
+export function deskTour(steps: TourStep[]): SafeHtml {
+  const json = JSON.stringify(steps).replace(/</g, '\\u003c');
+  return html`<desk-tour><script type="application/json">${raw(json)}</script></desk-tour>`;
+}
+
 // Colour class per event kind for the tape badge.
 function kindClass(kind: string): string {
   switch (kind) {

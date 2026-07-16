@@ -30,6 +30,7 @@ export const LAUNCHER_ENTRIES: LauncherEntry[] = [
   { href: '/desk/statarb', label: 'desk · statarb', blurb: 'Stat-arb desk — per-pair z / β / regime, the persisted blotter, launch / remove pairs.', live: true },
   { href: '/risk', label: 'risk', blurb: 'Risk console — drawdown, net / gross exposure, verdict feed + the cross-desk kill switch.', live: true },
   { href: '/research', label: 'research', blurb: 'Research desk — findings KEEP / CUT board + copy-the-runbook-command (no execution).', live: true },
+  { href: '/learn', label: 'learn', blurb: 'The academy — two full courses, the learning path, guided tours, and the glossary behind every ⓘ. Start here if the desk is new to you.', live: true },
   { href: '/pm', label: 'pm', blurb: 'PM / house view — the thesis register. Waiting on the engine surface (not built yet).', live: false },
 ];
 

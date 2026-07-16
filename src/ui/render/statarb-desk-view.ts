@@ -13,7 +13,7 @@ import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, returnPct, signClass } from './format';
-import { statArbControls, appendActivityTape, chartDrawer, chartsSection } from './components';
+import { statArbControls, appendActivityTape, chartDrawer, chartsSection, explain, learnIntro } from './components';
 
 /** Minimal blotter row shape (subset of StatArbTradeRow) the view needs. */
 export interface BlotterRow {
@@ -66,9 +66,9 @@ function pairCard(b: PortfolioBookRow): SafeHtml {
       </div>
 
       <div class="quote-grid">
-        <div class="q"><span class="qk">z-score</span><span class="qv mono">${b.lastZ.toFixed(2)}</span></div>
-        <div class="q"><span class="qk">β</span><span class="qv mono">${b.beta.toFixed(3)}</span></div>
-        <div class="q"><span class="qk">regime</span><span class="qv mono">${b.regime}</span></div>
+        <div class="q"><span class="qk">z-score ${explain('z-score')}</span><span class="qv mono">${b.lastZ.toFixed(2)}</span></div>
+        <div class="q"><span class="qk">β ${explain('beta')}</span><span class="qv mono">${b.beta.toFixed(3)}</span></div>
+        <div class="q"><span class="qk">regime ${explain('pair-regime')}</span><span class="qv mono">${b.regime}</span></div>
         <div class="q"><span class="qk">equity</span><span class="qv mono">${usd(b.equityUnits)}</span></div>
         <div class="q"><span class="qk">realised</span><span class="qv mono ${signClass(b.realisedPnlUnits)}">${money(b.realisedPnlUnits)}</span></div>
         <div class="q"><span class="qk">unrealised</span><span class="qv mono ${signClass(b.unrealisedPnlUnits)}">${money(b.unrealisedPnlUnits)}</span></div>
@@ -194,6 +194,9 @@ export function renderStatArbChartsPanel(snap: PortfolioSnapshot): SafeHtml {
 export function renderStatArbPage(state: StatArbDeskState): string {
   const body = html`
     <h1 class="page-title">Stat-arb desk</h1>
+    ${learnIntro(
+      'Pairs trading: find two assets that historically move together, combine them (via the hedge ratio β) into a spread that should be stable, and bet that a stretched spread snaps back. The z-score is the stretch in standard deviations; the chart drawer under each pair draws the whole picture. Honest history: this desk’s own research CUT crypto taker stat-arb — the surviving edge is thin and lives in equities.',
+    )}
     ${statArbControls()}
     ${renderStatArbLaunchForm(state.strategies)}
     <desk-feed src="/desk/statarb/stream" target="statarb-live">

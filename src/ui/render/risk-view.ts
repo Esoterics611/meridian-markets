@@ -18,7 +18,7 @@ import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { money, usd, pct, signClass, notionalUnits, absUnits } from './format';
-import { activityTape, DRAWDOWN_BUDGET_PCT } from './components';
+import { activityTape, deskTour, learnIntro, TourStep, DRAWDOWN_BUDGET_PCT } from './components';
 
 export interface RiskState {
   snap: MmPortfolioSnapshot;
@@ -227,10 +227,21 @@ export function renderRiskActions(): SafeHtml {
   `;
 }
 
+/** The /risk guided tour (P3) — the bounded-loss lesson. */
+const RISK_TOUR: TourStep[] = [
+  { sel: '.stat-grid', text: 'The risk headline: the worst book’s drawdown against the pre-registered 2% budget, how many books breach it, and the desk’s net/gross exposure. The impressive number on a quant desk is not the return — it is the BOUNDED drawdown.' },
+  { sel: '.book-table', text: 'Per book: the risk gate’s live verdict (Allow / Pause / Deny), drawdown vs budget, signed exposure, and adverse selection — the live toxicity signal. The gate is the engine’s; this page only reports it.' },
+  { sel: '.activity', text: 'Verdict transitions, verbatim from the engine: when a book’s gate flipped and why. A quiet feed is a healthy desk.' },
+  { sel: '.action-palette', text: 'The de-risk levers: stop quoting, flatten the MM desk, flatten stat-arb — the two flattens together are the cross-desk kill switch. Everything destructive asks for confirmation.' },
+];
+
 /** The full /risk document: shell + de-risk palette + the live risk region. */
 export function renderRiskPage(state: RiskState): string {
   const body = html`
-    <h1 class="page-title">Risk — drawdown, exposure &amp; verdicts</h1>
+    <h1 class="page-title">Risk — drawdown, exposure &amp; verdicts ${deskTour(RISK_TOUR)}</h1>
+    ${learnIntro(
+      'The job is bounded loss, not maximum profit: every book carries a pre-registered drawdown budget and a live verdict from the composite risk gate. This page reads the risk on and holds the kill switches — the discipline that makes the steady curve possible.',
+    )}
     ${renderRiskActions()}
     <desk-feed src="/risk/stream" target="risk-live">
       <div id="risk-live">${renderRiskLive(state.snap, state.verdicts)}</div>

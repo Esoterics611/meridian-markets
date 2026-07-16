@@ -15,7 +15,7 @@ import { fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { age, money, usd, pct, returnPct, signClass } from './format';
-import { DRAWDOWN_BUDGET_PCT } from './components';
+import { DRAWDOWN_BUDGET_PCT, learnIntro } from './components';
 
 /** Worst single-book max-drawdown — the desk's headline drawdown proxy. */
 function worstDrawdownPct(books: MmBookSnapshot[]): number {
@@ -172,6 +172,9 @@ function execChartPanel(title: string, src: string): SafeHtml {
 export function renderExecPage(snap: MmPortfolioSnapshot, carry?: CarryDeskView): string {
   const body = html`
     <h1 class="page-title">Executive — fund overview (MM desk + carry desk)</h1>
+    ${learnIntro(
+      'The fund at a glance: two desks, two honest equity curves — deliberately not merged into one synthetic number (different capital bases, different cadences). The question this page answers in one look: is the desk green, and is anything breaching its drawdown budget?',
+    )}
     <desk-feed src="/exec/stream" target="exec-live">
       <div id="exec-live">${renderExecLive(snap, carry)}</div>
     </desk-feed>

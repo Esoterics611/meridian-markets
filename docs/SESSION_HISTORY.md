@@ -917,3 +917,23 @@ says so. Live-verified against real Hyperliquid: 20×20 frames (best bid 64,173 
 41.86 BTC), 289 real candles, both SSE streams ticking, honest offs for depthless
 venues. tsc clean; ui + market-making 122 suites / 885 tests green (incl. 16 new
 markets specs); nav + launcher gained the markets entry.
+
+## 2026-07-16 (same session, cont.) — trader-review P0s + P3: the teaching layer
+
+**Trader review (Ronnie, priority interrupt):** off a live /markets screenshot —
+depth must read bids ‖ asks side-by-side. Shipped the P0s in their own commit
+(453ff1d): the ladder rebuilt as a two-column DOM (prices on the inner edges, bars
+outward, height halved), TICK-AWARE price precision (the "76.08 × 6" duplicate-label
+defect — 2dp was hiding SOL's sub-cent tick), volume-axis K/M compaction, scale-aware
+candle precision, grid rebalance. Full review + P1/P2 backlog: docs/UI_TRADER_REVIEW.md.
+
+**P3 (UI_REWRITE_PLAN_III):** the explain registry (curated from DESK_GLOSSARY,
+spec-enforced course links) + <explain-tip> ⓘ drawer via GET /learn/explain/:id;
+learn mode as a pure-CSS presentation toggle (learn-off pixel-identical, ?learn=1 /
+topbar button); <desk-tour> guided tours on /desk/mm, /markets, /risk; the /learn hub
+(courses · learning path · tours · on-site glossary); /courses/* served same-origin
+(D2: allow-list + traversal guard + honest not-built page; site dirs stay gitignored);
+learn intros across exec/mm/statarb/carry/risk/markets; docs/TEACHING_SURFACE.md = the
+stable-URL contract for mendy-hq. Live-verified on the operator's own watch server;
+found + spec-locked the course-root redirect loop (slashed URL matched the slashless
+route). tsc clean; UI 28 suites / 205 tests green.

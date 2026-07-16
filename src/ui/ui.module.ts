@@ -9,6 +9,8 @@ import { CarryDeskController } from './carry-desk.controller';
 import { ToxicityDeskController } from './toxicity-desk.controller';
 import { RiskController } from './risk.controller';
 import { ResearchPageController } from './research.controller';
+import { LearnController } from './learn.controller';
+import { CoursesController } from './courses.controller';
 import { UiAssetController } from './ui-asset.controller';
 
 // UiModule — the role-scoped, server-rendered UI (docs/UI_ARCHITECTURE.md). It
@@ -29,6 +31,8 @@ import { UiAssetController } from './ui-asset.controller';
     ToxicityDeskController,
     RiskController,
     ResearchPageController,
+    LearnController,
+    CoursesController,
     UiAssetController,
   ],
 })

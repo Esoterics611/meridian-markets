@@ -9,7 +9,7 @@
 import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
-import { appendActivityTape } from './components';
+import { appendActivityTape, deskTour, explain, learnIntro, TourStep } from './components';
 
 export interface StripData {
   symbol: string;
@@ -55,7 +55,7 @@ export function renderMarketsStrip(d: StripData): SafeHtml {
       <div class="stat"><span class="stat-k">24h Δ</span><span class="stat-v mono ${cls}">${delta}</span></div>
       <div class="stat"><span class="stat-k">24h range</span><span class="stat-v mono">${fmtPx(d.lo)} — ${fmtPx(d.hi)}</span></div>
       <div class="stat">
-        <span class="stat-k">top-of-book spread</span>
+        <span class="stat-k">top-of-book spread ${explain('spread')}</span>
         <span class="stat-v mono">${d.spreadBps === null ? html`<span class="dim" title="spread needs an L2 venue">—</span>` : `${d.spreadBps.toFixed(2)} bps`}</span>
       </div>
       <div class="stat"><span class="stat-k">mode</span><span class="stat-v"><span class="badge badge--paper">PAPER</span></span></div>
@@ -101,6 +101,15 @@ function pickerForm(s: MarketsPageState): SafeHtml {
   `;
 }
 
+/** The /markets guided tour (P3) — the Session-10 lesson, live. */
+const MARKETS_TOUR: TourStep[] = [
+  { sel: '.markets-picker', text: 'Pick a market: venue, symbol, window. Everything below is that market, live — the same public feeds the paper desk trades on.' },
+  { sel: '#markets-strip', text: 'The headline: the last price (on depth venues it is the book’s mid), the 24h move and range, and the live top-of-book spread. If the feed drops, this says FEED DOWN — it never shows stale numbers.' },
+  { sel: '.markets-chart', text: 'Price history as candles: each candle is one interval’s open/high/low/close; the pane below is traded volume. When one of our MM books quotes this market, dashed lines mark OUR bid and ask straddling the price.' },
+  { sel: '.markets-depth', text: 'The order book, right now: everyone’s resting buy orders (green, left) and sell orders (red, right), sizes as outward bars. There is no single "the price" — there is a best bid, a best ask, and the SPREAD between them. That gap is what a market maker earns.' },
+  { sel: '.activity', text: 'Our paper desk’s own fills on this symbol — not the venue’s trades (that tape is honestly marked as not served yet).' },
+];
+
 /** The full /markets document. */
 export function renderMarketsPage(s: MarketsPageState): string {
   const q = `symbol=${encodeURIComponent(s.symbol)}&venue=${encodeURIComponent(s.venue)}`;
@@ -108,7 +117,10 @@ export function renderMarketsPage(s: MarketsPageState): string {
     ? html`<depth-ladder src="/api/market-data/l2/stream?${raw(q)}"></depth-ladder>`
     : html`<p class="dim empty">no depth feed for ${s.venue} — the ladder needs an L2-capable venue (hyperliquid). The candles are still live.</p>`;
   const body = html`
-    <h1 class="page-title">Markets — live market terminal</h1>
+    <h1 class="page-title">Markets — live market terminal ${deskTour(MARKETS_TOUR)}</h1>
+    ${learnIntro(
+      'One market, live: the chart is price history; the ladder is the order book RIGHT NOW — everyone’s resting buy (green) and sell (red) orders, deepest sizes as the longest bars. The gap between the best of each side is the spread, and earning it is the market-making business the /desk/mm page runs.',
+    )}
     ${pickerForm(s)}
     <desk-feed src="/markets/stream?${raw(q)}" target="markets-strip">
       <div id="markets-strip">${renderMarketsStrip(s.strip)}</div>
@@ -119,7 +131,7 @@ export function renderMarketsPage(s: MarketsPageState): string {
         <mkt-chart src="/markets/chart?${raw(q)}&hours=${s.hours}" refresh="20"></mkt-chart>
       </section>
       <section class="panel markets-depth">
-        <div class="panel-h">order book — L2 depth (bids ‖ asks side-by-side · size bars grow outward · ● our resting quotes)</div>
+        <div class="panel-h">order book ${explain('order-book')} — L2 depth (bids ‖ asks side-by-side · size bars grow outward · ● our resting quotes)</div>
         ${depth}
       </section>
     </section>

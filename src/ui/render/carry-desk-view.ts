@@ -11,7 +11,7 @@
 import { CarryBookView, CarryDeskView } from '../../market-making/carry/carry-read.service';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
-import { navSparkPanel, chartDrawer, chartsSection } from './components';
+import { navSparkPanel, chartDrawer, chartsSection, learnIntro } from './components';
 import { age, money, pct, signClass } from './format';
 
 /** The P0 pre-registered desk drawdown budget (carry-desk-live.ts CD_DD_BUDGET_FRAC). */
@@ -154,6 +154,9 @@ export function renderCarryPage(v: CarryDeskView): string {
   );
   const body = html`
     <h1 class="page-title">Carry desk — the 30-day forward run (P0)</h1>
+    ${learnIntro(
+      'The carry desk earns funding — hold spot, short the perp, and collect the periodic payments perps make to stay glued to spot, while the two legs’ price risk nets out. It is judged realised-first: money actually banked (funding + realised − fees), not open marks. The banner on top is the liveness lesson: a desk you cannot see is a desk you cannot trust.',
+    )}
     <desk-feed src="/desk/carry/stream" target="carry-live">
       <div id="carry-live">${renderCarryLive(v)}</div>
     </desk-feed>

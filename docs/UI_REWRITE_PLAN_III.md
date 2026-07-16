@@ -36,7 +36,23 @@ Components, no SPA, no fabricated numbers, honest empty states — with **one am
 > value only past bar cadence, which would be dishonest anyway. E6 (quote history /
 > micro-price overlay) and E7 (venue prints) remain endpoint-blocked and the page says so.
 > Live-verified: real HL 20×20 frames (best bid 64,173 × 41.86 BTC), 289 real candles,
-> honest offs for depthless venues. **Next: P3** (the teaching layer).
+> honest offs for depthless venues. ~~**Next: P3** (the teaching layer).~~
+>
+> **P3 SHIPPED** (same session, after the trader-review interlude — see
+> [UI_TRADER_REVIEW.md](UI_TRADER_REVIEW.md), whose P0s shipped first as their own
+> commit): the **explain registry** (`src/ui/render/explain-registry.ts`, ~27 entries
+> curated from DESK_GLOSSARY, spec-enforced "read more" links against the tracked
+> course markdown) + **`<explain-tip>`** ⓘ drawer (`GET /learn/explain/:id`) on the
+> mm/statarb/markets vocabulary; **learn mode** as a pure-presentation toggle (server
+> always renders the `learn-only` captions, a topbar button + `?learn=1` flips one CSS
+> class — learn-off is pixel-identical by construction); **`<desk-tour>`** guided tours
+> on `/desk/mm`, `/markets`, `/risk` (server-defined steps, missing targets skipped);
+> the **`/learn` hub** (course cards, the learning-path map, tours, the on-site
+> glossary); **`/courses/*` same-origin** (D2 — allow-listed static serve with a
+> traversal guard and an honest "not built" page; the site dirs stay gitignored); and
+> **[TEACHING_SURFACE.md](TEACHING_SURFACE.md)**, the stable-URL contract for mendy-hq.
+> Live-verified end-to-end; one live bug found + spec-locked (the slashless/slashed
+> course-root redirect loop). **Next: P4** (`/plant` + `/fleet`).
 
 ---
 
