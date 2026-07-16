@@ -18,6 +18,7 @@ export interface RoleLink {
 export const ROLE_LINKS: RoleLink[] = [
   { href: '/exec', label: 'exec', live: true },
   { href: '/ops', label: 'ops', live: true },
+  { href: '/markets', label: 'markets', live: true },
   { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/markout', label: 'desk·markout', live: true },
   { href: '/desk/toxicity', label: 'desk·toxicity', live: true },
@@ -80,6 +81,7 @@ export function pageShell(opts: ShellOpts): string {
           <script type="module" src="/ui/activity-tape.js"></script>
           <script type="module" src="/ui/tox-strips.js"></script>
           <script type="module" src="/ui/mkt-chart.js"></script>
+          <script type="module" src="/ui/depth-ladder.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {

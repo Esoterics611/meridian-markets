@@ -29,6 +29,7 @@ desk still runs, those panels just say "off" honestly.)
 | `/` | launcher | the role index — pick a console |
 | `/exec` | executive | read-only |
 | `/ops` | operator | health + start/stop/flatten |
+| `/markets` | market terminal | read-only — candles, L2 depth, our quotes/fills overlaid |
 | `/desk/mm` | market-making desk | launch/remove books, watch attribution |
 | `/desk/statarb` | stat-arb desk | launch/remove pairs, watch z/β/regime |
 | `/risk` | risk | drawdown/exposure + the kill switch |
@@ -89,6 +90,28 @@ equity sparkline on the `@carry` aggregate. Two desks, two honest curves — del
 not merged into one synthetic number.
 
 ---
+
+## 2a. `/markets` — Live market terminal (read-only; the teaching centerpiece)
+
+The market itself on screen (UI_REWRITE_PLAN_III P2) — the page a student learns
+bid/ask/spread/order-book from, on the same live feeds the desk trades.
+
+- **Picker (top):** venue (hyperliquid / binance) · symbol (from the MM market presets) ·
+  window. A plain GET form — picking reloads the page; no client state.
+- **Header strip (live, 2s):** last price (the L2 mid on depth venues — big, colored by the
+  24h move) · 24h Δ% · 24h range · the **live top-of-book spread in bps**. Feed down ⇒ an
+  explicit `FEED DOWN` + reason, never stale numbers.
+- **Candle chart:** live venue klines (candles + direction-colored volume; venue-fresh, not
+  the stored DB), refreshing in place every 20s. When an MM book quotes the market, dashed
+  lines mark **our current bid / ask / reservation** — the spread literally straddling mid —
+  and ▲/▼ markers show our recent paper fills from the tape.
+- **Order book (the depth ladder):** the live Hyperliquid 20×20 book, ~1 frame/s — bids
+  green below, asks red above, bar length ∝ resting size, the spread gap labelled in bps,
+  and **▶ our resting quotes** marked on their levels. Dims when the stream drops. On a
+  depthless venue the panel says so instead of drawing an empty ladder.
+- **Our activity:** the desk's own event tape filtered to the symbol.
+- **Honest footer:** the venue's own trade prints (E7) and the quote-history / micro-price
+  overlays (E6) are not served yet — the page says so rather than faking them.
 
 ## 3. `/ops` — Operator console (health + desk controls)
 

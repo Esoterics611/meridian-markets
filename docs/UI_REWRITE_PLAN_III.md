@@ -20,7 +20,23 @@ Components, no SPA, no fabricated numbers, honest empty states — with **one am
 > swap would destroy an open chart (same law as `<nav-spark>`); (b) `/exec` embeds reuse
 > the two desk ChartSpec endpoints rather than adding its own; (c) the MM book drawer's
 > mid-vs-quotes panel waits on E6 exactly as §7 lists — P1 ships equity/drawdown/components
-> + tape fill markers. **Next: P2** (`/markets` + E1/E5).
+> + tape fill markers. ~~**Next: P2** (`/markets` + E1/E5).~~
+>
+> **P2 SHIPPED** (same session): **`/markets`** — the live market terminal. E1 built as
+> `GET /api/market-data/l2` + SSE `…/l2/stream` (~1 frame/s off `HyperliquidClient.l2Snapshot`,
+> our resting quotes merged server-side) feeding the new hand-rolled **`<depth-ladder>`**
+> canvas component; the candle chart is `GET /markets/chart` (candlestick + direction-colored
+> volume pane via `buildMarketChartSpec`, **live venue klines** — no stored-bar dependency —
+> with our-quote price lines + tape fill markers); the header strip streams over
+> `GET /markets/stream` (last/Δ24h/range + the live L2 spread). Controller declared in
+> MarketMakingModule (market-data must stay MM-free — the L2 type's own rule; registry added
+> as an injectable provider, `MM_BINANCE_CLIENT` moved to `mm-tokens.ts`). **E5 resolved
+> without a new endpoint** (recorded deviation): the strip SSE is the live price element and
+> the chart self-refreshes in place every 20s (zoom kept) — a dedicated tick stream added
+> value only past bar cadence, which would be dishonest anyway. E6 (quote history /
+> micro-price overlay) and E7 (venue prints) remain endpoint-blocked and the page says so.
+> Live-verified: real HL 20×20 frames (best bid 64,173 × 41.86 BTC), 289 real candles,
+> honest offs for depthless venues. **Next: P3** (the teaching layer).
 
 ---
 

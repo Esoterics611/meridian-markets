@@ -447,3 +447,16 @@ mkt-chart { display: block; }
 .mkt-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font-size: 11px; display: flex; gap: 10px; white-space: nowrap; }
 .mkt-tip b { font-weight: 600; color: var(--fg); }
 .mkt-note { font-size: 11px; margin-top: 4px; }
+
+/* ── /markets terminal (P2): the grid, header strip, and depth ladder ─────────── */
+.stat-v--big { font-size: 22px; }
+.markets-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 900px) { .markets-grid { grid-template-columns: 1fr; } }
+.markets-picker { display: flex; gap: 8px; align-items: center; }
+depth-ladder { display: block; }
+depth-ladder.stale { opacity: 0.45; }
+.depth-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 6px; }
+.depth-bid { color: var(--pos); }
+.depth-ask { color: var(--neg); }
+.depth-canvas { display: block; width: 100%; }
+.depth-note { font-size: 11px; margin-top: 6px; }

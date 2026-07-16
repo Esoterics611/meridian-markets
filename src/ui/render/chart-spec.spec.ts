@@ -1,5 +1,6 @@
 import {
   ascending,
+  buildMarketChartSpec,
   buildNavChartSpec,
   buildPairChartSpec,
   CHART_COLORS,
@@ -9,6 +10,10 @@ import {
   NavPointLike,
   snapToSeries,
 } from './chart-spec';
+import type { ChartSeries } from './chart-spec';
+
+/** Typed accessor: the union data field as line points (the nav/pair builders emit points). */
+const pts = (s: ChartSeries) => s.data as ChartPoint[];
 
 const navPoint = (sec: number, equity: number, over: Partial<Record<keyof Omit<NavPointLike, 'asOf'>, bigint>> = {}): NavPointLike => ({
   asOf: new Date(sec * 1000),
@@ -80,17 +85,17 @@ describe('buildNavChartSpec', () => {
     expect(out.enabled).toBe(true);
     if (!out.enabled) return;
     const [equityPanel, ddPanel, compPanel] = out.panels;
-    expect(equityPanel.series[0].data.map((p) => p.value)).toEqual([100, 110, 99]);
-    expect(equityPanel.series[0].data.map((p) => p.time)).toEqual([60, 120, 180]);
+    expect(pts(equityPanel.series[0]).map((p) => p.value)).toEqual([100, 110, 99]);
+    expect(pts(equityPanel.series[0]).map((p) => p.time)).toEqual([60, 120, 180]);
     const ddLine = ddPanel.series[0];
-    expect(ddLine.data[2].value).toBeCloseTo(10, 6);
+    expect(pts(ddLine)[2].value).toBeCloseTo(10, 6);
     expect(ddLine.priceLines).toEqual([{ value: 2, color: CHART_COLORS.warn, title: 'budget', dashed: true }]);
     expect(compPanel.series.map((s) => s.name)).toEqual(['realised', 'inv MTM', 'fees (contrib)', 'funding']);
     // fees plotted as their CONTRIBUTION to net (−fees): a cost sinks.
     const fees = compPanel.series[2];
-    expect(fees.data.map((p) => p.value)).toEqual([-0.5, -1, -1.5]);
+    expect(pts(fees).map((p) => p.value)).toEqual([-0.5, -1, -1.5]);
     const realised = compPanel.series[0];
-    expect(realised.data.map((p) => p.value)).toEqual([1, 2, 3]);
+    expect(pts(realised).map((p) => p.value)).toEqual([1, 2, 3]);
   });
 
   it('marks fills on the equity curve: BUY up-green below, SELL down-red above, exits carry realised P&L', () => {
@@ -110,6 +115,56 @@ describe('buildNavChartSpec', () => {
     expect(markers[0]).toMatchObject({ time: 60, position: 'belowBar', shape: 'arrowUp', color: CHART_COLORS.pos, text: '' });
     expect(markers[1]).toMatchObject({ time: 120, position: 'aboveBar', shape: 'arrowDown', color: CHART_COLORS.neg });
     expect(markers[1].text).toBe('+$2.50');
+  });
+});
+
+describe('buildMarketChartSpec', () => {
+  const candle = (time: number, open: number, close: number, volume = 5) => ({
+    time, open, high: Math.max(open, close) + 1, low: Math.min(open, close) - 1, close, volume,
+  });
+
+  it('refuses honestly on an empty candle window', () => {
+    const out = buildMarketChartSpec({ symbol: 'BTC', venue: 'hyperliquid', candles: [] });
+    expect(out.enabled).toBe(false);
+    if (!out.enabled) expect(out.reason).toContain('no hyperliquid candles');
+  });
+
+  it('serves candles + a direction-colored volume pane, sorted and deduped', () => {
+    const out = buildMarketChartSpec({
+      symbol: 'BTC', venue: 'hyperliquid',
+      candles: [candle(120, 100, 99), candle(60, 98, 100), candle(120, 100, 99)],
+    });
+    expect(out.enabled).toBe(true);
+    if (!out.enabled) return;
+    const [price, vol] = out.panels;
+    const c = price.series[0];
+    expect(c.type).toBe('candlestick');
+    expect(c.upColor).toBe(CHART_COLORS.pos);
+    expect((c.data as { time: number }[]).map((p) => p.time)).toEqual([60, 120]);
+    const volPoints = vol.series[0].data as ChartPoint[];
+    expect(volPoints[0].color).toBe(CHART_COLORS.pos + '66'); // up bar
+    expect(volPoints[1].color).toBe(CHART_COLORS.neg + '66'); // down bar
+  });
+
+  it('draws our current quotes as price lines (bid green, ask red, reservation violet)', () => {
+    const out = buildMarketChartSpec({
+      symbol: 'BTC', venue: 'hyperliquid',
+      candles: [candle(60, 98, 100), candle(120, 100, 99)],
+      quotes: { bid: 99.5, ask: 100.5, reservation: 100.1 },
+    });
+    if (!out.enabled) throw new Error('expected enabled');
+    const lines = out.panels[0].series[0].priceLines!;
+    expect(lines).toEqual([
+      { value: 99.5, color: CHART_COLORS.pos, title: 'our bid', dashed: true },
+      { value: 100.5, color: CHART_COLORS.neg, title: 'our ask', dashed: true },
+      { value: 100.1, color: CHART_COLORS.s4, title: 'reservation', dashed: true },
+    ]);
+  });
+
+  it('omits the quote lines when no book quotes the instrument (no fabricated levels)', () => {
+    const out = buildMarketChartSpec({ symbol: 'BTC', venue: 'hyperliquid', candles: [candle(60, 98, 100), candle(120, 100, 99)] });
+    if (!out.enabled) throw new Error('expected enabled');
+    expect(out.panels[0].series[0].priceLines).toBeUndefined();
   });
 });
 
@@ -139,10 +194,10 @@ describe('buildPairChartSpec', () => {
     if (!out.enabled) return;
     const legs = out.panels[0].series;
     expect(legs.map((s) => s.name)).toEqual(['ETH', 'BTC']);
-    expect(legs[0].data[0].value).toBe(100);
-    expect(legs[1].data[0].value).toBe(100);
-    expect(legs[0].data[1].value).toBeCloseTo(105);
-    expect(legs[1].data[1].value).toBeCloseTo(101);
+    expect(pts(legs[0])[0].value).toBe(100);
+    expect(pts(legs[1])[0].value).toBe(100);
+    expect(pts(legs[0])[1].value).toBeCloseTo(105);
+    expect(pts(legs[1])[1].value).toBeCloseTo(101);
   });
 
   it('draws the entry/exit bands as price lines on the z panel (amber entry, dim exit + zero)', () => {
@@ -172,7 +227,7 @@ describe('buildPairChartSpec', () => {
   it('renders position as a sign histogram colored long-green / short-red / flat-dim', () => {
     const out = buildPairChartSpec(baseInput());
     if (!out.enabled) throw new Error('expected enabled');
-    const pos = out.panels[2].series[0].data;
+    const pos = pts(out.panels[2].series[0]);
     expect(pos[0]).toMatchObject({ value: 0, color: CHART_COLORS.dim });
     expect(pos[6]).toMatchObject({ value: 1, color: CHART_COLORS.pos });
     expect(pos[15]).toMatchObject({ value: -1, color: CHART_COLORS.neg });

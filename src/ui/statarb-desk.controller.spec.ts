@@ -154,7 +154,7 @@ describe('StatArbDeskController', () => {
     expect(out.title).toContain('β=0.033');
     const [legs, zPanel, posPanel] = out.panels;
     expect(legs.series.map((s) => s.name)).toEqual(['ETH', 'BTC']);
-    expect(legs.series[0].data[0].value).toBeCloseTo(100); // indexed, not a dual axis
+    expect((legs.series[0].data as { value: number }[])[0].value).toBeCloseTo(100); // indexed, not a dual axis
     // the live strategy's real registry bands ride the z panel (pairs-zscore: ±2 / ±0.5)
     const bandValues = zPanel.series[0].priceLines!.map((l) => l.value);
     expect(bandValues).toContain(2);

@@ -19,6 +19,7 @@ const ASSET_FILES: Record<string, string> = {
   'activity-tape.js': 'activity-tape.js',
   'tox-strips.js': 'tox-strips.js',
   'mkt-chart.js': 'mkt-chart.js',
+  'depth-ladder.js': 'depth-ladder.js',
   // Vendored TradingView Lightweight Charts™ v5.2.0 (Apache-2.0) — pinned + committed,
   // never CDN-loaded (UI_REWRITE_PLAN_III D1). Lazy-loaded by <mkt-chart> on demand.
   'lightweight-charts.js': 'vendor/lightweight-charts.standalone.production.js',
@@ -34,6 +35,7 @@ const CONTENT_TYPES: Record<string, string> = {
   'activity-tape.js': 'application/javascript; charset=utf-8',
   'tox-strips.js': 'application/javascript; charset=utf-8',
   'mkt-chart.js': 'application/javascript; charset=utf-8',
+  'depth-ladder.js': 'application/javascript; charset=utf-8',
   'lightweight-charts.js': 'application/javascript; charset=utf-8',
 };
 

@@ -49,11 +49,24 @@ function seriesOptions(LWC, s) {
   if (s.type === 'histogram') {
     return { ...common, color: s.color, base: 0, lastValueVisible: false };
   }
+  if (s.type === 'candlestick') {
+    return {
+      ...common,
+      upColor: s.upColor,
+      downColor: s.downColor,
+      wickUpColor: s.upColor,
+      wickDownColor: s.downColor,
+      borderVisible: false,
+    };
+  }
   return { ...common, color: s.color, lineWidth: 2 };
 }
 
 function seriesCtor(LWC, type) {
-  return type === 'area' ? LWC.AreaSeries : type === 'histogram' ? LWC.HistogramSeries : LWC.LineSeries;
+  if (type === 'area') return LWC.AreaSeries;
+  if (type === 'histogram') return LWC.HistogramSeries;
+  if (type === 'candlestick') return LWC.CandlestickSeries;
+  return LWC.LineSeries;
 }
 
 class MktChart extends HTMLElement {

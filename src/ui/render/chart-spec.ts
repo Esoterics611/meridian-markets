@@ -48,13 +48,24 @@ export interface ChartPriceLine {
   dashed?: boolean;
 }
 
+export interface CandlePoint {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 export interface ChartSeries {
-  type: 'line' | 'area' | 'histogram';
+  type: 'line' | 'area' | 'histogram' | 'candlestick';
   name: string;
   color: string;
-  data: ChartPoint[];
+  data: ChartPoint[] | CandlePoint[];
   priceLines?: ChartPriceLine[];
   markers?: ChartMarker[];
+  /** Candlestick paint (server-decided, like every other color). */
+  upColor?: string;
+  downColor?: string;
 }
 
 export interface ChartPanel {
@@ -225,6 +236,77 @@ export function buildNavChartSpec(opts: NavChartOpts): ChartResponse {
           // the same dialect as the book card + tape.
           { type: 'line', name: 'fees (contrib)', color: CHART_COLORS.s5, data: comp((p) => p.feesUnits, true) },
           { type: 'line', name: 'funding', color: CHART_COLORS.s2, data: comp((p) => p.fundingUnits) },
+        ],
+      },
+    ],
+  };
+}
+
+// ── The market terminal chart (/markets — candles + volume + our-quote overlays) ─
+
+export interface MarketChartInput {
+  symbol: string;
+  venue: string;
+  /** OHLCV candles, oldest-first (live klines — not the DB). */
+  candles: (CandlePoint & { volume: number })[];
+  /** Our CURRENT resting quotes when an MM book quotes this instrument (display
+   *  dollars). Horizontal price lines — quote *history* waits on the E6 ring. */
+  quotes?: { bid?: number; ask?: number; reservation?: number };
+  fills?: FillMarkerInput[];
+  note?: string;
+}
+
+/**
+ * The /markets candle chart: price candles with our-quote price lines + tape fill
+ * markers, and a volume pane colored by the bar's direction. Every overlay is a
+ * lesson: the bid/ask lines straddling the last candles ARE the spread being
+ * quoted around fair value.
+ */
+export function buildMarketChartSpec(input: MarketChartInput): ChartResponse {
+  const candles = [...input.candles]
+    .filter((c) => [c.time, c.open, c.high, c.low, c.close].every(Number.isFinite))
+    .sort((a, b) => a.time - b.time)
+    .filter((c, i, arr) => i === 0 || c.time !== arr[i - 1].time);
+  if (candles.length < 2) {
+    return { enabled: false, reason: `no ${input.venue} candles for ${input.symbol} — the venue returned an empty window` };
+  }
+  const priceLines: ChartPriceLine[] = [];
+  if (input.quotes?.bid !== undefined) priceLines.push({ value: input.quotes.bid, color: CHART_COLORS.pos, title: 'our bid', dashed: true });
+  if (input.quotes?.ask !== undefined) priceLines.push({ value: input.quotes.ask, color: CHART_COLORS.neg, title: 'our ask', dashed: true });
+  if (input.quotes?.reservation !== undefined) priceLines.push({ value: input.quotes.reservation, color: CHART_COLORS.s4, title: 'reservation', dashed: true });
+
+  const candleSeries: ChartSeries = {
+    type: 'candlestick',
+    name: `${input.symbol} · ${input.venue}`,
+    color: CHART_COLORS.s1,
+    upColor: CHART_COLORS.pos,
+    downColor: CHART_COLORS.neg,
+    data: candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })),
+  };
+  if (priceLines.length) candleSeries.priceLines = priceLines;
+  const markers = fillMarkers(input.fills ?? [], candles.map((c) => c.time));
+  if (markers.length) candleSeries.markers = markers;
+
+  return {
+    enabled: true,
+    title: `${input.symbol} — ${input.venue}`,
+    note: input.note,
+    panels: [
+      { title: 'price (+ our current quotes when a book runs)', heightPx: 300, series: [candleSeries] },
+      {
+        title: 'volume',
+        heightPx: 90,
+        series: [
+          {
+            type: 'histogram',
+            name: 'volume',
+            color: CHART_COLORS.dim,
+            data: candles.map((c) => ({
+              time: c.time,
+              value: Number.isFinite(c.volume) ? c.volume : 0,
+              color: c.close >= c.open ? CHART_COLORS.pos + '66' : CHART_COLORS.neg + '66',
+            })),
+          },
         ],
       },
     ],

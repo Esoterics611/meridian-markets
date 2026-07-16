@@ -42,7 +42,7 @@ describe('UiAssetController', () => {
   });
 
   it('every allow-listed asset resolves with a defined content type (no undefined-header 500s)', () => {
-    for (const file of ['ui.css', 'desk-feed.js', 'desk-action.js', 'desk-form.js', 'copy-cmd.js', 'nav-spark.js', 'activity-tape.js', 'tox-strips.js']) {
+    for (const file of ['ui.css', 'desk-feed.js', 'desk-action.js', 'desk-form.js', 'copy-cmd.js', 'nav-spark.js', 'activity-tape.js', 'tox-strips.js', 'depth-ladder.js']) {
       const { res, headers, body } = resStub();
       c.serve(file, res);
       expect(headers['Content-Type']).toBeDefined();

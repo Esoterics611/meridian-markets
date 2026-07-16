@@ -22,6 +22,7 @@ export interface LauncherEntry {
 export const LAUNCHER_ENTRIES: LauncherEntry[] = [
   { href: '/exec', label: 'exec', blurb: 'Executive overview — desk NAV, net P&L, drawdown vs the 2% budget. Read-only.', live: true },
   { href: '/ops', label: 'ops', blurb: 'Operator console — process / feed / DB health + start · stop · flatten the desk.', live: true },
+  { href: '/markets', label: 'markets', blurb: 'Live market terminal — candles, L2 depth ladder, spread, and our quotes/fills overlaid. The teaching centerpiece.', live: true },
   { href: '/desk/mm', label: 'desk · mm', blurb: 'Market-making desk — per-book quotes, 4-component PnL attribution, launch / remove books.', live: true },
   { href: '/desk/markout', label: 'desk · markout', blurb: 'Markout / TCA — per-book multi-horizon markout curves by side + the F3 reaction. Am I getting picked off?', live: true },
   { href: '/desk/toxicity', label: 'desk · toxicity', blurb: 'Flow toxicity — VPIN gauges (warmed-aware), F3 scale, signed imbalances + 15-min strips.', live: true },

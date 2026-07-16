@@ -898,3 +898,22 @@ WITH a regression spec (§10.1): the vendored asset's content-type lookup was ke
 rel-path → undefined header → 500 (new `ui-asset.controller.spec.ts` locks the whole
 allow-list). tsc clean; UI suite 23 suites / 175 tests green; market-making + stat-arb +
 execution + market-data suites all green.
+
+## 2026-07-16 (same session, cont.) — P2: /markets, the live market terminal
+
+Shipped UI_REWRITE_PLAN_III **P2**: the **/markets** page — picker (GET form) · live
+header strip (last = L2 mid, Δ24h, range, live top-of-book spread in bps; FEED DOWN
+honest state) · candle chart (live venue klines + direction-colored volume via
+`buildMarketChartSpec`; our current bid/ask/reservation as dashed lines + ▲/▼ tape
+fills when a book quotes the market) · the new hand-rolled **`<depth-ladder>`** canvas
+component on **E1** (`GET /api/market-data/l2` + SSE `…/l2/stream`, ~1 frame/s off
+`HyperliquidClient.l2Snapshot`, our resting quotes merged server-side) · the
+symbol-filtered activity tape. `MarketsController` declared in MarketMakingModule
+(market-data must stay MM-free — the L2 type's own rule); `ReferenceSourceRegistry`
+added as an injectable provider; `MM_BINANCE_CLIENT` moved to `mm-tokens.ts` (module ⇄
+controller import cycle). E5 resolved without a new endpoint (strip SSE + in-place
+20s chart refresh — recorded in the plan); E6/E7 stay endpoint-blocked and the page
+says so. Live-verified against real Hyperliquid: 20×20 frames (best bid 64,173 ×
+41.86 BTC), 289 real candles, both SSE streams ticking, honest offs for depthless
+venues. tsc clean; ui + market-making 122 suites / 885 tests green (incl. 16 new
+markets specs); nav + launcher gained the markets entry.
