@@ -1,0 +1,153 @@
+{
+  "generatedAt": "2026-07-16T14:06:37.342Z",
+  "source": "hyperliquid",
+  "days": 90,
+  "interval": "1h",
+  "fwdHours": [
+    8,
+    24,
+    72
+  ],
+  "momLookbackHours": [
+    24,
+    72
+  ],
+  "fundingWindowHours": [
+    24
+  ],
+  "folds": 5,
+  "embargoFrac": 0.01,
+  "trials": 168,
+  "sigmaSR": 0.08140486715725326,
+  "eligibleSymbols": [
+    "ADA"
+  ],
+  "board": [
+    {
+      "symbol": "ADA",
+      "spec": {
+        "name": "xs-momentum-rank(72h)",
+        "kind": "cross-sectional-momentum",
+        "lookbackBars": 72
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.25814692843795595,
+      "hitRate": 0.6675993284834919,
+      "dsr": 0.9999992637485267,
+      "psr": 1,
+      "n": 1787,
+      "verdict": "VALIDATED",
+      "convCap": 0.5,
+      "eligible": true
+    },
+    {
+      "symbol": "SOL",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.226878505385468,
+      "hitRate": 0.5313847628174413,
+      "dsr": 0.00005619064193729262,
+      "psr": 0.9999999997317699,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "XRP",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.17276868683555952,
+      "hitRate": 0.5975083852419741,
+      "dsr": 0.00004118540463565745,
+      "psr": 0.9999999976475642,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "BTC",
+      "spec": {
+        "name": "xs-momentum-rank(72h)",
+        "kind": "cross-sectional-momentum",
+        "lookbackBars": 72
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.16978536647728107,
+      "hitRate": 0.5285101164929491,
+      "dsr": 0.000025227954822792942,
+      "psr": 0.9999998872434903,
+      "n": 1631,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "BNB",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.15455974318963012,
+      "hitRate": 0.5016770483948251,
+      "dsr": 2.5430673566972928e-8,
+      "psr": 0.9999998460731943,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "ETH",
+      "spec": {
+        "name": "funding-paid-side(24h)",
+        "kind": "funding-paid-side",
+        "windowHours": 24
+      },
+      "fwdHours": 72,
+      "horizonBars": 72,
+      "oosIc": 0.11792808465780827,
+      "hitRate": 0.6037374221370388,
+      "dsr": 0.28150326428759714,
+      "psr": 1,
+      "n": 2087,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    },
+    {
+      "symbol": "DOGE",
+      "spec": {
+        "name": "reversal(12h)",
+        "kind": "reversal",
+        "lookbackBars": 12
+      },
+      "fwdHours": 8,
+      "horizonBars": 8,
+      "oosIc": 0.07400965868415313,
+      "hitRate": 0.5096018735362998,
+      "dsr": 0,
+      "psr": 0.934407484475223,
+      "n": 2135,
+      "verdict": "INCONCLUSIVE",
+      "convCap": 0,
+      "eligible": false
+    }
+  ]
+}

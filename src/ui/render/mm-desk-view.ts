@@ -15,7 +15,7 @@ import { DeskEvent, fmtPrice, fmtQty } from '../../market-making/events/desk-eve
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, pct, returnPct, signClass } from './format';
-import { deskControls, appendActivityTape, navSparkPanel, DRAWDOWN_BUDGET_PCT } from './components';
+import { deskControls, appendActivityTape, navSparkPanel, chartDrawer, chartsSection, deskTour, explain, learnIntro, TourStep, DRAWDOWN_BUDGET_PCT } from './components';
 import { MIN_SAMPLES } from './markout-desk-view';
 
 export interface StrategyOption {
@@ -98,12 +98,12 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
       </div>
 
       <div class="quote-grid">
-        <div class="q"><span class="qk">bid</span><span class="qv mono">${price(b.bidMicros)}</span></div>
-        <div class="q"><span class="qk">mid</span><span class="qv mono">${price(b.midMicros)}</span></div>
-        <div class="q"><span class="qk">ask</span><span class="qv mono">${price(b.askMicros)}</span></div>
-        <div class="q"><span class="qk">reservation</span><span class="qv mono">${price(b.reservationMicros)}</span></div>
-        <div class="q"><span class="qk">½-spread</span><span class="qv mono">${price(b.halfSpreadMicros)}</span></div>
-        <div class="q"><span class="qk">inventory</span><span class="qv mono">${fmtQty(BigInt(b.inventoryUnits))}</span></div>
+        <div class="q"><span class="qk">bid ${explain('bid')}</span><span class="qv mono">${price(b.bidMicros)}</span></div>
+        <div class="q"><span class="qk">mid ${explain('mid')}</span><span class="qv mono">${price(b.midMicros)}</span></div>
+        <div class="q"><span class="qk">ask ${explain('ask')}</span><span class="qv mono">${price(b.askMicros)}</span></div>
+        <div class="q"><span class="qk">reservation ${explain('reservation-price')}</span><span class="qv mono">${price(b.reservationMicros)}</span></div>
+        <div class="q"><span class="qk">½-spread ${explain('half-spread')}</span><span class="qv mono">${price(b.halfSpreadMicros)}</span></div>
+        <div class="q"><span class="qk">inventory ${explain('inventory')}</span><span class="qv mono">${fmtQty(BigInt(b.inventoryUnits))}</span></div>
       </div>
 
       <!-- #55b: the front of the move (flow), the OOS-gated lean ACTUALLY applied, and the
@@ -128,16 +128,16 @@ function bookCard(b: MmBookSnapshot): SafeHtml {
       <div class="attr-grid">
         <div class="attr"><span class="ak">realised</span><span class="av mono ${signClass(b.realisedPnlUnits)}">${money(b.realisedPnlUnits)}</span></div>
         <div class="attr"><span class="ak">inv MTM</span><span class="av mono ${signClass(b.unrealisedPnlUnits)}">${money(b.unrealisedPnlUnits)}</span></div>
-        <div class="attr"><span class="ak">fees</span><span class="av mono ${signClass(feesContribUnits)}">${money(feesContribUnits)}</span></div>
-        <div class="attr"><span class="ak">funding</span><span class="av mono ${signClass(b.fundingUnits)}">${money(b.fundingUnits)}</span></div>
+        <div class="attr"><span class="ak">fees ${explain('fees-rebate')}</span><span class="av mono ${signClass(feesContribUnits)}">${money(feesContribUnits)}</span></div>
+        <div class="attr"><span class="ak">funding ${explain('funding')}</span><span class="av mono ${signClass(b.fundingUnits)}">${money(b.fundingUnits)}</span></div>
         <div class="attr attr--net"><span class="ak">net P&amp;L</span><span class="av mono ${signClass(b.netPnlUnits)}">${money(b.netPnlUnits)}</span></div>
       </div>
       <!-- Edge attribution. spread + warehouse (+funding −fees) ≈ net (S1 identity);
            adverse stays a per-fill markout-window diagnostic (a slice of warehouse). -->
       <div class="attr-grid attr-grid--diag">
-        <div class="attr"><span class="ak">spread</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
-        <div class="attr"><span class="ak">adverse</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
-        <div class="attr"><span class="ak">warehouse</span><span class="av mono ${signClass(b.inventoryMtmUnits)}">${money(b.inventoryMtmUnits)}</span></div>
+        <div class="attr"><span class="ak">spread ${explain('spread-captured')}</span><span class="av mono ${signClass(b.spreadCapturedUnits)}">${money(b.spreadCapturedUnits)}</span></div>
+        <div class="attr"><span class="ak">adverse ${explain('adverse-selection')}</span><span class="av mono ${signClass(b.adverseSelectionUnits)}">${money(b.adverseSelectionUnits)}</span></div>
+        <div class="attr"><span class="ak">warehouse ${explain('inventory-carry')}</span><span class="av mono ${signClass(b.inventoryMtmUnits)}">${money(b.inventoryMtmUnits)}</span></div>
         ${mo60Cell('mo60 b', b.markoutBySide.buy)}
         ${mo60Cell('mo60 a', b.markoutBySide.sell)}
       </div>
@@ -283,16 +283,52 @@ export function renderLaunchForm(strategies: StrategyOption[], presets: PresetOp
   `;
 }
 
+/** The charts panel (UI_REWRITE_PLAN_III P1): one drawer per book + the desk
+ *  aggregate, each a <mkt-chart> on /desk/mm/chart. Lives OUTSIDE the SSE region
+ *  (the drawers self-refresh; a tick swap would destroy an open chart). Rendered
+ *  at page load — the note says so instead of pretending to track launches live. */
+export function renderMmChartsPanel(snap: MmPortfolioSnapshot): SafeHtml {
+  const drawers = [
+    chartDrawer({ label: 'MM desk (aggregate)', src: '/desk/mm/chart', hint: 'equity · drawdown vs 2% budget · P&L components' }),
+    ...snap.books.map((b) =>
+      chartDrawer({
+        label: b.source ? `${b.symbol}·${b.source}` : b.symbol,
+        src: `/desk/mm/chart?book=${encodeURIComponent(b.symbol)}`,
+        hint: 'book equity · drawdown · components · fill markers',
+      }),
+    ),
+  ];
+  return chartsSection({
+    title: 'charts — durable NAV, drawdown, P&L components',
+    drawers,
+    note: 'drawer list is rendered at page load (reload after launching a book); each chart loads on open and refreshes every 60s. Needs MM_PERSIST + Postgres — the drawer says so honestly otherwise.',
+  });
+}
+
+/** The /desk/mm guided tour (P3) — steps skip gracefully when a selector is absent. */
+const MM_TOUR: TourStep[] = [
+  { sel: '.stat-grid', text: 'The desk headline: NAV (total equity), net P&L, book count, and whether the quoting loop is running. Everything is PAPER — real prices, simulated fills.' },
+  { sel: '.action-palette', text: 'The desk controls. Stop halts quoting but keeps positions; Flatten is the kill switch — it crosses the spread to force every book flat, so it costs money and asks for confirmation.' },
+  { sel: '.launch', text: 'Launch a book: pick a symbol, a strategy, a venue and capital. Re-launching the same symbol REPLACES its book — that is how you reconfigure.' },
+  { sel: '.book-cards', text: 'One card per book: its live quotes (bid/ask around the reservation price), inventory, and the P&L split. The split is the heart of the desk — spread earned vs adverse selection (getting picked off) vs warehouse drift. Click any ⓘ for a term.' },
+  { sel: '.charts', text: 'The chart drawers: equity, running drawdown vs the 2% budget, and the P&L components over time — the same numbers as the cards, as curves.' },
+  { sel: '.activity', text: 'The activity tape: every fill, verdict change, and lifecycle event, exactly as the engine logged it. Newest on top; your scroll is preserved.' },
+];
+
 /** The full /desk/mm document: shell + desk controls + launch forms + live region. */
 export function renderMmDeskPage(state: MmDeskState): string {
   const body = html`
-    <h1 class="page-title">Market-making desk</h1>
+    <h1 class="page-title">Market-making desk ${deskTour(MM_TOUR)}</h1>
+    ${learnIntro(
+      'This desk is a shopkeeper: each book quotes a price to buy (bid) a little below fair value and a price to sell (ask) a little above it, earning the spread when others trade against it. The card’s P&L split shows whether that spread survived adverse selection — click any ⓘ for what a number means, or take the guided tour.',
+    )}
     ${deskControls()}
     ${navSparkPanel({ label: 'desk equity' })}
     ${renderLaunchForm(state.strategies, state.presets)}
     <desk-feed src="/desk/mm/stream" target="mm-live">
       <div id="mm-live">${renderMmDeskLive(state.snap)}</div>
     </desk-feed>
+    ${renderMmChartsPanel(state.snap)}
     ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/market-making/events' })}
   `;
   return pageShell({ title: 'Meridian · MM desk', activeHref: '/desk/mm', body: raw(body.value) });

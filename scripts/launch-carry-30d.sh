@@ -8,10 +8,14 @@
 # nohup + a pidfile means a closed terminal can't end the demo, and `status` tells
 # you in one command whether the desk is actually alive.
 #
-# Symbols: the 13 deployables from the 2026-07-02 universe scan, MINUS LIT (the #92
-# ticker collision — HL "LIT" is Lighter, Binance "LITUSDT" is Litentry). The runner
+# Symbols: the 11 deployables from the 2026-07-16 universe scan
+# (docs/research/carry-universe/scan-2026-07-16T15-46-16-674Z.json), MINUS kPEPE —
+# the runner's spot leg has no k-wrapper unwrap yet (kPEPE spot = PEPEUSDT × 1000).
+# LIT stays excluded (the #92 ticker collision, re-flagged by this scan). The runner
 # re-gates every symbol at boot (90d funding gate + recency veto) and the #92
 # collision guard re-checks every entry/resume, so a stale list degrades safely.
+# Execution is the #96 TCA fix: pair maker-first with re-peg; opens that can't fill
+# within the ≤2bps/leg bar are SKIPPED, not taker-crossed.
 #
 # Usage:
 #   bash scripts/launch-carry-30d.sh          # start (refuses if already running)
@@ -25,7 +29,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SYMBOLS="${CD_SYMBOLS:-GRAM,NEAR,DYDX,LINK,AAVE,XPL,UNI,PUMP,TAO,BNB,ENA,ZEC}"
+# HYPE rides the HL-native spot hedge (#100): spot leg on Hyperliquid's own book —
+# the biggest gate-passing stream (+9.8%/yr, $313M/day) that Binance never listed.
+SYMBOLS="${CD_SYMBOLS:-NEAR,AAVE,XPL,UNI,PUMP,ONDO,DOGE,ETH,BTC,ZEC,HYPE}"
 LOG_DIR=logs
 PIDFILE="$LOG_DIR/carry-desk.pid"
 mkdir -p "$LOG_DIR"
@@ -44,7 +50,12 @@ case "${1:-start}" in
     ;;
   stop)
     if alive; then
-      kill -INT "$(cat "$PIDFILE")"   # graceful: MM_PERSIST checkpoints books OPEN (resume-not-flatten)
+      # The pidfile PID is a `setsid` process-group leader (see start, below): `npx`
+      # wraps `sh -c "ts-node"` wraps the real node process, and a plain `kill` on
+      # the top PID does not reliably propagate SIGINT down that chain (confirmed
+      # live 2026-07-16 — the wrapper stayed up, the runner never saw the signal).
+      # `-PID` signals the whole process group in one shot.
+      kill -INT -- -"$(cat "$PIDFILE")"   # graceful: MM_PERSIST checkpoints books OPEN (resume-not-flatten)
       echo "SIGINT sent — books checkpoint OPEN and resume on the next start."
     else
       echo "not running"
@@ -56,8 +67,12 @@ case "${1:-start}" in
       exit 1
     fi
     LOG="$LOG_DIR/carry-desk-$(date -u +%Y-%m-%dT%H-%M-%S).log"
-    CD_SYMBOLS="$SYMBOLS" CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" MM_PERSIST=true \
-      nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 &
+    # setsid: makes the launched process its own session/process-group leader, so
+    # `stop` can signal the ENTIRE npx→sh→node chain with one `kill -INT -PID`.
+    CD_SYMBOLS="$SYMBOLS" CD_MAX_LEGS="${CD_MAX_LEGS:-11}" \
+      CD_MAKER_PATIENCE_S="${CD_MAKER_PATIENCE_S:-300}" CD_MAKER_MAX_TOTAL_S="${CD_MAKER_MAX_TOTAL_S:-1200}" \
+      CD_MAX_ENTRY_COST_BPS="${CD_MAX_ENTRY_COST_BPS:-2}" MM_PERSIST=true \
+      setsid nohup npx ts-node -r tsconfig-paths/register scripts/carry-desk-live.ts >> "$LOG" 2>&1 < /dev/null &
     echo $! > "$PIDFILE"
     disown
     echo "started (pid $(cat "$PIDFILE")) — log: $LOG"

@@ -18,6 +18,7 @@ export interface RoleLink {
 export const ROLE_LINKS: RoleLink[] = [
   { href: '/exec', label: 'exec', live: true },
   { href: '/ops', label: 'ops', live: true },
+  { href: '/markets', label: 'markets', live: true },
   { href: '/desk/mm', label: 'desk·mm', live: true },
   { href: '/desk/markout', label: 'desk·markout', live: true },
   { href: '/desk/toxicity', label: 'desk·toxicity', live: true },
@@ -25,6 +26,7 @@ export const ROLE_LINKS: RoleLink[] = [
   { href: '/desk/statarb', label: 'desk·statarb', live: true },
   { href: '/risk', label: 'risk', live: true },
   { href: '/research', label: 'research', live: true },
+  { href: '/learn', label: 'learn', live: true },
   { href: '/pm', label: 'pm', live: false },
 ];
 
@@ -44,6 +46,7 @@ export function topBar(active: string): SafeHtml {
     <header class="topbar">
       <a class="brand" href="/" title="role launcher">MERIDIAN<span class="brand-dim"> // paper desk</span></a>
       <nav class="nav">${navItems(active)}</nav>
+      <button class="learn-toggle" id="learn-toggle" type="button" title="learn mode — page captions + ⓘ explanations">learn</button>
       <span class="clock" id="clock" data-clock>--:--:--</span>
     </header>
   `;
@@ -79,6 +82,10 @@ export function pageShell(opts: ShellOpts): string {
           <script type="module" src="/ui/nav-spark.js"></script>
           <script type="module" src="/ui/activity-tape.js"></script>
           <script type="module" src="/ui/tox-strips.js"></script>
+          <script type="module" src="/ui/mkt-chart.js"></script>
+          <script type="module" src="/ui/depth-ladder.js"></script>
+          <script type="module" src="/ui/explain-tip.js"></script>
+          <script type="module" src="/ui/desk-tour.js"></script>
           <script>
             // Cosmetic local clock (no business state) — the one allowed client sprinkle.
             (function () {
@@ -88,6 +95,31 @@ export function pageShell(opts: ShellOpts): string {
               }
               tick();
               setInterval(tick, 1000);
+            })();
+            // Learn mode (P3): a pure PRESENTATION toggle — the server always renders
+            // the learn-only captions; this class only shows/hides them, so learn-off
+            // is pixel-identical and no business render depends on the mode.
+            (function () {
+              var KEY = 'meridian-learn';
+              var qs = new URLSearchParams(location.search);
+              if (qs.get('learn') === '1') localStorage.setItem(KEY, '1');
+              if (qs.get('learn') === '0') localStorage.setItem(KEY, '0');
+              function apply() {
+                var on = localStorage.getItem(KEY) === '1';
+                document.documentElement.classList.toggle('learn-on', on);
+                var b = document.getElementById('learn-toggle');
+                if (b) {
+                  b.classList.toggle('learn-toggle--on', on);
+                  b.textContent = on ? 'learn ✓' : 'learn';
+                }
+              }
+              var b = document.getElementById('learn-toggle');
+              if (b)
+                b.addEventListener('click', function () {
+                  localStorage.setItem(KEY, localStorage.getItem(KEY) === '1' ? '0' : '1');
+                  apply();
+                });
+              apply();
             })();
           </script>
         </body>

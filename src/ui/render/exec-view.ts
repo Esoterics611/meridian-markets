@@ -15,7 +15,7 @@ import { fmtQty } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { age, money, usd, pct, returnPct, signClass } from './format';
-import { DRAWDOWN_BUDGET_PCT, navSparkPanel } from './components';
+import { DRAWDOWN_BUDGET_PCT, learnIntro } from './components';
 
 /** Worst single-book max-drawdown — the desk's headline drawdown proxy. */
 function worstDrawdownPct(books: MmBookSnapshot[]): number {
@@ -155,15 +155,31 @@ export function renderExecLive(snap: MmPortfolioSnapshot, carry?: CarryDeskView)
   `;
 }
 
+/** The two full equity charts (UI_REWRITE_PLAN_III P1) — the sparklines grown up:
+ *  equity, running drawdown vs budget, and the P&L components, per desk. They reuse
+ *  the desk pages' own ChartSpec endpoints (one source of truth per curve), stay
+ *  OUTSIDE the SSE region (self-refreshing), and degrade honestly without MM_PERSIST. */
+function execChartPanel(title: string, src: string): SafeHtml {
+  return html`
+    <section class="panel">
+      <div class="panel-h">${title}</div>
+      <mkt-chart src="${src}" refresh="60"></mkt-chart>
+    </section>
+  `;
+}
+
 /** The full /exec document: shared shell + a server-rendered first paint of the live region. */
 export function renderExecPage(snap: MmPortfolioSnapshot, carry?: CarryDeskView): string {
   const body = html`
     <h1 class="page-title">Executive — fund overview (MM desk + carry desk)</h1>
+    ${learnIntro(
+      'The fund at a glance: two desks, two honest equity curves — deliberately not merged into one synthetic number (different capital bases, different cadences). The question this page answers in one look: is the desk green, and is anything breaching its drawdown budget?',
+    )}
     <desk-feed src="/exec/stream" target="exec-live">
       <div id="exec-live">${renderExecLive(snap, carry)}</div>
     </desk-feed>
-    ${navSparkPanel({ label: 'MM desk equity' })}
-    ${carry && !carry.dbOff ? navSparkPanel({ book: '@carry', hours: 48, label: 'carry desk equity' }) : ''}
+    ${execChartPanel('MM desk — equity · drawdown vs 2% budget · P&L components', '/desk/mm/chart')}
+    ${carry && !carry.dbOff ? execChartPanel('carry desk — equity · drawdown vs 0.5% budget · components', '/desk/carry/chart') : ''}
   `;
   return pageShell({ title: 'Meridian · exec', activeHref: '/exec', body: raw(body.value) });
 }

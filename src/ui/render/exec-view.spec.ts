@@ -160,11 +160,19 @@ describe('renderExecPage', () => {
     expect(html).toContain('nav-link--active');
   });
 
-  it('renders the desk-aggregate equity sparkline OUTSIDE the SSE live region', () => {
+  it('renders the MM equity chart OUTSIDE the SSE live region (P1: sparkline grown up)', () => {
     const html = renderExecPage(snapshot());
-    // desk aggregate = empty book key; placed after the live region so an SSE tick
-    // never recreates it (it self-fetches /api/market-making/nav on its own timer).
-    expect(html).toContain('<nav-spark book="" hours="24"');
-    expect(html.indexOf('id="exec-live"')).toBeLessThan(html.indexOf('<nav-spark'));
+    // The full chart (equity · drawdown vs budget · components) reuses the MM desk's
+    // own ChartSpec endpoint; placed after the live region so an SSE tick never
+    // recreates it (it self-fetches + refreshes on its own timer, like <nav-spark> did).
+    expect(html).toContain('<mkt-chart src="/desk/mm/chart" refresh="60">');
+    expect(html.indexOf('id="exec-live"')).toBeLessThan(html.indexOf('<mkt-chart'));
+  });
+
+  it('adds the carry equity chart only when the carry view has a live DB (honest off)', () => {
+    const withCarry = renderExecPage(snapshot(), carryView());
+    expect(withCarry).toContain('<mkt-chart src="/desk/carry/chart" refresh="60">');
+    const dbOff = renderExecPage(snapshot(), { ...carryView(), dbOff: true });
+    expect(dbOff).not.toContain('/desk/carry/chart');
   });
 });

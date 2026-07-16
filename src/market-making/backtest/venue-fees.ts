@@ -26,6 +26,11 @@ export interface VenueFee {
 const VENUE_FEES: Record<string, VenueFee> = {
   // HL: maker −0.2bps rebate / taker 2.5bps (the maker-rebate CLOB the book wants).
   hyperliquid: { makerBps: -0.2, takerBps: 2.5, note: 'HL perp CLOB: maker −0.2bps rebate / taker 2.5bps' },
+  // HL NATIVE SPOT is a different schedule from HL perps and has NO maker rebate at
+  // any volume tier (rebates are a perp-only maker-share program). Base tier per the
+  // live docs page (verified 2026-07-16): taker 7bps / maker 4bps. Do not borrow the
+  // perp row for a spot leg.
+  'hyperliquid-spot': { makerBps: 4, takerBps: 7, note: 'HL native spot base tier: maker 4bps / taker 7bps — NO rebate on spot (docs, 2026-07-16)' },
   // Binance public spot, base tier: maker +1bps / taker +5bps (VIP/BNB tiers lower,
   // and a VIP maker can reach a rebate — model that explicitly via an override).
   binance: { makerBps: 1, takerBps: 5, note: 'Binance spot base tier: maker 1bps / taker 5bps' },

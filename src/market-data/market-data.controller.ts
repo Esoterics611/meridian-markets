@@ -62,8 +62,10 @@ function jsonSafe<T>(v: T): T {
   return JSON.parse(JSON.stringify(v, (_k, val) => (typeof val === 'bigint' ? val.toString() : val)));
 }
 
-/** Align two bar series to the timestamps present in BOTH (equal-length, ordered). */
-function alignPair(a: Bar[], b: Bar[]): { a: Bar[]; b: Bar[] } {
+/** Align two bar series to the timestamps present in BOTH (equal-length, ordered).
+ *  Exported for the /desk/statarb chart endpoint, which replays the SAME path as
+ *  /signal-series (one alignment rule for every z the UI draws). */
+export function alignPair(a: Bar[], b: Bar[]): { a: Bar[]; b: Bar[] } {
   const bByTs = new Map(b.map((bar) => [bar.timestamp.getTime(), bar]));
   const outA: Bar[] = [];
   const outB: Bar[] = [];

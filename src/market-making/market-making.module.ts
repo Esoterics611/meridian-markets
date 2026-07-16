@@ -43,6 +43,8 @@ import { PostgresMmStateStore } from './persistence/postgres-mm-state-store';
 import { NullMmStateStore } from './persistence/null-mm-state-store';
 import { IMmStateStore, MmBookRecord } from './persistence/mm-state-store.interface';
 import { MmNavRepository } from './persistence/mm-nav.repository';
+import { MM_BINANCE_CLIENT } from './mm-tokens';
+import { MarketsController } from '../ui/markets.controller';
 import { MmNavCron } from './persistence/mm-nav.cron';
 import { MmResearchRepository, MmResearchSinks, MM_RESEARCH_SINKS, fillMarkoutRow } from './persistence/mm-research.repository';
 import { FundingRefreshCron } from './live/funding-refresh.cron';
@@ -70,14 +72,30 @@ import { barsPerDayForInterval } from '../stat-arb/discovery/net-edge-scorer';
 // cursor) — exactly how LivePortfolioTrader isolates its stat-arb books — so two
 // MM books never fight over a shared feed cursor.
 
-const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
-
 @Module({
   providers: [
     // Read-only projection of the carry desk's durable checkpoints for /desk/carry
     // (UI_REWRITE_PLAN_II U1). DbService resolves @Optional in its constructor, so
     // DB-free configs still boot (the page renders its honest dbOff state).
     CarryReadService,
+    // Injectable reference-source registry for the /markets terminal (UI_REWRITE_PLAN_III
+    // P2) — the same buildReferenceSources set the factories above construct inline.
+    {
+      provide: ReferenceSourceRegistry,
+      inject: [ConfigService],
+      useFactory: (cfg: ConfigService): ReferenceSourceRegistry => {
+        const app = cfg.getOrThrow<AppConfig>('app');
+        return new ReferenceSourceRegistry(
+          buildReferenceSources({
+            pythBaseUrl: app.feed.pythBaseUrl,
+            defillamaBaseUrl: app.feed.defillamaBaseUrl,
+            bit2cBaseUrl: app.feed.bit2cBaseUrl,
+            geckoTerminalBaseUrl: app.feed.geckoTerminalBaseUrl,
+            hyperliquidBaseUrl: app.feed.hyperliquidBaseUrl,
+          }),
+        );
+      },
+    },
     {
       provide: MM_BINANCE_CLIENT,
       inject: [ConfigService],
@@ -799,11 +817,17 @@ const MM_BINANCE_CLIENT = Symbol('MM_BINANCE_CLIENT');
       },
     },
   ],
-  controllers: [MmController, CarryController],
+  // MarketsController (the /markets terminal, UI_REWRITE_PLAN_III P2) is declared
+  // here — NOT UiModule — because it injects this module's trader/event-log/registry
+  // and market-data must stay free of any market-making dependency (the L2 type's
+  // own rule). Its views + specs live in src/ui (the StatArbDeskController precedent).
+  controllers: [MmController, CarryController, MarketsController],
   // Exported so TelemetryModule's collector + health controller can read the live
   // desk snapshot (DC-3). The @Global TELEMETRY token flows the other way (in).
   // DeskEventLog is exported so the UI's /desk/mm page can server-render the MM
   // Activity tape from the same in-memory event sink the fills emit into.
-  exports: [MmPortfolioTrader, DeskEventLog, CarryReadService],
+  // MmNavRepository is exported (may resolve null — persist off) so the UI chart
+  // endpoints (/desk/mm/chart, /desk/carry/chart) can project the durable curve.
+  exports: [MmPortfolioTrader, DeskEventLog, CarryReadService, MmNavRepository],
 })
 export class MarketMakingModule {}

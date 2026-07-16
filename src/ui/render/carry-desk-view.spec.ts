@@ -1,5 +1,5 @@
 import { CarryDeskView } from '../../market-making/carry/carry-read.service';
-import { livenessBanner, renderCarryLive, renderCarryPage } from './carry-desk-view';
+import { livenessBanner, renderCarryChartsPanel, renderCarryLive, renderCarryPage } from './carry-desk-view';
 
 // Pure render → assert HTML (UI_ARCHITECTURE §10). The states that matter most are
 // the HONEST ones: DOWN (the #92 stall must scream), dbOff, IDLE, CLOSED rows visible.
@@ -82,6 +82,22 @@ describe('renderCarryLive', () => {
   it('an empty (IDLE) desk says so in the table instead of faking rows', () => {
     const h = renderCarryLive(view({ books: [], liveness: { state: 'IDLE', ageMs: null } })).value;
     expect(h).toContain('no carry books yet');
+  });
+});
+
+describe('renderCarryChartsPanel', () => {
+  it('renders the @carry aggregate drawer + one per book, CLOSED books labelled and kept', () => {
+    const h = renderCarryChartsPanel(view()).value;
+    expect(h).toContain('src="/desk/carry/chart"');
+    expect(h).toContain('src="/desk/carry/chart?book=AAVE"');
+    expect(h).toContain('src="/desk/carry/chart?book=LIT"');
+    expect(h).toContain('LIT (closed)'); // the LIT close is desk history — still charted
+  });
+
+  it('dbOff renders no drawers and says why (never a fake curve)', () => {
+    const h = renderCarryChartsPanel(view({ dbOff: true })).value;
+    expect(h).not.toContain('mkt-chart');
+    expect(h).toContain('needs Postgres');
   });
 });
 

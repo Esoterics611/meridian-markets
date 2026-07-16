@@ -13,7 +13,7 @@ import { DeskEvent } from '../../market-making/events/desk-event';
 import { html, raw, SafeHtml } from './html';
 import { pageShell } from './layout';
 import { usd, money, returnPct, signClass } from './format';
-import { statArbControls, appendActivityTape } from './components';
+import { statArbControls, appendActivityTape, chartDrawer, chartsSection, explain, learnIntro } from './components';
 
 /** Minimal blotter row shape (subset of StatArbTradeRow) the view needs. */
 export interface BlotterRow {
@@ -66,9 +66,9 @@ function pairCard(b: PortfolioBookRow): SafeHtml {
       </div>
 
       <div class="quote-grid">
-        <div class="q"><span class="qk">z-score</span><span class="qv mono">${b.lastZ.toFixed(2)}</span></div>
-        <div class="q"><span class="qk">β</span><span class="qv mono">${b.beta.toFixed(3)}</span></div>
-        <div class="q"><span class="qk">regime</span><span class="qv mono">${b.regime}</span></div>
+        <div class="q"><span class="qk">z-score ${explain('z-score')}</span><span class="qv mono">${b.lastZ.toFixed(2)}</span></div>
+        <div class="q"><span class="qk">β ${explain('beta')}</span><span class="qv mono">${b.beta.toFixed(3)}</span></div>
+        <div class="q"><span class="qk">regime ${explain('pair-regime')}</span><span class="qv mono">${b.regime}</span></div>
         <div class="q"><span class="qk">equity</span><span class="qv mono">${usd(b.equityUnits)}</span></div>
         <div class="q"><span class="qk">realised</span><span class="qv mono ${signClass(b.realisedPnlUnits)}">${money(b.realisedPnlUnits)}</span></div>
         <div class="q"><span class="qk">unrealised</span><span class="qv mono ${signClass(b.unrealisedPnlUnits)}">${money(b.unrealisedPnlUnits)}</span></div>
@@ -172,15 +172,37 @@ export function renderStatArbLaunchForm(strategies: StrategyOption[]): SafeHtml 
   `;
 }
 
+/** The charts panel (UI_REWRITE_PLAN_III P1): one drawer per live pair — the legs/
+ *  z/position picture behind each card's numbers. OUTSIDE the SSE region (drawers
+ *  self-refresh); rendered at page load, honestly noted. */
+export function renderStatArbChartsPanel(snap: PortfolioSnapshot): SafeHtml {
+  const drawers = snap.books.map((b) =>
+    chartDrawer({
+      label: b.pair,
+      src: `/desk/statarb/chart?pair=${encodeURIComponent(b.pair)}`,
+      hint: `legs indexed · spread z + bands · position — ${b.strategyId}, β=${b.beta.toFixed(3)}`,
+    }),
+  );
+  return chartsSection({
+    title: 'charts — the strategy math behind each pair (stored-bar replay)',
+    drawers,
+    note: 'each chart replays the live pair’s β/strategy over the newest stored bars — the same path as /signal-series. Rendered at page load (reload after launching a pair); loads on open, refreshes every 60s; needs a backfilled window for the pair’s venue.',
+  });
+}
+
 /** The full /desk/statarb document: shell + controls + launch form + blotter + live region. */
 export function renderStatArbPage(state: StatArbDeskState): string {
   const body = html`
     <h1 class="page-title">Stat-arb desk</h1>
+    ${learnIntro(
+      'Pairs trading: find two assets that historically move together, combine them (via the hedge ratio β) into a spread that should be stable, and bet that a stretched spread snaps back. The z-score is the stretch in standard deviations; the chart drawer under each pair draws the whole picture. Honest history: this desk’s own research CUT crypto taker stat-arb — the surviving edge is thin and lives in equities.',
+    )}
     ${statArbControls()}
     ${renderStatArbLaunchForm(state.strategies)}
     <desk-feed src="/desk/statarb/stream" target="statarb-live">
       <div id="statarb-live">${renderStatArbLive(state.snap)}</div>
     </desk-feed>
+    ${renderStatArbChartsPanel(state.snap)}
     ${appendActivityTape({ events: state.events, cursor: state.cursor, src: '/api/stat-arb/live/events' })}
     ${renderStatArbBlotter(state.blotter, state.blotterAvailable)}
   `;

@@ -875,3 +875,65 @@ warehouse −1,632→−79 (−95%) at 8 lots, maxDD halved, 0.05%+ never fire; 
 cuts BNB's trend-winner. Conc mechanism validated where it binds (BNB: all metrics up);
 ADA conc<70% is the live gate. 3 new MM_CONC_* knobs. UI QA: additive fields only.
 196 suites / 1367 tests; tsc clean; telemetry flake only. Next: F4 Stage A (+arm F2 live).
+
+## 2026-07-16 — UI Plan III adopted + P1: charts on the desk (the math on screen)
+
+Wrote and adopted [UI_REWRITE_PLAN_III.md](UI_REWRITE_PLAN_III.md) — the Teaching
+Terminal (charts/depth/live market data, /plant + /fleet infra visibility, the
+mendy-hq learn layer; D1–D5 decided per recommendation) — and shipped **P1** the same
+session: vendored TradingView lightweight-charts v5.2.0 (pinned, Apache-2.0) behind one
+`<mkt-chart>` Web Component + a normalized server-built **ChartSpec** contract
+(`src/ui/render/chart-spec.ts`, pure builders, palette validated with the dataviz
+six-checks script against the ui.css dark surface). New read-only chart endpoints
+`GET /desk/mm/chart[?book=]` (equity · drawdown vs 2% budget · P&L components + tape
+fill markers), `GET /desk/carry/chart[?book=]` (@carry curves vs the 0.5% budget),
+`GET /desk/statarb/chart?pair=` (legs indexed to 100 · z + live bands + replay trade
+markers · position sign — same path as /signal-series; StatArbModule now imports
+MarketDataModule for ReplayEngine); chart-drawer sections on /desk/mm + /desk/carry +
+/desk/statarb (OUTSIDE the SSE regions — a tick swap would destroy an open chart) and
+/exec's sparklines upgraded to the two full desk charts. Live-verified against the real
+57k-row mm_nav history (booted the app, curled every endpoint + page; SOL book chart =
+3 panes / 180 points; honest offs confirmed). One live bug found by that boot and fixed
+WITH a regression spec (§10.1): the vendored asset's content-type lookup was keyed by
+rel-path → undefined header → 500 (new `ui-asset.controller.spec.ts` locks the whole
+allow-list). tsc clean; UI suite 23 suites / 175 tests green; market-making + stat-arb +
+execution + market-data suites all green.
+
+## 2026-07-16 (same session, cont.) — P2: /markets, the live market terminal
+
+Shipped UI_REWRITE_PLAN_III **P2**: the **/markets** page — picker (GET form) · live
+header strip (last = L2 mid, Δ24h, range, live top-of-book spread in bps; FEED DOWN
+honest state) · candle chart (live venue klines + direction-colored volume via
+`buildMarketChartSpec`; our current bid/ask/reservation as dashed lines + ▲/▼ tape
+fills when a book quotes the market) · the new hand-rolled **`<depth-ladder>`** canvas
+component on **E1** (`GET /api/market-data/l2` + SSE `…/l2/stream`, ~1 frame/s off
+`HyperliquidClient.l2Snapshot`, our resting quotes merged server-side) · the
+symbol-filtered activity tape. `MarketsController` declared in MarketMakingModule
+(market-data must stay MM-free — the L2 type's own rule); `ReferenceSourceRegistry`
+added as an injectable provider; `MM_BINANCE_CLIENT` moved to `mm-tokens.ts` (module ⇄
+controller import cycle). E5 resolved without a new endpoint (strip SSE + in-place
+20s chart refresh — recorded in the plan); E6/E7 stay endpoint-blocked and the page
+says so. Live-verified against real Hyperliquid: 20×20 frames (best bid 64,173 ×
+41.86 BTC), 289 real candles, both SSE streams ticking, honest offs for depthless
+venues. tsc clean; ui + market-making 122 suites / 885 tests green (incl. 16 new
+markets specs); nav + launcher gained the markets entry.
+
+## 2026-07-16 (same session, cont.) — trader-review P0s + P3: the teaching layer
+
+**Trader review (Ronnie, priority interrupt):** off a live /markets screenshot —
+depth must read bids ‖ asks side-by-side. Shipped the P0s in their own commit
+(453ff1d): the ladder rebuilt as a two-column DOM (prices on the inner edges, bars
+outward, height halved), TICK-AWARE price precision (the "76.08 × 6" duplicate-label
+defect — 2dp was hiding SOL's sub-cent tick), volume-axis K/M compaction, scale-aware
+candle precision, grid rebalance. Full review + P1/P2 backlog: docs/UI_TRADER_REVIEW.md.
+
+**P3 (UI_REWRITE_PLAN_III):** the explain registry (curated from DESK_GLOSSARY,
+spec-enforced course links) + <explain-tip> ⓘ drawer via GET /learn/explain/:id;
+learn mode as a pure-CSS presentation toggle (learn-off pixel-identical, ?learn=1 /
+topbar button); <desk-tour> guided tours on /desk/mm, /markets, /risk; the /learn hub
+(courses · learning path · tours · on-site glossary); /courses/* served same-origin
+(D2: allow-list + traversal guard + honest not-built page; site dirs stay gitignored);
+learn intros across exec/mm/statarb/carry/risk/markets; docs/TEACHING_SURFACE.md = the
+stable-URL contract for mendy-hq. Live-verified on the operator's own watch server;
+found + spec-locked the course-root redirect loop (slashed URL matched the slashless
+route). tsc clean; UI 28 suites / 205 tests green.

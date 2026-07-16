@@ -29,6 +29,7 @@ desk still runs, those panels just say "off" honestly.)
 | `/` | launcher | the role index — pick a console |
 | `/exec` | executive | read-only |
 | `/ops` | operator | health + start/stop/flatten |
+| `/markets` | market terminal | read-only — candles, L2 depth, our quotes/fills overlaid |
 | `/desk/mm` | market-making desk | launch/remove books, watch attribution |
 | `/desk/statarb` | stat-arb desk | launch/remove pairs, watch z/β/regime |
 | `/risk` | risk | drawdown/exposure + the kill switch |
@@ -73,8 +74,10 @@ The headline state of the desk at a glance. **No buttons** — this page only re
 **Per-book table:** book · strategy · net P&L · return · max DD · inventory · **risk
 verdict** · fills.
 
-**Equity curve (sparkline):** the durable NAV curve under the table (needs `MM_PERSIST`;
-otherwise it says "durable NAV off").
+**Equity charts (P1 — the sparklines grown up):** under the table, the two full desk
+curves (MM + carry), each three synced panes — equity, running drawdown vs its budget
+(2% MM / 0.5% carry), and the cumulative P&L components. They reuse the desk pages' own
+chart endpoints (needs `MM_PERSIST`; otherwise they say "durable NAV off").
 
 **Use it to:** answer "is the desk green, and is anything breaching drawdown?" in one look.
 
@@ -87,6 +90,28 @@ equity sparkline on the `@carry` aggregate. Two desks, two honest curves — del
 not merged into one synthetic number.
 
 ---
+
+## 2a. `/markets` — Live market terminal (read-only; the teaching centerpiece)
+
+The market itself on screen (UI_REWRITE_PLAN_III P2) — the page a student learns
+bid/ask/spread/order-book from, on the same live feeds the desk trades.
+
+- **Picker (top):** venue (hyperliquid / binance) · symbol (from the MM market presets) ·
+  window. A plain GET form — picking reloads the page; no client state.
+- **Header strip (live, 2s):** last price (the L2 mid on depth venues — big, colored by the
+  24h move) · 24h Δ% · 24h range · the **live top-of-book spread in bps**. Feed down ⇒ an
+  explicit `FEED DOWN` + reason, never stale numbers.
+- **Candle chart:** live venue klines (candles + direction-colored volume; venue-fresh, not
+  the stored DB), refreshing in place every 20s. When an MM book quotes the market, dashed
+  lines mark **our current bid / ask / reservation** — the spread literally straddling mid —
+  and ▲/▼ markers show our recent paper fills from the tape.
+- **Order book (the depth ladder):** the live Hyperliquid 20×20 book, ~1 frame/s — bids
+  green below, asks red above, bar length ∝ resting size, the spread gap labelled in bps,
+  and **▶ our resting quotes** marked on their levels. Dims when the stream drops. On a
+  depthless venue the panel says so instead of drawing an empty ladder.
+- **Our activity:** the desk's own event tape filtered to the symbol.
+- **Honest footer:** the venue's own trade prints (E7) and the quote-history / micro-price
+  overlays (E6) are not served yet — the page says so rather than faking them.
 
 ## 3. `/ops` — Operator console (health + desk controls)
 
@@ -143,6 +168,14 @@ The full operating surface for the MM books.
 - footer — fills (bid/ask) · blocked quotes · max DD, and a **remove** button
   (flatten + drop the book, **confirm-gated**).
 
+**Charts (below the cards — P1, UI_REWRITE_PLAN_III):** one collapsed drawer per book plus
+the desk aggregate. Open one and you get three synced panes: **equity** (durable NAV, with
+▲/▼ fill markers from the tape on a book's curve), **running drawdown vs the 2% budget**
+(amber line), and the **cumulative P&L components** (realised / inv MTM / fees-contrib /
+funding — the same four lines the card sums to net). Charts load on open, refresh every
+60s (your zoom is kept), and the drawer list is fixed at page load — reload after
+launching a book. Needs `MM_PERSIST` + Postgres; the drawer says so honestly otherwise.
+
 **Activity tape (below):** the live business-event feed — every fill (enter/exit with
 realised P&L), risk-verdict change, and launch/remove — newest on top, the engine's own
 log line shown verbatim. It's **append-mode**: new events are added without rebuilding the
@@ -163,6 +196,13 @@ Re-launching the same pair **replaces** it (= reconfigure).
 **Per-pair cards (live):** z-score · β · regime · **position** (`LONG`/`SHORT`/`FLAT`
 badge) · equity · realised · unrealised · net + return · blocked entries · bars · a
 confirm-gated **remove**.
+
+**Charts (below the cards — P1):** one drawer per live pair — the classic pairs picture:
+both **legs indexed to 100** (one honest axis, no dual-axis), the **spread z-score** with
+the live book's entry/exit bands (amber/dim dashed) and replay trade markers, and the
+**position sign** (long green / short red). It replays the live pair's β/strategy over the
+newest *stored* bars — the same path as `/api/market-data/signal-series` — so it needs a
+backfilled window for the pair's venue (the drawer says so when there isn't one).
 
 **Activity tape:** same append-mode feed, on the stat-arb event log.
 
@@ -189,6 +229,9 @@ its durable checkpoints (`carry_book_state` + `mm_nav desk='carry'`) and drives 
   history — honesty doctrine).
 - **NAV sparkline** on the `@carry` aggregate + a `<copy-cmd>` runbook palette
   (launch / status / stop / out-of-band close — the page never executes).
+- **Charts (P1):** drawers for the `@carry` aggregate + every checkpointed book (CLOSED
+  included — the curve is desk history): equity, drawdown vs the **0.5%** kill budget,
+  and the funding-staircase vs fees components.
 - DB off ⇒ an explicit `DB OFF` panel, never zeros.
 
 The full operator doctrine (what each number means, when to act):

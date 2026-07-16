@@ -74,6 +74,71 @@ export function navSparkPanel(opts: { book?: string; hours?: number; label?: str
   `;
 }
 
+export interface ChartDrawerOpts {
+  /** The summary label (book symbol / pair / "desk aggregate"). */
+  label: string;
+  /** The ChartSpec endpoint the <mkt-chart> fetches (server-built spec). */
+  src: string;
+  hint?: string;
+  open?: boolean;
+}
+
+/**
+ * A collapsed chart drawer wrapping the shared <mkt-chart> component
+ * (UI_REWRITE_PLAN_III P1). `defer` ⇒ nothing is fetched until the drawer opens;
+ * the component then self-refreshes every 60s, so — like <nav-spark> — it MUST
+ * live OUTSIDE any SSE region (a tick swap would destroy an open chart mid-read).
+ */
+export function chartDrawer(opts: ChartDrawerOpts): SafeHtml {
+  return html`
+    <details class="chart-drawer" ${opts.open ? 'open' : ''}>
+      <summary><span class="mono">${opts.label}</span><span class="chart-hint dim">${opts.hint ?? 'chart — loads on open, refreshes 60s'}</span></summary>
+      <mkt-chart src="${opts.src}" refresh="60" defer></mkt-chart>
+    </details>
+  `;
+}
+
+/** A panel of chart drawers (one per book/pair + the desk aggregate). Rendered at
+ *  page load — the drawer list follows the books that exist NOW; a book launched
+ *  later appears after a reload (stated in the note, not hidden). */
+export function chartsSection(opts: { title: string; drawers: SafeHtml[]; note?: string }): SafeHtml {
+  const body = opts.drawers.length ? raw(opts.drawers.map((d) => d.value).join('')) : html`<p class="dim empty">no books yet — launch one and reload for its chart</p>`;
+  return html`
+    <section class="panel charts">
+      <div class="panel-h">${opts.title}</div>
+      ${body}
+      ${opts.note ? html`<p class="dim hint">${opts.note}</p>` : ''}
+    </section>
+  `;
+}
+
+// ── The teaching layer (UI_REWRITE_PLAN_III P3) ─────────────────────────────────
+
+/** The ⓘ explain affordance — <explain-tip> fetches /learn/explain/<id> on click.
+ *  Renders unconditionally (subtle); learn mode only adds captions, so learn-off
+ *  stays pixel-identical for everything carrying the learn-only class. */
+export function explain(eid: string): SafeHtml {
+  return html`<explain-tip eid="${eid}"></explain-tip>`;
+}
+
+/** A one-paragraph "what am I looking at" strip — hidden unless learn mode is on. */
+export function learnIntro(text: string): SafeHtml {
+  return html`<p class="learn-only learn-intro">${text}</p>`;
+}
+
+export interface TourStep {
+  /** CSS selector of the element to spotlight (missing ⇒ the step is skipped). */
+  sel: string;
+  text: string;
+}
+
+/** The server-defined guided tour: steps ride as JSON inside the component (the
+ *  '<' escape keeps a </script> in step text from breaking the document). */
+export function deskTour(steps: TourStep[]): SafeHtml {
+  const json = JSON.stringify(steps).replace(/</g, '\\u003c');
+  return html`<desk-tour><script type="application/json">${raw(json)}</script></desk-tour>`;
+}
+
 // Colour class per event kind for the tape badge.
 function kindClass(kind: string): string {
   switch (kind) {
