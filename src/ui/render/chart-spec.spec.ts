@@ -144,6 +144,18 @@ describe('buildMarketChartSpec', () => {
     const volPoints = vol.series[0].data as ChartPoint[];
     expect(volPoints[0].color).toBe(CHART_COLORS.pos + '66'); // up bar
     expect(volPoints[1].color).toBe(CHART_COLORS.neg + '66'); // down bar
+    // trader-review axis hints: volume compacts to K/M; price decimals fit the scale
+    expect(vol.series[0].format).toBe('volume');
+    expect(c.precision).toBe(3); // last close 99 → 3dp
+  });
+
+  it('scales price-axis precision to the instrument (sub-dollar tokens get real decimals)', () => {
+    const cheap = buildMarketChartSpec({
+      symbol: 'PEPE', venue: 'hyperliquid',
+      candles: [candle(60, 0.004, 0.0041, 1), candle(120, 0.0041, 0.0042, 1)],
+    });
+    if (!cheap.enabled) throw new Error('expected enabled');
+    expect(cheap.panels[0].series[0].precision).toBe(6);
   });
 
   it('draws our current quotes as price lines (bid green, ask red, reservation violet)', () => {

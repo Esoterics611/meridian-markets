@@ -43,6 +43,9 @@ function shapeSig(spec) {
 
 function seriesOptions(LWC, s) {
   const common = { priceLineVisible: false, lastValueVisible: true };
+  // Server-sent axis hints: 'volume' compacts to K/M; precision sets price decimals.
+  if (s.format === 'volume') common.priceFormat = { type: 'volume' };
+  else if (typeof s.precision === 'number') common.priceFormat = { type: 'price', precision: s.precision, minMove: Math.pow(10, -s.precision) };
   if (s.type === 'area') {
     return { ...common, lineColor: s.color, lineWidth: 2, topColor: s.color + '4D', bottomColor: s.color + '00' };
   }

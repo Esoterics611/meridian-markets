@@ -450,7 +450,7 @@ mkt-chart { display: block; }
 
 /* ── /markets terminal (P2): the grid, header strip, and depth ladder ─────────── */
 .stat-v--big { font-size: 22px; }
-.markets-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 12px; align-items: start; }
+.markets-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(380px, 1fr); gap: 12px; align-items: start; }
 @media (max-width: 900px) { .markets-grid { grid-template-columns: 1fr; } }
 .markets-picker { display: flex; gap: 8px; align-items: center; }
 depth-ladder { display: block; }

@@ -66,6 +66,10 @@ export interface ChartSeries {
   /** Candlestick paint (server-decided, like every other color). */
   upColor?: string;
   downColor?: string;
+  /** Axis format hint: 'volume' ⇒ K/M compaction (a volume pane, not a price). */
+  format?: 'volume';
+  /** Price-axis decimals (server-decided from the instrument's scale). */
+  precision?: number;
 }
 
 export interface ChartPanel {
@@ -275,12 +279,17 @@ export function buildMarketChartSpec(input: MarketChartInput): ChartResponse {
   if (input.quotes?.ask !== undefined) priceLines.push({ value: input.quotes.ask, color: CHART_COLORS.neg, title: 'our ask', dashed: true });
   if (input.quotes?.reservation !== undefined) priceLines.push({ value: input.quotes.reservation, color: CHART_COLORS.s4, title: 'reservation', dashed: true });
 
+  // Price-axis decimals from the instrument's scale (a $0.40 token needs 4dp where
+  // BTC needs 2 — the trader-review fix for sub-dollar assets).
+  const lastClose = candles[candles.length - 1].close;
+  const precision = lastClose >= 100 ? 2 : lastClose >= 1 ? 3 : lastClose >= 0.01 ? 5 : 6;
   const candleSeries: ChartSeries = {
     type: 'candlestick',
     name: `${input.symbol} · ${input.venue}`,
     color: CHART_COLORS.s1,
     upColor: CHART_COLORS.pos,
     downColor: CHART_COLORS.neg,
+    precision,
     data: candles.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })),
   };
   if (priceLines.length) candleSeries.priceLines = priceLines;
@@ -301,6 +310,7 @@ export function buildMarketChartSpec(input: MarketChartInput): ChartResponse {
             type: 'histogram',
             name: 'volume',
             color: CHART_COLORS.dim,
+            format: 'volume',
             data: candles.map((c) => ({
               time: c.time,
               value: Number.isFinite(c.volume) ? c.volume : 0,

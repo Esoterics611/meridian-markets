@@ -119,7 +119,7 @@ export function renderMarketsPage(s: MarketsPageState): string {
         <mkt-chart src="/markets/chart?${raw(q)}&hours=${s.hours}" refresh="20"></mkt-chart>
       </section>
       <section class="panel markets-depth">
-        <div class="panel-h">order book — L2 depth (bids green · asks red · our resting quotes marked)</div>
+        <div class="panel-h">order book — L2 depth (bids ‖ asks side-by-side · size bars grow outward · ● our resting quotes)</div>
         ${depth}
       </section>
     </section>
