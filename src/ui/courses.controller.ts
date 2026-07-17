@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { existsSync, readFileSync, statSync } from 'fs';
 import { extname, resolve, sep } from 'path';
 
-// Same-origin course serving (UI_REWRITE_PLAN_III P3, decision D2): the two built
+// Same-origin course serving (UI_REWRITE_PLAN_III P3, decision D2): the built
 // mkdocs sites mount at /courses/<course>/ so desk pages and chapters can link both
 // ways without caring where the desk runs. The site/ dirs are BUILT LOCALLY and
 // gitignored — when one is missing this serves an honest "not built" page with the
@@ -15,6 +15,7 @@ import { extname, resolve, sep } from 'path';
 const COURSE_SITES: Record<string, string> = {
   'market-making': 'courses/market-making/site',
   'stat-arb': 'courses/stat-arb/site',
+  'options-desk': 'courses/options-desk/site',
 };
 
 const CONTENT_TYPES: Record<string, string> = {

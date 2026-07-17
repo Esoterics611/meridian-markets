@@ -937,3 +937,21 @@ learn intros across exec/mm/statarb/carry/risk/markets; docs/TEACHING_SURFACE.md
 stable-URL contract for mendy-hq. Live-verified on the operator's own watch server;
 found + spec-locked the course-root redirect loop (slashed URL matched the slashless
 route). tsc clean; UI 28 suites / 205 tests green.
+
+## 2026-07-17 — The Long-Horizon Options Desk: plan + training program (design session, no runs)
+
+Operator-directed: new long-term strategies using options (explicitly not market-making) + a full
+training program around the new desk. Shipped **[OPTIONS_DESK.md](OPTIONS_DESK.md)** — the LHO desk
+as the PROFIT_PIVOT_II M3/E6 extension: seven books (wheel, collared core, VRP ladder, calendars,
+skew credit-verticals, tail budget, synthetic core), each with mechanical entry/exit rules, a
+collateral rule, and a pre-registered metric; a desk layer (Greeks budget + stress-as-sizing grid);
+a slow-strategy validation gate (premium-capture cycles, block bootstrap, construction-check specs,
+scored-paper-before-capital) replacing the unreachable DSR/20-trades bar at monthly cadence; build
+map O-E1..O-E7 on existing seams; phases O-0..O-4 evidence-gated (only O-0 — the surface-tape
+collector — startable, as a background collector behind the carry priorities). Shipped
+**`courses/options-desk/`** — the third mkdocs course (17 files: charter, 13 chapters, 2
+appendices), grounded in the desk's own measurements (#12/#42/#96) with sample sizes stated; wired
+same-origin (`courses.controller` allow-list + third `/learn` card + TEACHING_SURFACE row), all
+spec-locked. UI QA choice documented: no curriculum-map row until the desk has a live surface
+(Phase O-1). Regression: tsc exit 0; jest src/ui 28 suites / 206 tests green. Journal #101;
+PROFIT_PIVOT_II §4 ledger updated.

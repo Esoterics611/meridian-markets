@@ -7,11 +7,13 @@ import { LearnController } from './learn.controller';
 describe('LearnController', () => {
   const c = new LearnController();
 
-  it('GET /learn renders the hub: both courses, the learning path, tours, and the glossary', () => {
+  it('GET /learn renders the hub: all three courses, the learning path, tours, and the glossary', () => {
     const html = c.page();
     expect(html.startsWith('<!doctype html>')).toBe(true);
     expect(html).toContain('course — Market Making');
     expect(html).toContain('course — Statistical Arbitrage');
+    expect(html).toContain('course — Long-Horizon Options');
+    expect(html).toContain('/courses/options-desk/03-variance-risk-premium.html');
     expect(html).toContain('/courses/market-making/02-microstructure.html');
     expect(html).toContain('learning path');
     expect(html).toContain('/desk/mm?tour=1');

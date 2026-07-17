@@ -92,6 +92,14 @@ describe('CoursesController', () => {
     expect(a.body()).toContain('mkdocs build');
   });
 
+  it('allow-lists the options-desk course (third course, not-built page until the site is built)', () => {
+    const c = new TestCoursesController(root);
+    const a = resStub();
+    c.serve('options-desk', reqWith('index.html'), a.res);
+    expect(a.body()).toContain('course site not built');
+    expect(a.body()).toContain('cd courses/options-desk');
+  });
+
   it('blocks traversal and unknown courses (allow-list + inside-the-site-dir guard)', () => {
     const c = new TestCoursesController(root);
     expect(() => c.serve('market-making', reqWith('../../../CLAUDE.md'), resStub().res)).toThrow(NotFoundException);

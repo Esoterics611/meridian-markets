@@ -217,7 +217,22 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 
 ### 📌 SESSION LEDGER — the pickup point (update at the end of EVERY session)
 
-> **Last updated: 2026-07-16 pm (session 9 cont. — HL-native spot hedge + unattended M2
+> **Last updated: 2026-07-17 (session 10 — the Long-Horizon Options Desk designed + its training
+> program built; Journal #101. Design-only, NO runs — carry/ORV pickup below unchanged.)**
+> **[OPTIONS_DESK.md](OPTIONS_DESK.md) ADOPTED as the M3 extension**: the VRP satellite (E6) grows
+> into a third desk — 7 books (wheel · collared core · VRP ladder · calendars · skew verticals ·
+> tail budget · synthetic core, each with pre-registered metrics + collateral rules), a desk Greeks
+> budget + stress-as-sizing layer, and a **slow-strategy gate** (cycle premium-capture, block
+> bootstrap, construction-check specs, scored-paper-before-capital — DSR/20-trades is unreachable at
+> monthly cadence). Build = O-E1..O-E7 on existing seams; phases O-0..O-4 each evidence-gated;
+> **only O-0 (surface-tape collector + the #96 EWMA-RV spec) is startable, as a background
+> collector** — the operator 30d carry run + M2 board keep the accrual hours. Training program:
+> **`courses/options-desk/`** (17 files, 13 chapters), wired same-origin at `/courses/options-desk/`
+> + third card on `/learn` (spec-locked; tsc 0, 28/206 UI green). O7 note for E7: the synthetic-core
+> book routes freed capital to M1 — the allocator's fourth sleeve is now specified.
+>
+> *(Previous ledger, 2026-07-16 pm — session 9 cont.: HL-native spot hedge + unattended M2
+> board; Journal #100.)* **HYPE is deployable**: `HyperliquidSpotClient` (spotMeta → "@N"
 > board; Journal #100).** **HYPE is deployable**: `HyperliquidSpotClient` (spotMeta → "@N"
 > pair, cached; l2 via the perp parser), per-symbol spot-venue routing in the runner
 > (`CD_HL_SPOT_SYMBOLS=HYPE`), **HL spot fees verified from the live docs: taker 7 / maker

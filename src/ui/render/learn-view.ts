@@ -13,7 +13,7 @@ interface Chapter {
   title: string;
 }
 interface Course {
-  id: 'market-making' | 'stat-arb';
+  id: 'market-making' | 'stat-arb' | 'options-desk';
   title: string;
   blurb: string;
   chapters: Chapter[];
@@ -55,6 +55,27 @@ export const COURSES: Course[] = [
       { file: '08-more-strategies.html', title: '8 · More strategies' },
       { file: '09-testing-in-meridian.html', title: '9 · Testing in Meridian' },
       { file: '10-equities-stat-arb.html', title: '10 · Equities stat-arb' },
+    ],
+  },
+  {
+    id: 'options-desk',
+    title: 'Long-Horizon Options',
+    blurb: 'The third desk: income, insurance, and capital efficiency with options held for weeks to months — the variance risk premium this desk measured itself, and the sizing discipline that survives its fat tail.',
+    chapters: [
+      { file: '00-charter-and-sources.html', title: '0 · Charter & sources' },
+      { file: '01-introduction.html', title: '1 · Introduction' },
+      { file: '02-pricing-engine.html', title: '2 · The pricing engine' },
+      { file: '03-variance-risk-premium.html', title: '3 · The variance risk premium' },
+      { file: '04-the-wheel.html', title: '4 · Selling puts & the wheel' },
+      { file: '05-collars.html', title: '5 · Collars' },
+      { file: '06-delta-hedged-short-vol.html', title: '6 · Delta-hedged short vol' },
+      { file: '07-term-structure.html', title: '7 · The term structure' },
+      { file: '08-skew.html', title: '8 · Skew' },
+      { file: '09-tail-hedging.html', title: '9 · Tail hedging' },
+      { file: '10-synthetics.html', title: '10 · Capital efficiency' },
+      { file: '11-portfolio-construction.html', title: '11 · Portfolio construction' },
+      { file: '12-validating-slow-strategies.html', title: '12 · Validating slow strategies' },
+      { file: '13-the-meridian-options-desk.html', title: '13 · The Meridian options desk' },
     ],
   },
 ];
@@ -142,7 +163,7 @@ export function renderLearnPage(): string {
       or press <b>learn</b> in the top bar to switch on captions everywhere. Nothing here is financial
       advice and nothing here touches real money.
     </p>
-    <section class="learn-courses">${courseCard(COURSES[0])}${courseCard(COURSES[1])}</section>
+    <section class="learn-courses">${raw(COURSES.map((c) => courseCard(c).value).join(''))}</section>
     <section class="panel">
       <div class="panel-h">the learning path — concept → live surface → chapter</div>
       <table class="book-table">

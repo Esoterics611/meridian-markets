@@ -21,7 +21,7 @@ and give the old → new mapping. Adding is always fine.*
 | `/risk` | drawdown vs budget, exposure, verdicts, kill switches |
 | `/exec` | the fund view: two honest equity curves |
 | `/research` | the KEEP/CUT findings board + runbook |
-| `/courses/market-making/…`, `/courses/stat-arb/…` | the two mkdocs courses, same-origin (chapter files as in `courses/*/docs/`, `.html`) |
+| `/courses/market-making/…`, `/courses/stat-arb/…`, `/courses/options-desk/…` | the three mkdocs courses, same-origin (chapter files as in `courses/*/docs/`, `.html`) |
 
 ## Modes (query params any lesson link may carry)
 

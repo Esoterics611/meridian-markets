@@ -4450,7 +4450,53 @@ scan `hlSpot` deployability column; E7 allocator wiring (next build session).
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-16, #100)
+## 2026-07-17 — Entry #101 (the Long-Horizon Options Desk: strategy plan + full training program — design session, NO runs)
+
+**What this session was:** operator-directed design session — new strategies, long-term, options-based,
+explicitly not market-making; plus a complete training program around the new desk. No runs, no new
+measurements; every number below is either cited to an earlier entry or flagged as a design prior.
+
+**Built:**
+1. **[OPTIONS_DESK.md](OPTIONS_DESK.md)** — the Long-Horizon Options Desk (LHO), the third desk,
+   extending PROFIT_PIVOT_II M3/E6 from one daily-straddle book into a desk. Seven books, each with
+   entry/exit rules, collateral rule, and a pre-registered metric: **O1** wheel (cash-secured puts →
+   covered calls, VRP+skew gated), **O2** collared core (90d 10Δ put financed by 30d 25Δ calls — the
+   DD bound as a *construction check*), **O3** VRP ladder (7/14/30d 20Δ delta-hedged strangles,
+   thresholds rising in tenor; blocked on the #96 EWMA-RV fix), **O4** calendars (7d/30d ratio z from
+   our own tape — the R7 rule), **O5** skew harvest (credit verticals on the rich wing only, max-loss
+   sleeve accounting), **O6** tail budget (1%/yr cost cap, mechanical 4× monetization), **O7**
+   synthetic core (80Δ 90d calls; freed capital → M1 carry — entry gate is the measured inequality
+   between two of our own books). Portfolio layer: desk Greeks budget (|vega| ≤ 0.5% NAV/pt, delta ≤
+   5%, short-gamma cap) + **stress-as-sizing** grid ({±15,±30%}×{0.75,1.5,2}σ, worst cell ≤ 2% NAV,
+   long wings credited — the P11 pattern). **Slow-strategy gate replaces DSR/20-trades** (unreachable
+   at monthly cadence): cycle premium-capture accounting, distribution-first thresholds, weekly-block
+   bootstrap (#42 method generalized), construction checks as specs, scored-paper before capital
+   (the #96 ORV doctrine desk-wide), benchmark hurdles. Build map = O-E1..O-E7, almost all assembly
+   on existing seams (validated Greeks #12, DeribitClient, VrpBook v0, md-plant #98, mm_nav/events).
+   Phases O-0..O-4, each gated; **only O-0 (surface tape collector + EWMA spec) can start today**,
+   and it's a background collector — carry 30d + M2 board keep the accrual priority.
+2. **The training program: `courses/options-desk/`** — third mkdocs course, "Long-Horizon Options —
+   A Working Course": index + charter + 13 chapters + 2 appendices (~4.3k lines), same shape/voice as
+   the MM course (what-it-is / math sketch / when-it-breaks / code shape / sources). Grounded in our
+   own measurements with sample sizes stated (#12 +5.9/+3.7 pts; #42 86.3% of 117 windows; #96
+   estimator artifact + calibration doctrine); ch. 12 (validating slow strategies) is the desk's
+   epistemic core. Each chapter trains one live book; course and OPTIONS_DESK.md cite each other.
+3. **Teaching surface wiring:** `options-desk` allow-listed in `courses.controller.ts`, third course
+   card on `/learn` (learn-view `COURSES`), TEACHING_SURFACE.md row. UI QA note: no curriculum-map
+   row yet — the map's rows pair a chapter with a *live* surface, and the LHO desk has no live page
+   until Phase O-1; add the row when `desk='options'` exists. Site build stays the operator's flow
+   (`cd courses/options-desk && mkdocs build`; /learn shows the honest not-built page meanwhile).
+
+**Regression (§10.1):** `npx tsc --noEmit` exit 0; `npx jest src/ui` 28 suites / 206 tests green
+(+1 new allow-list spec; learn-hub spec extended to the third card). Docs-only elsewhere.
+
+**Decisions:** LHO adopted as *design*; no build hours vs the carry pickup (NEXT SESSION order
+unchanged, LHO added as item 7). The EWMA-RV fix (pickup item 3) is now shared infrastructure —
+it unblocks both the VRP satellite's long run AND LHO Phase O-1. Real-money stays PARKED.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-17, #101)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
@@ -4484,6 +4530,11 @@ fixes first, then the supervised long runs:
 5. **UI remaining:** U3.2–U3.6 per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md).
 6. **Regime desk benchmark track (P16):** one command since #95 —
    `bash scripts/launch-regime-track.sh`. Operator's run, not the priority.
+7. **Long-Horizon Options Desk (#101, design ADOPTED):** [OPTIONS_DESK.md](OPTIONS_DESK.md) + the
+   `courses/options-desk` training program. First (and only startable) build item = **Phase O-0**:
+   `iv-surface-collector` (hourly ATM/25Δ/10Δ IVs + quoted spreads + EWMA-RV via md-plant) + the
+   EWMA-RV spec — a background collector, NOT a competitor for carry's run hours. ≥14 tape-days
+   gates Phase O-1 (the VRP ladder on scored-paper). Note the EWMA fix (item 3) is shared with LHO.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
 while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays
