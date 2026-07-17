@@ -230,6 +230,13 @@ running book attached. §12 context discipline and §10.1 regression discipline 
 > **`courses/options-desk/`** (17 files, 13 chapters), wired same-origin at `/courses/options-desk/`
 > + third card on `/learn` (spec-locked; tsc 0, 28/206 UI green). O7 note for E7: the synthetic-core
 > book routes freed capital to M1 — the allocator's fourth sleeve is now specified.
+> **Later same session (#102): Phase O-0 LIVE** — `iv-surface-collector` built (EwmaRv = the #96
+> fix as a spec-locked module; smile-point selection with honesty tolerances; `DeribitClient`
+> bid/ask IVs), smoked, and **started supervised** (`launch-surface-collector.sh`, hourly rows ×
+> BTC/ETH × {7,14,30,90}d). Tape clock: ≥14d → 2026-07-31 gates O-1; ≥30d → 2026-08-16 gates
+> O4/O5 triggers. First read consistent with #12 (BTC vrp +3.2…+5.8; ETH ≤30d gate would sit
+> out). tsc 0; jest src/derivatives 6/47 green. **OPERATOR: keep the collector alive** (status:
+> `bash scripts/launch-surface-collector.sh status`).
 >
 > *(Previous ledger, 2026-07-16 pm — session 9 cont.: HL-native spot hedge + unattended M2
 > board; Journal #100.)* **HYPE is deployable**: `HyperliquidSpotClient` (spotMeta → "@N"

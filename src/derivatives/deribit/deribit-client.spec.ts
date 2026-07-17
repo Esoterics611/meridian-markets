@@ -35,12 +35,23 @@ describe('DeribitClient', () => {
     expect(chain[0]).toMatchObject({ type: 'CALL', strike: 79000, markIv: 0.5879, underlyingPrice: 70304.3 });
   });
 
-  it('reads a ticker with venue greeks', async () => {
+  it('reads a ticker with venue greeks and quoted bid/ask IVs (fractions)', async () => {
     const httpGet: DrbHttpGet = async () => ({
-      result: { mark_iv: 88.5, underlying_price: 70269.66, mark_price: 0.0749, greeks: { delta: 0.5, gamma: 0.00002, vega: 50, theta: -30, rho: 0.14 } },
+      result: { mark_iv: 88.5, bid_iv: 87.2, ask_iv: 90.1, underlying_price: 70269.66, mark_price: 0.0749, greeks: { delta: 0.5, gamma: 0.00002, vega: 50, theta: -30, rho: 0.14 } },
     });
     const t = await new DeribitClient({ httpGet }).ticker('BTC-2JUN26-65000-C');
     expect(t.markIv).toBeCloseTo(0.885, 4);
+    expect(t.bidIv).toBeCloseTo(0.872, 4);
+    expect(t.askIv).toBeCloseTo(0.901, 4);
     expect(t.greeks?.delta).toBe(0.5);
+  });
+
+  it('maps unquoted bid/ask IVs (Deribit reports 0 or omits) to null, never to a zero-vol quote', async () => {
+    const httpGet: DrbHttpGet = async () => ({
+      result: { mark_iv: 88.5, bid_iv: 0, underlying_price: 70269.66, mark_price: 0.0749 },
+    });
+    const t = await new DeribitClient({ httpGet }).ticker('BTC-2JUN26-65000-C');
+    expect(t.bidIv).toBeNull();
+    expect(t.askIv).toBeNull();
   });
 });

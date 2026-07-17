@@ -58,6 +58,8 @@ interface RawSummary {
 
 interface RawTicker {
   mark_iv?: number;
+  bid_iv?: number;
+  ask_iv?: number;
   underlying_price?: number;
   mark_price?: number;
   greeks?: { delta?: number; gamma?: number; vega?: number; theta?: number; rho?: number };
@@ -108,14 +110,26 @@ export class DeribitClient {
     return out;
   }
 
-  /** One instrument's mark IV + Deribit's own Greeks (for cross-checking the pricer). */
-  async ticker(instrumentName: string): Promise<{ markIv: number; underlyingPrice: number; markPriceCoin: number; greeks: RawTicker['greeks'] }> {
+  /** One instrument's mark IV + venue Greeks + quoted bid/ask IVs (for cross-checking
+   *  the pricer, and for the O-0 surface tape's quoted-spread-in-vol-points column).
+   *  Deribit reports bid_iv/ask_iv as 0 when the side is unquoted → null here, so a
+   *  missing quote can never masquerade as a zero-vol quote. */
+  async ticker(instrumentName: string): Promise<{
+    markIv: number;
+    bidIv: number | null;
+    askIv: number | null;
+    underlyingPrice: number;
+    markPriceCoin: number;
+    greeks: RawTicker['greeks'];
+  }> {
     const url = `${this.baseUrl}/api/v2/public/ticker?instrument_name=${encodeURIComponent(instrumentName)}`;
     const raw = await this.httpGet(url);
     const r = (raw as { result?: RawTicker })?.result;
     if (!r || r.mark_iv == null) throw new Error(`Deribit ticker: bad response for ${instrumentName}`);
     return {
       markIv: r.mark_iv / 100,
+      bidIv: r.bid_iv ? r.bid_iv / 100 : null,
+      askIv: r.ask_iv ? r.ask_iv / 100 : null,
       underlyingPrice: r.underlying_price ?? 0,
       markPriceCoin: r.mark_price ?? 0,
       greeks: r.greeks ?? {},

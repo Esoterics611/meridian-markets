@@ -4496,7 +4496,53 @@ it unblocks both the VRP satellite's long run AND LHO Phase O-1. Real-money stay
 
 ---
 
-## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-17, #101)
+## 2026-07-17 — Entry #102 (Phase O-0 LIVE: the IV-surface collector built, smoked, and started supervised — the LHO desk's tape clock is running)
+
+**What:** the only startable phase of the LHO plan (#101), built and turned on the same day.
+NO positions — pure measurement, one Deribit chain call + ~16 tickers + one HL klines call
+per underlying per hour.
+
+**Built (O-E1 + O-E2):**
+- `src/derivatives/surface/ewma-rv.ts` — **the #96 RV fix as shared infrastructure**: EWMA
+  estimator (λ=0.97/1h default, half-life ≈ 23 bars ≈ 1 day), no window edges. Spec-locked
+  (§10.1-2): the no-cliff property is asserted exactly (var·λ decay per bar after a shock;
+  a single outlier's swing bounded by (1−λ) of its own weight) — the artifact class that
+  opened #96's phantom trade is now unreproducible by construction.
+- `src/derivatives/surface/surface-snapshot.ts` — pure smile-point selection off the chain:
+  per tenor {7,14,30,90d} pick expiry within ±max(2d, 35%) (else NO row — a mislabeled
+  tenor poisons every later threshold), ATM strike nearest spot (straddle-average IV),
+  25Δ/10Δ put + 25Δ call by BS delta at each option's own mark IV, wing tolerance ±40% of
+  target delta (a 17Δ can never wear a 10Δ label). Spec on a synthetic skewed chain.
+- `DeribitClient.ticker` now exposes **bidIv/askIv** (0/missing → null, never a zero-vol
+  quote) — the quoted-spread-in-vol-points column every LHO cost claim depends on.
+- `scripts/iv-surface-collector.ts` (hourly loop, EWMA fed by completed HL 1h bars only,
+  interruptible sleep, JSONL monthly tape) + `scripts/launch-surface-collector.sh`
+  (supervised: setsid/nohup/pidfile, group-SIGINT stop — the #100 launcher lesson).
+  Tape dir `docs/research/options-surface/` git-ignored (~100KB/day).
+
+**Regression:** tsc exit 0; `jest src/derivatives` 6 suites / 47 tests green (2 new suites).
+
+**Live smoke (OSURF_ONCE=1), first honest read of the surface — a snapshot, not a finding:**
+- **BTC:** EWMA-RV 30.7; ATM IV 33.9→36.5 across the ladder ⇒ **vrp +3.2/+3.9/+4.0/+5.8 pts
+  at 7/14/30/90d** — same order as #12 (+5.9), and the term structure slopes up. rr25
+  +4.1…+5.5 (puts rich). **ATM quoted spreads 0.6–1.8 vol pts; 10Δ put wing 0.3pt at the
+  21d expiry** — wing costs look *tighter* than the plan's caveat feared at these tenors.
+- **ETH:** EWMA-RV 46.9 ⇒ **vrp −0.8…+0.1 at ≤30d** (gate would sit OUT, matching #96's
+  honest behavior), +2.8 at 90d. rr25 +3.6…+4.6.
+- **Grid note:** the "30d"/"90d" targets picked 21.1d/70.1d expiries (Deribit's
+  weekly/monthly/quarterly grid); `daysToExpiry` is recorded per row so nothing is
+  mislabeled — the O-1 thresholds will be set against *recorded* tenor, not target.
+
+**STARTED (supervised):** `bash scripts/launch-surface-collector.sh` → pid 3041348,
+05:07 UTC, first cycle on tape (8 SURFACE rows/cycle). **The Phase O-0 clock started
+2026-07-17: ≥14 days → 2026-07-31 gates Phase O-1 (ladder scored-paper); ≥30 days →
+2026-08-16 lets O4/O5 set triggers from the measured distribution.** Check:
+`bash scripts/launch-surface-collector.sh status`; rows:
+`jq -c 'select(.ev=="SURFACE")' docs/research/options-surface/surface-*.jsonl | wc -l`.
+
+---
+
+## ⏭️ NEXT SESSION — pick up here (kept current every session; last updated 2026-07-17, #102)
 
 **The active plan is [PROFIT_PIVOT_II.md](PROFIT_PIVOT_II.md) (ADOPTED 2026-07-02); its
 §4-ledger carries the authoritative per-phase state.** The #96 overnight trial set the order —
@@ -4530,11 +4576,14 @@ fixes first, then the supervised long runs:
 5. **UI remaining:** U3.2–U3.6 per [UI_REWRITE_PLAN_II.md](UI_REWRITE_PLAN_II.md).
 6. **Regime desk benchmark track (P16):** one command since #95 —
    `bash scripts/launch-regime-track.sh`. Operator's run, not the priority.
-7. **Long-Horizon Options Desk (#101, design ADOPTED):** [OPTIONS_DESK.md](OPTIONS_DESK.md) + the
-   `courses/options-desk` training program. First (and only startable) build item = **Phase O-0**:
-   `iv-surface-collector` (hourly ATM/25Δ/10Δ IVs + quoted spreads + EWMA-RV via md-plant) + the
-   EWMA-RV spec — a background collector, NOT a competitor for carry's run hours. ≥14 tape-days
-   gates Phase O-1 (the VRP ladder on scored-paper). Note the EWMA fix (item 3) is shared with LHO.
+7. **Long-Horizon Options Desk (#101 design → #102 O-0 LIVE):** the surface collector is
+   **RUNNING supervised since 2026-07-17 05:07 UTC** (`launch-surface-collector.sh status` to
+   check; keep it alive across restarts like the ORV collector). Gates: **≥14 tape-days
+   (2026-07-31) → build Phase O-1** (MultiLegBook + stress grid + the ladder on scored-paper);
+   ≥30 days (2026-08-16) → O4/O5 thresholds from the measured distribution. The EWMA-RV module
+   (`src/derivatives/surface/ewma-rv.ts`) is BUILT + spec-locked — **item 3's vrp-live rewiring
+   can now just import it.** First smoke read: BTC vrp +3.2…+5.8 across tenors, ETH ≤30d ≈ 0
+   (gate would sit out); ATM spreads 0.6–1.8 vol pts.
 
 **Operating rules in force (PROFIT_PIVOT_II §4):** winners get the hours; no infra-only sessions
 while zero books accrue; a failed pre-registered metric halts its build chain. **Real-money stays
